@@ -1,0 +1,1930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>D&D 2024 Character Builder</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1B2430; font-family: 'Crimson Text', serif; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useMemo, useRef, useEffect } = React;
+
+/* ============ PLAYER CODE (no login: your sheet is kept on this computer under your code) ============ */
+const CODE_KEY = "hba-player-code";
+const charKey = (code) => "hba-char-" + code;
+function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+function cleanCode(s) { return String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12); }
+function makeCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+function currentPlayerCode() {
+  let c = cleanCode(lsGet(CODE_KEY));
+  if (!c) { c = makeCode(); lsSet(CODE_KEY, c); }
+  return c;
+}
+function readStoredCharacter(code) {
+  try { const d = JSON.parse(lsGet(charKey(code)) || "null"); return d && d.format === "homebrew-academy-character" ? d : null; }
+  catch (e) { return null; }
+}
+
+/* ============ 2024 PHB DATA ============ */
+
+const PROF_BONUS = [2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,6,6,6,6];
+
+const CLASSES = {
+  Barbarian: { hitDie:12, primaryAbility:"Strength", saves:["Strength","Constitution"], armorProf:"Light, Medium, Shields", weaponProf:"Simple, Martial", skillChoices:2, skillList:["Animal Handling","Athletics","Intimidation","Nature","Perception","Survival"], subclassLevel:3, subclassName:"Primal Path",
+    features:{1:["Rage (2 uses, +2 dmg)","Unarmored Defense (10+Dex+Con)","Weapon Mastery (2 weapons)"],2:["Danger Sense","Reckless Attack"],3:["Primal Knowledge","Subclass feature"],4:["Ability Score Improvement"],5:["Extra Attack","Fast Movement (+10ft)"],6:["Subclass feature"],7:["Feral Instinct"],8:["Ability Score Improvement"],9:["Brutal Strike"],10:["Subclass feature"],11:["Relentless Rage"],12:["Ability Score Improvement"],13:["Improved Brutal Strike"],14:["Subclass feature"],15:["Persistent Rage"],16:["Ability Score Improvement"],17:["Improved Brutal Strike (2nd)"],18:["Indomitable Might"],19:["Epic Boon"],20:["Primal Champion (Str/Con +4, max 25)"]},
+    subclasses:{"Path of the Berserker":{3:["Frenzy"],6:["Mindless Rage"],10:["Retaliation"],14:["Intimidating Presence"]}}},
+  Bard: { hitDie:8, primaryAbility:"Charisma", saves:["Dexterity","Charisma"], armorProf:"Light", weaponProf:"Simple, Hand crossbows, Longswords, Rapiers, Shortswords", skillChoices:3, skillList:["Any three"], subclassLevel:3, subclassName:"Bard College", casterType:"full", spellAbility:"Charisma",
+    features:{1:["Bardic Inspiration (d6)","Spellcasting"],2:["Expertise (2 skills)","Jack of All Trades"],3:["Subclass feature"],4:["Ability Score Improvement"],5:["Bardic Inspiration (d8)","Font of Inspiration"],6:["Subclass feature"],7:["Countercharm"],8:["Ability Score Improvement"],9:["—"],10:["Bardic Inspiration (d10)","Expertise (2 more)","Magical Secrets"],11:["—"],12:["Ability Score Improvement"],13:["—"],14:["Subclass feature"],15:["Bardic Inspiration (d12)"],16:["Ability Score Improvement"],17:["—"],18:["Superior Inspiration"],19:["Epic Boon"],20:["Words of Creation"]},
+    subclasses:{"College of Lore":{3:["Bonus Proficiencies","Cutting Words"],6:["Magical Discoveries"],14:["Peerless Skill"]}}},
+  Cleric: { hitDie:8, primaryAbility:"Wisdom", saves:["Wisdom","Charisma"], armorProf:"Light, Medium, Shields", weaponProf:"Simple", skillChoices:2, skillList:["History","Insight","Medicine","Persuasion","Religion"], subclassLevel:1, subclassName:"Divine Domain", casterType:"full", spellAbility:"Wisdom",
+    features:{1:["Spellcasting","Divine Order","Subclass feature"],2:["Channel Divinity (1/rest)"],3:["—"],4:["Ability Score Improvement"],5:["—"],6:["Channel Divinity (2/rest)","Subclass feature"],7:["Blessed Strikes"],8:["Ability Score Improvement","Divine Strike"],9:["—"],10:["Divine Intervention"],11:["—"],12:["Ability Score Improvement"],13:["—"],14:["—"],15:["—"],16:["Ability Score Improvement"],17:["Channel Divinity (3/rest)","Subclass feature"],18:["—"],19:["Epic Boon"],20:["Greater Divine Intervention"]},
+    subclasses:{"Life Domain":{1:["Bonus Proficiency","Disciple of Life"],2:["Preserve Life (CD)"],6:["Blessed Healer"],8:["Divine Strike (radiant)"],17:["Supreme Healing"]}}},
+  Druid: { hitDie:8, primaryAbility:"Wisdom", saves:["Intelligence","Wisdom"], armorProf:"Light, Medium, Shields (non-metal)", weaponProf:"Clubs, Daggers, Darts, Javelins, Maces, Quarterstaffs, Scimitars, Sickles, Slings, Spears", skillChoices:2, skillList:["Arcana","Animal Handling","Insight","Medicine","Nature","Perception","Religion","Survival"], subclassLevel:2, subclassName:"Druid Circle", casterType:"full", spellAbility:"Wisdom",
+    features:{1:["Druidic","Spellcasting"],2:["Wild Shape","Wild Companion","Subclass feature"],3:["—"],4:["Ability Score Improvement","Wild Shape Improvement"],5:["—"],6:["Subclass feature"],7:["—"],8:["Ability Score Improvement","Wild Shape Improvement"],9:["—"],10:["Subclass feature"],11:["—"],12:["Ability Score Improvement"],13:["—"],14:["Subclass feature"],15:["—"],16:["Ability Score Improvement"],17:["—"],18:["Beast Spells"],19:["Epic Boon"],20:["Archdruid"]},
+    subclasses:{"Circle of the Land":{2:["Circle Spells","Land's Aid"],6:["Land's Stride"],10:["Nature's Ward"],14:["Nature's Sanctuary"]}}},
+  Fighter: { hitDie:10, primaryAbility:"Strength or Dexterity", saves:["Strength","Constitution"], armorProf:"Light, Medium, Heavy, Shields", weaponProf:"Simple, Martial", skillChoices:2, skillList:["Acrobatics","Animal Handling","Athletics","History","Insight","Intimidation","Perception","Survival"], subclassLevel:3, subclassName:"Fighter Subclass",
+    features:{1:["Fighting Style","Second Wind","Weapon Mastery (3 weapons)"],2:["Action Surge (1/rest)","Tactical Mind"],3:["Subclass feature"],4:["Ability Score Improvement"],5:["Extra Attack","Tactical Shift"],6:["Ability Score Improvement"],7:["Subclass feature"],8:["Ability Score Improvement"],9:["Indomitable (1/rest)"],10:["Subclass feature"],11:["Two Extra Attacks (3 total)"],12:["Ability Score Improvement"],13:["Indomitable (2/rest)","Studied Attacks"],14:["Ability Score Improvement"],15:["Subclass feature"],16:["Ability Score Improvement"],17:["Action Surge (2/rest)","Indomitable (3/rest)"],18:["Subclass feature"],19:["Epic Boon"],20:["Three Extra Attacks (4 total)"]},
+    subclasses:{"Champion":{3:["Improved Critical (19-20)","Remarkable Athlete"],7:["Additional Fighting Style"],10:["Heroic Warrior"],15:["Superior Critical (18-20)"],18:["Survivor"]}}},
+  Monk: { hitDie:8, primaryAbility:"Dexterity & Wisdom", saves:["Strength","Dexterity"], armorProf:"None", weaponProf:"Simple, Martial weapons with Light property", skillChoices:2, skillList:["Acrobatics","Athletics","History","Insight","Religion","Stealth"], subclassLevel:3, subclassName:"Monastic Tradition",
+    features:{1:["Martial Arts (d6)","Unarmored Defense","Unarmored Movement"],2:["Monk's Focus (Focus Points)","Uncanny Metabolism"],3:["Deflect Attacks","Subclass feature"],4:["Ability Score Improvement","Slow Fall"],5:["Extra Attack","Stunning Strike"],6:["Empowered Strikes","Subclass feature"],7:["Evasion"],8:["Ability Score Improvement"],9:["Acrobatic Movement"],10:["Heightened Focus","Self-Restoration"],11:["Subclass feature"],12:["Ability Score Improvement"],13:["Deflect Energy"],14:["Disciplined Survivor"],15:["Perfect Focus"],16:["Ability Score Improvement"],17:["Subclass feature"],18:["Superior Defense"],19:["Epic Boon"],20:["Body and Mind (Str/Dex/Wis +4, max 25)"]},
+    subclasses:{"Warrior of the Open Hand":{3:["Open Hand Technique"],6:["Wholeness of Body"],11:["Fleet Step"],17:["Quivering Palm"]}}},
+  Paladin: { hitDie:10, primaryAbility:"Strength & Charisma", saves:["Wisdom","Charisma"], armorProf:"Light, Medium, Heavy, Shields", weaponProf:"Simple, Martial", skillChoices:2, skillList:["Athletics","Insight","Intimidation","Medicine","Persuasion","Religion"], subclassLevel:3, subclassName:"Sacred Oath", casterType:"half", spellAbility:"Charisma",
+    features:{1:["Lay on Hands","Spellcasting","Weapon Mastery (2 weapons)"],2:["Fighting Style","Paladin's Smite"],3:["Channel Divinity","Subclass feature"],4:["Ability Score Improvement"],5:["Extra Attack","Faithful Steed"],6:["Aura of Protection"],7:["Subclass feature"],8:["Ability Score Improvement"],9:["Abjure Foes"],10:["Aura of Courage"],11:["Radiant Strikes"],12:["Ability Score Improvement"],13:["—"],14:["Restoring Touch"],15:["Subclass feature"],16:["Ability Score Improvement"],17:["—"],18:["Aura Expansion"],19:["Epic Boon"],20:["Subclass feature"]},
+    subclasses:{"Oath of Devotion":{3:["Sacred Weapon (CD)","Turn the Unholy (CD)"],7:["Aura of Devotion"],15:["Smite of Protection"],20:["Holy Nimbus"]}}},
+  Ranger: { hitDie:10, primaryAbility:"Dexterity & Wisdom", saves:["Strength","Dexterity"], armorProf:"Light, Medium, Shields", weaponProf:"Simple, Martial", skillChoices:3, skillList:["Animal Handling","Athletics","Insight","Investigation","Nature","Perception","Stealth","Survival"], subclassLevel:3, subclassName:"Ranger Archetype", casterType:"half", spellAbility:"Wisdom",
+    features:{1:["Favored Enemy","Spellcasting","Weapon Mastery (2 weapons)"],2:["Deft Explorer","Fighting Style"],3:["Subclass feature"],4:["Ability Score Improvement"],5:["Extra Attack"],6:["Roving"],7:["Subclass feature"],8:["Ability Score Improvement","Land's Stride"],9:["—"],10:["Tireless"],11:["Subclass feature"],12:["Ability Score Improvement"],13:["—"],14:["Nature's Veil"],15:["Subclass feature"],16:["Ability Score Improvement"],17:["—"],18:["Feral Senses"],19:["Epic Boon"],20:["Foe Slayer"]},
+    subclasses:{"Hunter":{3:["Hunter's Lore","Hunter's Prey"],7:["Defensive Tactics"],11:["Superior Hunter's Prey"],15:["Superior Hunter's Defense"]}}},
+  Rogue: { hitDie:8, primaryAbility:"Dexterity", saves:["Dexterity","Intelligence"], armorProf:"Light", weaponProf:"Simple, Martial weapons with Finesse or Light property", skillChoices:4, skillList:["Acrobatics","Athletics","Deception","Insight","Intimidation","Investigation","Perception","Performance","Persuasion","Sleight of Hand","Stealth"], subclassLevel:3, subclassName:"Roguish Archetype",
+    features:{1:["Expertise (2 skills)","Sneak Attack (1d6)","Thieves' Cant","Weapon Mastery (1 weapon)"],2:["Cunning Action"],3:["Subclass feature","Steady Aim"],4:["Ability Score Improvement"],5:["Cunning Strike","Uncanny Dodge"],6:["Expertise (2 more)"],7:["Evasion","Reliable Talent"],8:["Ability Score Improvement"],9:["Subclass feature"],10:["Ability Score Improvement"],11:["Improved Cunning Strike"],12:["Ability Score Improvement"],13:["Subclass feature"],14:["Devious Strikes"],15:["Slippery Mind"],16:["Ability Score Improvement"],17:["Subclass feature"],18:["Elusive"],19:["Epic Boon"],20:["Stroke of Luck"]},
+    sneakAttack:{1:"1d6",3:"2d6",5:"3d6",7:"4d6",9:"5d6",11:"6d6",13:"7d6",15:"8d6",17:"9d6",19:"10d6"},
+    subclasses:{"Thief":{3:["Fast Hands","Second-Story Work"],9:["Supreme Sneak"],13:["Use Magic Device"],17:["Thief's Reflexes"]}}},
+  Sorcerer: { hitDie:6, primaryAbility:"Charisma", saves:["Constitution","Charisma"], armorProf:"None", weaponProf:"Daggers, Darts, Slings, Quarterstaffs, Light crossbows", skillChoices:2, skillList:["Arcana","Deception","Insight","Intimidation","Persuasion","Religion"], subclassLevel:3, subclassName:"Sorcerous Origin", casterType:"full", spellAbility:"Charisma",
+    features:{1:["Innate Sorcery","Spellcasting"],2:["Font of Magic (Sorcery Points)"],3:["Metamagic (2 options)","Subclass feature"],4:["Ability Score Improvement"],5:["—"],6:["Subclass feature"],7:["Sorcery Incarnate"],8:["Ability Score Improvement"],9:["—"],10:["Metamagic (1 more)"],11:["—"],12:["Ability Score Improvement"],13:["—"],14:["Subclass feature"],15:["—"],16:["Ability Score Improvement"],17:["Metamagic (1 more)"],18:["Subclass feature"],19:["Epic Boon"],20:["Arcane Apotheosis"]},
+    subclasses:{"Draconic Sorcery":{3:["Draconic Resilience","Draconic Spells"],6:["Elemental Affinity"],14:["Dragon Wings"],18:["Climb"]}}},
+  Warlock: { hitDie:8, primaryAbility:"Charisma", saves:["Wisdom","Charisma"], armorProf:"Light", weaponProf:"Simple", skillChoices:2, skillList:["Arcana","Deception","History","Intimidation","Investigation","Nature","Religion"], subclassLevel:1, subclassName:"Otherworldly Patron", casterType:"pact", spellAbility:"Charisma",
+    features:{1:["Eldritch Invocations","Pact Magic","Subclass feature"],2:["Magical Cunning"],3:["Pact Boon"],4:["Ability Score Improvement"],5:["—"],6:["Subclass feature"],7:["—"],8:["Ability Score Improvement"],9:["Contact Patron"],10:["Subclass feature"],11:["Mystic Arcanum (6th)"],12:["Ability Score Improvement"],13:["Mystic Arcanum (7th)"],14:["Subclass feature"],15:["Mystic Arcanum (8th)"],16:["Ability Score Improvement"],17:["Mystic Arcanum (9th)"],18:["—"],19:["Epic Boon"],20:["Eldritch Master"]},
+    subclasses:{"Fiend Patron":{1:["Dark One's Blessing"],6:["Dark One's Own Luck"],10:["Fiendish Resilience"],14:["Hurl Through Hell"]}}},
+  Wizard: { hitDie:6, primaryAbility:"Intelligence", saves:["Intelligence","Wisdom"], armorProf:"None", weaponProf:"Daggers, Darts, Slings, Quarterstaffs, Light crossbows", skillChoices:3, skillList:["Arcana","History","Insight","Investigation","Medicine","Religion"], subclassLevel:3, subclassName:"Arcane Tradition", casterType:"full", spellAbility:"Intelligence",
+    features:{1:["Ritual Adept","Spellcasting","Arcane Recovery"],2:["Scholar"],3:["Subclass feature"],4:["Ability Score Improvement"],5:["Memorize Spell"],6:["Subclass feature"],7:["—"],8:["Ability Score Improvement"],9:["—"],10:["Subclass feature"],11:["—"],12:["Ability Score Improvement"],13:["—"],14:["Subclass feature"],15:["—"],16:["Ability Score Improvement"],17:["—"],18:["Spell Mastery"],19:["Epic Boon"],20:["Signature Spells"]},
+    subclasses:{"Evoker":{3:["Evocation Savant","Potent Cantrip"],6:["Sculpt Spells"],10:["Critical Hit Expansion"],14:["Overchannel"]}}}
+};
+
+const FULL_CASTER_SLOTS = {1:[2],2:[3],3:[4,2],4:[4,3],5:[4,3,2],6:[4,3,3],7:[4,3,3,1],8:[4,3,3,2],9:[4,3,3,3,1],10:[4,3,3,3,2],11:[4,3,3,3,2,1],12:[4,3,3,3,2,1],13:[4,3,3,3,2,1,1],14:[4,3,3,3,2,1,1],15:[4,3,3,3,2,1,1,1],16:[4,3,3,3,2,1,1,1],17:[4,3,3,3,2,1,1,1,1],18:[4,3,3,3,3,1,1,1,1],19:[4,3,3,3,3,2,1,1,1],20:[4,3,3,3,3,2,2,1,1]};
+const HALF_CASTER_SLOTS = {1:[],2:[2],3:[3],4:[3],5:[4,2],6:[4,2],7:[4,3],8:[4,3],9:[4,3,2],10:[4,3,2],11:[4,3,3],12:[4,3,3],13:[4,3,3,1],14:[4,3,3,1],15:[4,3,3,2],16:[4,3,3,2],17:[4,3,3,3,1],18:[4,3,3,3,1],19:[4,3,3,3,2],20:[4,3,3,3,2]};
+const PACT_SLOTS = {1:{slots:1,level:1},2:{slots:2,level:1},3:{slots:2,level:2},4:{slots:2,level:2},5:{slots:2,level:3},6:{slots:2,level:3},7:{slots:2,level:4},8:{slots:2,level:4},9:{slots:2,level:5},10:{slots:2,level:5},11:{slots:3,level:5},12:{slots:3,level:5},13:{slots:3,level:5},14:{slots:3,level:5},15:{slots:3,level:5},16:{slots:3,level:5},17:{slots:4,level:5},18:{slots:4,level:5},19:{slots:4,level:5},20:{slots:4,level:5}};
+const CANTRIPS_KNOWN = {Bard:{1:2,4:3,10:4},Cleric:{1:3,4:4,10:5},Druid:{1:2,4:3,10:4},Sorcerer:{1:4,4:5,10:6},Warlock:{1:2,4:3,10:4},Wizard:{1:3,4:4,10:5}};
+
+const SPECIES = {
+  Human: { speed:30, traits:["Resourceful: Gain Heroic Inspiration whenever you finish a Long Rest.","Skillful: Gain proficiency in one skill of your choice.","Versatile: Gain an Origin feat of your choice."] },
+  Dwarf: { speed:30, traits:["Darkvision (120 ft.)","Dwarven Resilience: Resistance to Poison; advantage on saves vs Poisoned.","Dwarven Toughness: HP max +1, and +1 again per level gained.","Stonecunning: Bonus action for Tremorsense 60ft (stone) for 10 min, limited uses."] },
+  Elf: { speed:30, traits:["Darkvision (60 ft.)","Elven Lineage: Choose Drow, High Elf, or Wood Elf.","Fey Ancestry: Advantage vs Charmed; can't be magically put to sleep.","Keen Senses: Proficiency in Insight, Perception, or Survival.","Trance: 4-hr meditation instead of sleep."] },
+  Gnome: { speed:30, traits:["Darkvision (60 ft.)","Gnomish Cunning: Advantage on Int/Wis/Cha saves vs magic.","Gnomish Lineage: Choose Forest Gnome (Minor Illusion) or Rock Gnome (Mending + Tinker)."] },
+  Goliath: { speed:35, traits:["Giant Ancestry: Choose a benefit, usable Prof Bonus times/Long Rest.","Large Form (5th level): Bonus action to become Large for 10 min, limited uses.","Powerful Build: Advantage to end Grappled; counts as one size larger for carry capacity."] },
+  Halfling: { speed:30, traits:["Brave: Advantage on saves vs Frightened.","Halfling Nimbleness: Move through space of Large+ creatures.","Luck: Reroll a 1 on d20 (attack/check/save), must use new roll.","Naturally Stealthy: Can Hide behind a creature one size larger."] },
+  Tiefling: { speed:30, traits:["Darkvision (60 ft.)","Fiendish Legacy: Choose Abyssal, Chthonic, or Infernal — resistance + bonus spells."] },
+  Dragonborn: { speed:30, traits:["Draconic Ancestry: Choose damage type (Acid/Cold/Fire/Lightning/Poison).","Breath Weapon: Action, replaces an attack; DC 8+Con+Prof; 2d10 dmg (3d10 at 5th, 4d10 at 11th, 5d10 at 16th); Prof Bonus uses/Long Rest.","Damage Resistance: Resistance to your Draconic Ancestry's damage type.","Darkvision (60 ft.)"] },
+  Orc: { speed:30, traits:["Adrenaline Rush: Bonus action to Dash + temp HP = Prof Bonus; Prof Bonus uses, regains on Short or Long Rest.","Darkvision (120 ft.)","Relentless Endurance: Drop to 1 HP instead of 0, once per Long Rest."] }
+};
+
+const BACKGROUNDS = {
+  Acolyte:{abilityScores:["Intelligence","Wisdom","Charisma"],feat:"Magic Initiate (Cleric)",skills:["Insight","Religion"],tool:"Calligrapher's Supplies"},
+  Criminal:{abilityScores:["Dexterity","Constitution","Intelligence"],feat:"Alert",skills:["Sleight of Hand","Stealth"],tool:"Thieves' Tools"},
+  Sage:{abilityScores:["Constitution","Intelligence","Wisdom"],feat:"Magic Initiate (Wizard)",skills:["Arcana","History"],tool:"Calligrapher's Supplies"},
+  Soldier:{abilityScores:["Strength","Dexterity","Constitution"],feat:"Savage Attacker",skills:["Athletics","Intimidation"],tool:"One Gaming Set"}
+};
+
+const ORIGIN_FEATS = {
+  Alert:"Initiative: add Prof Bonus. Swap initiative with a willing ally. Can't be surprised while conscious.",
+  "Savage Attacker":"Once per turn, reroll weapon damage dice and use either total.",
+  "Magic Initiate (Cleric)":"Learn 2 Cleric cantrips + 1 1st-level Cleric spell (1/Long Rest free, or via slots).",
+  "Magic Initiate (Wizard)":"Learn 2 Wizard cantrips + 1 1st-level Wizard spell (1/Long Rest free, or via slots).",
+};
+
+const POINT_BUY_COSTS = {8:0,9:1,10:2,11:3,12:4,13:5,14:7,15:9};
+const SKILL_ABILITY = {
+  Athletics:"Strength", Acrobatics:"Dexterity","Sleight of Hand":"Dexterity",Stealth:"Dexterity",
+  Arcana:"Intelligence",History:"Intelligence",Investigation:"Intelligence",Nature:"Intelligence",Religion:"Intelligence",
+  "Animal Handling":"Wisdom",Insight:"Wisdom",Medicine:"Wisdom",Perception:"Wisdom",Survival:"Wisdom",
+  Deception:"Charisma",Intimidation:"Charisma",Performance:"Charisma",Persuasion:"Charisma"
+};
+const ALL_SKILLS = Object.keys(SKILL_ABILITY);
+const ABILITIES = ["Strength","Dexterity","Constitution","Intelligence","Wisdom","Charisma"];
+const ABBR = {Strength:"STR",Dexterity:"DEX",Constitution:"CON",Intelligence:"INT",Wisdom:"WIS",Charisma:"CHA"};
+
+/* ============ DMG MAGIC ITEMS ============ */
+const RARITY_ORDER = ["Common","Uncommon","Rare","Very Rare","Legendary","Artifact"];
+const RARITY_COLORS = {Common:"#aaa",Uncommon:"#4caf50",Rare:"#2196f3","Very Rare":"#9c27b0",Legendary:"#ff9800",Artifact:"#f44336"};
+const MAGIC_ITEMS = [
+  {name:"Adamantine Armor",rarity:"Uncommon",type:"Armor (medium or heavy, not hide)",attunement:false,description:"This suit of armor is reinforced with adamantine, one of the hardest substances in existence. While you're wearing it, any critical hit against you becomes a normal hit."},
+  {name:"Ammunition +1",rarity:"Uncommon",type:"Weapon (any ammunition)",attunement:false,description:"You have a +1 bonus to attack and damage rolls made with this piece of magic ammunition. Once it hits a target, the ammunition is no longer magical."},
+  {name:"Amulet of Proof against Detection and Location",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing this amulet, you are hidden from divination magic. You can't be targeted by such magic or perceived through magical scrying sensors."},
+  {name:"Bag of Holding",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"This bag has an interior space considerably larger than its outside dimensions, roughly 2 feet in diameter at the mouth and 4 feet deep. The bag can hold up to 500 pounds, not exceeding a volume of 64 cubic feet. Retrieving an item from the bag requires an action."},
+  {name:"Boots of Elvenkind",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While you wear these boots, your steps make no sound, regardless of the surface you are moving across. You also have advantage on Dexterity (Stealth) checks that rely on moving silently."},
+  {name:"Boots of Striding and Springing",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While you wear these boots, your walking speed becomes 30 feet, unless your walking speed is higher, and your speed isn't reduced if you are encumbered or wearing heavy armor. In addition, you can jump three times the normal distance."},
+  {name:"Boots of the Winterlands",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"These furred boots are snug and feel quite warm. While you wear them, you gain the following benefits: You have resistance to cold damage. You ignore difficult terrain created by ice or snow. You can tolerate temperatures as low as −50 degrees Fahrenheit without any additional protection."},
+  {name:"Broom of Flying",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"This wooden broom, which weighs 3 pounds, functions like a mundane broom until you stand astride it and speak its command word. It then hovers beneath you and can be ridden in the air. It has a flying speed of 50 feet. It can carry up to 400 pounds, but its flying speed becomes 30 feet while carrying over 200 pounds."},
+  {name:"Circlet of Blasting",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While wearing this circlet, you can use an action to cast the Scorching Ray spell with it. When you make the spell's attacks, you do so with an attack bonus of +5. The circlet can't be used this way again until the next dawn."},
+  {name:"Cloak of Elvenkind",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While you wear this cloak with its hood up, Wisdom (Perception) checks made to see you have disadvantage, and you have advantage on Dexterity (Stealth) checks made to hide, as the cloak's color shifts to camouflage you."},
+  {name:"Cloak of Protection",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"You gain a +1 bonus to AC and saving throws while you wear this cloak."},
+  {name:"Cloak of the Manta Ray",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While wearing this cloak with its hood up, you can breathe underwater, and you have a swimming speed of 60 feet. Pulling the hood up or down requires an action."},
+  {name:"Decanter of Endless Water",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"This stoppered flask sloshes when shaken, as if it contains water. The decanter weighs 2 pounds. You can use an action to remove the stopper and speak one of three command words, whereupon an amount of fresh water or salt water pours out of the flask."},
+  {name:"Eyes of the Eagle",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"These crystal lenses fit over the eyes. While wearing them, you have advantage on Wisdom (Perception) checks that rely on sight. In conditions of clear visibility, you can make out details of even extremely distant creatures and objects as small as 2 feet across."},
+  {name:"Gauntlets of Ogre Power",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"Your Strength score is 19 while you wear these gauntlets. They have no effect on you if your Strength is already 19 or higher."},
+  {name:"Gloves of Missile Snaring",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"These gloves seem to almost meld into your hands when you don them. When a ranged weapon attack hits you while you're wearing them, you can use your reaction to reduce the damage by 1d10 + your Dexterity modifier, provided that you have a free hand. If you reduce the damage to 0, you can catch the missile if it is small enough for you to hold in that hand."},
+  {name:"Gloves of Swimming and Climbing",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing these gloves, climbing and swimming don't cost you extra movement, and you gain a +5 bonus to Strength (Athletics) checks made to climb or swim."},
+  {name:"Goggles of Night",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While wearing these dark lenses, you have darkvision out to a range of 60 feet. If you already have darkvision, wearing the goggles increases its range by 60 feet."},
+  {name:"Hat of Disguise",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing this hat, you can use an action to cast the Disguise Self spell from it at will. The spell ends if the hat is removed."},
+  {name:"Headband of Intellect",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"Your Intelligence score is 19 while you wear this headband. It has no effect on you if your Intelligence is already 19 or higher."},
+  {name:"Helm of Comprehending Languages",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While wearing this helm, you can use an action to cast the Comprehend Languages spell from it at will."},
+  {name:"Helm of Telepathy",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing this helm, you can use an action to cast the Detect Thoughts spell (DC 13) from it. As long as you concentrate on the spell, you can use a bonus action to send a telepathic message to a creature you are focused on."},
+  {name:"Immovable Rod",rarity:"Uncommon",type:"Rod",attunement:false,description:"This flat iron rod has a button on one end. You can use an action to press the button, which causes the rod to become magically fixed in place. Until you or another creature uses an action to push the button again, the rod doesn't move, even if it is defying gravity. The rod can hold up to 8,000 pounds of weight."},
+  {name:"Javelin of Lightning",rarity:"Uncommon",type:"Weapon (javelin)",attunement:false,description:"This javelin is a magic weapon. When you hurl it and speak its command word, it transforms into a bolt of lightning, forming a line 5 feet wide that extends out from you to a target within 120 feet of you. Each creature in the line excluding you and the target must make a DC 13 Dexterity saving throw, taking 4d6 lightning damage on a failed save, and half as much damage on a successful one. The javelin's property can't be used again until the next dawn."},
+  {name:"Lantern of Revealing",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While lit, this hooded lantern burns for 6 hours on 1 pint of oil, shedding bright light in a 30-foot radius and dim light for an additional 30 feet. Invisible creatures and objects are visible as long as they are in the lantern's bright light."},
+  {name:"Mithral Armor",rarity:"Uncommon",type:"Armor (medium or heavy, not hide)",attunement:false,description:"Mithral is a light, flexible metal. If the armor normally imposes disadvantage on Dexterity (Stealth) checks or has a Strength requirement, the mithral version of the armor doesn't."},
+  {name:"Necklace of Adaptation",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing this necklace, you can breathe normally in any environment, and you have advantage on saving throws made against harmful gases and vapors (such as Cloudkill and Stinking Cloud effects, inhaled poisons, and the breath weapon of some dragons)."},
+  {name:"Pearl of Power",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While this pearl is on your person, you can use an action to speak its command word and regain one expended spell slot of up to 3rd level. Once you have used the pearl, it can't be used again until the next dawn."},
+  {name:"Periapt of Health",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"You are immune to contracting any disease while you wear this pendant. If you are already infected with a disease, the effects of the disease are suppressed while you wear the pendant."},
+  {name:"Philter of Love",rarity:"Uncommon",type:"Potion",attunement:false,description:"The next time you see a creature within 10 minutes after drinking this philter, you become charmed by that creature for 1 hour. If the creature is of a species and gender you are normally attracted to, you regard it as your true love while you are charmed."},
+  {name:"Pipes of Haunting",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"You must be proficient with wind instruments to use these pipes. They have 3 charges. You can use an action to play them and expend 1 charge to create an eerie, spellbinding tune. Each creature within 30 feet of you that hears you play must succeed on a DC 13 Wisdom saving throw or become frightened of you for 1 minute. The pipes regain 1d3 expended charges daily at dawn."},
+  {name:"Pipes of the Sewers",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"You must be proficient with wind instruments to use these pipes. While you are attuned to the pipes, ordinary rats and giant rats are indifferent toward you. The pipes have 3 charges and regain 1d3 expended charges daily at dawn. If you play the pipes as an action, you can use a bonus action to expend 1 to 3 charges, calling forth one swarm of rats with each expended charge."},
+  {name:"Potion of Climbing",rarity:"Uncommon",type:"Potion",attunement:false,description:"When you drink this potion, you gain a climbing speed equal to your walking speed for 1 hour. During this time, you have advantage on Strength (Athletics) checks you make to climb."},
+  {name:"Potion of Growth",rarity:"Uncommon",type:"Potion",attunement:false,description:"When you drink this potion, you gain the 'enlarge' effect of the Enlarge/Reduce spell for 1d4 hours (no concentration required)."},
+  {name:"Potion of Water Breathing",rarity:"Uncommon",type:"Potion",attunement:false,description:"You can breathe underwater for 1 hour after drinking this potion. Its cloudy green fluid smells of the sea and has a jellyfish-like bubble floating in it."},
+  {name:"Ring of Jumping",rarity:"Uncommon",type:"Ring",attunement:true,description:"While wearing this ring, you can cast the Jump spell from it as a bonus action at will, but can target only yourself when you do so."},
+  {name:"Ring of Mind Shielding",rarity:"Uncommon",type:"Ring",attunement:true,description:"While wearing this ring, you are immune to magic that allows other creatures to read your thoughts, determine whether you are lying, know your alignment, or know your creature type."},
+  {name:"Ring of Swimming",rarity:"Uncommon",type:"Ring",attunement:false,description:"You have a swimming speed of 40 feet while wearing this ring."},
+  {name:"Ring of Warmth",rarity:"Uncommon",type:"Ring",attunement:true,description:"While wearing this ring, you have resistance to cold damage. In addition, you and everything you wear and carry are unharmed by temperatures as low as −50 degrees Fahrenheit."},
+  {name:"Ring of Water Walking",rarity:"Uncommon",type:"Ring",attunement:false,description:"While wearing this ring, you can stand on and move across any liquid surface as if it were solid ground."},
+  {name:"Robe of Useful Items",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"This robe has cloth patches of various shapes and colors covering it. While wearing the robe, you can use an action to detach one of the patches, causing it to become the object or creature it represents. The robe comes with items determined by the DM."},
+  {name:"Slippers of Spider Climbing",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While you wear these light shoes, you can move up, down, and across vertical surfaces and upside down along ceilings, while leaving your hands free. You have a climbing speed equal to your walking speed."},
+  {name:"Spell Scroll (2nd Level)",rarity:"Uncommon",type:"Scroll",attunement:false,description:"A spell scroll bearing a 2nd-level spell. A spellcaster with the spell on their list can cast it using the scroll. The spell is cast at 2nd level."},
+  {name:"Spell Scroll (3rd Level)",rarity:"Uncommon",type:"Scroll",attunement:false,description:"A spell scroll bearing a 3rd-level spell. A spellcaster with the spell on their list can cast it. Spell is cast at 3rd level."},
+  {name:"Staff of the Python",rarity:"Uncommon",type:"Staff",attunement:true,description:"You can use an action to speak this staff's command word and throw the staff on the ground within 10 feet of you. The staff becomes a giant constrictor snake under your control and acts on its own initiative count. The staff can't be used this way again until the next dawn."},
+  {name:"Wand of Magic Detection",rarity:"Uncommon",type:"Wand",attunement:false,description:"This wand has 3 charges. While holding it, you can expend 1 charge as an action to cast the Detect Magic spell from it. The wand regains 1d3 expended charges daily at dawn."},
+  {name:"Wand of Magic Missiles",rarity:"Uncommon",type:"Wand",attunement:false,description:"This wand has 7 charges. While holding it, you can use an action to expend 1 or more of its charges to cast the Magic Missile spell from it. For 1 charge, you cast the 1st-level version of the spell. You can increase the spell slot level by one for each additional charge you expend. The wand regains 1d6+1 expended charges daily at dawn."},
+  {name:"Wand of Secrets",rarity:"Uncommon",type:"Wand",attunement:false,description:"The wand has 3 charges. While holding it, you can use an action to expend 1 of its charges, and if a secret door or trap is within 30 feet of you, the wand pulses and points at the one nearest to you. The wand regains 1d3 expended charges daily at dawn."},
+  {name:"Wand of Web",rarity:"Uncommon",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action to expend 1 of its charges to cast the Web spell (save DC 15) from it. The wand regains 1d6+1 expended charges daily at dawn."},
+  {name:"Wand of the War Mage +1",rarity:"Uncommon",type:"Wand",attunement:true,description:"While you are holding this wand, you gain a +1 bonus to spell attack rolls. In addition, you ignore half cover when making a spell attack."},
+  {name:"Weapon +1",rarity:"Uncommon",type:"Weapon (any)",attunement:false,description:"You have a +1 bonus to attack and damage rolls made with this magic weapon."},
+  {name:"Wind Fan",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While holding this fan, you can use an action to cast the Gust of Wind spell (save DC 13) from it. Once used, the fan shouldn't be used again until the next dawn."},
+  {name:"Winged Boots",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While you wear these boots, you have a flying speed equal to your walking speed. You can use the boots to fly for up to 4 hours, all at once or in several shorter flights. If you are flying when the duration expires, you descend at a rate of 30 feet per round until you land."},
+  {name:"Wings of Flying",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing this cloak, you can use an action to speak its command word. This turns the cloak into a pair of bat wings or bird wings on your back for 1 hour or until you repeat the command word as an action. The wings give you a flying speed of 60 feet. When they disappear, you can't use them again for 1d12 hours."},
+  {name:"Ammunition +2",rarity:"Rare",type:"Weapon (any ammunition)",attunement:false,description:"You have a +2 bonus to attack and damage rolls made with this piece of magic ammunition."},
+  {name:"Amulet of Health",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"Your Constitution score is 19 while you wear this amulet. It has no effect on you if your Constitution is already 19 or higher."},
+  {name:"Animated Shield",rarity:"Rare",type:"Armor (shield)",attunement:true,description:"While holding this shield, you can speak its command word as a bonus action to cause it to animate. The shield leaps into the air and hovers in your space to protect you as if you were wielding it, leaving your hands free. The shield remains animated for 1 minute."},
+  {name:"Armor +1",rarity:"Rare",type:"Armor (light, medium, or heavy)",attunement:false,description:"You have a +1 bonus to AC while wearing this armor."},
+  {name:"Belt of Dwarvenkind",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While wearing this belt, your Constitution score increases by 2, to a maximum of 20. You have advantage on Charisma (Persuasion) checks made to interact with dwarves. You also have a 50% chance of growing a full beard if you're capable of growing one."},
+  {name:"Belt of Giant Strength (Hill)",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While wearing this belt, your Strength score changes to 21. The item has no effect on you if your Strength without the belt is equal to or greater than the belt's score."},
+  {name:"Berserker Axe",rarity:"Rare",type:"Weapon (any axe)",attunement:true,description:"You gain a +1 bonus to attack and damage rolls made with this magic weapon. While attuned, your hit point maximum increases by 1 for each level you have attained. Curse: You are unwilling to part with the axe, becoming aggressive toward those who try to remove it."},
+  {name:"Boots of Levitation",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While you wear these boots, you can use an action to cast the Levitate spell on yourself at will."},
+  {name:"Boots of Speed",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While you wear these boots, you can use a bonus action and click the boots' heels together to double your walking speed. In addition, difficult terrain doesn't cost you extra movement. You can end the effect using a bonus action. Once used, this property of the boots can't be used again until the next dawn."},
+  {name:"Bowl of Commanding Water Elementals",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"While this bowl is filled with water, you can use an action to speak the bowl's command word and summon a water elemental. The bowl can't be used this way again until the next dawn."},
+  {name:"Brazier of Commanding Fire Elementals",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"While a fire burns in this brass brazier, you can use an action to speak the brazier's command word and summon a fire elemental. The brazier can't be used this way again until the next dawn."},
+  {name:"Cape of the Mountebank",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"This cape smells faintly of brimstone. While wearing it, you can use it to cast the Dimension Door spell as an action. This property of the cape can't be used again until the next dawn. When you disappear, you leave behind a cloud of smoke, and you appear in a similar cloud of smoke at your destination."},
+  {name:"Censer of Controlling Air Elementals",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"While incense is burning in this censer, you can use an action to speak the censer's command word and summon an air elemental. The censer can't be used this way again until the next dawn."},
+  {name:"Cloak of Displacement",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While you wear this cloak, it projects an illusion that makes you appear to be standing in a place near your actual location, causing any creature to have disadvantage on attack rolls against you. If you take damage, the property ceases to function until the start of your next turn."},
+  {name:"Cloak of the Bat",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While wearing this cloak, you have advantage on Dexterity (Stealth) checks. In an area of dim light or darkness, you can grip the edges of the cloak with both hands and use it to fly at a speed of 40 feet."},
+  {name:"Cube of Force",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"This cube is about an inch across. Each face has a distinct marking on it that can be pressed. The cube starts with 36 charges, and it regains 1d20 expended charges daily at dawn. You can use an action to press one of the cube's faces, expending a number of charges based on the chosen face."},
+  {name:"Instant Fortress",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"You can use an action to place this 1-inch metal cube on the ground and speak its command word. The cube rapidly grows into a square tower, 20 feet on a side and 30 feet high, that remains until you use an action to speak the command word that dismisses it."},
+  {name:"Dagger of Venom",rarity:"Rare",type:"Weapon (dagger)",attunement:false,description:"You gain a +1 bonus to attack and damage rolls made with this magic weapon. You can use an action to cause thick, black poison to coat the blade. The poison remains for 1 minute or until an attack using this weapon hits a creature. That creature must succeed on a DC 15 Constitution saving throw or take 2d10 poison damage and become poisoned for 1 minute."},
+  {name:"Dimensional Shackles",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"You can use an action to place these shackles on an incapacitated creature. The shackles adjust to fit a creature of Small to Large size. The shackles prevent a creature bound by them from using any method of extradimensional movement, including teleportation or travel to a different plane of existence."},
+  {name:"Dragon Slayer",rarity:"Rare",type:"Weapon (any sword)",attunement:false,description:"You gain a +1 bonus to attack and damage rolls made with this magic weapon. When you hit a dragon with this weapon, the dragon takes an extra 3d6 damage of the weapon's type."},
+  {name:"Elven Chain",rarity:"Rare",type:"Armor (chain shirt)",attunement:false,description:"You gain a +1 bonus to AC while you wear this armor. You are considered proficient with this armor even if you lack proficiency with medium armor."},
+  {name:"Flame Tongue",rarity:"Rare",type:"Weapon (any sword)",attunement:true,description:"You can use a bonus action to speak this magic sword's command word, causing flames to erupt from the blade. These flames shed bright light in a 40-foot radius and dim light for an additional 40 feet. While the sword is ablaze, it deals an extra 2d6 fire damage to any target it hits."},
+  {name:"Gem of Seeing",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"This gem has 3 charges. As an action, you can speak the gem's command word and expend 1 charge. For the next 10 minutes, you have truesight out to 120 feet when you peer through the gem. The gem regains 1d3 expended charges daily at dawn."},
+  {name:"Giant Slayer",rarity:"Rare",type:"Weapon (any axe or sword)",attunement:false,description:"You gain a +1 bonus to attack and damage rolls made with this magic weapon. When you hit a giant with it, the giant takes an extra 2d6 damage of the weapon's type and must succeed on a DC 15 Strength saving throw or fall prone."},
+  {name:"Glamoured Studded Leather",rarity:"Rare",type:"Armor (studded leather)",attunement:false,description:"While wearing this armor, you gain a +1 bonus to AC. You can also use a bonus action to speak the armor's command word and cause the armor to assume the appearance of a normal set of clothing or some other kind of armor."},
+  {name:"Helm of Teleportation",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"This helm has 3 charges. While wearing it, you can use an action and expend 1 charge to cast the Teleport spell from it. The helm regains 1d3 expended charges daily at dawn."},
+  {name:"Horn of Blasting",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"You can use an action to speak the horn's command word and then blow the horn, which emits a thunderous blast in a 30-foot cone that is audible 600 feet away. Each creature in the cone must make a DC 15 Constitution saving throw. On a failed save, a creature takes 5d6 thunder damage and is deafened for 1 minute."},
+  {name:"Horn of Valhalla (Silver)",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"You can use an action to blow this horn. In response, warrior spirits from Valhalla appear within 60 feet of you. They use the statistics of a berserker. They return to Valhalla after 1 hour or when they drop to 0 hit points. Once you use the horn, it can't be used again until 7 days have passed."},
+  {name:"Ioun Stone (Awareness)",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While this dark lavender ellipsoid orbits your head, you can't be surprised and have advantage on initiative rolls."},
+  {name:"Ioun Stone (Protection)",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While this dusty rose prism orbits your head, you gain a +1 bonus to AC."},
+  {name:"Ioun Stone (Reserve)",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While this vibrant purple prism orbits your head, you can cast spells into it and use its power to restore expended spell slots."},
+  {name:"Iron Bands of Binding",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"This rusty iron sphere measures 3 inches in diameter and weighs 1 pound. You can use an action to speak the command word and throw the sphere at a Huge or smaller creature you can see within 60 feet of you. Make a ranged attack roll with an attack bonus of +7. On a hit, the target is restrained until you use a bonus action to speak the command word again to release it."},
+  {name:"Mantle of Spell Resistance",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"You have advantage on saving throws against spells while you wear this cloak."},
+  {name:"Necklace of Fireballs",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"This necklace has 1d6+3 beads hanging from it. You can use an action to detach a bead and throw it up to 60 feet away. When it reaches the end of its trajectory, the bead detonates as a 3rd-level Fireball spell (save DC 15)."},
+  {name:"Periapt of Proof against Poison",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"This delicate silver chain has a brilliant-cut black gem pendant. While you wear it, poisons have no effect on you. You are immune to the poisoned condition and have immunity to poison damage."},
+  {name:"Ring of Animal Influence",rarity:"Rare",type:"Ring",attunement:false,description:"This ring has 3 charges, and it regains 1d3 expended charges daily at dawn. While wearing the ring, you can use an action to expend 1 of its charges to cast one of the following spells: Animal Friendship (DC 13), Fear (affecting only beasts with an Intelligence of 3 or lower; DC 13), or Speak with Animals."},
+  {name:"Ring of Evasion",rarity:"Rare",type:"Ring",attunement:true,description:"This ring has 3 charges, and it regains 1d3 expended charges daily at dawn. When you fail a Dexterity saving throw, you can use your reaction to expend 1 of the ring's charges to succeed on that saving throw instead."},
+  {name:"Ring of Feather Falling",rarity:"Rare",type:"Ring",attunement:true,description:"When you fall while wearing this ring, you descend 60 feet per round and take no damage from falling."},
+  {name:"Ring of Free Action",rarity:"Rare",type:"Ring",attunement:true,description:"While you wear this ring, difficult terrain doesn't cost you extra movement. In addition, magic can neither reduce your speed nor cause you to be paralyzed or restrained."},
+  {name:"Ring of Protection",rarity:"Rare",type:"Ring",attunement:true,description:"You gain a +1 bonus to AC and saving throws while wearing this ring."},
+  {name:"Ring of Spell Storing",rarity:"Rare",type:"Ring",attunement:true,description:"This ring stores spells cast into it, holding them until the attuned wearer uses them. The ring can store up to 5 levels worth of spells at a time."},
+  {name:"Ring of the Ram",rarity:"Rare",type:"Ring",attunement:true,description:"This ring has 3 charges, and it regains 1d3 expended charges daily at dawn. While wearing the ring, you can use an action to expend 1 to 3 of its charges to attack one creature you can see within 60 feet of you with a spectral ram's head (+7 attack bonus, 2d10 force damage per charge + pushed 5 feet)."},
+  {name:"Rope of Entanglement",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"This rope is 30 feet long and weighs 3 pounds. If you hold one end of the rope and use an action to speak its command word, the other end darts forward to entangle a creature you can see within 20 feet of you. The target must succeed on a DC 15 Dexterity saving throw or become restrained."},
+  {name:"Shield +1",rarity:"Rare",type:"Armor (shield)",attunement:false,description:"While holding this shield, you have a +1 bonus to AC in addition to the shield's normal bonus to AC."},
+  {name:"Staff of Charming",rarity:"Rare",type:"Staff",attunement:true,description:"While holding this staff, you can use an action to expend 1 of its 10 charges to cast Charm Person, Command, or Comprehend Languages from it using your spell save DC. The staff can also be used as a magic quarterstaff. The staff regains 1d8+2 expended charges daily at dawn."},
+  {name:"Staff of Healing",rarity:"Rare",type:"Staff",attunement:true,description:"This staff has 10 charges. While holding it, you can use an action to expend 1 or more of its charges to cast one of the following spells from it, using your spell save DC: Cure Wounds (1 charge/level, up to 4th level), Lesser Restoration (2 charges), or Mass Cure Wounds (5 charges)."},
+  {name:"Staff of Swarming Insects",rarity:"Rare",type:"Staff",attunement:true,description:"This staff has 10 charges. While holding the staff, you can use an action to expend some of its charges to cast Giant Insect (4 charges) or Insect Plague (5 charges)."},
+  {name:"Staff of the Woodlands",rarity:"Rare",type:"Staff",attunement:true,description:"This staff can be wielded as a magic quarterstaff that grants a +2 bonus to attack and damage rolls made with it. While holding it, you have a +2 bonus to spell attack rolls. The staff has 10 charges for various nature spells."},
+  {name:"Staff of Thunder and Lightning",rarity:"Rare",type:"Staff",attunement:true,description:"This staff can be wielded as a magic quarterstaff that grants a +2 bonus to attack and damage rolls. It also has several lightning and thunder abilities, each usable once per dawn."},
+  {name:"Stone of Controlling Earth Elementals",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"If the stone is touching the ground, you can use an action to speak its command word to summon an earth elemental. The stone can't be used this way again until the next dawn."},
+  {name:"Sun Blade",rarity:"Rare",type:"Weapon (longsword)",attunement:true,description:"This item appears to be a longsword hilt. While grasping the hilt, you can use a bonus action to cause a blade of pure radiance to spring into existence. You gain a +2 bonus to attack and damage rolls made with this weapon, which deals radiant damage instead of slashing damage. When you hit an undead with it, that target takes an extra 1d8 radiant damage."},
+  {name:"Sword of Life Stealing",rarity:"Rare",type:"Weapon (any sword)",attunement:true,description:"When you attack a creature with this magic weapon and roll a 20 on the attack roll, that target takes an extra 3d6 necrotic damage, provided that the target isn't a construct or an undead. You also gain 10 temporary hit points."},
+  {name:"Sword of Wounding",rarity:"Rare",type:"Weapon (any sword)",attunement:true,description:"Hit points lost to this weapon's damage can be regained only through a short or long rest, rather than by regeneration, magic, or any other means. Once per turn, when you hit a creature with an attack using this magic weapon, you can wound the target. At the start of each of the wounded creature's turns, it takes 1d4 necrotic damage for each time you've wounded it."},
+  {name:"Trident of Fish Command",rarity:"Rare",type:"Weapon (trident)",attunement:true,description:"This trident is a magic weapon. It has 3 charges. While you carry it, you can use an action and expend 1 charge to cast Dominate Beast (save DC 15) from it on a beast that has an innate swimming speed. The trident regains 1d3 expended charges daily at dawn."},
+  {name:"Wand of Binding",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action to expend some of its charges to cast Hold Monster (5 charges) or Hold Person (2 charges). The wand regains 1d6+1 expended charges daily at dawn."},
+  {name:"Wand of Enemy Detection",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action and expend 1 charge to speak its command word. For the next minute, you know the direction of the nearest creature hostile to you within 60 feet of you. The wand regains 1d6+1 expended charges daily at dawn."},
+  {name:"Wand of Fear",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. Command (1 charge): you can command another creature to flee or grovel. Cone (2 charges): emits a 60-foot cone of amber light causing fear. The wand regains 1d6+1 expended charges daily at dawn."},
+  {name:"Wand of Fireballs",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action to expend 1 or more of its charges to cast the Fireball spell (save DC 15) from it. You can increase the spell slot level by one for each additional charge you expend."},
+  {name:"Wand of Lightning Bolts",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action to expend 1 or more of its charges to cast the Lightning Bolt spell (save DC 15) from it. You can increase the spell slot level by one for each additional charge you expend."},
+  {name:"Wand of Paralysis",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action to expend 1 of its charges to cause a thin blue ray to streak from the tip toward a creature you can see within 60 feet of you. The target must succeed on a DC 15 Constitution saving throw or be paralyzed for 1 minute."},
+  {name:"Wand of the War Mage +2",rarity:"Rare",type:"Wand",attunement:true,description:"While you are holding this wand, you gain a +2 bonus to spell attack rolls. In addition, you ignore half cover when making a spell attack."},
+  {name:"Weapon +2",rarity:"Rare",type:"Weapon (any)",attunement:false,description:"You have a +2 bonus to attack and damage rolls made with this magic weapon."},
+  {name:"Ammunition +3",rarity:"Very Rare",type:"Weapon (any ammunition)",attunement:false,description:"You have a +3 bonus to attack and damage rolls made with this piece of magic ammunition."},
+  {name:"Amulet of the Planes",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"While wearing this amulet, you can use an action to name a location that you are familiar with on another plane of existence. Then make a DC 15 Intelligence check. On a successful check, you cast the Plane Shift spell. On a failure, you and each creature and object within 15 feet of you travel to a random destination."},
+  {name:"Armor +2",rarity:"Very Rare",type:"Armor (light, medium, or heavy)",attunement:false,description:"You have a +2 bonus to AC while wearing this armor."},
+  {name:"Belt of Giant Strength (Stone/Frost)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"While wearing this belt, your Strength score changes to 23. The item has no effect on you if your Strength without the belt is equal to or greater than the belt's score."},
+  {name:"Carpet of Flying",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"You can speak the carpet's command word as an action to make the carpet hover and fly. It moves according to your spoken directions, provided that you are within 30 feet of it. Sizes range from small (3×5ft, 200lb limit, 80ft speed) to large (6×9ft, 800lb limit, 40ft speed)."},
+  {name:"Cloak of Arachnida",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"While wearing it, you gain resistance to poison damage, a climbing speed equal to your walking speed, the ability to move across vertical surfaces and ceilings, immunity to webs, and can cast Web (save DC 13) once per dawn."},
+  {name:"Crystal Ball",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"The typical crystal ball is about 6 inches in diameter. While touching it, you can cast the Scrying spell (save DC 17) with it. The spell doesn't require any components."},
+  {name:"Dragon Scale Mail",rarity:"Very Rare",type:"Armor (scale mail)",attunement:true,description:"You gain a +1 bonus to AC, advantage on saving throws against the Frightful Presence and breath weapons of dragons, and resistance to one damage type determined by the kind of dragon that provided the scales."},
+  {name:"Horn of Valhalla (Bronze)",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"You can use an action to blow this horn. In response, 3d4+3 warrior spirits from Valhalla appear. They return to Valhalla after 1 hour or when they drop to 0 hit points. Once you use the horn, it can't be used again until 7 days have passed. You must be proficient with medium armor or the summoned berserkers attack you."},
+  {name:"Ioun Stone (Absorption)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"While this pale lavender ellipsoid orbits your head, you can use your reaction to cancel a spell of 4th level or lower cast by a creature you can see and targeting only you. The stone can absorb a combined total of 20 levels of spells before it burns out."},
+  {name:"Ioun Stone (Agility)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Dexterity score increases by 2, to a maximum of 20, while this deep red sphere orbits your head."},
+  {name:"Ioun Stone (Fortitude)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Constitution score increases by 2, to a maximum of 20, while this pink rhomboid orbits your head."},
+  {name:"Ioun Stone (Insight)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Wisdom score increases by 2, to a maximum of 20, while this incandescent blue sphere orbits your head."},
+  {name:"Ioun Stone (Intellect)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Intelligence score increases by 2, to a maximum of 20, while this marbled scarlet and blue sphere orbits your head."},
+  {name:"Ioun Stone (Leadership)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Charisma score increases by 2, to a maximum of 20, while this marbled pink and green sphere orbits your head."},
+  {name:"Ioun Stone (Strength)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Strength score increases by 2, to a maximum of 20, while this pale blue rhomboid orbits your head."},
+  {name:"Manual of Bodily Health",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents and practicing its guidelines, your Constitution score increases by 2, as does your maximum for that score. The manual then loses its magic, but regains it in a century."},
+  {name:"Manual of Gainful Exercise",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents and practicing its guidelines, your Strength score increases by 2, as does your maximum for that score. The manual then loses its magic, but regains it in a century."},
+  {name:"Manual of Quickness of Action",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents and practicing its guidelines, your Dexterity score increases by 2, as does your maximum for that score. The manual then loses its magic, but regains it in a century."},
+  {name:"Necklace of Prayer Beads",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"This necklace has 1d4+2 magic beads made from aquamarine, black pearl, or topaz. Each bead stores a spell (Bless, Cure Wounds, Greater Restoration, Sending, Smite spells) that can be cast once per dawn. If a magic bead is removed from the necklace, that bead loses its magic."},
+  {name:"Nine Lives Stealer",rarity:"Very Rare",type:"Weapon (any sword)",attunement:true,description:"You gain a +2 bonus to attack and damage rolls made with this magic weapon. The sword has 1d8+1 charges. If you score a critical hit against a creature that has fewer than 100 hit points, it must succeed on a DC 15 Constitution saving throw or be slain instantly as the sword tears its life force from its body."},
+  {name:"Oathbow",rarity:"Very Rare",type:"Weapon (longbow)",attunement:true,description:"When you nock an arrow on this bow, it whispers in Elvish, 'Swift defeat to my enemies.' When you use this weapon to make a ranged attack, you can, as a command phrase, say, 'Swift death to you who have wronged me.' The target of your attack becomes your sworn enemy until it dies or until dawn seven days later."},
+  {name:"Potion of Flying",rarity:"Very Rare",type:"Potion",attunement:false,description:"When you drink this potion, you gain a flying speed equal to your walking speed for 1 hour and can hover. If you're in the air when the potion wears off, you fall unless you have some other means of staying aloft."},
+  {name:"Potion of Healing (Supreme)",rarity:"Very Rare",type:"Potion",attunement:false,description:"You regain 10d4+20 hit points when you drink this potion."},
+  {name:"Potion of Invisibility",rarity:"Very Rare",type:"Potion",attunement:false,description:"This potion's container looks empty but feels as though it holds liquid. When you drink it, you become invisible for 1 hour. Anything you wear or carry is invisible with you. The effect ends early if you attack or cast a spell."},
+  {name:"Ring of Regeneration",rarity:"Very Rare",type:"Ring",attunement:true,description:"While wearing this ring, you regain 1d6 hit points every 10 minutes, provided that you have at least 1 hit point. If you lose a body part, the ring causes the missing part to regrow and return to full functionality after 1d6+1 days."},
+  {name:"Ring of Shooting Stars",rarity:"Very Rare",type:"Ring",attunement:true,description:"While wearing this ring in dim light or darkness, you can cast Dancing Lights and Light from the ring at will. The ring has 6 charges for other properties, regaining 1d6 expended charges daily at dawn."},
+  {name:"Ring of Telekinesis",rarity:"Very Rare",type:"Ring",attunement:true,description:"While wearing this ring, you can cast the Telekinesis spell at will, but you can target only objects that aren't being worn or carried."},
+  {name:"Robe of Stars",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"This black or dark blue robe is embroidered with small white or silver stars. You gain a +1 bonus to saving throws while you wear it. You can use an action to pull one star patch off the robe and use it to cast Magic Missile as a 5th-level spell. Daily at dusk, 1d6 removed star patches reappear."},
+  {name:"Rod of Absorption",rarity:"Very Rare",type:"Rod",attunement:true,description:"While holding this rod, you can use your reaction to absorb a spell that is targeting only you. The absorbed spell's effect is canceled and its energy is stored in the rod. The rod can absorb and store up to 50 levels of energy over the course of its existence."},
+  {name:"Rod of Alertness",rarity:"Very Rare",type:"Rod",attunement:true,description:"While holding the rod, you have advantage on Wisdom (Perception) checks and on rolls for initiative. As an action, you can cast one of the following spells from it: Detect Evil and Good, Detect Magic, Detect Poison and Disease, or See Invisibility."},
+  {name:"Rod of Security",rarity:"Very Rare",type:"Rod",attunement:false,description:"While holding this rod, you can use an action to activate it, instantly transporting you and up to 199 other willing creatures you can see to a paradise that exists in an extradimensional space."},
+  {name:"Scimitar of Speed",rarity:"Very Rare",type:"Weapon (scimitar)",attunement:true,description:"You gain a +2 bonus to attack and damage rolls made with this magic weapon. In addition, you can make one attack with it as a bonus action on each of your turns."},
+  {name:"Shield +2",rarity:"Very Rare",type:"Armor (shield)",attunement:false,description:"While holding this shield, you have a +2 bonus to AC in addition to the shield's normal bonus to AC."},
+  {name:"Spell Scroll (8th Level)",rarity:"Very Rare",type:"Scroll",attunement:false,description:"A spell scroll bearing an 8th-level spell. A spellcaster with the spell on their class's spell list can read the scroll and cast its spell without providing any material components."},
+  {name:"Staff of Fire",rarity:"Very Rare",type:"Staff",attunement:true,description:"You have resistance to fire damage while you hold this staff. The staff has 10 charges for Burning Hands (1 charge), Fireball (3 charges), or Wall of Fire (4 charges). The staff regains 1d6+4 expended charges daily at dawn."},
+  {name:"Staff of Frost",rarity:"Very Rare",type:"Staff",attunement:true,description:"You have resistance to cold damage while you hold this staff. The staff has 10 charges for Cone of Cold (5 charges), Fog Cloud (1 charge), Ice Storm (4 charges), or Wall of Ice (4 charges). The staff regains 1d6+4 expended charges daily at dawn."},
+  {name:"Staff of Power",rarity:"Very Rare",type:"Staff",attunement:true,description:"This staff grants a +2 bonus to attack and damage rolls, AC, saving throws, and spell attack rolls. The staff has 20 charges for various powerful spells. It regains 2d8+4 expended charges daily at dawn."},
+  {name:"Staff of Striking",rarity:"Very Rare",type:"Staff",attunement:true,description:"This staff grants a +3 bonus to attack and damage rolls. The staff has 10 charges. When you hit with a melee attack using it, you can expend up to 3 of its charges. For each charge you expend, the target takes an extra 1d6 force damage."},
+  {name:"Sword of Sharpness",rarity:"Very Rare",type:"Weapon (any sword that deals slashing damage)",attunement:true,description:"When you attack an object with this magic sword and hit, maximize your weapon damage dice against the target. When you attack a creature with this weapon and roll a 20 on the attack roll, that target takes an extra 4d6 slashing damage. Then roll another d20. If you roll a 20, you lop off one of the target's limbs."},
+  {name:"Tome of Clear Thought",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents, your Intelligence score increases by 2, as does your maximum for that score. The tome then loses its magic, but regains it in a century."},
+  {name:"Tome of Leadership and Influence",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents, your Charisma score increases by 2, as does your maximum for that score. The tome then loses its magic, but regains it in a century."},
+  {name:"Tome of Understanding",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents, your Wisdom score increases by 2, as does your maximum for that score. The tome then loses its magic, but regains it in a century."},
+  {name:"Wand of the War Mage +3",rarity:"Very Rare",type:"Wand",attunement:true,description:"While you are holding this wand, you gain a +3 bonus to spell attack rolls. In addition, you ignore half cover and three-quarters cover when making a spell attack."},
+  {name:"Weapon +3",rarity:"Very Rare",type:"Weapon (any)",attunement:false,description:"You have a +3 bonus to attack and damage rolls made with this magic weapon."},
+  {name:"Apparatus of Kwalish",rarity:"Legendary",type:"Wondrous Item",attunement:false,description:"This item first appears to be a Large sealed iron barrel weighing 500 pounds. The barrel has a hidden catch, which can be found with a successful DC 20 Intelligence (Investigation) check. Releasing the catch unlocks a hatch at one end of the barrel, allowing two Medium or smaller creatures to crawl inside. Ten levers are set in a row at the far end."},
+  {name:"Armor +3",rarity:"Legendary",type:"Armor (light, medium, or heavy)",attunement:false,description:"You have a +3 bonus to AC while wearing this armor."},
+  {name:"Armor of Invulnerability",rarity:"Legendary",type:"Armor (plate)",attunement:true,description:"You have resistance to nonmagical damage while you wear this armor. Additionally, you can use an action to make yourself immune to nonmagical damage for 10 minutes or until you are no longer wearing the armor. Once this special action is used, it can't be used again until the next dawn."},
+  {name:"Belt of Giant Strength (Storm/Cloud)",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"While wearing this belt, your Strength score changes to 29. The item has no effect on you if your Strength without the belt is equal to or greater than the belt's score."},
+  {name:"Cloak of Invisibility",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"While wearing this cloak, you can pull its hood over your head to cause yourself to become invisible. While you are invisible, anything you are carrying or wearing is invisible with you. After accumulating 2 hours of use, the cloak ceases to function. For every uninterrupted 12 hours the cloak goes unused, it regains 1 hour of use."},
+  {name:"Cubic Gate",rarity:"Legendary",type:"Wondrous Item",attunement:false,description:"This cube is 3 inches across and radiates palpable magical energy. The six sides of the cube are each keyed to a different plane of existence. The other five are chosen by the DM."},
+  {name:"Defender",rarity:"Legendary",type:"Weapon (any sword)",attunement:true,description:"You gain a +3 bonus to attack and damage rolls made with this magic weapon. The first time you attack with the sword on each of your turns, you can transfer some or all of the sword's bonus to your Armor Class instead of using it on any attacks that turn."},
+  {name:"Hammer of Thunderbolts",rarity:"Legendary",type:"Weapon (maul)",attunement:false,description:"You gain a +1 bonus to attack and damage rolls made with this magic weapon. When attuned (requires Belt of Giant Strength and Gauntlets of Ogre Power), your Strength score increases by 4 (max 25), and when you score a critical hit with it, the target must succeed on a DC 17 Constitution saving throw or die."},
+  {name:"Holy Avenger",rarity:"Legendary",type:"Weapon (any sword)",attunement:true,description:"You gain a +3 bonus to attack and damage rolls. When you hit a fiend or an undead, that creature takes an extra 2d10 radiant damage. While you hold the drawn sword, it creates an aura in a 10-foot radius around you granting advantage on saving throws against spells and magical effects. At 17+ paladin levels, the radius expands to 30 feet."},
+  {name:"Iron Flask",rarity:"Legendary",type:"Wondrous Item",attunement:false,description:"This iron bottle has a brass stopper. You can use an action to speak the flask's command word, targeting a creature that you can see within 60 feet of you that is native to a plane other than the one you're on. The target must succeed on a DC 17 Wisdom saving throw or be trapped in the flask. The flask can hold only one creature at a time."},
+  {name:"Luck Blade",rarity:"Legendary",type:"Weapon (any sword)",attunement:true,description:"You gain a +1 bonus to attack and damage rolls and a +1 bonus to saving throws. Luck: Once per dawn, reroll one attack roll, ability check, or saving throw you dislike and use the second roll. Wish: The sword has 1d4−1 charges. While holding it, you can use an action to expend 1 charge and cast the Wish spell from it."},
+  {name:"Plate Armor of Etherealness",rarity:"Legendary",type:"Armor (plate)",attunement:true,description:"While you're wearing this armor, you can speak its command word as an action to gain the effect of the Etherealness spell, which lasts 10 minutes or until you remove the armor or use an action to speak the command word again."},
+  {name:"Ring of Djinni Summoning",rarity:"Legendary",type:"Ring",attunement:true,description:"While wearing this ring, you can speak its command word as an action to summon a particular djinni from the Elemental Plane of Air. The djinni appears in an unoccupied space you choose within 120 feet of you. It remains as long as you concentrate (maximum 1 hour)."},
+  {name:"Ring of Elemental Command (Air)",rarity:"Legendary",type:"Ring",attunement:true,description:"While wearing this ring, you have advantage on attack rolls against elementals from the Elemental Plane of Air, and they have disadvantage on attack rolls against you. You also gain access to several elemental air-related properties."},
+  {name:"Ring of Spell Turning",rarity:"Legendary",type:"Ring",attunement:true,description:"While wearing this ring, you have advantage on saving throws against any spell that targets only you. In addition, if you roll a 20 for the save and the spell is 7th level or lower, the spell has no effect on you and instead targets the caster."},
+  {name:"Ring of Three Wishes",rarity:"Legendary",type:"Ring",attunement:false,description:"While wearing this ring, you can use an action to expend 1 of its 3 charges to cast the Wish spell from it. The ring becomes nonmagical when you use the last charge."},
+  {name:"Robe of the Archmagi",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"While wearing the robe, your base Armor Class is 15 + your Dexterity modifier (if not wearing armor), you have advantage on saving throws against spells and other magical effects, and your spell save DC and spell attack bonus each increase by 2."},
+  {name:"Rod of Lordly Might",rarity:"Legendary",type:"Rod",attunement:true,description:"This rod has a flanged head and functions as a magic mace that grants a +3 bonus to attack and damage rolls. The rod has properties associated with six different buttons that are set in a row along the haft."},
+  {name:"Rod of Resurrection",rarity:"Legendary",type:"Rod",attunement:true,description:"The rod has 5 charges. While you hold it, you can use an action to cast one of the following spells from it: Heal (1 charge) or Resurrection (5 charges). The rod regains 1 charge daily at dawn."},
+  {name:"Scarab of Protection",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"While it is on your person, you have advantage on saving throws against spells. The scarab has 12 charges. If you fail a saving throw against a necromancy spell or a harmful effect originating from an undead creature, you can use your reaction to expend 1 charge and turn the failed save into a successful one."},
+  {name:"Shield +3",rarity:"Legendary",type:"Armor (shield)",attunement:false,description:"While holding this shield, you have a +3 bonus to AC in addition to the shield's normal bonus to AC."},
+  {name:"Sphere of Annihilation",rarity:"Legendary",type:"Wondrous Item",attunement:false,description:"This 2-foot-diameter black sphere is a hole in the multiverse, hovering in space and stabilized by a magical field surrounding it. The sphere obliterates all matter it passes through and all matter that passes through it."},
+  {name:"Staff of the Magi",rarity:"Legendary",type:"Staff",attunement:true,description:"This staff grants a +2 bonus to attack and damage rolls, and a +2 bonus to spell attack rolls. The staff has 50 charges for various powerful spells and properties, regaining 4d6+2 expended charges daily at dawn."},
+  {name:"Talisman of Pure Good",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"This talisman is a mighty symbol of goodness. A creature that is neither good nor evil in alignment takes 6d6 radiant damage upon touching the talisman. An evil creature takes 8d6 radiant damage upon touching the talisman."},
+  {name:"Talisman of Ultimate Evil",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"This item symbolizes unrepentant evil. A creature that is neither good nor evil in alignment takes 6d6 necrotic damage upon touching the talisman. A good creature takes 8d6 necrotic damage upon touching the talisman."},
+  {name:"Vorpal Sword",rarity:"Legendary",type:"Weapon (any sword that deals slashing damage)",attunement:true,description:"You gain a +3 bonus to attack and damage rolls. The weapon ignores resistance to slashing damage. When you attack a creature that has at least one head with this weapon and roll a 20 on the attack roll, you cut off one of the creature's heads. The creature dies if it can't survive without the lost head."},
+  {name:"Axe of the Dwarvish Lords",rarity:"Artifact",type:"Weapon (battleaxe)",attunement:true,description:"Forged by the first dwarf king, this +3 battleaxe grants +3 to Strength and Constitution (max 24), darkvision to 60ft if you don't have it, proficiency with mason's tools, and the ability to communicate with dwarves. It has multiple legendary actions and can be used to call upon dwarven allies."},
+  {name:"Book of Exalted Deeds",rarity:"Artifact",type:"Wondrous Item",attunement:true,description:"The Book of Exalted Deeds serves as an eternal record of every good act performed in the multiverse. Only a creature of good alignment can attune to this book. Studying it grants +2 to Wisdom (max 24), advantage on saving throws, immunity to fear and the frightened condition, and more."},
+  {name:"Book of Vile Darkness",rarity:"Artifact",type:"Wondrous Item",attunement:true,description:"The contents of this book are utterly horrific. Only evil creatures can attune to it. Reading it in its entirety grants +2 to Constitution (max 24), advantage on death saving throws, ability to cast various dark spells, and the ability to corrupt others."},
+  {name:"Eye of Vecna",rarity:"Artifact",type:"Wondrous Item",attunement:true,description:"Vecna's eye must be placed in an empty eye socket, replacing your own eye. While attuned, you gain truesight 120ft, can cast Clairvoyance and Etherealness at will, and Eyebite once per dawn. However, you are drawn toward evil."},
+  {name:"Hand of Vecna",rarity:"Artifact",type:"Wondrous Item",attunement:true,description:"Vecna's severed hand, preserved with dark magic. You must cut off your own hand to attune to it. While attuned, your Strength score becomes 20 unless higher, and you can cast Finger of Death (once/dawn), Sleep (at will), and Slow (3/dawn). You gain cold resistance and are drawn toward evil."},
+  {name:"Orb of Dragonkind",rarity:"Artifact",type:"Wondrous Item",attunement:true,description:"Each orb contains the essence of an evil dragon. When a chromatic dragon is within 120 feet of the orb, it must succeed on DC 18 Wisdom saving throw or come under the orb's sway for 1 hour. Attuning grants the ability to cast Cure Wounds, Death Ward, Scrying, and Dominate Monster (targeting only dragons)."},
+  {name:"Sword of Kas",rarity:"Artifact",type:"Weapon (longsword)",attunement:true,description:"This +3 longsword once belonged to Kas the Bloody-Handed, Vecna's most trusted lieutenant. It grants +2 to Strength and Constitution (max 24), deals extra damage to undead and constructs, and allows the wielder to cast Vampiric Touch and True Strike at will. It whispers to the wielder, urging betrayal and violence."},
+  {name:"Wand of Orcus",rarity:"Artifact",type:"Wand",attunement:true,description:"The Wand of Orcus is the scepter of the Demon Prince of Undeath. This +3 magic weapon can be wielded as a mace. The wand has several properties, including the ability to summon undead, cast Animate Dead and Circle of Death. The wand is evil and cursed."},
+];
+
+/* ============ PHB MUNDANE ITEMS ============ */
+const MUNDANE_ITEMS = [
+  // Weapons — Simple Melee
+  {name:"Club",category:"Simple Melee Weapon",cost:"1 sp",weight:"2 lb",description:"1d4 bludgeoning. Light."},
+  {name:"Dagger",category:"Simple Melee Weapon",cost:"2 gp",weight:"1 lb",description:"1d4 piercing. Finesse, Light, Thrown (20/60)."},
+  {name:"Greatclub",category:"Simple Melee Weapon",cost:"2 sp",weight:"10 lb",description:"1d8 bludgeoning. Two-Handed."},
+  {name:"Handaxe",category:"Simple Melee Weapon",cost:"5 gp",weight:"2 lb",description:"1d6 slashing. Light, Thrown (20/60)."},
+  {name:"Javelin",category:"Simple Melee Weapon",cost:"5 sp",weight:"2 lb",description:"1d6 piercing. Thrown (30/120)."},
+  {name:"Light Hammer",category:"Simple Melee Weapon",cost:"2 gp",weight:"2 lb",description:"1d4 bludgeoning. Light, Thrown (20/60)."},
+  {name:"Mace",category:"Simple Melee Weapon",cost:"5 gp",weight:"4 lb",description:"1d6 bludgeoning."},
+  {name:"Quarterstaff",category:"Simple Melee Weapon",cost:"2 sp",weight:"4 lb",description:"1d6 bludgeoning. Versatile (1d8)."},
+  {name:"Sickle",category:"Simple Melee Weapon",cost:"1 gp",weight:"2 lb",description:"1d4 slashing. Light."},
+  {name:"Spear",category:"Simple Melee Weapon",cost:"1 gp",weight:"3 lb",description:"1d6 piercing. Thrown (20/60), Versatile (1d8)."},
+  // Weapons — Simple Ranged
+  {name:"Light Crossbow",category:"Simple Ranged Weapon",cost:"25 gp",weight:"5 lb",description:"1d8 piercing. Ammunition (80/320), Loading, Two-Handed."},
+  {name:"Dart",category:"Simple Ranged Weapon",cost:"5 cp",weight:"1/4 lb",description:"1d4 piercing. Finesse, Thrown (20/60)."},
+  {name:"Shortbow",category:"Simple Ranged Weapon",cost:"25 gp",weight:"2 lb",description:"1d6 piercing. Ammunition (80/320), Two-Handed."},
+  {name:"Sling",category:"Simple Ranged Weapon",cost:"1 sp",weight:"—",description:"1d4 bludgeoning. Ammunition (30/120)."},
+  // Weapons — Martial Melee
+  {name:"Battleaxe",category:"Martial Melee Weapon",cost:"10 gp",weight:"4 lb",description:"1d8 slashing. Versatile (1d10)."},
+  {name:"Flail",category:"Martial Melee Weapon",cost:"10 gp",weight:"2 lb",description:"1d8 bludgeoning."},
+  {name:"Glaive",category:"Martial Melee Weapon",cost:"20 gp",weight:"6 lb",description:"1d10 slashing. Heavy, Reach, Two-Handed."},
+  {name:"Greataxe",category:"Martial Melee Weapon",cost:"30 gp",weight:"7 lb",description:"1d12 slashing. Heavy, Two-Handed."},
+  {name:"Greatsword",category:"Martial Melee Weapon",cost:"50 gp",weight:"6 lb",description:"2d6 slashing. Heavy, Two-Handed."},
+  {name:"Halberd",category:"Martial Melee Weapon",cost:"20 gp",weight:"6 lb",description:"1d10 slashing. Heavy, Reach, Two-Handed."},
+  {name:"Lance",category:"Martial Melee Weapon",cost:"10 gp",weight:"6 lb",description:"1d12 piercing. Reach. Disadvantage on attacks within 5 ft."},
+  {name:"Longsword",category:"Martial Melee Weapon",cost:"15 gp",weight:"3 lb",description:"1d8 slashing. Versatile (1d10)."},
+  {name:"Maul",category:"Martial Melee Weapon",cost:"10 gp",weight:"10 lb",description:"2d6 bludgeoning. Heavy, Two-Handed."},
+  {name:"Morningstar",category:"Martial Melee Weapon",cost:"15 gp",weight:"4 lb",description:"1d8 piercing."},
+  {name:"Pike",category:"Martial Melee Weapon",cost:"5 gp",weight:"18 lb",description:"1d10 piercing. Heavy, Reach, Two-Handed."},
+  {name:"Rapier",category:"Martial Melee Weapon",cost:"25 gp",weight:"2 lb",description:"1d8 piercing. Finesse."},
+  {name:"Scimitar",category:"Martial Melee Weapon",cost:"25 gp",weight:"3 lb",description:"1d6 slashing. Finesse, Light."},
+  {name:"Shortsword",category:"Martial Melee Weapon",cost:"10 gp",weight:"2 lb",description:"1d6 piercing. Finesse, Light."},
+  {name:"Trident",category:"Martial Melee Weapon",cost:"5 gp",weight:"4 lb",description:"1d6 piercing. Thrown (20/60), Versatile (1d8)."},
+  {name:"War Pick",category:"Martial Melee Weapon",cost:"5 gp",weight:"2 lb",description:"1d8 piercing."},
+  {name:"Warhammer",category:"Martial Melee Weapon",cost:"15 gp",weight:"2 lb",description:"1d8 bludgeoning. Versatile (1d10)."},
+  {name:"Whip",category:"Martial Melee Weapon",cost:"2 gp",weight:"3 lb",description:"1d4 slashing. Finesse, Reach."},
+  // Weapons — Martial Ranged
+  {name:"Blowgun",category:"Martial Ranged Weapon",cost:"10 gp",weight:"1 lb",description:"1 piercing. Ammunition (25/100), Loading."},
+  {name:"Hand Crossbow",category:"Martial Ranged Weapon",cost:"75 gp",weight:"3 lb",description:"1d6 piercing. Ammunition (30/120), Light, Loading."},
+  {name:"Heavy Crossbow",category:"Martial Ranged Weapon",cost:"50 gp",weight:"18 lb",description:"1d10 piercing. Ammunition (100/400), Heavy, Loading, Two-Handed."},
+  {name:"Longbow",category:"Martial Ranged Weapon",cost:"50 gp",weight:"2 lb",description:"1d8 piercing. Ammunition (150/600), Heavy, Two-Handed."},
+  {name:"Net",category:"Martial Ranged Weapon",cost:"1 gp",weight:"3 lb",description:"Large or smaller creature is Restrained (escape DC 10). Can't attack if more than 5 ft away. Special, Thrown (5/15)."},
+  // Armor — Light
+  {name:"Padded Armor",category:"Light Armor",cost:"5 gp",weight:"8 lb",description:"AC 11 + Dex modifier. Disadvantage on Stealth."},
+  {name:"Leather Armor",category:"Light Armor",cost:"10 gp",weight:"10 lb",description:"AC 11 + Dex modifier."},
+  {name:"Studded Leather Armor",category:"Light Armor",cost:"45 gp",weight:"13 lb",description:"AC 12 + Dex modifier."},
+  // Armor — Medium
+  {name:"Hide Armor",category:"Medium Armor",cost:"10 gp",weight:"12 lb",description:"AC 12 + Dex modifier (max 2)."},
+  {name:"Chain Shirt",category:"Medium Armor",cost:"50 gp",weight:"20 lb",description:"AC 13 + Dex modifier (max 2)."},
+  {name:"Scale Mail",category:"Medium Armor",cost:"50 gp",weight:"45 lb",description:"AC 14 + Dex modifier (max 2). Disadvantage on Stealth."},
+  {name:"Breastplate",category:"Medium Armor",cost:"400 gp",weight:"20 lb",description:"AC 14 + Dex modifier (max 2)."},
+  {name:"Half Plate Armor",category:"Medium Armor",cost:"750 gp",weight:"40 lb",description:"AC 15 + Dex modifier (max 2). Disadvantage on Stealth."},
+  // Armor — Heavy
+  {name:"Ring Mail",category:"Heavy Armor",cost:"30 gp",weight:"40 lb",description:"AC 14. Disadvantage on Stealth. Str 13 required."},
+  {name:"Chain Mail",category:"Heavy Armor",cost:"75 gp",weight:"55 lb",description:"AC 16. Disadvantage on Stealth. Str 13 required."},
+  {name:"Splint Armor",category:"Heavy Armor",cost:"200 gp",weight:"60 lb",description:"AC 17. Disadvantage on Stealth. Str 15 required."},
+  {name:"Plate Armor",category:"Heavy Armor",cost:"1,500 gp",weight:"65 lb",description:"AC 18. Disadvantage on Stealth. Str 15 required."},
+  // Shields
+  {name:"Shield",category:"Shield",cost:"10 gp",weight:"6 lb",description:"+2 AC. Requires one free hand to use."},
+  // Adventuring Gear
+  {name:"Abacus",category:"Adventuring Gear",cost:"2 gp",weight:"2 lb",description:"A calculation tool used by merchants and scholars."},
+  {name:"Acid (vial)",category:"Adventuring Gear",cost:"25 gp",weight:"1 lb",description:"As an action, splash on a creature (5 ft) or throw (20 ft). Hit: 2d6 acid damage. Miss: 1d6."},
+  {name:"Alchemist's Fire",category:"Adventuring Gear",cost:"50 gp",weight:"1 lb",description:"Throw (20 ft). On hit, 1d4 fire damage per turn until extinguished (DC 10 Dex action)."},
+  {name:"Arrows (20)",category:"Adventuring Gear",cost:"1 gp",weight:"1 lb",description:"Ammunition for bows."},
+  {name:"Blowgun Needles (50)",category:"Adventuring Gear",cost:"1 gp",weight:"1 lb",description:"Ammunition for blowguns."},
+  {name:"Crossbow Bolts (20)",category:"Adventuring Gear",cost:"1 gp",weight:"1½ lb",description:"Ammunition for crossbows."},
+  {name:"Sling Bullets (20)",category:"Adventuring Gear",cost:"4 cp",weight:"1½ lb",description:"Ammunition for slings."},
+  {name:"Antitoxin",category:"Adventuring Gear",cost:"50 gp",weight:"—",description:"Advantage on saving throws against poison for 1 hour."},
+  {name:"Arcane Focus (Crystal)",category:"Adventuring Gear",cost:"10 gp",weight:"1 lb",description:"A spellcasting focus for arcane spellcasters."},
+  {name:"Arcane Focus (Orb)",category:"Adventuring Gear",cost:"20 gp",weight:"3 lb",description:"A spellcasting focus for arcane spellcasters."},
+  {name:"Arcane Focus (Rod)",category:"Adventuring Gear",cost:"10 gp",weight:"2 lb",description:"A spellcasting focus for arcane spellcasters."},
+  {name:"Arcane Focus (Staff)",category:"Adventuring Gear",cost:"5 gp",weight:"4 lb",description:"A spellcasting focus for arcane spellcasters."},
+  {name:"Arcane Focus (Wand)",category:"Adventuring Gear",cost:"10 gp",weight:"1 lb",description:"A spellcasting focus for arcane spellcasters."},
+  {name:"Backpack",category:"Adventuring Gear",cost:"2 gp",weight:"5 lb",description:"Holds up to 30 lb / 1 cu ft of gear."},
+  {name:"Ball Bearings (bag of 1,000)",category:"Adventuring Gear",cost:"1 gp",weight:"2 lb",description:"Scatter over 10-ft square. Creatures must succeed DC 10 Dex save or fall prone."},
+  {name:"Barrel",category:"Adventuring Gear",cost:"2 gp",weight:"70 lb",description:"Holds 40 gallons of liquid or 4 cubic feet of solids."},
+  {name:"Basket",category:"Adventuring Gear",cost:"4 sp",weight:"2 lb",description:"Holds 2 cubic feet / 40 lb of gear."},
+  {name:"Bedroll",category:"Adventuring Gear",cost:"1 gp",weight:"7 lb",description:"A bedroll for sleeping outdoors."},
+  {name:"Bell",category:"Adventuring Gear",cost:"1 gp",weight:"—",description:"A small bell."},
+  {name:"Blanket",category:"Adventuring Gear",cost:"5 sp",weight:"3 lb",description:"A thick blanket."},
+  {name:"Block and Tackle",category:"Adventuring Gear",cost:"1 gp",weight:"5 lb",description:"A set of pulleys with cable; advantage on Strength checks to lift heavy objects."},
+  {name:"Book",category:"Adventuring Gear",cost:"25 gp",weight:"5 lb",description:"A blank book with 192 pages of parchment, or a written tome."},
+  {name:"Bottle, Glass",category:"Adventuring Gear",cost:"2 gp",weight:"2 lb",description:"Holds 1½ pints of liquid."},
+  {name:"Bucket",category:"Adventuring Gear",cost:"5 cp",weight:"2 lb",description:"Holds 3 gallons of liquid or ½ cu ft of solids."},
+  {name:"Caltrops (bag of 20)",category:"Adventuring Gear",cost:"1 gp",weight:"2 lb",description:"Scatter over 5-ft square. Creature must succeed DC 15 Dex save or stop moving and take 1 piercing damage."},
+  {name:"Candle",category:"Adventuring Gear",cost:"1 cp",weight:"—",description:"Bright light in a 5-ft radius, dim light for 5 ft beyond, for 1 hour."},
+  {name:"Case, Crossbow Bolt",category:"Adventuring Gear",cost:"1 gp",weight:"1 lb",description:"Holds up to 20 bolts."},
+  {name:"Case, Map or Scroll",category:"Adventuring Gear",cost:"1 gp",weight:"1 lb",description:"A cylindrical leather case for maps or scrolls."},
+  {name:"Chain (10 ft)",category:"Adventuring Gear",cost:"5 gp",weight:"10 lb",description:"Can be burst with a DC 20 Strength check."},
+  {name:"Chalk (1 piece)",category:"Adventuring Gear",cost:"1 cp",weight:"—",description:"A piece of chalk for writing or marking."},
+  {name:"Chest",category:"Adventuring Gear",cost:"5 gp",weight:"25 lb",description:"Holds 12 cubic feet / 300 lb of gear."},
+  {name:"Climber's Kit",category:"Adventuring Gear",cost:"25 gp",weight:"12 lb",description:"Includes pitons, boot tips, gloves, and a harness. Can anchor yourself during climbing."},
+  {name:"Clothes, Common",category:"Adventuring Gear",cost:"5 sp",weight:"3 lb",description:"Common everyday clothing."},
+  {name:"Clothes, Costume",category:"Adventuring Gear",cost:"5 gp",weight:"4 lb",description:"A costume for performance or disguise."},
+  {name:"Clothes, Fine",category:"Adventuring Gear",cost:"15 gp",weight:"6 lb",description:"Fine attire suitable for nobles and courtiers."},
+  {name:"Clothes, Traveler's",category:"Adventuring Gear",cost:"2 gp",weight:"4 lb",description:"Sturdy clothes for travel."},
+  {name:"Component Pouch",category:"Adventuring Gear",cost:"25 gp",weight:"2 lb",description:"A small pouch with compartments for material components; substitute for a spellcasting focus."},
+  {name:"Crowbar",category:"Adventuring Gear",cost:"2 gp",weight:"5 lb",description:"Advantage on Strength checks where leverage can be applied."},
+  {name:"Druidic Focus (Sprig of Mistletoe)",category:"Adventuring Gear",cost:"1 gp",weight:"—",description:"A spellcasting focus for druids."},
+  {name:"Druidic Focus (Totem)",category:"Adventuring Gear",cost:"1 gp",weight:"—",description:"A spellcasting focus for druids."},
+  {name:"Druidic Focus (Wooden Staff)",category:"Adventuring Gear",cost:"5 gp",weight:"4 lb",description:"A spellcasting focus for druids."},
+  {name:"Druidic Focus (Yew Wand)",category:"Adventuring Gear",cost:"10 gp",weight:"1 lb",description:"A spellcasting focus for druids."},
+  {name:"Fishing Tackle",category:"Adventuring Gear",cost:"1 gp",weight:"4 lb",description:"A hook, line, sinkers, floats, and a small tackle box."},
+  {name:"Flask or Tankard",category:"Adventuring Gear",cost:"2 cp",weight:"1 lb",description:"Holds 1 pint of liquid."},
+  {name:"Grappling Hook",category:"Adventuring Gear",cost:"2 gp",weight:"4 lb",description:"A hook attached to a rope, used for climbing."},
+  {name:"Hammer",category:"Adventuring Gear",cost:"1 gp",weight:"3 lb",description:"A hammer, useful for driving pitons."},
+  {name:"Hammer, Sledge",category:"Adventuring Gear",cost:"2 gp",weight:"10 lb",description:"A heavy hammer for breaking stone or forcing doors."},
+  {name:"Healer's Kit",category:"Adventuring Gear",cost:"5 gp",weight:"3 lb",description:"10 uses. Action to stabilize a creature at 0 HP without a Medicine check."},
+  {name:"Holy Symbol (Amulet)",category:"Adventuring Gear",cost:"5 gp",weight:"1 lb",description:"A spellcasting focus for clerics and paladins."},
+  {name:"Holy Symbol (Emblem)",category:"Adventuring Gear",cost:"5 gp",weight:"—",description:"An emblem worn on a shield or armor; spellcasting focus."},
+  {name:"Holy Symbol (Reliquary)",category:"Adventuring Gear",cost:"5 gp",weight:"2 lb",description:"A small box holding a holy relic; spellcasting focus."},
+  {name:"Holy Water (flask)",category:"Adventuring Gear",cost:"25 gp",weight:"1 lb",description:"Splash on undead or fiend (5 ft) or throw (20 ft). 2d6 radiant damage on hit."},
+  {name:"Hourglass",category:"Adventuring Gear",cost:"25 gp",weight:"1 lb",description:"A glass hourglass for measuring time."},
+  {name:"Hunting Trap",category:"Adventuring Gear",cost:"5 gp",weight:"25 lb",description:"Sets a trap; 2d6 piercing on trigger, creature is restrained (Str DC 13 to escape)."},
+  {name:"Ink (1 oz bottle)",category:"Adventuring Gear",cost:"10 gp",weight:"—",description:"Black ink for writing."},
+  {name:"Ink Pen",category:"Adventuring Gear",cost:"2 cp",weight:"—",description:"A fine-tipped pen for writing with ink."},
+  {name:"Jug or Pitcher",category:"Adventuring Gear",cost:"2 cp",weight:"4 lb",description:"Holds 1 gallon of liquid."},
+  {name:"Ladder (10 ft)",category:"Adventuring Gear",cost:"1 sp",weight:"25 lb",description:"A 10-foot wooden ladder."},
+  {name:"Lamp",category:"Adventuring Gear",cost:"5 sp",weight:"1 lb",description:"Bright light 15 ft, dim light 30 ft, for 6 hours on oil."},
+  {name:"Lantern, Bullseye",category:"Adventuring Gear",cost:"10 gp",weight:"2 lb",description:"60-ft cone of bright light, 120-ft cone of dim light, for 6 hours on oil."},
+  {name:"Lantern, Hooded",category:"Adventuring Gear",cost:"5 gp",weight:"2 lb",description:"Bright light 30 ft, dim light 60 ft, for 6 hours on oil. Can be shuttered to dim."},
+  {name:"Lock",category:"Adventuring Gear",cost:"10 gp",weight:"1 lb",description:"DC 15 Dexterity (Thieves' Tools) to pick."},
+  {name:"Magnifying Glass",category:"Adventuring Gear",cost:"100 gp",weight:"—",description:"Advantage on appraisal checks. Can start fires with bright sunlight (5 min focus)."},
+  {name:"Manacles",category:"Adventuring Gear",cost:"2 gp",weight:"6 lb",description:"Shackle a creature of Small or Medium size; DC 20 Str to break, DC 15 Thieves' Tools to open without key."},
+  {name:"Mirror, Steel",category:"Adventuring Gear",cost:"5 gp",weight:"½ lb",description:"A small steel mirror, useful for signaling and peeking around corners."},
+  {name:"Net, Fishing",category:"Adventuring Gear",cost:"1 gp",weight:"4 lb",description:"A large net for catching fish."},
+  {name:"Oil (flask)",category:"Adventuring Gear",cost:"1 sp",weight:"1 lb",description:"Splash on a creature or pour on floor. On fire: 5 damage per round for 2 rounds."},
+  {name:"Paper (one sheet)",category:"Adventuring Gear",cost:"2 sp",weight:"—",description:"A sheet of fine paper."},
+  {name:"Parchment (one sheet)",category:"Adventuring Gear",cost:"1 sp",weight:"—",description:"A sheet of parchment for writing."},
+  {name:"Perfume (vial)",category:"Adventuring Gear",cost:"5 gp",weight:"—",description:"A vial of fine perfume."},
+  {name:"Pick, Miner's",category:"Adventuring Gear",cost:"2 gp",weight:"10 lb",description:"A tool for mining and breaking stone."},
+  {name:"Piton",category:"Adventuring Gear",cost:"5 cp",weight:"¼ lb",description:"A metal spike used for climbing."},
+  {name:"Poison, Basic (vial)",category:"Adventuring Gear",cost:"100 gp",weight:"—",description:"Coat a weapon or up to 3 pieces of ammunition. On hit within 1 min, DC 10 Con save or 1d4 poison damage."},
+  {name:"Pole (10-foot)",category:"Adventuring Gear",cost:"5 cp",weight:"7 lb",description:"A 10-foot wooden pole."},
+  {name:"Pot, Iron",category:"Adventuring Gear",cost:"2 gp",weight:"10 lb",description:"A cooking pot."},
+  {name:"Potion of Healing",category:"Adventuring Gear",cost:"50 gp",weight:"½ lb",description:"Drinking or administering restores 2d4 + 2 HP."},
+  {name:"Pouch",category:"Adventuring Gear",cost:"5 sp",weight:"1 lb",description:"Holds up to 6 lb / 1/5 cu ft of gear."},
+  {name:"Quiver",category:"Adventuring Gear",cost:"1 gp",weight:"1 lb",description:"Holds up to 20 arrows."},
+  {name:"Ram, Portable",category:"Adventuring Gear",cost:"4 gp",weight:"35 lb",description:"+4 bonus to Strength checks to break doors. A second creature can assist for advantage."},
+  {name:"Rations (1 day)",category:"Adventuring Gear",cost:"5 sp",weight:"2 lb",description:"Dry food for one day — jerky, dried fruit, hardtack, nuts."},
+  {name:"Robes",category:"Adventuring Gear",cost:"1 gp",weight:"4 lb",description:"Simple robes."},
+  {name:"Rope, Hempen (50 ft)",category:"Adventuring Gear",cost:"1 gp",weight:"10 lb",description:"DC 17 Str to break."},
+  {name:"Rope, Silk (50 ft)",category:"Adventuring Gear",cost:"10 gp",weight:"5 lb",description:"DC 17 Str to break."},
+  {name:"Sack",category:"Adventuring Gear",cost:"1 cp",weight:"½ lb",description:"Holds 30 lb / 1 cu ft."},
+  {name:"Scale, Merchant's",category:"Adventuring Gear",cost:"5 gp",weight:"3 lb",description:"A small balance and pans, with 5 lb of counterweights."},
+  {name:"Sealing Wax",category:"Adventuring Gear",cost:"5 sp",weight:"—",description:"Wax for sealing letters and documents."},
+  {name:"Shovel",category:"Adventuring Gear",cost:"2 gp",weight:"5 lb",description:"A digging tool."},
+  {name:"Signal Whistle",category:"Adventuring Gear",cost:"5 cp",weight:"—",description:"A small whistle."},
+  {name:"Signet Ring",category:"Adventuring Gear",cost:"5 gp",weight:"—",description:"A ring with an insignia for wax seals."},
+  {name:"Soap",category:"Adventuring Gear",cost:"2 cp",weight:"—",description:"A bar of soap."},
+  {name:"Spellbook",category:"Adventuring Gear",cost:"50 gp",weight:"3 lb",description:"An essential book for wizards, with 100 pages. Contains starting spells."},
+  {name:"Spikes, Iron (10)",category:"Adventuring Gear",cost:"1 gp",weight:"5 lb",description:"Ten iron spikes."},
+  {name:"Spyglass",category:"Adventuring Gear",cost:"1,000 gp",weight:"1 lb",description:"Makes distant objects appear up to 10× larger."},
+  {name:"Tent, Two-Person",category:"Adventuring Gear",cost:"2 gp",weight:"20 lb",description:"A simple tent."},
+  {name:"Tinderbox",category:"Adventuring Gear",cost:"5 sp",weight:"1 lb",description:"Contains flint, fire steel, and tinder. Light torch or campfire: 1 action. Relight with sparks: bonus action."},
+  {name:"Torch",category:"Adventuring Gear",cost:"1 cp",weight:"1 lb",description:"Bright light 20 ft, dim light 40 ft, for 1 hour. 1 bludgeoning damage on hit."},
+  {name:"Vial",category:"Adventuring Gear",cost:"1 gp",weight:"—",description:"A small glass vial."},
+  {name:"Waterskin",category:"Adventuring Gear",cost:"2 sp",weight:"5 lb (full)",description:"Holds 4 pints of liquid."},
+  {name:"Whetstone",category:"Adventuring Gear",cost:"1 cp",weight:"1 lb",description:"A sharpening stone."},
+  // Tools
+  {name:"Alchemist's Supplies",category:"Artisan's Tools",cost:"50 gp",weight:"8 lb",description:"Tools for alchemy: vials, burners, beakers, and chemicals."},
+  {name:"Brewer's Supplies",category:"Artisan's Tools",cost:"20 gp",weight:"9 lb",description:"Equipment for brewing ale, beer, and mead."},
+  {name:"Calligrapher's Supplies",category:"Artisan's Tools",cost:"10 gp",weight:"5 lb",description:"Pens, inks, and parchment for fine writing and illumination."},
+  {name:"Carpenter's Tools",category:"Artisan's Tools",cost:"8 gp",weight:"6 lb",description:"Saws, hammers, chisels, and squares for woodworking."},
+  {name:"Cartographer's Tools",category:"Artisan's Tools",cost:"15 gp",weight:"6 lb",description:"Pens, compasses, and drawing equipment for mapmaking."},
+  {name:"Cobbler's Tools",category:"Artisan's Tools",cost:"5 gp",weight:"5 lb",description:"Lasts, awls, and thread for repairing and crafting footwear."},
+  {name:"Cook's Utensils",category:"Artisan's Tools",cost:"1 gp",weight:"8 lb",description:"Pots, pans, knives, ladles, and seasoning for cooking."},
+  {name:"Glassblower's Tools",category:"Artisan's Tools",cost:"30 gp",weight:"5 lb",description:"Tools for shaping molten glass into objects."},
+  {name:"Jeweler's Tools",category:"Artisan's Tools",cost:"25 gp",weight:"2 lb",description:"Pliers, saws, and files for crafting and evaluating gems and jewelry."},
+  {name:"Leatherworker's Tools",category:"Artisan's Tools",cost:"5 gp",weight:"5 lb",description:"Awls, needles, thread, and dye for working leather."},
+  {name:"Mason's Tools",category:"Artisan's Tools",cost:"10 gp",weight:"8 lb",description:"Trowels, chisels, and hammers for stonecutting and masonry."},
+  {name:"Painter's Supplies",category:"Artisan's Tools",cost:"10 gp",weight:"5 lb",description:"Paints, brushes, palettes, and canvas for painting."},
+  {name:"Potter's Tools",category:"Artisan's Tools",cost:"10 gp",weight:"3 lb",description:"Needles, sticks, and a wheel for shaping clay."},
+  {name:"Smith's Tools",category:"Artisan's Tools",cost:"20 gp",weight:"8 lb",description:"Hammers, tongs, and bellows for metalsmithing."},
+  {name:"Tinker's Tools",category:"Artisan's Tools",cost:"50 gp",weight:"10 lb",description:"Screwdrivers, pliers, and solder for fine mechanical work."},
+  {name:"Weaver's Tools",category:"Artisan's Tools",cost:"1 gp",weight:"5 lb",description:"Needles, thread, and fabric for weaving and sewing."},
+  {name:"Woodcarver's Tools",category:"Artisan's Tools",cost:"1 gp",weight:"5 lb",description:"Chisels and knives for carving and shaping wood."},
+  {name:"Disguise Kit",category:"Tool",cost:"25 gp",weight:"3 lb",description:"Cosmetics, hair dye, props, and small prosthetics for disguises."},
+  {name:"Forgery Kit",category:"Tool",cost:"15 gp",weight:"5 lb",description:"Inks, papers, and other materials for duplicating scripts and seals."},
+  {name:"Herbalism Kit",category:"Tool",cost:"5 gp",weight:"3 lb",description:"A pouch of herbs, clippers, and vials for identifying and using plants."},
+  {name:"Navigator's Tools",category:"Tool",cost:"25 gp",weight:"2 lb",description:"A sextant, compass, and charts for navigation at sea and overland."},
+  {name:"Poisoner's Kit",category:"Tool",cost:"50 gp",weight:"2 lb",description:"Vials, mixing vessels, and chemicals for creating and applying poisons."},
+  {name:"Thieves' Tools",category:"Tool",cost:"25 gp",weight:"1 lb",description:"Picks, files, pliers, and a small mirror for picking locks and disabling traps."},
+  {name:"Dice Set",category:"Gaming Set",cost:"1 sp",weight:"—",description:"A set of small polyhedral dice."},
+  {name:"Dragonchess Set",category:"Gaming Set",cost:"1 gp",weight:"½ lb",description:"A fantasy chess variant."},
+  {name:"Playing Card Set",category:"Gaming Set",cost:"5 sp",weight:"—",description:"A deck of illustrated playing cards."},
+  {name:"Three-Dragon Ante Set",category:"Gaming Set",cost:"1 gp",weight:"—",description:"Cards and rules for the popular D&D card game."},
+  {name:"Bagpipes",category:"Musical Instrument",cost:"30 gp",weight:"6 lb",description:"A wind instrument typical of highland peoples."},
+  {name:"Drum",category:"Musical Instrument",cost:"6 gp",weight:"3 lb",description:"A percussion instrument."},
+  {name:"Dulcimer",category:"Musical Instrument",cost:"25 gp",weight:"10 lb",description:"A hammered string instrument."},
+  {name:"Flute",category:"Musical Instrument",cost:"2 gp",weight:"1 lb",description:"A simple wind instrument."},
+  {name:"Lute",category:"Musical Instrument",cost:"35 gp",weight:"2 lb",description:"A plucked string instrument; classic bard instrument."},
+  {name:"Lyre",category:"Musical Instrument",cost:"30 gp",weight:"2 lb",description:"A small harp-like instrument."},
+  {name:"Horn",category:"Musical Instrument",cost:"3 gp",weight:"2 lb",description:"A simple horn blown to make a loud sound."},
+  {name:"Pan Flute",category:"Musical Instrument",cost:"12 gp",weight:"2 lb",description:"A set of pipes played by blowing across the tops."},
+  {name:"Shawm",category:"Musical Instrument",cost:"2 gp",weight:"1 lb",description:"A loud double-reed wind instrument."},
+  {name:"Viol",category:"Musical Instrument",cost:"30 gp",weight:"1 lb",description:"A bowed string instrument."},
+  // Mounts & Vehicles
+  {name:"Donkey / Mule",category:"Mount",cost:"8 gp",weight:"—",description:"Carrying capacity 420 lb. Speed 40 ft."},
+  {name:"Horse, Draft",category:"Mount",cost:"50 gp",weight:"—",description:"Carrying capacity 540 lb. Speed 40 ft."},
+  {name:"Horse, Riding",category:"Mount",cost:"75 gp",weight:"—",description:"Carrying capacity 480 lb. Speed 60 ft."},
+  {name:"Pony",category:"Mount",cost:"30 gp",weight:"—",description:"Carrying capacity 225 lb. Speed 40 ft."},
+  {name:"Warhorse",category:"Mount",cost:"400 gp",weight:"—",description:"Carrying capacity 540 lb. Speed 60 ft."},
+  {name:"Saddle, Exotic",category:"Mount Accessory",cost:"60 gp",weight:"40 lb",description:"For griffons, pegasi, and other exotic mounts."},
+  {name:"Saddle, Military",category:"Mount Accessory",cost:"20 gp",weight:"30 lb",description:"Advantage on checks to stay mounted."},
+  {name:"Saddle, Pack",category:"Mount Accessory",cost:"5 gp",weight:"15 lb",description:"For carrying gear on a pack animal."},
+  {name:"Saddle, Riding",category:"Mount Accessory",cost:"10 gp",weight:"25 lb",description:"A standard riding saddle."},
+  {name:"Saddlebags",category:"Mount Accessory",cost:"4 gp",weight:"8 lb",description:"Two bags attached to a saddle, holding 20 lb each."},
+  {name:"Rowboat",category:"Vehicle",cost:"50 gp",weight:"—",description:"Holds up to 4 Medium creatures. Speed 1½ mph."},
+  {name:"Keelboat",category:"Vehicle",cost:"3,000 gp",weight:"—",description:"Holds 1–3 crew; 6 tons cargo. Speed 1 mph."},
+  {name:"Longship",category:"Vehicle",cost:"10,000 gp",weight:"—",description:"Holds 40–50 crew. Speed 3 mph (sails) / 2 mph (oars)."},
+  {name:"Sailing Ship",category:"Vehicle",cost:"10,000 gp",weight:"—",description:"Holds 20 crew; 100 tons cargo. Speed 2 mph."},
+  {name:"Warship",category:"Vehicle",cost:"25,000 gp",weight:"—",description:"Holds 40 crew; 200 tons cargo. Speed 2½ mph."},
+  {name:"Galley",category:"Vehicle",cost:"30,000 gp",weight:"—",description:"Holds 80 crew; 150 tons cargo. Speed 4 mph (oars)."},
+];
+
+/* ============ HELPERS ============ */
+const mod = (score) => Math.floor((score - 10) / 2);
+const fmt = (n) => (n >= 0 ? `+${n}` : `${n}`);
+
+function abilityScoreImprovementLevels(className) {
+  const cls = CLASSES[className];
+  if (!cls) return [];
+  return Object.entries(cls.features)
+    .filter(([lvl, feats]) => feats.some(f => f.includes("Ability Score Improvement")))
+    .map(([lvl]) => parseInt(lvl));
+}
+
+function getFeaturesUpToLevel(className, subclassName, level) {
+  const cls = CLASSES[className];
+  if (!cls) return [];
+  const out = [];
+  for (let l = 1; l <= level; l++) {
+    (cls.features[l] || []).forEach(f => {
+      if (f === "—") return;
+      if (f === "Subclass feature" && subclassName) {
+        const subFeats = (cls.subclasses[subclassName] || {})[l];
+        if (subFeats) subFeats.forEach(sf => out.push({ level: l, text: sf, source: "Subclass" }));
+      } else if (f !== "Subclass feature") {
+        out.push({ level: l, text: f, source: "Class" });
+      }
+    });
+  }
+  return out;
+}
+
+function getSpellSlots(className, level) {
+  const cls = CLASSES[className];
+  if (!cls || !cls.casterType) return null;
+  if (cls.casterType === "full") return FULL_CASTER_SLOTS[level] || [];
+  if (cls.casterType === "half") return HALF_CASTER_SLOTS[level] || [];
+  if (cls.casterType === "pact") return null; // handled separately
+  return null;
+}
+
+/* ============ MAIN COMPONENT ============ */
+function CharacterSheet() {
+  const [tab, setTab] = useState("identity");
+
+  // Identity
+  const [charName, setCharName] = useState("");
+  const [playerName, setPlayerName] = useState("");
+  const [className, setClassName] = useState("Fighter");
+  const [subclassName, setSubclassName] = useState("");
+  const [level, setLevel] = useState(1);
+  const [species, setSpecies] = useState("Human");
+  const [background, setBackground] = useState("Soldier");
+  const [alignment, setAlignment] = useState("");
+
+  // Point buy: base scores before racial/background bonuses
+  const [pointBuy, setPointBuy] = useState({Strength:8,Dexterity:8,Constitution:8,Intelligence:8,Wisdom:8,Charisma:8});
+  // Manual ability score increase allocation from background (2 picks: +2/+1 or +1/+1/+1)
+  const [bgBonusMode, setBgBonusMode] = useState("2-1"); // "2-1" or "1-1-1"
+  const [bgBonusChoices, setBgBonusChoices] = useState([]); // array of ability names
+
+  // Skills
+  const [skillProfs, setSkillProfs] = useState([]);
+  const [skillExpertise, setSkillExpertise] = useState([]);
+
+  // ASI / Feat choices made at ASI levels: { level: {type:"asi", abilities:[a,b]} or {type:"feat", name:""} }
+  const [asiChoices, setAsiChoices] = useState({});
+
+  // Combat
+  const [currentHp, setCurrentHp] = useState(null);
+  const [tempHp, setTempHp] = useState(0);
+  const [hitDiceUsed, setHitDiceUsed] = useState(0);
+
+  // Equipment / notes
+  const [equipment, setEquipment] = useState("");
+  const [notes, setNotes] = useState("");
+
+  // Magic Items tab state
+  const [itemSearch, setItemSearch] = useState("");
+  const [itemRarityFilter, setItemRarityFilter] = useState("All");
+  const [itemTypeFilter, setItemTypeFilter] = useState("All");
+  const [itemAttunementFilter, setItemAttunementFilter] = useState("All");
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [characterItems, setCharacterItems] = useState([]);
+
+  // Mundane Items tab state
+  const [mundaneSearch, setMundaneSearch] = useState("");
+  const [mundaneTypeFilter, setMundaneTypeFilter] = useState("All");
+  const [selectedMundane, setSelectedMundane] = useState(null);
+
+  // Pinned important items shown on identity/front page (both magic + mundane)
+  const [pinnedItems, setPinnedItems] = useState([]);
+
+  // Spell list (kept here so it is saved with the character)
+  const [spells, setSpells] = useState([""]);
+
+  // Player code + saving on this computer
+  const [playerCode, setPlayerCode] = useState(currentPlayerCode);
+  const [codeInput, setCodeInput] = useState("");
+  const [ready, setReady] = useState(false);
+
+  const cls = CLASSES[className];
+  const profBonus = PROF_BONUS[level - 1];
+  const pointBuyTotal = Object.values(pointBuy).reduce((sum, v) => sum + (POINT_BUY_COSTS[v] || 0), 0);
+  const pointBuyRemaining = 27 - pointBuyTotal;
+
+  // Compute background ability bonuses
+  const bgBonuses = useMemo(() => {
+    const out = {};
+    if (bgBonusMode === "2-1" && bgBonusChoices.length === 2) {
+      out[bgBonusChoices[0]] = (out[bgBonusChoices[0]] || 0) + 2;
+      out[bgBonusChoices[1]] = (out[bgBonusChoices[1]] || 0) + 1;
+    } else if (bgBonusMode === "1-1-1" && bgBonusChoices.length === 3) {
+      bgBonusChoices.forEach(a => { out[a] = (out[a] || 0) + 1; });
+    }
+    return out;
+  }, [bgBonusMode, bgBonusChoices]);
+
+  // ASI bonuses from leveling
+  const asiBonuses = useMemo(() => {
+    const out = {};
+    Object.values(asiChoices).forEach(choice => {
+      if (choice && choice.type === "asi" && choice.abilities) {
+        choice.abilities.forEach(a => { if (a) out[a] = (out[a] || 0) + 1; });
+      }
+    });
+    return out;
+  }, [asiChoices]);
+
+  const finalScores = useMemo(() => {
+    const out = {};
+    ABILITIES.forEach(a => {
+      out[a] = pointBuy[a] + (bgBonuses[a] || 0) + (asiBonuses[a] || 0);
+    });
+    return out;
+  }, [pointBuy, bgBonuses, asiBonuses]);
+
+  const finalMods = useMemo(() => {
+    const out = {};
+    ABILITIES.forEach(a => { out[a] = mod(finalScores[a]); });
+    return out;
+  }, [finalScores]);
+
+  const maxHp = useMemo(() => {
+    if (!cls) return 0;
+    const conMod = finalMods.Constitution;
+    let hp = cls.hitDie + conMod; // level 1: max die
+    for (let l = 2; l <= level; l++) {
+      hp += Math.floor(cls.hitDie / 2) + 1 + conMod; // average roll for subsequent levels
+    }
+    return Math.max(hp, level); // minimum 1 per level
+  }, [cls, level, finalMods.Constitution]);
+
+  const availableAsiLevels = useMemo(() => abilityScoreImprovementLevels(className), [className]);
+  const reachedAsiLevels = availableAsiLevels.filter(l => l <= level);
+
+  const featureLedger = useMemo(() => {
+    const entries = [];
+    // Species traits
+    if (SPECIES[species]) {
+      SPECIES[species].traits.forEach(t => entries.push({ level: 1, text: t, source: "Species" }));
+    }
+    // Background
+    if (BACKGROUNDS[background]) {
+      const bg = BACKGROUNDS[background];
+      entries.push({ level: 1, text: `Origin Feat: ${bg.feat} — ${ORIGIN_FEATS[bg.feat] || ""}`, source: "Background" });
+      entries.push({ level: 1, text: `Tool Proficiency: ${bg.tool}`, source: "Background" });
+    }
+    // Class + subclass features
+    entries.push(...getFeaturesUpToLevel(className, subclassName, level));
+    // ASI/Feat choices
+    Object.entries(asiChoices).forEach(([lvl, choice]) => {
+      if (parseInt(lvl) > level || !choice) return;
+      if (choice.type === "asi" && choice.abilities && choice.abilities.filter(Boolean).length) {
+        entries.push({ level: parseInt(lvl), text: `Ability Score Improvement: ${choice.abilities.filter(Boolean).map(a => ABBR[a]).join(", ")}`, source: "ASI" });
+      } else if (choice.type === "feat" && choice.name) {
+        entries.push({ level: parseInt(lvl), text: `Feat: ${choice.name}`, source: "Feat" });
+      }
+    });
+    return entries.sort((a, b) => a.level - b.level);
+  }, [species, background, className, subclassName, level, asiChoices]);
+
+  const savingThrows = useMemo(() => {
+    const out = {};
+    ABILITIES.forEach(a => {
+      const isProf = cls && cls.saves.includes(a);
+      out[a] = finalMods[a] + (isProf ? profBonus : 0);
+    });
+    return out;
+  }, [cls, finalMods, profBonus]);
+
+  const skillMods = useMemo(() => {
+    const out = {};
+    ALL_SKILLS.forEach(skill => {
+      const ability = SKILL_ABILITY[skill];
+      let bonus = finalMods[ability];
+      if (skillExpertise.includes(skill)) bonus += profBonus * 2;
+      else if (skillProfs.includes(skill)) bonus += profBonus;
+      out[skill] = bonus;
+    });
+    return out;
+  }, [finalMods, skillProfs, skillExpertise, profBonus]);
+
+  const initiative = finalMods.Dexterity;
+  const armorClass = 10 + finalMods.Dexterity; // base unarmored; user can override mentally
+  const passivePerception = 10 + skillMods.Perception;
+  const speed = SPECIES[species] ? SPECIES[species].speed : 30;
+
+  const effectiveMaxHp = maxHp;
+  const displayHp = currentHp === null ? effectiveMaxHp : currentHp;
+
+  function updatePointBuy(ability, newVal) {
+    const cost = POINT_BUY_COSTS[newVal];
+    if (cost === undefined) return;
+    const otherTotal = pointBuyTotal - POINT_BUY_COSTS[pointBuy[ability]];
+    if (otherTotal + cost > 27) return; // prevent overspend
+    setPointBuy(prev => ({ ...prev, [ability]: newVal }));
+  }
+
+  function toggleSkillProf(skill) {
+    setSkillProfs(prev => {
+      if (prev.includes(skill)) {
+        setSkillExpertise(e => e.filter(s => s !== skill));
+        return prev.filter(s => s !== skill);
+      }
+      if (prev.length >= cls.skillChoices) return prev;
+      return [...prev, skill];
+    });
+  }
+
+  function toggleExpertise(skill) {
+    if (!skillProfs.includes(skill)) return;
+    setSkillExpertise(prev => prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]);
+  }
+
+  function setAsiAbilities(lvl, idx, ability) {
+    setAsiChoices(prev => {
+      const existing = prev[lvl] || { type: "asi", abilities: [null, null] };
+      const abilities = [...(existing.abilities || [null, null])];
+      abilities[idx] = ability;
+      return { ...prev, [lvl]: { type: "asi", abilities } };
+    });
+  }
+
+  function setAsiType(lvl, type) {
+    setAsiChoices(prev => ({ ...prev, [lvl]: type === "asi" ? { type: "asi", abilities: [null, null] } : { type: "feat", name: "" } }));
+  }
+
+  function setFeatName(lvl, name) {
+    setAsiChoices(prev => ({ ...prev, [lvl]: { type: "feat", name } }));
+  }
+
+  /* ============ CHARACTER FILE (save / load / send to Combat Resolver) ============ */
+  const fileInputRef = useRef(null);
+  const inSuite = window.parent !== window;
+
+  function buildCharacterFile() {
+    return {
+      format: "homebrew-academy-character",
+      version: 2,
+      name: charName, player: playerName,
+      className, subclassName, level, species, background, alignment,
+      scores: finalScores, saves: savingThrows, profBonus,
+      maxHP: effectiveMaxHp, currentHP: displayHp, tempHP: tempHp,
+      ac: armorClass, initiativeBonus: initiative, speed,
+      features: featureLedger.map(f => f.text),
+      spells: spells.filter(Boolean),
+      builder: { pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, characterItems, pinnedItems, spells }
+    };
+  }
+
+  function saveCharacterFile() {
+    const blob = new Blob([JSON.stringify(buildCharacterFile(), null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = ((charName || "character").trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || "character") + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  function applyCharacterFile(data) {
+    if (!data || data.format !== "homebrew-academy-character") { alert("That file is not a Character Builder save."); return; }
+    const s = data.builder || {};
+    const arr = (v) => Array.isArray(v) ? v : [];
+    setCharName(String(data.name || ""));
+    setPlayerName(String(data.player || ""));
+    setClassName(CLASSES[data.className] ? data.className : "Fighter");
+    setSubclassName(String(data.subclassName || ""));
+    setLevel(Math.max(1, Math.min(20, parseInt(data.level) || 1)));
+    setSpecies(SPECIES[data.species] ? data.species : "Human");
+    setBackground(BACKGROUNDS[data.background] ? data.background : "Soldier");
+    setAlignment(String(data.alignment || ""));
+    const pb = {};
+    ABILITIES.forEach(a => { const v = parseInt((s.pointBuy || {})[a]); pb[a] = POINT_BUY_COSTS[v] !== undefined ? v : 8; });
+    setPointBuy(pb);
+    setBgBonusMode(s.bgBonusMode === "1-1-1" ? "1-1-1" : "2-1");
+    setBgBonusChoices(arr(s.bgBonusChoices).filter(a => ABILITIES.includes(a)));
+    setSkillProfs(arr(s.skillProfs).filter(k => ALL_SKILLS.includes(k)));
+    setSkillExpertise(arr(s.skillExpertise).filter(k => ALL_SKILLS.includes(k)));
+    setAsiChoices(s.asiChoices && typeof s.asiChoices === "object" ? s.asiChoices : {});
+    setCurrentHp(typeof s.currentHp === "number" ? s.currentHp : null);
+    setTempHp(parseInt(s.tempHp) || 0);
+    setHitDiceUsed(parseInt(s.hitDiceUsed) || 0);
+    setEquipment(String(s.equipment || ""));
+    setNotes(String(s.notes || ""));
+    setCharacterItems(arr(s.characterItems));
+    setPinnedItems(arr(s.pinnedItems).filter(p => p && p.name));
+    const sp = arr(s.spells).map(x => String(x));
+    setSpells(sp.length ? sp : [""]);
+  }
+
+  function onPickFile(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    file.text().then(t => applyCharacterFile(JSON.parse(t))).catch(() => alert("Could not read that character file."));
+  }
+
+  function sendToResolver() {
+    window.parent.postMessage({ type: "hba-character", character: buildCharacterFile() }, window.location.origin);
+  }
+
+  /* ============ PLAYER CODE: open the sheet saved on this computer under a code ============ */
+  function openPlayerCode(codeRaw, remember) {
+    const code = cleanCode(codeRaw);
+    if (!code) return;
+    if (remember !== false) lsSet(CODE_KEY, code);
+    applyCharacterFile(readStoredCharacter(code) || { format: "homebrew-academy-character" });
+    setPlayerCode(code);
+    setCodeInput("");
+  }
+
+  // First load: open whatever is saved under this computer's player code.
+  useEffect(() => {
+    const stored = readStoredCharacter(playerCode);
+    if (stored) applyCharacterFile(stored);
+    setReady(true);
+  }, []);
+
+  // Every change is saved on this computer under the player code.
+  useEffect(() => {
+    if (!ready) return;
+    lsSet(charKey(playerCode), JSON.stringify(buildCharacterFile()));
+  });
+
+  // The Combat Resolver on this computer reports HP changes back, and can switch the player code.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === CODE_KEY && e.newValue && cleanCode(e.newValue) !== playerCode) openPlayerCode(e.newValue, false);
+      if (e.key === charKey(playerCode) && e.newValue) {
+        try { const d = JSON.parse(e.newValue); if (d && d.builder && typeof d.builder.currentHp === "number") setCurrentHp(d.builder.currentHp); } catch (err) {}
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [playerCode]);
+
+  /* ============ STYLES ============ */
+  const colors = {
+    ink: "#1B2430",
+    inkLight: "#2B3648",
+    parchment: "#EDE4D3",
+    parchmentDark: "#DDD0B5",
+    brass: "#B8860B",
+    brassLight: "#D4A017",
+    blood: "#7A2E2E",
+    bloodLight: "#9C4444"
+  };
+
+  const fontDisplay = "'Cinzel', 'Times New Roman', serif";
+  const fontBody = "'Crimson Text', 'Georgia', serif";
+
+  return (
+    <div style={{
+      fontFamily: fontBody,
+      background: `linear-gradient(180deg, ${colors.ink} 0%, ${colors.inkLight} 100%)`,
+      minHeight: "100vh",
+      color: colors.parchment,
+      padding: "0",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+        * { box-sizing: border-box; }
+        ::selection { background: ${colors.brass}; color: ${colors.ink}; }
+        input, select, textarea {
+          font-family: ${fontBody};
+        }
+        input:focus, select:focus, textarea:focus {
+          outline: 2px solid ${colors.brass};
+          outline-offset: 1px;
+        }
+        .tab-btn:focus-visible, button:focus-visible {
+          outline: 2px solid ${colors.brassLight};
+          outline-offset: 2px;
+        }
+        input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+        @media (max-width: 640px) {
+          .header-stats { flex-wrap: wrap !important; }
+          .two-col { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+
+      {/* HEADER */}
+      <div style={{
+        background: `linear-gradient(180deg, ${colors.brass} 0%, #8B6508 100%)`,
+        borderBottom: `3px solid ${colors.ink}`,
+        padding: "20px 24px 16px",
+      }}>
+        <div style={{ maxWidth: 980, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+            <input
+              value={charName}
+              onChange={e => setCharName(e.target.value)}
+              placeholder="Character Name"
+              style={{
+                fontFamily: fontDisplay, fontWeight: 700, fontSize: "clamp(22px, 4vw, 32px)",
+                background: "transparent", border: "none", borderBottom: `2px solid ${colors.ink}55`,
+                color: colors.ink, padding: "4px 2px", flex: "1 1 280px", minWidth: 0,
+              }}
+            />
+            <input
+              value={playerName}
+              onChange={e => setPlayerName(e.target.value)}
+              placeholder="Player name"
+              style={{
+                fontFamily: fontBody, fontStyle: "italic", fontSize: 14,
+                background: "transparent", border: "none", borderBottom: `1px solid ${colors.ink}55`,
+                color: colors.ink, padding: "4px 2px", width: 160,
+              }}
+            />
+          </div>
+          <div style={{ fontSize: 14, color: colors.ink, marginTop: 6, fontWeight: 600 }}>
+            Level {level} {species} {className}{subclassName ? ` (${subclassName})` : ""} · {background}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, alignItems: "center" }}>
+            {[
+              ["Save Character File", saveCharacterFile, true],
+              ["Load Character File", () => fileInputRef.current && fileInputRef.current.click(), true],
+              ["Send to Combat Resolver", sendToResolver, inSuite],
+            ].filter(x => x[2]).map(([label, fn]) => (
+              <button key={label} onClick={fn} style={{
+                background: colors.ink, color: colors.parchment, border: `1px solid ${colors.ink}`, borderRadius: 6,
+                padding: "6px 12px", fontFamily: fontDisplay, fontSize: 12, fontWeight: 600, cursor: "pointer"
+              }}>{label}</button>
+            ))}
+            <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={onPickFile} style={{ display: "none" }} />
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, alignItems: "center", fontSize: 13, color: colors.ink }}>
+            <span>Player code: <strong data-testid="player-code" style={{ fontFamily: fontDisplay, letterSpacing: "0.15em" }}>{playerCode}</strong></span>
+            <input value={codeInput} onChange={e => setCodeInput(cleanCode(e.target.value))} placeholder="Enter a code" maxLength={12}
+              onKeyDown={e => { if (e.key === "Enter") openPlayerCode(codeInput); }}
+              style={{ width: 120, background: "transparent", border: "none", borderBottom: `1px solid ${colors.ink}88`, color: colors.ink, padding: "3px 2px", textTransform: "uppercase" }} />
+            {[["Open Sheet", () => openPlayerCode(codeInput), !codeInput], ["New Player Code", () => openPlayerCode(makeCode()), false]].map(([label, fn, off]) => (
+              <button key={label} onClick={fn} disabled={off} style={{
+                background: "transparent", color: colors.ink, border: `1px solid ${colors.ink}`, borderRadius: 6, opacity: off ? 0.5 : 1,
+                padding: "4px 10px", fontFamily: fontDisplay, fontSize: 11, fontWeight: 600, cursor: off ? "default" : "pointer"
+              }}>{label}</button>
+            ))}
+            <span style={{ fontStyle: "italic", opacity: 0.85 }}>This sheet saves itself on this computer under your code.</span>
+          </div>
+        </div>
+      </div>
+
+      {/* CORE STAT BAR */}
+      <div className="header-stats" style={{
+        display: "flex", gap: 10, padding: "14px 16px", justifyContent: "center", flexWrap: "wrap",
+        background: colors.ink, borderBottom: `1px solid ${colors.brass}55`
+      }}>
+        {[
+          ["AC", armorClass],
+          ["Initiative", fmt(initiative)],
+          ["Speed", `${speed} ft`],
+          ["HP", `${displayHp}/${effectiveMaxHp}`],
+          ["Prof Bonus", fmt(profBonus)],
+          ["Passive Perception", passivePerception],
+        ].map(([label, val]) => (
+          <div key={label} style={{
+            background: colors.inkLight, border: `1px solid ${colors.brass}66`, borderRadius: 6,
+            padding: "8px 14px", textAlign: "center", minWidth: 86
+          }}>
+            <div style={{ fontFamily: fontDisplay, fontSize: 20, fontWeight: 700, color: colors.brassLight }}>{val}</div>
+            <div style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.8 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* TABS */}
+      <div style={{
+        display: "flex", justifyContent: "center", gap: 2, background: colors.inkLight,
+        padding: "0 8px", borderBottom: `2px solid ${colors.brass}`, overflowX: "auto"
+      }}>
+        {[
+          ["identity", "Identity"],
+          ["abilities", "Abilities"],
+          ["skills", "Skills & Saves"],
+          ["combat", "Combat"],
+          ["features", "Features"],
+          ["spells", "Spellcasting"],
+          ["notes", "Equipment & Notes"],
+          ["magic", "✦ Magic Items"],
+          ["mundane", "⚔ Mundane Items"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            className="tab-btn"
+            onClick={() => setTab(key)}
+            style={{
+              background: tab === key ? colors.brass : "transparent",
+              color: tab === key ? colors.ink : colors.parchment,
+              border: "none", padding: "10px 16px", fontFamily: fontDisplay, fontSize: 13,
+              fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", borderRadius: "6px 6px 0 0",
+              transition: "background 0.15s"
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* CONTENT */}
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px 16px 60px" }}>
+        {tab === "identity" && (
+          <IdentityTab {...{ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems }} />
+        )}
+        {tab === "abilities" && (
+          <AbilitiesTab {...{ pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay }} />
+        )}
+        {tab === "skills" && (
+          <SkillsTab {...{ cls, skillProfs, toggleSkillProf, skillExpertise, toggleExpertise, skillMods, savingThrows, finalMods, profBonus, colors, fontDisplay }} />
+        )}
+        {tab === "combat" && (
+          <CombatTab {...{ cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
+        )}
+        {tab === "features" && (
+          <FeaturesTab {...{ featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, colors, fontDisplay }} />
+        )}
+        {tab === "spells" && (
+          <SpellsTab {...{ cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells }} />
+        )}
+        {tab === "notes" && (
+          <NotesTab {...{ equipment, setEquipment, notes, setNotes, colors, fontDisplay }} />
+        )}
+        {tab === "magic" && (
+          <MagicItemsTab {...{ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, characterItems, setCharacterItems, pinnedItems, setPinnedItems, colors, fontDisplay }} />
+        )}
+        {tab === "mundane" && (
+          <MundaneItemsTab {...{ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, pinnedItems, setPinnedItems, colors, fontDisplay }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============ TAB COMPONENTS ============ */
+
+function Section({ title, colors, fontDisplay, children }) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h3 style={{
+        fontFamily: fontDisplay, color: colors.brassLight, fontSize: 16, letterSpacing: "0.04em",
+        textTransform: "uppercase", borderBottom: `1px solid ${colors.brass}55`, paddingBottom: 8, marginBottom: 14
+      }}>{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function fieldStyle(colors) {
+  return {
+    width: "100%", background: colors.inkLight, border: `1px solid ${colors.brass}55`,
+    borderRadius: 6, color: colors.parchment, padding: "8px 10px", fontSize: 15
+  };
+}
+
+function IdentityTab({ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems }) {
+  const bg = BACKGROUNDS[background];
+  const subclassLevel = cls.subclassLevel;
+  const hasSubclassYet = level >= subclassLevel;
+
+  function handleBonusChoice(idx, ability) {
+    setBgBonusChoices(prev => {
+      const next = [...prev];
+      next[idx] = ability;
+      return next;
+    });
+  }
+
+  const numChoices = bgBonusMode === "2-1" ? 2 : 3;
+
+  return (
+    <div>
+      <Section title="Class & Level" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 12 }} className="two-col">
+          <div>
+            <label style={{ fontSize: 12, opacity: 0.8 }}>Class</label>
+            <select value={className} onChange={e => { setClassName(e.target.value); setSubclassName(""); }} style={fieldStyle(colors)}>
+              {Object.keys(CLASSES).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, opacity: 0.8 }}>{cls.subclassName} {hasSubclassYet ? "" : `(at level ${subclassLevel})`}</label>
+            <select value={subclassName} onChange={e => setSubclassName(e.target.value)} disabled={!hasSubclassYet} style={{ ...fieldStyle(colors), opacity: hasSubclassYet ? 1 : 0.5 }}>
+              <option value="">— none yet —</option>
+              {Object.keys(cls.subclasses).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, opacity: 0.8 }}>Level</label>
+            <input type="number" min={1} max={20} value={level} onChange={e => setLevel(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))} style={fieldStyle(colors)} />
+          </div>
+        </div>
+        <div style={{ marginTop: 12, fontSize: 13, opacity: 0.85, lineHeight: 1.6 }}>
+          <strong>Hit Die:</strong> d{cls.hitDie} &nbsp; <strong>Primary:</strong> {cls.primaryAbility} &nbsp; <strong>Saves:</strong> {cls.saves.map(s => ABBR[s]).join(", ")}<br/>
+          <strong>Armor:</strong> {cls.armorProf} &nbsp; <strong>Weapons:</strong> {cls.weaponProf}
+        </div>
+      </Section>
+
+      <Section title="Species & Background" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="two-col">
+          <div>
+            <label style={{ fontSize: 12, opacity: 0.8 }}>Species</label>
+            <select value={species} onChange={e => setSpecies(e.target.value)} style={fieldStyle(colors)}>
+              {Object.keys(SPECIES).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, opacity: 0.8 }}>Background</label>
+            <select value={background} onChange={e => { setBackground(e.target.value); setBgBonusChoices([]); }} style={fieldStyle(colors)}>
+              {Object.keys(BACKGROUNDS).map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 14, background: colors.inkLight, border: `1px solid ${colors.brass}40`, borderRadius: 8, padding: 14 }}>
+          <div style={{ fontSize: 13, marginBottom: 10 }}>
+            <strong>{background}</strong> grants ability score increases from: {bg.abilityScores.join(", ")}
+          </div>
+          <div style={{ display: "flex", gap: 16, marginBottom: 10, fontSize: 13 }}>
+            <label><input type="radio" checked={bgBonusMode === "2-1"} onChange={() => { setBgBonusMode("2-1"); setBgBonusChoices([]); }} /> +2 / +1</label>
+            <label><input type="radio" checked={bgBonusMode === "1-1-1"} onChange={() => { setBgBonusMode("1-1-1"); setBgBonusChoices([]); }} /> +1 / +1 / +1</label>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {Array.from({ length: numChoices }).map((_, idx) => (
+              <select key={idx} value={bgBonusChoices[idx] || ""} onChange={e => handleBonusChoice(idx, e.target.value)} style={{ ...fieldStyle(colors), width: 160 }}>
+                <option value="">{bgBonusMode === "2-1" ? `${idx === 0 ? "+2 to..." : "+1 to..."}` : "+1 to..."}</option>
+                {bg.abilityScores.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            ))}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 13, opacity: 0.85 }}>
+            <strong>Origin Feat:</strong> {bg.feat}<br/>
+            <strong>Skill Proficiencies:</strong> {bg.skills.join(", ")}<br/>
+            <strong>Tool Proficiency:</strong> {bg.tool}
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Alignment" colors={colors} fontDisplay={fontDisplay}>
+        <input value={alignment} onChange={e => setAlignment(e.target.value)} placeholder="e.g. Neutral Good" style={{ ...fieldStyle(colors), maxWidth: 260 }} />
+      </Section>
+
+      <Section title="Important Items" colors={colors} fontDisplay={fontDisplay}>
+        {pinnedItems.length === 0 ? (
+          <div style={{ color: colors.parchment + "55", fontSize: 14, fontFamily: "'Crimson Text','Georgia',serif", fontStyle: "italic" }}>
+            No important items yet — add them from the Magic Items or Mundane Items tabs.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {pinnedItems.map(item => {
+              const isMagic = item.rarity !== undefined;
+              const dotColor = isMagic ? RARITY_COLORS[item.rarity] : colors.parchment + "99";
+              return (
+                <PinnedItemRow key={item.name} item={item} isMagic={isMagic} dotColor={dotColor} onRemove={() => setPinnedItems(prev => prev.filter(p => p.name !== item.name))} colors={colors} fontDisplay={fontDisplay} />
+              );
+            })}
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+function PinnedItemRow({ item, isMagic, dotColor, onRemove, colors }) {
+  const [hovered, setHovered] = React.useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 10, padding: "7px 12px",
+        borderRadius: 6, background: hovered ? colors.blood + "22" : colors.inkLight,
+        border: `1px solid ${hovered ? colors.blood + "66" : colors.brass + "22"}`,
+        transition: "background 0.15s, border-color 0.15s", cursor: "default"
+      }}
+    >
+      <span style={{ width: 9, height: 9, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+      <span style={{ flex: 1, color: colors.parchment, fontSize: 14, fontFamily: "'Crimson Text','Georgia',serif", fontWeight: hovered ? 600 : 400 }}>
+        {item.name}
+      </span>
+      {isMagic && item.attunement && (
+        <span style={{ fontSize: 11, color: colors.brassLight, opacity: 0.75 }}>attunement</span>
+      )}
+      {item.rarity && (
+        <span style={{ fontSize: 11, color: dotColor, opacity: 0.85 }}>{item.rarity}</span>
+      )}
+      {item.category && (
+        <span style={{ fontSize: 11, color: colors.parchment + "55" }}>{item.category}</span>
+      )}
+      {hovered && (
+        <button
+          onClick={onRemove}
+          style={{
+            background: colors.blood, border: "none", color: colors.parchment,
+            borderRadius: 4, width: 22, height: 22, display: "flex", alignItems: "center",
+            justifyContent: "center", cursor: "pointer", fontSize: 14, fontWeight: 700,
+            flexShrink: 0, lineHeight: 1
+          }}
+        >×</button>
+      )}
+    </div>
+  );
+}
+
+function AbilitiesTab({ pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay }) {
+  return (
+    <div>
+      <Section title="Point Buy" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{
+          display: "inline-block", marginBottom: 16, padding: "8px 16px", borderRadius: 6,
+          background: pointBuyRemaining < 0 ? colors.blood : colors.inkLight,
+          border: `1px solid ${colors.brass}66`, fontFamily: fontDisplay, fontWeight: 700
+        }}>
+          Points Remaining: {pointBuyRemaining} / 27
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+          {ABILITIES.map(a => (
+            <div key={a} style={{ background: colors.inkLight, border: `1px solid ${colors.brass}40`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", opacity: 0.8 }}>{a}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "8px 0" }}>
+                <button onClick={() => updatePointBuy(a, pointBuy[a] - 1)} disabled={pointBuy[a] <= 8}
+                  style={{ width: 28, height: 28, borderRadius: 14, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.parchment, cursor: "pointer", opacity: pointBuy[a] <= 8 ? 0.3 : 1 }}>−</button>
+                <span style={{ fontFamily: fontDisplay, fontSize: 24, fontWeight: 700, minWidth: 28 }}>{pointBuy[a]}</span>
+                <button onClick={() => updatePointBuy(a, pointBuy[a] + 1)} disabled={pointBuy[a] >= 15}
+                  style={{ width: 28, height: 28, borderRadius: 14, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.parchment, cursor: "pointer", opacity: pointBuy[a] >= 15 ? 0.3 : 1 }}>+</button>
+              </div>
+              {(bgBonuses[a] || asiBonuses[a]) ? (
+                <div style={{ fontSize: 11, color: colors.brassLight }}>
+                  {bgBonuses[a] ? `+${bgBonuses[a]} bg` : ""} {asiBonuses[a] ? `+${asiBonuses[a]} ASI` : ""}
+                </div>
+              ) : null}
+              <div style={{ fontFamily: fontDisplay, fontSize: 18, color: colors.brassLight, marginTop: 4 }}>
+                {finalScores[a]} ({fmt(finalMods[a])})
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 12, opacity: 0.7, marginTop: 12, lineHeight: 1.5 }}>
+          Standard point buy: scores range 8–15 before bonuses. Cost: 9=1pt, 10=2, 11=3, 12=4, 13=5, 14=7, 15=9. Background increases and Ability Score Improvements are added automatically above.
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function SkillsTab({ cls, skillProfs, toggleSkillProf, skillExpertise, toggleExpertise, skillMods, savingThrows, finalMods, profBonus, colors, fontDisplay }) {
+  return (
+    <div>
+      <Section title="Saving Throws" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+          {ABILITIES.map(a => (
+            <div key={a} style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              background: colors.inkLight, border: `1px solid ${cls.saves.includes(a) ? colors.brass : colors.brass + "30"}`,
+              borderRadius: 6, padding: "8px 12px"
+            }}>
+              <span style={{ fontSize: 13 }}>{a} {cls.saves.includes(a) && <span style={{ color: colors.brassLight, fontSize: 11 }}>●prof</span>}</span>
+              <span style={{ fontFamily: fontDisplay, fontWeight: 700 }}>{fmt(savingThrows[a])}</span>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title={`Skills (choose ${cls.skillChoices} proficiencies)`} colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+          Selected: {skillProfs.length}/{cls.skillChoices}. Click a skill to toggle proficiency; click the star to toggle Expertise (double proficiency, if your class grants it).
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 6 }}>
+          {ALL_SKILLS.map(skill => {
+            const isProf = skillProfs.includes(skill);
+            const isExpertise = skillExpertise.includes(skill);
+            return (
+              <div key={skill} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                background: isProf ? colors.brass + "22" : colors.inkLight,
+                border: `1px solid ${isProf ? colors.brass : colors.brass + "30"}`,
+                borderRadius: 6, padding: "6px 10px", cursor: "pointer"
+              }}>
+                <span onClick={() => toggleSkillProf(skill)} style={{ fontSize: 13, flex: 1 }}>
+                  {skill} <span style={{ opacity: 0.6, fontSize: 11 }}>({ABBR[SKILL_ABILITY[skill]]})</span>
+                </span>
+                <span onClick={() => toggleExpertise(skill)} style={{ marginRight: 8, color: isExpertise ? colors.brassLight : colors.parchment + "40", fontSize: 14 }}>★</span>
+                <span style={{ fontFamily: fontDisplay, fontWeight: 700, minWidth: 30, textAlign: "right" }}>{fmt(skillMods[skill])}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function CombatTab({ cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }) {
+  const displayHp = currentHp === null ? effectiveMaxHp : currentHp;
+  return (
+    <div>
+      <Section title="Hit Points" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Max HP</div>
+            <div style={{ fontFamily: fontDisplay, fontSize: 26, fontWeight: 700, color: colors.brassLight }}>{effectiveMaxHp}</div>
+          </div>
+          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Current HP</div>
+            <input type="number" value={displayHp} onChange={e => setCurrentHp(parseInt(e.target.value) || 0)}
+              style={{ width: "100%", textAlign: "center", fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, background: "transparent", border: "none", color: colors.parchment }} />
+          </div>
+          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Temp HP</div>
+            <input type="number" value={tempHp} onChange={e => setTempHp(parseInt(e.target.value) || 0)}
+              style={{ width: "100%", textAlign: "center", fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, background: "transparent", border: "none", color: colors.parchment }} />
+          </div>
+        </div>
+        <div style={{ marginTop: 14, fontSize: 13 }}>
+          <strong>Hit Dice:</strong> {level}d{cls.hitDie} total &nbsp;|&nbsp; Used:
+          <input type="number" min={0} max={level} value={hitDiceUsed} onChange={e => setHitDiceUsed(Math.max(0, Math.min(level, parseInt(e.target.value) || 0)))}
+            style={{ ...fieldStyle(colors), display: "inline-block", width: 60, marginLeft: 8 }} />
+          <span style={{ marginLeft: 8, opacity: 0.7 }}>(remaining: {level - hitDiceUsed})</span>
+        </div>
+      </Section>
+
+      <Section title="Defenses & Movement" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+          {[["Armor Class", armorClass, "(unarmored base; adjust for worn armor)"], ["Initiative", fmt(initiative), ""], ["Speed", `${speed} ft`, ""]].map(([label, val, note]) => (
+            <div key={label} style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>{label}</div>
+              <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, color: colors.brassLight }}>{val}</div>
+              {note && <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>{note}</div>}
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Weapon Mastery & Attacks" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ fontSize: 13, opacity: 0.85, lineHeight: 1.6 }}>
+          Use the Equipment tab to log your weapons. Attack bonus = ability mod + proficiency bonus (if proficient). Track Weapon Mastery properties (Cleave, Graze, Nick, Push, Sap, Slow, Topple, Vex) per your class's weapon mastery feature in the Features tab.
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function FeaturesTab({ featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, colors, fontDisplay }) {
+  return (
+    <div>
+      <Section title="Ability Score Improvements & Feats" colors={colors} fontDisplay={fontDisplay}>
+        {reachedAsiLevels.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No ASI levels reached yet.</div>}
+        {reachedAsiLevels.map(lvl => {
+          const choice = asiChoices[lvl] || { type: "asi", abilities: [null, null] };
+          return (
+            <div key={lvl} style={{ background: colors.inkLight, border: `1px solid ${colors.brass}40`, borderRadius: 8, padding: 12, marginBottom: 10 }}>
+              <div style={{ fontFamily: fontDisplay, fontWeight: 700, marginBottom: 8, color: colors.brassLight }}>Level {lvl}</div>
+              <div style={{ display: "flex", gap: 14, marginBottom: 8, fontSize: 13 }}>
+                <label><input type="radio" checked={choice.type === "asi"} onChange={() => setAsiType(lvl, "asi")} /> Ability Score Improvement</label>
+                <label><input type="radio" checked={choice.type === "feat"} onChange={() => setAsiType(lvl, "feat")} /> Feat</label>
+              </div>
+              {choice.type === "asi" ? (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {[0, 1].map(idx => (
+                    <select key={idx} value={(choice.abilities && choice.abilities[idx]) || ""} onChange={e => setAsiAbilities(lvl, idx, e.target.value)} style={{ ...fieldStyle(colors), width: 160 }}>
+                      <option value="">+1 to...</option>
+                      {ABILITIES.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  ))}
+                </div>
+              ) : (
+                <input value={choice.name || ""} onChange={e => setFeatName(lvl, e.target.value)} placeholder="Feat name" style={fieldStyle(colors)} />
+              )}
+            </div>
+          );
+        })}
+      </Section>
+
+      <Section title="Feature Ledger" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 12 }}>
+          Every feature granted by your species, background, class, and subclass, in the order you gain them.
+        </div>
+        {featureLedger.map((f, i) => (
+          <div key={i} style={{
+            display: "flex", gap: 12, padding: "8px 0", borderBottom: `1px solid ${colors.brass}22`
+          }}>
+            <div style={{ minWidth: 64, fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight }}>Lvl {f.level}</div>
+            <div style={{ minWidth: 80, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", opacity: 0.65, paddingTop: 1 }}>{f.source}</div>
+            <div style={{ fontSize: 14, flex: 1 }}>{f.text}</div>
+          </div>
+        ))}
+      </Section>
+    </div>
+  );
+}
+
+function SpellsTab({ cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells }) {
+  if (!cls.casterType) {
+    return (
+      <Section title="Spellcasting" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ fontSize: 14, opacity: 0.75 }}>{className} has no spellcasting class features at base level (unless granted by subclass — check your Features tab for subclasses like Eldritch Knight or Arcane Trickster).</div>
+      </Section>
+    );
+  }
+
+  const spellAbilityMod = finalMods[cls.spellAbility];
+  const spellSaveDC = 8 + profBonus + spellAbilityMod;
+  const spellAttackBonus = profBonus + spellAbilityMod;
+
+  let slotsDisplay = null;
+  if (cls.casterType === "pact") {
+    const pact = PACT_SLOTS[level];
+    slotsDisplay = <div style={{ fontSize: 14 }}>{pact.slots} Pact Magic slots, all of level {pact.level}. (Slots recharge on a Short or Long Rest.)</div>;
+  } else {
+    const slots = getSpellSlots(className, level) || [];
+    slotsDisplay = (
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {slots.map((count, i) => (
+          <div key={i} style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 6, padding: "8px 12px", textAlign: "center", minWidth: 70 }}>
+            <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: colors.brassLight }}>{count}</div>
+            <div style={{ fontSize: 10, opacity: 0.75 }}>Level {i + 1}</div>
+          </div>
+        ))}
+        {slots.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No spell slots yet at this level.</div>}
+      </div>
+    );
+  }
+
+  const cantripsTable = CANTRIPS_KNOWN[className];
+  let cantripsKnown = null;
+  if (cantripsTable) {
+    const thresholds = Object.keys(cantripsTable).map(Number).sort((a, b) => a - b);
+    let count = cantripsTable[thresholds[0]];
+    thresholds.forEach(t => { if (level >= t) count = cantripsTable[t]; });
+    cantripsKnown = count;
+  }
+
+  return (
+    <div>
+      <Section title="Spellcasting Overview" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 16 }}>
+          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Spellcasting Ability</div>
+            <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: colors.brassLight }}>{cls.spellAbility}</div>
+          </div>
+          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Spell Save DC</div>
+            <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, color: colors.brassLight }}>{spellSaveDC}</div>
+          </div>
+          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Spell Attack Bonus</div>
+            <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, color: colors.brassLight }}>{fmt(spellAttackBonus)}</div>
+          </div>
+          {cantripsKnown !== null && (
+            <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Cantrips Known</div>
+              <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, color: colors.brassLight }}>{cantripsKnown}</div>
+            </div>
+          )}
+        </div>
+      </Section>
+      <Section title={cls.casterType === "pact" ? "Pact Magic Slots" : "Spell Slots"} colors={colors} fontDisplay={fontDisplay}>
+        {slotsDisplay}
+      </Section>
+      <Section title="Spells Known / Prepared" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 8 }}>
+          Log your chosen spells here — this app tracks slots and DCs, but spell selection from the full PHB list is up to you.
+        </div>
+        <SpellList colors={colors} fontDisplay={fontDisplay} spells={spells} setSpells={setSpells} />
+      </Section>
+    </div>
+  );
+}
+
+function SpellList({ colors, fontDisplay, spells, setSpells }) {
+  return (
+    <div>
+      {spells.map((s, i) => (
+        <input key={i} value={s} onChange={e => {
+          const next = [...spells]; next[i] = e.target.value; setSpells(next);
+        }} placeholder={`Spell ${i + 1}`} style={{ ...fieldStyle(colors), marginBottom: 6 }} />
+      ))}
+      <button onClick={() => setSpells([...spells, ""])} style={{
+        background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight,
+        borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, marginTop: 4
+      }}>+ Add spell</button>
+    </div>
+  );
+}
+
+function NotesTab({ equipment, setEquipment, notes, setNotes, colors, fontDisplay }) {
+  return (
+    <div>
+      <Section title="Equipment" colors={colors} fontDisplay={fontDisplay}>
+        <textarea value={equipment} onChange={e => setEquipment(e.target.value)} rows={8}
+          placeholder="Weapons, armor, adventuring gear, tools, coin..."
+          style={{ ...fieldStyle(colors), resize: "vertical", lineHeight: 1.6 }} />
+      </Section>
+      <Section title="Notes & Backstory" colors={colors} fontDisplay={fontDisplay}>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={10}
+          placeholder="Personality traits, ideals, bonds, flaws, backstory..."
+          style={{ ...fieldStyle(colors), resize: "vertical", lineHeight: 1.6 }} />
+      </Section>
+    </div>
+  );
+}
+
+function ItemRowHover({ item, isPinned, onPin, onUnpin, onSelect, isSelected, accentColor, colors, extraBadge }) {
+  const [hovered, setHovered] = React.useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => onSelect()}
+      style={{
+        display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 6,
+        cursor: "pointer", position: "relative",
+        background: isSelected ? `${accentColor}22` : (isPinned ? `${accentColor}11` : "transparent"),
+        border: `1px solid ${isSelected ? accentColor + "66" : (isPinned ? accentColor + "33" : "transparent")}`,
+        transition: "background 0.12s"
+      }}
+    >
+      <span style={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, background: accentColor }} />
+      <span style={{
+        color: isPinned ? colors.parchment : colors.parchment + "cc",
+        fontSize: 14, flex: 1,
+        fontFamily: "'Crimson Text','Georgia',serif",
+        fontWeight: isPinned ? 600 : 400
+      }}>
+        {item.name}
+      </span>
+      {extraBadge}
+      {/* Hover action: show ✓ to add or × to remove */}
+      {hovered && (
+        <button
+          onClick={e => { e.stopPropagation(); isPinned ? onUnpin() : onPin(); }}
+          title={isPinned ? "Remove from Important Items" : "Add to Important Items"}
+          style={{
+            width: 22, height: 22, borderRadius: 4, border: "none", cursor: "pointer",
+            background: isPinned ? colors.blood : "#4caf50",
+            color: "#fff", fontSize: 14, fontWeight: 700,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0, lineHeight: 1
+          }}
+        >
+          {isPinned ? "×" : "✓"}
+        </button>
+      )}
+      {!hovered && isPinned && (
+        <span style={{ fontSize: 12, color: "#4caf50", flexShrink: 0 }}>✓</span>
+      )}
+    </div>
+  );
+}
+
+function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, characterItems, setCharacterItems, pinnedItems, setPinnedItems, colors, fontDisplay }) {
+  const allTypes = React.useMemo(() => {
+    const types = new Set(MAGIC_ITEMS.map(i => i.type));
+    return ["All", ...Array.from(types).sort()];
+  }, []);
+
+  const filtered = React.useMemo(() => {
+    return MAGIC_ITEMS.filter(item => {
+      const matchSearch = item.name.toLowerCase().includes(itemSearch.toLowerCase()) ||
+        item.description.toLowerCase().includes(itemSearch.toLowerCase());
+      const matchRarity = itemRarityFilter === "All" || item.rarity === itemRarityFilter;
+      const matchType = itemTypeFilter === "All" || item.type === itemTypeFilter;
+      const matchAtt = itemAttunementFilter === "All" ||
+        (itemAttunementFilter === "Yes" && item.attunement) ||
+        (itemAttunementFilter === "No" && !item.attunement);
+      return matchSearch && matchRarity && matchType && matchAtt;
+    });
+  }, [itemSearch, itemRarityFilter, itemTypeFilter, itemAttunementFilter]);
+
+  const grouped = React.useMemo(() => {
+    const g = {};
+    RARITY_ORDER.forEach(r => { g[r] = []; });
+    filtered.forEach(item => { if (g[item.rarity]) g[item.rarity].push(item); });
+    return g;
+  }, [filtered]);
+
+  const isPinned = (item) => pinnedItems.some(p => p.name === item.name);
+  const pinItem = (item) => { if (!isPinned(item)) setPinnedItems(prev => [...prev, item]); };
+  const unpinItem = (item) => setPinnedItems(prev => prev.filter(p => p.name !== item.name));
+
+  const inputStyle = {
+    background: colors.inkLight, border: `1px solid ${colors.brass}44`, color: colors.parchment,
+    borderRadius: 6, padding: "8px 12px", fontSize: 14, fontFamily: "'Crimson Text','Georgia',serif",
+    outline: "none", width: "100%", boxSizing: "border-box"
+  };
+  const selectStyle = { ...inputStyle, width: "auto", minWidth: 120, cursor: "pointer" };
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 20, alignItems: "start" }}>
+      <div>
+        <div style={{ background: colors.inkLight, borderRadius: 10, padding: 16, marginBottom: 16, border: `1px solid ${colors.brass}33` }}>
+          <input value={itemSearch} onChange={e => setItemSearch(e.target.value)}
+            placeholder="Search by name or description..." style={{ ...inputStyle, marginBottom: 10 }} />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <select value={itemRarityFilter} onChange={e => setItemRarityFilter(e.target.value)} style={selectStyle}>
+              <option value="All">All Rarities</option>
+              {RARITY_ORDER.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <select value={itemTypeFilter} onChange={e => setItemTypeFilter(e.target.value)} style={selectStyle}>
+              {allTypes.map(t => <option key={t} value={t}>{t === "All" ? "All Types" : t}</option>)}
+            </select>
+            <select value={itemAttunementFilter} onChange={e => setItemAttunementFilter(e.target.value)} style={selectStyle}>
+              <option value="All">Any Attunement</option>
+              <option value="Yes">Requires Attunement</option>
+              <option value="No">No Attunement</option>
+            </select>
+            <span style={{ color: colors.parchment + "88", fontSize: 13, alignSelf: "center", marginLeft: "auto" }}>
+              {filtered.length} item{filtered.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ maxHeight: "62vh", overflowY: "auto", paddingRight: 4 }}>
+          {RARITY_ORDER.map(rarity => {
+            const items = grouped[rarity];
+            if (!items || items.length === 0) return null;
+            return (
+              <div key={rarity} style={{ marginBottom: 16 }}>
+                <div style={{
+                  fontFamily: fontDisplay, fontSize: 12, fontWeight: 700, letterSpacing: 1,
+                  color: RARITY_COLORS[rarity], textTransform: "uppercase", marginBottom: 6,
+                  paddingBottom: 4, borderBottom: `1px solid ${RARITY_COLORS[rarity]}44`
+                }}>
+                  {rarity} ({items.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {items.map(item => (
+                    <ItemRowHover
+                      key={item.name}
+                      item={item}
+                      isPinned={isPinned(item)}
+                      onPin={() => pinItem(item)}
+                      onUnpin={() => unpinItem(item)}
+                      onSelect={() => setSelectedItem(selectedItem && selectedItem.name === item.name ? null : item)}
+                      isSelected={selectedItem && selectedItem.name === item.name}
+                      accentColor={RARITY_COLORS[rarity]}
+                      colors={colors}
+                      extraBadge={<>
+                        {item.attunement && <span style={{ fontSize: 11, color: colors.brassLight, opacity: 0.8 }}>⟳</span>}
+                        <span style={{ fontSize: 11, color: colors.parchment + "55", flexShrink: 0 }}>{item.type}</span>
+                      </>}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ position: "sticky", top: 16 }}>
+        <div style={{
+          background: colors.inkLight,
+          border: `1px solid ${selectedItem ? RARITY_COLORS[selectedItem.rarity] + "66" : colors.brass + "22"}`,
+          borderRadius: 10, padding: 20, marginBottom: 16, minHeight: 200
+        }}>
+          {selectedItem ? (
+            <>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: fontDisplay, fontSize: 18, color: colors.parchment, lineHeight: 1.2, marginBottom: 6 }}>
+                  {selectedItem.name}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: RARITY_COLORS[selectedItem.rarity], background: RARITY_COLORS[selectedItem.rarity] + "22", padding: "2px 8px", borderRadius: 4 }}>{selectedItem.rarity}</span>
+                  <span style={{ fontSize: 12, color: colors.parchment + "88", background: colors.ink, padding: "2px 8px", borderRadius: 4 }}>{selectedItem.type}</span>
+                  {selectedItem.attunement && <span style={{ fontSize: 12, color: colors.brassLight, background: colors.brass + "22", padding: "2px 8px", borderRadius: 4 }}>Requires Attunement</span>}
+                </div>
+              </div>
+              <p style={{ color: colors.parchment + "cc", fontSize: 14, lineHeight: 1.7, fontFamily: "'Crimson Text','Georgia',serif", margin: "0 0 16px" }}>{selectedItem.description}</p>
+              <button
+                onClick={() => isPinned(selectedItem) ? unpinItem(selectedItem) : pinItem(selectedItem)}
+                style={{
+                  width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer",
+                  fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none",
+                  background: isPinned(selectedItem) ? colors.blood : colors.brass,
+                  color: isPinned(selectedItem) ? colors.parchment : colors.ink
+                }}
+              >
+                {isPinned(selectedItem) ? "− Remove from Important Items" : "✓ Add to Important Items"}
+              </button>
+            </>
+          ) : (
+            <div style={{ color: colors.parchment + "44", fontFamily: "'Crimson Text','Georgia',serif", fontSize: 15, textAlign: "center", paddingTop: 60 }}>
+              Select an item to view details
+            </div>
+          )}
+        </div>
+
+        {pinnedItems.filter(p => p.rarity).length > 0 && (
+          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}33`, borderRadius: 10, padding: 16 }}>
+            <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase" }}>
+              Pinned Magic Items ({pinnedItems.filter(p => p.rarity).length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
+              {pinnedItems.filter(p => p.rarity).map(item => (
+                <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: RARITY_COLORS[item.rarity], flexShrink: 0 }} />
+                  <span style={{ color: colors.parchment, fontSize: 13, flex: 1, fontFamily: "'Crimson Text','Georgia',serif" }}>{item.name}</span>
+                  <button onClick={() => unpinItem(item)} style={{ background: "none", border: "none", color: colors.blood, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, pinnedItems, setPinnedItems, colors, fontDisplay }) {
+  const allCategories = React.useMemo(() => {
+    const cats = new Set(MUNDANE_ITEMS.map(i => i.category));
+    return ["All", ...Array.from(cats).sort()];
+  }, []);
+
+  const filtered = React.useMemo(() => {
+    return MUNDANE_ITEMS.filter(item => {
+      const matchSearch = item.name.toLowerCase().includes(mundaneSearch.toLowerCase()) ||
+        item.description.toLowerCase().includes(mundaneSearch.toLowerCase());
+      const matchCat = mundaneTypeFilter === "All" || item.category === mundaneTypeFilter;
+      return matchSearch && matchCat;
+    });
+  }, [mundaneSearch, mundaneTypeFilter]);
+
+  const grouped = React.useMemo(() => {
+    const g = {};
+    allCategories.filter(c => c !== "All").forEach(c => { g[c] = []; });
+    filtered.forEach(item => { if (g[item.category]) g[item.category].push(item); });
+    return g;
+  }, [filtered, allCategories]);
+
+  const isPinned = (item) => pinnedItems.some(p => p.name === item.name);
+  const pinItem = (item) => { if (!isPinned(item)) setPinnedItems(prev => [...prev, item]); };
+  const unpinItem = (item) => setPinnedItems(prev => prev.filter(p => p.name !== item.name));
+
+  const inputStyle = {
+    background: colors.inkLight, border: `1px solid ${colors.brass}44`, color: colors.parchment,
+    borderRadius: 6, padding: "8px 12px", fontSize: 14, fontFamily: "'Crimson Text','Georgia',serif",
+    outline: "none", width: "100%", boxSizing: "border-box"
+  };
+  const selectStyle = { ...inputStyle, width: "auto", minWidth: 150, cursor: "pointer" };
+
+  const accentColor = colors.brassLight;
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, alignItems: "start" }}>
+      <div>
+        <div style={{ background: colors.inkLight, borderRadius: 10, padding: 16, marginBottom: 16, border: `1px solid ${colors.brass}33` }}>
+          <input value={mundaneSearch} onChange={e => setMundaneSearch(e.target.value)}
+            placeholder="Search items..." style={{ ...inputStyle, marginBottom: 10 }} />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <select value={mundaneTypeFilter} onChange={e => setMundaneTypeFilter(e.target.value)} style={selectStyle}>
+              {allCategories.map(c => <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>)}
+            </select>
+            <span style={{ color: colors.parchment + "88", fontSize: 13, marginLeft: "auto" }}>
+              {filtered.length} item{filtered.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ maxHeight: "62vh", overflowY: "auto", paddingRight: 4 }}>
+          {allCategories.filter(c => c !== "All").map(cat => {
+            const items = grouped[cat];
+            if (!items || items.length === 0) return null;
+            return (
+              <div key={cat} style={{ marginBottom: 16 }}>
+                <div style={{
+                  fontFamily: fontDisplay, fontSize: 12, fontWeight: 700, letterSpacing: 1,
+                  color: accentColor, textTransform: "uppercase", marginBottom: 6,
+                  paddingBottom: 4, borderBottom: `1px solid ${accentColor}44`
+                }}>
+                  {cat} ({items.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {items.map(item => (
+                    <ItemRowHover
+                      key={item.name}
+                      item={item}
+                      isPinned={isPinned(item)}
+                      onPin={() => pinItem(item)}
+                      onUnpin={() => unpinItem(item)}
+                      onSelect={() => setSelectedMundane(selectedMundane && selectedMundane.name === item.name ? null : item)}
+                      isSelected={selectedMundane && selectedMundane.name === item.name}
+                      accentColor={accentColor}
+                      colors={colors}
+                      extraBadge={
+                        <span style={{ fontSize: 11, color: colors.parchment + "55", flexShrink: 0 }}>{item.cost}</span>
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ position: "sticky", top: 16 }}>
+        <div style={{
+          background: colors.inkLight,
+          border: `1px solid ${selectedMundane ? accentColor + "66" : colors.brass + "22"}`,
+          borderRadius: 10, padding: 20, marginBottom: 16, minHeight: 200
+        }}>
+          {selectedMundane ? (
+            <>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: fontDisplay, fontSize: 18, color: colors.parchment, lineHeight: 1.2, marginBottom: 6 }}>
+                  {selectedMundane.name}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12, color: accentColor, background: accentColor + "22", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>{selectedMundane.category}</span>
+                  <span style={{ fontSize: 12, color: colors.parchment + "88", background: colors.ink, padding: "2px 8px", borderRadius: 4 }}>{selectedMundane.cost}</span>
+                  {selectedMundane.weight && selectedMundane.weight !== "—" && (
+                    <span style={{ fontSize: 12, color: colors.parchment + "66", background: colors.ink, padding: "2px 8px", borderRadius: 4 }}>{selectedMundane.weight}</span>
+                  )}
+                </div>
+              </div>
+              <p style={{ color: colors.parchment + "cc", fontSize: 14, lineHeight: 1.7, fontFamily: "'Crimson Text','Georgia',serif", margin: "0 0 16px" }}>
+                {selectedMundane.description}
+              </p>
+              <button
+                onClick={() => isPinned(selectedMundane) ? unpinItem(selectedMundane) : pinItem(selectedMundane)}
+                style={{
+                  width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer",
+                  fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none",
+                  background: isPinned(selectedMundane) ? colors.blood : colors.brass,
+                  color: isPinned(selectedMundane) ? colors.parchment : colors.ink
+                }}
+              >
+                {isPinned(selectedMundane) ? "− Remove from Important Items" : "✓ Add to Important Items"}
+              </button>
+            </>
+          ) : (
+            <div style={{ color: colors.parchment + "44", fontFamily: "'Crimson Text','Georgia',serif", fontSize: 15, textAlign: "center", paddingTop: 60 }}>
+              Select an item to view details
+            </div>
+          )}
+        </div>
+
+        {pinnedItems.filter(p => !p.rarity).length > 0 && (
+          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}33`, borderRadius: 10, padding: 16 }}>
+            <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase" }}>
+              Pinned Mundane Items ({pinnedItems.filter(p => !p.rarity).length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
+              {pinnedItems.filter(p => !p.rarity).map(item => (
+                <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: accentColor, flexShrink: 0 }} />
+                  <span style={{ color: colors.parchment, fontSize: 13, flex: 1, fontFamily: "'Crimson Text','Georgia',serif" }}>{item.name}</span>
+                  <span style={{ fontSize: 11, color: colors.parchment + "55" }}>{item.cost}</span>
+                  <button onClick={() => unpinItem(item)} style={{ background: "none", border: "none", color: colors.blood, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<CharacterSheet />);
+  </script>
+</body>
+</html>

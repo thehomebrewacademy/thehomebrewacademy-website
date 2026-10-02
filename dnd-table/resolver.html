@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>D&D Combat Resolver</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #1B2430;
+      --parchment: #EDE4D3;
+      --parchment-dark: #D5C9B4;
+      --brass: #B8860B;
+      --brass-light: #D4A017;
+      --blood: #7A2E2E;
+      --blood-light: #9B3D3D;
+      --gold: #C9A84C;
+      --panel: #22303F;
+      --panel-light: #2C3E50;
+      --text-light: #EDE4D3;
+      --text-muted: #9BAAB8;
+      --success: #4CAF50;
+      --danger: #E53935;
+      --warning: #FF9800;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--ink); font-family: 'Crimson Text', serif; color: var(--text-light); min-height: 100vh; }
+
+    h1, h2, h3, .label { font-family: 'Cinzel', serif; }
+
+    /* ── HEADER ── */
+    .header {
+      background: linear-gradient(135deg, #0F1923 0%, #1B2430 100%);
+      border-bottom: 2px solid var(--brass);
+      padding: 12px 20px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    .header h1 { font-size: 1.4rem; color: var(--gold); letter-spacing: 2px; }
+    .header .round-badge {
+      margin-left: auto; background: var(--blood); border: 1px solid var(--blood-light);
+      padding: 4px 14px; border-radius: 20px; font-family: 'Cinzel', serif;
+      font-size: 0.85rem; color: var(--parchment);
+    }
+
+    /* ── LAYOUT ── */
+    .app { display: grid; grid-template-columns: 320px 1fr 300px; gap: 0; height: calc(100vh - 56px); }
+
+    /* ── PANELS ── */
+    .panel { background: var(--panel); border-right: 1px solid #2C3E50; display: flex; flex-direction: column; overflow: hidden; }
+    .panel-header {
+      background: linear-gradient(135deg, #1a2535 0%, #243040 100%);
+      border-bottom: 1px solid var(--brass);
+      padding: 10px 14px;
+      font-family: 'Cinzel', serif; font-size: 0.8rem; color: var(--gold);
+      letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0;
+    }
+    .panel-body { flex: 1; overflow-y: auto; padding: 12px; }
+    .panel-body::-webkit-scrollbar { width: 4px; }
+    .panel-body::-webkit-scrollbar-track { background: var(--panel); }
+    .panel-body::-webkit-scrollbar-thumb { background: var(--brass); border-radius: 2px; }
+
+    /* ── COMBATANT CARDS ── */
+    .combatant-card {
+      background: #1a2535; border: 1px solid #2C3E50; border-radius: 6px;
+      padding: 10px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s;
+      position: relative;
+    }
+    .combatant-card:hover { border-color: var(--brass); }
+    .combatant-card.active { border-color: var(--gold); background: #1f2f42; box-shadow: 0 0 8px rgba(201,168,76,0.3); }
+    .combatant-card.targeted { border-color: var(--blood-light); background: #2a1f1f; box-shadow: 0 0 8px rgba(122,46,46,0.4); }
+    .combatant-card.dead { opacity: 0.4; }
+
+    .combatant-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .init-badge {
+      background: var(--brass); color: var(--ink); font-family: 'Cinzel', serif;
+      font-weight: 700; font-size: 0.9rem; width: 30px; height: 30px;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .combatant-card.active .init-badge { background: var(--gold); }
+    .combatant-card.targeted .init-badge { background: var(--blood-light); color: white; }
+
+    .combatant-name { font-family: 'Cinzel', serif; font-size: 0.9rem; color: var(--parchment); font-weight: 600; }
+    .combatant-type { font-size: 0.75rem; color: var(--text-muted); }
+
+    .hp-bar-wrap { position: relative; height: 8px; background: #0F1923; border-radius: 4px; overflow: hidden; }
+    .hp-bar { height: 100%; border-radius: 4px; transition: width 0.4s; }
+    .hp-text { font-size: 0.78rem; color: var(--text-muted); margin-top: 3px; display: flex; justify-content: space-between; }
+    .hp-text span { color: var(--parchment); font-weight: 600; }
+
+    .conditions { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+    .condition-tag {
+      background: #2C3E50; border: 1px solid #3d5166; border-radius: 3px;
+      padding: 1px 5px; font-size: 0.65rem; color: var(--text-muted);
+    }
+    .condition-tag.bad { background: #3d1f1f; border-color: var(--blood); color: #ff8a80; }
+
+    .turn-marker {
+      position: absolute; top: 6px; right: 6px;
+      width: 8px; height: 8px; border-radius: 50%; background: var(--gold);
+      box-shadow: 0 0 6px var(--gold);
+    }
+
+    /* ── ADD COMBATANT ── */
+    .add-form { background: #1a2535; border: 1px dashed #3d5166; border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+    .add-form .label { font-size: 0.72rem; color: var(--brass); margin-bottom: 4px; display: block; }
+    .add-form input, .add-form select {
+      width: 100%; background: #0F1923; border: 1px solid #3d5166; color: var(--parchment);
+      padding: 5px 8px; border-radius: 4px; font-family: 'Crimson Text', serif; font-size: 0.9rem;
+      margin-bottom: 5px;
+    }
+    .add-form input:focus, .add-form select:focus { outline: none; border-color: var(--brass); }
+    .inline-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.5px;
+      border: none; border-radius: 4px; cursor: pointer; padding: 6px 12px;
+      transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-primary { background: var(--brass); color: var(--ink); }
+    .btn-primary:hover { background: var(--brass-light); }
+    .btn-danger { background: var(--blood); color: white; }
+    .btn-danger:hover { background: var(--blood-light); }
+    .btn-ghost { background: transparent; border: 1px solid #3d5166; color: var(--text-muted); }
+    .btn-ghost:hover { border-color: var(--brass); color: var(--parchment); }
+    .btn-success { background: #2e7d32; color: white; }
+    .btn-success:hover { background: #388e3c; }
+    .btn-full { width: 100%; justify-content: center; }
+    .btn-sm { padding: 4px 8px; font-size: 0.7rem; }
+
+    /* ── CENTER — ACTION PANEL ── */
+    .center-panel { background: #161f2b; border-right: 1px solid #2C3E50; display: flex; flex-direction: column; overflow: hidden; }
+    .action-area { flex: 1; overflow-y: auto; padding: 16px; }
+    .action-area::-webkit-scrollbar { width: 4px; }
+    .action-area::-webkit-scrollbar-thumb { background: var(--brass); border-radius: 2px; }
+
+    .turn-banner {
+      background: linear-gradient(135deg, #1f2f42 0%, #243040 100%);
+      border: 1px solid var(--gold); border-radius: 8px; padding: 12px 16px; margin-bottom: 14px;
+    }
+    .turn-banner .who { font-family: 'Cinzel', serif; font-size: 1.1rem; color: var(--gold); }
+    .turn-banner .stats-row { display: flex; gap: 16px; margin-top: 6px; flex-wrap: wrap; }
+    .stat-chip { text-align: center; }
+    .stat-chip .val { font-family: 'Cinzel', serif; font-size: 1rem; color: var(--parchment); font-weight: 700; }
+    .stat-chip .lbl { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .section-title { font-family: 'Cinzel', serif; font-size: 0.78rem; color: var(--brass); letter-spacing: 1px; text-transform: uppercase; margin: 12px 0 6px; border-bottom: 1px solid #2C3E50; padding-bottom: 4px; }
+
+    /* ── TARGET SELECTOR ── */
+    .target-row { display: flex; align-items: center; gap: 8px; background: #1a2535; border: 1px solid #2C3E50; border-radius: 5px; padding: 7px 10px; margin-bottom: 5px; cursor: pointer; transition: all 0.15s; }
+    .target-row:hover { border-color: var(--blood-light); }
+    .target-row.selected { border-color: var(--blood-light); background: #2a1f1f; }
+    .target-row .t-name { font-family: 'Cinzel', serif; font-size: 0.82rem; color: var(--parchment); flex: 1; }
+    .target-row .t-ac { background: #0F1923; border: 1px solid #3d5166; border-radius: 3px; padding: 2px 7px; font-size: 0.78rem; color: var(--text-muted); }
+    .target-row .t-hp { font-size: 0.75rem; color: var(--text-muted); }
+
+    /* ── ACTION BUTTONS ── */
+    .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+    .action-btn {
+      background: #1a2535; border: 1px solid #2C3E50; border-radius: 5px; padding: 8px;
+      cursor: pointer; transition: all 0.15s; text-align: left;
+    }
+    .action-btn:hover { border-color: var(--brass); background: #1f2f42; }
+    .action-btn.selected { border-color: var(--gold); background: #1f2f42; }
+    .action-btn .a-name { font-family: 'Cinzel', serif; font-size: 0.78rem; color: var(--parchment); }
+    .action-btn .a-detail { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+    .action-btn .a-tag { display: inline-block; font-size: 0.6rem; padding: 1px 5px; border-radius: 3px; margin-top: 3px; }
+    .tag-attack { background: #3d1f1f; color: #ff8a80; border: 1px solid var(--blood); }
+    .tag-save { background: #1f3a1f; color: #a5d6a7; border: 1px solid #2e7d32; }
+    .tag-heal { background: #1a2f3a; color: #80d8ff; border: 1px solid #0288d1; }
+    .tag-utility { background: #2a2a1f; color: #fff176; border: 1px solid #f9a825; }
+
+    /* ── RESOLVE BUTTON ── */
+    .resolve-bar {
+      background: #0F1923; border-top: 1px solid #2C3E50; padding: 10px 16px;
+      display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+    }
+    .resolve-btn {
+      flex: 1; background: linear-gradient(135deg, var(--blood) 0%, var(--blood-light) 100%);
+      border: 1px solid #a04040; border-radius: 6px; padding: 10px;
+      font-family: 'Cinzel', serif; font-size: 0.9rem; color: white; letter-spacing: 1px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .resolve-btn:hover { background: linear-gradient(135deg, var(--blood-light) 0%, #b34747 100%); }
+    .resolve-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* ── RESULT LOG ── */
+    .log-panel { background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
+    .log-body { flex: 1; overflow-y: auto; padding: 10px; }
+    .log-body::-webkit-scrollbar { width: 4px; }
+    .log-body::-webkit-scrollbar-thumb { background: var(--brass); border-radius: 2px; }
+
+    .log-entry {
+      background: #1a2535; border-left: 3px solid #2C3E50; border-radius: 0 5px 5px 0;
+      padding: 8px 10px; margin-bottom: 8px; font-size: 0.85rem; line-height: 1.5;
+    }
+    .log-entry.hit { border-left-color: var(--success); }
+    .log-entry.miss { border-left-color: #546e7a; }
+    .log-entry.crit { border-left-color: var(--gold); background: #1f2a1a; }
+    .log-entry.save-fail { border-left-color: var(--danger); }
+    .log-entry.save-pass { border-left-color: var(--success); }
+    .log-entry.heal { border-left-color: #0288d1; }
+
+    .log-round { text-align: center; font-family: 'Cinzel', serif; font-size: 0.7rem; color: var(--text-muted); letter-spacing: 2px; margin: 8px 0; }
+    .log-result { font-size: 1.1rem; font-family: 'Cinzel', serif; color: var(--gold); }
+    .log-dmg { color: var(--blood-light); font-weight: 700; font-size: 1.1rem; }
+    .log-heal-val { color: #80d8ff; font-weight: 700; font-size: 1.1rem; }
+    .log-detail { color: var(--text-muted); font-size: 0.78rem; margin-top: 3px; }
+    .log-dice { font-size: 0.75rem; color: #9BAAB8; font-style: italic; }
+
+    /* ── HP EDIT ── */
+    .hp-edit { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+    .hp-edit input { width: 50px; background: #0F1923; border: 1px solid #3d5166; color: var(--parchment); padding: 3px 5px; border-radius: 3px; font-family: 'Crimson Text', serif; text-align: center; }
+    .hp-edit .btn-sm { padding: 3px 7px; }
+
+    /* ── SPELL SLOT PIPS ── */
+    .slot-pips { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+    .pip { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--brass); cursor: pointer; transition: background 0.15s; }
+    .pip.filled { background: var(--brass); }
+    .pip.empty { background: transparent; }
+
+    /* ── SETUP SCREEN ── */
+    .setup-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 40px; text-align: center; }
+    .setup-screen .big-icon { font-size: 3rem; margin-bottom: 16px; }
+    .setup-screen h2 { font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 8px; }
+    .setup-screen p { color: var(--text-muted); max-width: 300px; line-height: 1.5; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal {
+      background: var(--panel); border: 1px solid var(--brass); border-radius: 8px;
+      width: 100%; max-width: 440px; max-height: 80vh; overflow-y: auto;
+    }
+    .modal-header {
+      background: linear-gradient(135deg, #1a2535 0%, #243040 100%);
+      border-bottom: 1px solid var(--brass); padding: 12px 16px;
+      font-family: 'Cinzel', serif; color: var(--gold); font-size: 1rem; letter-spacing: 1px;
+    }
+    .modal-body { padding: 16px; }
+    .modal-footer { padding: 12px 16px; border-top: 1px solid #2C3E50; display: flex; gap: 8px; justify-content: flex-end; }
+
+    .form-group { margin-bottom: 10px; }
+    .form-group label { display: block; font-size: 0.72rem; color: var(--brass); font-family: 'Cinzel', serif; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-group input, .form-group select {
+      width: 100%; background: #0F1923; border: 1px solid #3d5166; color: var(--parchment);
+      padding: 7px 10px; border-radius: 4px; font-family: 'Crimson Text', serif; font-size: 0.95rem;
+    }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--brass); }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    /* ── DICE ROLL ANIMATION ── */
+    @keyframes rollIn { from { transform: scale(0.5) rotate(-15deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+    .dice-result { animation: rollIn 0.25s ease-out; }
+
+    .empty-state { text-align: center; color: var(--text-muted); padding: 24px; font-size: 0.85rem; }
+
+    /* ── NEXT TURN BTN ── */
+    .next-turn-btn {
+      background: linear-gradient(135deg, #1B3A2A 0%, #244d38 100%);
+      border: 1px solid #2e7d32; border-radius: 4px; padding: 8px 14px;
+      font-family: 'Cinzel', serif; font-size: 0.8rem; color: #a5d6a7; cursor: pointer; transition: all 0.15s;
+    }
+    .next-turn-btn:hover { background: linear-gradient(135deg, #244d38 0%, #2e7d32 100%); }
+
+    .initiative-controls { display: flex; gap: 6px; margin-bottom: 10px; }
+
+    /* ── MANUAL ROLL ── */
+    .manual-roll { background: #1a2535; border: 1px solid #2C3E50; border-radius: 6px; padding: 10px; margin-top: 10px; }
+    .manual-roll .label { font-size: 0.72rem; color: var(--brass); font-family: 'Cinzel', serif; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block; }
+    .advantage-row { display: flex; gap: 6px; margin-bottom: 6px; }
+    .adv-btn { flex: 1; background: #0F1923; border: 1px solid #3d5166; border-radius: 4px; padding: 5px; font-size: 0.7rem; color: var(--text-muted); cursor: pointer; text-align: center; transition: all 0.15s; }
+    .adv-btn.active-adv { background: #1f3a1f; border-color: #2e7d32; color: #a5d6a7; }
+    .adv-btn.active-dis { background: #3d1f1f; border-color: var(--blood); color: #ff8a80; }
+
+    /* ── SESSION / LIVE SYNC ── */
+    .room-bar { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-muted); flex-wrap: wrap; }
+    .round-badge + .room-bar { margin-left: 0; }
+    .room-bar input { width: 120px; background: #0F1923; border: 1px solid #3d5166; color: var(--parchment); padding: 5px 8px; border-radius: 4px; font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase; }
+    .room-bar input:focus { outline: none; border-color: var(--brass); }
+    .room-code { font-family: 'Cinzel', serif; color: var(--gold); letter-spacing: 2px; font-weight: 700; }
+    .room-dot { width: 9px; height: 9px; border-radius: 50%; background: #546e7a; display: inline-block; }
+    .room-dot.live { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .room-dot.connecting { background: var(--warning); }
+    .room-dot.error { background: var(--danger); }
+    .drop-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(15,25,35,0.85); border: 3px dashed var(--gold); display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-size: 1.3rem; color: var(--gold); pointer-events: none; }
+    .hp-edit { flex-wrap: wrap; }
+    body { display: flex; flex-direction: column; height: 100vh; }
+    #root { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .app { flex: 1; min-height: 0; height: auto; }
+
+    /* ── SESSION BAR ── */
+    .header { flex-wrap: wrap; row-gap: 8px; }
+    .role-badge { font-family: 'Cinzel', serif; font-size: 0.68rem; letter-spacing: 1px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--brass); color: var(--gold); text-transform: uppercase; }
+    .room-bar label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+    .link-btn { background: none; border: none; color: var(--brass-light); cursor: pointer; font: inherit; text-decoration: underline; padding: 0; }
+    .btn:disabled { opacity: 0.45; cursor: default; }
+
+    /* ── CARDS: effects, pending, remove ── */
+    .condition-tag.good { background: #1f3a1f; border-color: #2e7d32; color: #a5d6a7; cursor: default; }
+    .condition-tag.good.removable, .condition-tag.bad.removable { cursor: pointer; }
+    .combatant-card.pending { border-style: dashed; border-color: var(--warning); }
+    .combatant-card.mine { border-left: 3px solid var(--brass-light); }
+    .pending-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 0.78rem; color: var(--warning); }
+    .card-remove { margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 2px; }
+    .card-remove:hover { color: #ff8a80; }
+    .owner-tag { font-size: 0.68rem; color: var(--brass-light); }
+
+    /* ── CENTER: tabs, stat block ── */
+    .view-tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+    .view-tab { font-family: 'Cinzel', serif; font-size: 0.75rem; background: #1a2535; border: 1px solid #2C3E50; color: var(--text-muted); border-radius: 5px 5px 0 0; padding: 6px 12px; cursor: pointer; }
+    .view-tab.on { background: var(--brass); color: var(--ink); border-color: var(--brass); }
+    .turn-note { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+    .turn-note.yours { color: #a5d6a7; }
+    details.block { background: #1a2535; border: 1px solid #2C3E50; border-radius: 5px; padding: 8px 10px; margin-top: 8px; font-size: 0.85rem; line-height: 1.45; }
+    details.block summary { font-family: 'Cinzel', serif; font-size: 0.75rem; color: var(--brass); letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+    details.block p { margin-top: 6px; color: var(--parchment); }
+    details.block p strong { color: var(--gold); }
+    .buff-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+    .buff-row select, .buff-row input, .dice-box input, .roster input.search {
+      width: 100%; background: #0F1923; border: 1px solid #3d5166; color: var(--parchment);
+      padding: 6px 8px; border-radius: 4px; font-family: 'Crimson Text', serif; font-size: 0.9rem; }
+    .buff-note { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 6px; font-style: italic; }
+
+    /* ── DICE ROLLER ── */
+    .dice-box { padding: 10px; border-bottom: 1px solid var(--brass); flex-shrink: 0; }
+    .dice-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 6px; }
+    .die-btn { background: #1a2535; border: 1px solid #3d5166; color: var(--parchment); border-radius: 4px; padding: 6px 0; font-family: 'Cinzel', serif; font-size: 0.7rem; cursor: pointer; }
+    .die-btn:hover { border-color: var(--brass); }
+    .dice-expr { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+    .log-entry.roll { border-left-color: var(--brass); }
+
+    /* ── MONSTER ROSTER ── */
+    .modal.roster { max-width: 720px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+    .roster-list { overflow-y: auto; padding: 0 16px 12px; flex: 1; }
+    .roster-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-bottom: 1px solid #2C3E50; }
+    .roster-row .r-name { font-family: 'Cinzel', serif; font-size: 0.85rem; color: var(--parchment); flex: 1; cursor: pointer; }
+    .roster-row .r-name:hover { color: var(--gold); }
+    .roster-row .r-meta { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+    .roster-detail { background: #161f2b; border: 1px solid #2C3E50; border-radius: 5px; padding: 8px 10px; margin: 4px 0 8px; font-size: 0.85rem; line-height: 1.45; }
+    .roster-detail p { margin-top: 5px; }
+    .roster-detail strong { color: var(--gold); }
+    .srd-note { font-size: 0.7rem; color: var(--text-muted); padding: 8px 16px; border-top: 1px solid #2C3E50; }
+    .srd-note a { color: var(--brass-light); }
+
+    /* ── SCROLLBAR ── */
+    * { scrollbar-width: thin; scrollbar-color: var(--brass) var(--panel); }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="monsters.js"></script>
+<script type="text/babel">
+
+const {useState, useRef, useEffect, useMemo} = React;
+
+// ── LIVE SYNC (Firebase Realtime Database) ──────────────────────────────────
+// Config lives in firebase-config.js. Without it the app still works, on one screen only.
+const FB_CFG = window.HBA_FIREBASE_CONFIG || {};
+let db = null;
+if (window.firebase && FB_CFG.apiKey && FB_CFG.databaseURL) {
+  try { firebase.initializeApp(FB_CFG); db = firebase.database(); }
+  catch (e) { console.error('Firebase setup failed', e); }
+}
+const SYNC_AVAILABLE = !!db;
+const MONSTERS = window.HBA_MONSTERS || [];
+
+function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function makeCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length: 6}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+function cleanCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12); }
+function sessionFromHash() { const m = /room=([A-Za-z0-9]+)/.exec(window.location.hash); return m ? cleanCode(m[1]) : ''; }
+function stamp(entry) { return {...entry, id: newId()}; }
+function plain(v) { return JSON.parse(JSON.stringify(v)); } // drops undefined, which Firebase rejects
+function stable(v) { // JSON with sorted keys, so local and synced copies compare equal
+  if (Array.isArray(v)) return v.length ? '[' + v.map(stable).join(',') + ']' : 'null';
+  if (v && typeof v === 'object') {
+    const keys = Object.keys(v).filter(k => v[k] !== undefined && v[k] !== null && stable(v[k]) !== 'null').sort();
+    return keys.length ? '{' + keys.map(k => JSON.stringify(k) + ':' + stable(v[k])).join(',') + '}' : 'null';
+  }
+  return JSON.stringify(v);
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+// Log entries arrive from other players, so only the markup this app itself writes is allowed through.
+function sanitizeLogHtml(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = String(html || '');
+  const allowed = {STRONG:1, SPAN:1, DIV:1, BR:1};
+  const walk = node => {
+    Array.from(node.childNodes).forEach(ch => {
+      if (ch.nodeType === 3) return;
+      if (ch.nodeType !== 1 || !allowed[ch.tagName]) { ch.replaceWith(document.createTextNode(ch.textContent || '')); return; }
+      Array.from(ch.attributes).forEach(a => {
+        const ok = a.name === 'class' ? /^[\w\- ]*$/.test(a.value)
+                 : a.name === 'style' ? /^color:\s*(var\(--[\w-]+\)|#[0-9a-fA-F]{3,8})$/.test(a.value.trim())
+                 : false;
+        if (!ok) ch.removeAttribute(a.name);
+      });
+      walk(ch);
+    });
+  };
+  walk(tpl.content);
+  return tpl.innerHTML;
+}
+
+// ── PLAYER CODE ─────────────────────────────────────────────────────────────
+// No login. Each person has a player code kept on their own computer, and their sheet is saved under it.
+// The code itself never leaves the computer: a session only sees a scrambled ID made from it.
+const CODE_KEY = 'hba-player-code';
+const charKey = code => 'hba-char-' + code;
+function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+function currentPlayerCode() {
+  let c = cleanCode(lsGet(CODE_KEY));
+  if (!c) { c = makeCode(); lsSet(CODE_KEY, c); }
+  return c;
+}
+function readStoredCharacter(code) {
+  try { const d = JSON.parse(lsGet(charKey(code)) || 'null'); return d && d.format === 'homebrew-academy-character' ? d : null; }
+  catch (e) { return null; }
+}
+function publicId(code) {
+  const h = seed => { let x = seed; const s = 'hba:' + code; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 0x01000193); } return (x >>> 0).toString(36); };
+  return 'p' + h(0x811c9dc5) + h(0x9747b28c);
+}
+
+const CLASS_LIST = ['Barbarian','Bard','Cleric','Druid','Fighter','Monk','Paladin','Ranger','Rogue','Sorcerer','Warlock','Wizard'];
+const ABILITY_KEYS = [['str','Strength'],['dex','Dexterity'],['con','Constitution'],['int','Intelligence'],['wis','Wisdom'],['cha','Charisma']];
+const DMG_RE = /^\d+(d\d+)?([+-]\d+(d\d+)?)*$/i;
+
+// ── DICE UTILITIES ──────────────────────────────────────────────────────────
+function rollD(sides) { return Math.floor(Math.random() * sides) + 1; }
+function rollDice(count, sides) {
+  const rolls = Array.from({length: count}, () => rollD(sides));
+  return { total: rolls.reduce((a,b)=>a+b,0), rolls };
+}
+function roll20(advantage=0) { // 0=normal, 1=advantage, -1=disadvantage
+  if (advantage === 0) { const r = rollD(20); return {total:r, rolls:[r]}; }
+  const r1 = rollD(20), r2 = rollD(20);
+  return advantage === 1
+    ? {total:Math.max(r1,r2), rolls:[r1,r2], kept: r1>=r2?r1:r2}
+    : {total:Math.min(r1,r2), rolls:[r1,r2], kept: r1<=r2?r1:r2};
+}
+function parseDamage(expr, allowNegative) {
+  // e.g. "2d6+4", "1d8", "3d4+1d6+5"
+  let total = 0; const parts = [];
+  const groups = expr.match(/(\d+d\d+|\d+)/g) || [];
+  let ops = expr.match(/[+-]/g) || [];
+  let sign = 1;
+  let opIdx = 0;
+  for (let g of groups) {
+    if (g.includes('d')) {
+      const [c,s] = g.split('d').map(Number);
+      const {total:t, rolls} = rollDice(Math.min(c, 100), Math.max(1, s));
+      parts.push(`${c}d${s}=[${rolls.join(',')}]`);
+      total += sign * t;
+    } else {
+      parts.push(g);
+      total += sign * Number(g);
+    }
+    if (opIdx < ops.length) { sign = ops[opIdx++]==='+' ? 1 : -1; }
+  }
+  return { total: allowNegative ? total : Math.max(0, total), parts };
+}
+
+// ── ABILITY SCORE HELPERS ────────────────────────────────────────────────────
+function mod(score) { return Math.floor((score-10)/2); }
+function modStr(score) { const m=mod(score); return (m>=0?'+':'')+m; }
+function signed(n) { return (n>=0?'+':'')+n; }
+function profBonus(level) { return Math.ceil(level/4)+1; }
+
+// ── CONDITIONS ───────────────────────────────────────────────────────────────
+const CONDITIONS = ['Blinded','Charmed','Deafened','Frightened','Grappled','Incapacitated','Invisible','Paralyzed','Petrified','Poisoned','Prone','Restrained','Stunned','Unconscious'];
+
+// ── BUFFS AND EFFECTS PLAYERS CAN PASS ───────────────────────────────────────
+// atk / save: dice added to the wearer's attack rolls / saving throws. ac: bonus to Armor Class.
+// These four are applied automatically. The rest are reminders shown on the card.
+const BUFFS = [
+  {name:'Bless', note:'+1d4 to attack rolls and saving throws (applied automatically)', atk:'1d4', save:'1d4'},
+  {name:'Bane', note:'-1d4 from attack rolls and saving throws (applied automatically)', atk:'-1d4', save:'-1d4'},
+  {name:'Shield of Faith', note:'+2 AC (applied automatically)', ac:2},
+  {name:'Haste', note:'+2 AC (applied automatically), Advantage on Dexterity saving throws, Speed doubled, one extra action', ac:2},
+  {name:'Bardic Inspiration', note:'Roll the Bardic Inspiration die and add it to one failed D20 Test'},
+  {name:'Guidance', note:'+1d4 to one ability check using the chosen skill'},
+  {name:'Resistance', note:'Once per turn, reduce damage of the chosen type by 1d4'},
+  {name:'Heroism', note:'Immune to Frightened, gains Temporary Hit Points at the start of each turn'},
+  {name:'Faerie Fire', note:'Attack rolls against this creature have Advantage'},
+  {name:"Hunter's Mark", note:'Takes an extra 1d6 Force damage when hit by the caster'},
+  {name:'Hex', note:'Takes an extra 1d6 Necrotic damage when hit by the caster'},
+  {name:'Protection from Evil and Good', note:'Certain creature types have Disadvantage on attack rolls against this creature'},
+];
+function effectDice(c, key) {
+  let total = 0; const parts = [];
+  (c && c.effects || []).forEach(e => {
+    const x = e[key];
+    if (!x || !DMG_RE.test(String(x).replace('-', ''))) return;
+    const r = parseDamage(String(x).replace('-', ''));
+    const v = String(x)[0] === '-' ? -r.total : r.total;
+    total += v; parts.push(`${esc(e.name)} ${signed(v)}`);
+  });
+  return {total, text: parts.join(', ')};
+}
+function effectiveAC(c) { return (+c.ac || 0) + (c.effects || []).reduce((s, e) => s + (+e.ac || 0), 0); }
+
+// ── ACTIONS ──────────────────────────────────────────────────────────────────
+function buildActions(combatant) {
+  if (combatant.actions && combatant.actions.length) return combatant.actions;
+  const actions = [];
+  const {charClass, level, scores} = combatant;
+  if (!charClass) return actions;
+  const pb = profBonus(level||1);
+  const strMod = mod(scores?.Strength||10);
+  const dexMod = mod(scores?.Dexterity||10);
+  const intMod = mod(scores?.Intelligence||10);
+  const wisMod = mod(scores?.Wisdom||10);
+  const chaMod = mod(scores?.Charisma||10);
+
+  const spellMods = {Bard:chaMod,Cleric:wisMod,Druid:wisMod,Sorcerer:chaMod,Warlock:chaMod,Wizard:intMod,Paladin:chaMod,Ranger:wisMod};
+  const spellMod = spellMods[charClass] ?? intMod;
+  const spellAtk = spellMod + pb;
+  const spellDC = 8 + spellMod + pb;
+
+  actions.push({id:'unarmed',name:'Unarmed Strike',type:'attack',tag:'attack',
+    atk: Math.max(strMod,dexMod)+pb, dmg:`1+${strMod}`, dmgType:'Bludgeoning',
+    detail:`+${Math.max(strMod,dexMod)+pb} to hit · 1${strMod>=0?'+':''}${strMod} bludgeoning`});
+
+  const martialClasses = ['Fighter','Paladin','Ranger','Barbarian'];
+  const isMartial = martialClasses.includes(charClass);
+
+  actions.push({id:'sword',name:'Longsword',type:'attack',tag:'attack',
+    atk:strMod+pb, dmg:`1d8+${strMod}`, dmgType:'Slashing',
+    detail:`+${strMod+pb} to hit · 1d8${strMod>=0?'+':''}${strMod} slashing`});
+
+  if (isMartial) {
+    actions.push({id:'greatsword',name:'Greatsword',type:'attack',tag:'attack',
+      atk:strMod+pb, dmg:`2d6+${strMod}`, dmgType:'Slashing',
+      detail:`+${strMod+pb} to hit · 2d6${strMod>=0?'+':''}${strMod} slashing`});
+    actions.push({id:'shortbow',name:'Shortbow',type:'attack',tag:'attack',
+      atk:dexMod+pb, dmg:`1d6+${dexMod}`, dmgType:'Piercing',
+      detail:`+${dexMod+pb} to hit · 1d6${dexMod>=0?'+':''}${dexMod} piercing · 80/320ft`});
+  }
+
+  if (charClass==='Rogue'||charClass==='Bard') {
+    const sneakDice = Math.ceil((level||1)/2);
+    actions.push({id:'sneak',name:'Rapier + Sneak Attack',type:'attack',tag:'attack',
+      atk:dexMod+pb, dmg:`1d8+${dexMod}+${sneakDice}d6`, dmgType:'Piercing',
+      detail:`+${dexMod+pb} to hit · 1d8${dexMod>=0?'+':''}${dexMod}+${sneakDice}d6 (sneak) piercing`});
+  }
+
+  const casters = ['Bard','Cleric','Druid','Sorcerer','Warlock','Wizard','Paladin','Ranger'];
+  if (casters.includes(charClass)) {
+    const fbDice = level>=17?'4d10': level>=11?'3d10': level>=5?'2d10':'1d10';
+    actions.push({id:'firebolt',name:'Fire Bolt',type:'attack',tag:'attack',
+      atk:spellAtk, dmg: fbDice,
+      dmgType:'Fire', detail:`+${spellAtk} to hit · ${fbDice} fire · 120ft`});
+
+    actions.push({id:'fireball',name:'Fireball (Level 3)',type:'save',tag:'save',
+      dc:spellDC, saveAbility:'Dexterity', dmg:'8d6', dmgType:'Fire', halfOnSave:true,
+      detail:`DC ${spellDC} Dex save · 8d6 fire · 20ft radius · half on save`});
+
+    actions.push({id:'healword',name:'Healing Word (Level 1)',type:'heal',tag:'heal',
+      healDice:`2d4+${spellMod}`, detail:`Bonus action · 2d4${spellMod>=0?'+':''}${spellMod} HP`});
+
+    if (['Cleric','Paladin'].includes(charClass)) {
+      actions.push({id:'curewounds',name:'Cure Wounds (Level 1)',type:'heal',tag:'heal',
+        healDice:`2d8+${spellMod}`, detail:`Touch · 2d8${spellMod>=0?'+':''}${spellMod} HP`});
+    }
+
+    actions.push({id:'holdperson',name:'Hold Person (Level 2)',type:'save',tag:'save',
+      dc:spellDC, saveAbility:'Wisdom', dmg:'0', dmgType:'', halfOnSave:false,
+      condition:'Paralyzed', detail:`DC ${spellDC} Wis save or Paralyzed · concentration`});
+
+    actions.push({id:'magicmissile',name:'Magic Missile (Level 1)',type:'auto',tag:'attack',
+      dmg:'3d4+3', dmgType:'Force', detail:'Auto-hit · 3 darts · 3d4+3 force total'});
+  }
+
+  if (charClass==='Paladin') {
+    actions.push({id:'smite',name:'Divine Smite (Level 1 slot)',type:'auto',tag:'attack',
+      dmg:'2d8', dmgType:'Radiant', detail:'After a hit · expend a Level 1 slot · +2d8 radiant'});
+  }
+
+  if (charClass==='Barbarian') {
+    const rageDmg = level>=16?4:level>=9?3:2;
+    actions.push({id:'rageattack',name:`Greataxe (Rage)`,type:'attack',tag:'attack',
+      atk:strMod+pb, dmg:`1d12+${strMod+rageDmg}`, dmgType:'Slashing',
+      detail:`+${strMod+pb} to hit · 1d12${(strMod+rageDmg)>=0?'+':''}${strMod+rageDmg} slashing (rage bonus included)`});
+  }
+
+  if (charClass==='Paladin') {
+    const lohPool = (level||1)*5;
+    actions.push({id:'loh',name:`Lay on Hands (${lohPool} HP pool)`,type:'heal',tag:'heal',
+      healDice:`5`, detail:`Bonus action · touch · up to ${lohPool} HP from pool`});
+  }
+
+  if (charClass==='Fighter') {
+    actions.push({id:'secondwind',name:'Second Wind',type:'selfheal',tag:'heal',
+      healDice:`1d10+${level||1}`, detail:`Bonus action · 1d10+${level||1} HP to self`});
+  }
+
+  return actions;
+}
+
+// ── MONSTER ROSTER HELPERS ───────────────────────────────────────────────────
+function dmgText(list) { return (list || []).map(d => `${d[0]} ${String(d[1] || '').toLowerCase()}`.trim()).join(' + '); }
+function monsterActions(m) {
+  return (m.a || []).map((a, i) => {
+    const base = {id: 'm' + i, name: a.n, desc: a.d};
+    if (a.ab != null && a.dm) return {...base, type:'attack', tag:'attack', atk:a.ab, dmgList:a.dm, detail:`+${a.ab} to hit · ${dmgText(a.dm)}`};
+    if (a.dc) {
+      const o = {...base, type:'save', tag:'save', dc:a.dc[1], saveAbility:a.dc[0], halfOnSave:!!a.dc[2],
+        detail:`DC ${a.dc[1]} ${a.dc[0].slice(0,3)} save${a.dm ? ' · ' + dmgText(a.dm) : ''}${a.dc[2] ? ' · half on save' : ''}`};
+      if (a.dm) o.dmgList = a.dm;
+      return o;
+    }
+    return {...base, type:'info', tag:'utility', detail:'Posts the stat block text to the log'};
+  });
+}
+function monsterInfo(m) {
+  const items = [];
+  if (m.sp) items.push(['Speed', m.sp]);
+  if (m.res) items.push(['Resistances', m.res]);
+  if (m.imm) items.push(['Immunities', m.imm]);
+  if (m.vul) items.push(['Vulnerabilities', m.vul]);
+  if (m.ci) items.push(['Condition Immunities', m.ci]);
+  const out = [];
+  if (items.length) out.push({h:'Defenses and Movement', items});
+  if (m.tr) out.push({h:'Traits', items:m.tr});
+  if (m.ba) out.push({h:'Bonus Actions', items:m.ba});
+  if (m.re) out.push({h:'Reactions', items:m.re});
+  if (m.la) out.push({h:'Legendary Actions', items:m.la});
+  return out;
+}
+
+// ── MAIN APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [combatants, setCombatants] = useState([]);
+  const [round, setRound] = useState(1);
+  const [activeId, setActiveId] = useState('');
+  const [targetId, setTargetId] = useState(null);
+  const [viewId, setViewId] = useState(null);
+  const [selectedAction, setSelectedAction] = useState(null);
+  const [advantage, setAdvantage] = useState(0); // -1 dis, 0 normal, 1 adv
+  const [log, setLog] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showRoster, setShowRoster] = useState(false);
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterOpen, setRosterOpen] = useState(null);
+  const [combatStarted, setCombatStarted] = useState(false);
+  const logEndRef = useRef(null);
+
+  // ── SESSION / LIVE SYNC STATE ──
+  const [playerCode, setPlayerCode] = useState(currentPlayerCode);
+  const myId = useMemo(() => publicId(playerCode), [playerCode]);
+  const [room, setRoom] = useState(null);                  // session code
+  const [roomInput, setRoomInput] = useState('');
+  const [syncStatus, setSyncStatus] = useState('offline'); // offline | connecting | live | error
+  const [syncMsg, setSyncMsg] = useState('');
+  const [remoteSigs, setRemoteSigs] = useState(null);      // what the session held when this screen last heard from it
+  const [dmId, setDmId] = useState('');
+  const [approval, setApproval] = useState(false);         // DM must accept new characters
+  const [dragging, setDragging] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const fileInputRef = useRef(null);
+  const promptedRef = useRef(false);
+
+  // ── BUFF + DICE STATE ──
+  const [buffName, setBuffName] = useState(BUFFS[0].name);
+  const [buffCustom, setBuffCustom] = useState('');
+  const [buffTarget, setBuffTarget] = useState('');
+  const [diceExpr, setDiceExpr] = useState('');
+
+  useEffect(() => { logEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [log]);
+
+  // ── WHO CAN DO WHAT ──
+  // Outside a session this screen controls everything. In a session the DM (whoever created it) controls
+  // everything, and each player controls only the characters and companions they brought.
+  const isDM = !room || !dmId || dmId === myId;
+  const canControl = c => !!c && (isDM || (!!c.owner && c.owner === myId));
+  const visible = combatants.filter(c => !c.pending || isDM || c.owner === myId);
+  const inPlay = combatants.filter(c => !c.pending);
+  const mine = visible.filter(c => c.owner === myId);
+  const active = combatStarted ? (inPlay.find(c => c.id === activeId) || null) : null;
+  const viewed = (viewId && visible.find(c => c.id === viewId && canControl(c)))
+    || (active && canControl(active) ? active : null)
+    || mine[0] || active || null;
+  const canAct = !!(combatStarted && active && viewed && viewed.id === active.id && canControl(active));
+  const target = inPlay.find(c => c.id === targetId) || null;
+  const actions = viewed ? buildActions(viewed) : [];
+  const pendingList = isDM ? combatants.filter(c => c.pending) : [];
+
+  useEffect(() => { // when the turn passes to someone this screen controls, show them
+    const a = combatants.find(c => c.id === activeId);
+    if (combatStarted && a && canControl(a)) { setViewId(a.id); setSelectedAction(null); }
+  }, [activeId, combatStarted]);
+
+  // ── ADD COMBATANT FORM STATE ──
+  const emptyForm = {name:'',type:'player',charClass:'Fighter',level:1,
+    maxHP:20,currentHP:20,ac:15,initiative:0,
+    str:10,dex:10,con:10,int:10,wis:10,cha:10,
+    atkName:'',atkBonus:4,atkDmg:'',atkType:''};
+  const [form, setForm] = useState(emptyForm);
+  const openAdd = () => { setForm({...emptyForm, type: isDM ? 'monster' : 'companion'}); setShowAddModal(true); };
+
+  const placeByInitiative = (list, c) => {
+    if (!combatStarted) return [...list, c];
+    const i = list.findIndex(x => (x.initiative || 0) < (c.initiative || 0));
+    return i < 0 ? [...list, c] : [...list.slice(0, i), c, ...list.slice(i)];
+  };
+
+  const addCombatant = () => {
+    if (!form.name.trim()) return;
+    const asPlayer = !isDM;
+    const type = form.fromSheet ? 'player' : (asPlayer && form.type !== 'player' ? 'companion' : form.type);
+    const scores = {Strength:+form.str,Dexterity:+form.dex,Constitution:+form.con,
+                    Intelligence:+form.int,Wisdom:+form.wis,Charisma:+form.cha};
+    const pb = profBonus(+form.level || 1);
+    const saves = form.saves ? form.saves : {
+      Strength: mod(scores.Strength)+(type==='player'?pb:0),
+      Dexterity: mod(scores.Dexterity)+(type==='player'?pb:0),
+      Constitution: mod(scores.Constitution)+(type==='player'?pb:0),
+      Intelligence: mod(scores.Intelligence)+(type==='player'?pb:0),
+      Wisdom: mod(scores.Wisdom)+(type==='player'?pb:0),
+      Charisma: mod(scores.Charisma)+(type==='player'?pb:0),
+    };
+    const newC = {
+      id: newId(),
+      name: form.name.trim().slice(0, 60),
+      type,
+      level: +form.level || 1,
+      maxHP: Math.max(1, +form.maxHP || 1),
+      currentHP: +form.currentHP || +form.maxHP || 1,
+      ac: +form.ac || 10,
+      initiative: +form.initiative || 0,
+      scores, saves,
+      conditions: [], effects: [],
+      pb,
+    };
+    if (type === 'player') newC.charClass = form.charClass;
+    else {
+      const dmg = String(form.atkDmg || '').replace(/\s/g, '');
+      if (DMG_RE.test(dmg)) {
+        const atk = +form.atkBonus || 0;
+        newC.actions = [{id:'a0', name:(form.atkName || 'Attack').trim().slice(0, 40), type:'attack', tag:'attack', atk,
+          dmgList:[[dmg, (form.atkType || '').trim().slice(0, 20)]], detail:`${signed(atk)} to hit · ${dmg} ${(form.atkType || '').toLowerCase()}`.trim()}];
+      }
+    }
+    if (asPlayer || form.fromSheet) newC.owner = myId;
+    if (form.fromSheet) newC.main = true;
+    if (asPlayer && approval) newC.pending = true;
+    const info = [];
+    if (form.features && form.features.length) info.push({h:'Features', items: form.features.map(f => ['', f])});
+    if (form.spells && form.spells.length) info.push({h:'Spells', items: form.spells.map(s => ['', s])});
+    if (info.length) newC.info = info;
+    setCombatants(prev => placeByInitiative(prev, newC));
+    setViewId(v => v || (newC.owner === myId ? newC.id : v));
+    setForm(emptyForm);
+    setShowAddModal(false);
+  };
+
+  const addMonster = (m) => {
+    const scores = {}; const saves = {};
+    ABILITY_KEYS.forEach(([k, full], i) => { scores[full] = m.s[i]; saves[full] = (m.sv && m.sv[full] != null) ? m.sv[full] : mod(m.s[i]); });
+    const n = combatants.filter(c => c.base === m.n).length;
+    const init = rollD(20) + mod(m.s[1]);
+    const c = {
+      id: newId(), name: n ? `${m.n} ${n + 1}` : m.n, base: m.n, type:'monster', sub:`${m.t}, CR ${m.cr}`,
+      level: 1, maxHP: m.hp, currentHP: m.hp, ac: m.ac, initiative: init, scores, saves,
+      conditions: [], effects: [], pb: m.pb, actions: monsterActions(m), info: monsterInfo(m),
+    };
+    setCombatants(prev => placeByInitiative(prev, c));
+  };
+
+  const removeCombatant = (id) => {
+    if (room && db) db.ref('rooms/' + room + '/combatants/' + id).remove();
+    if (id === activeId) {
+      const rest = inPlay.filter(c => c.id !== id && c.currentHP > 0);
+      const idx = inPlay.findIndex(c => c.id === id);
+      const next = inPlay.slice(idx + 1).find(c => c.currentHP > 0) || rest[0];
+      setActiveId(next ? next.id : '');
+    }
+    setCombatants(prev => prev.filter(c => c.id !== id));
+  };
+  const acceptCombatant = (id) => setCombatants(prev => prev.map(c => c.id === id ? {...c, pending: false} : c));
+
+  const startCombat = () => {
+    const sorted = [...combatants].sort((a,b)=>b.initiative-a.initiative);
+    const first = sorted.find(c => !c.pending);
+    setCombatants(sorted);
+    setActiveId(first ? first.id : '');
+    setCombatStarted(true);
+    setLog([stamp({type:'round',text:`Round 1`})]);
+    setRound(1);
+  };
+
+  const nextTurn = () => {
+    if (!inPlay.some(c => c.currentHP > 0)) return;
+    let idx = inPlay.findIndex(c => c.id === activeId);
+    let safety = 0;
+    do {
+      idx += 1;
+      if (idx >= inPlay.length) {
+        idx = 0;
+        const newRound = round + 1;
+        setRound(newRound);
+        setLog(prev=>[...prev,stamp({type:'round',text:`Round ${newRound}`})]);
+      }
+      safety++;
+    } while (inPlay[idx].currentHP <= 0 && safety <= inPlay.length);
+    setActiveId(inPlay[idx].id);
+    setTargetId(null);
+    setSelectedAction(null);
+    setAdvantage(0);
+  };
+
+  // ── RESOLVE ACTION ──────────────────────────────────────────────────────────
+  const rollDamageList = (action, crit) => {
+    const list = action.dmgList && action.dmgList.length ? action.dmgList : [[action.dmg, action.dmgType]];
+    let total = 0; const summary = []; const dice = [];
+    list.forEach(([expr, type]) => {
+      let e = String(expr || '0');
+      if (crit) e = e.replace(/(\d+)d(\d+)/g, (_, c, s) => `${c*2}d${s}`);
+      const r = parseDamage(e);
+      total += r.total; summary.push(`${r.total} ${esc(type || '')}`.trim()); dice.push(r.parts.join(' + '));
+    });
+    return {total, summary: summary.join(' + '), dice: dice.join(' · ')};
+  };
+
+  const resolve = () => {
+    if (!selectedAction || !canAct) return;
+    const action = actions.find(a=>a.id===selectedAction);
+    if (!action) return;
+
+    let entries = [];
+    const actorName = esc(active.name);
+    const targetName = esc(target?.name || '???');
+
+    if (action.type === 'attack') {
+      const roll = roll20(advantage);
+      const bonus = effectDice(active, 'atk');
+      const total = roll.total + action.atk + bonus.total;
+      const isCrit = roll.total === 20;
+      const isMiss = roll.total === 1;
+      const targetAC = target ? effectiveAC(target) : 10;
+      const hit = isCrit || (!isMiss && total >= targetAC);
+      const rollText = `Roll: ${roll.rolls.join('/')} ${signed(action.atk)}${bonus.text ? ` (${bonus.text})` : ''} = <strong>${total}</strong> vs AC ${targetAC}`;
+
+      let dmg = null;
+      if (hit) {
+        dmg = rollDamageList(action, isCrit);
+        updateHP(targetId, -dmg.total);
+      }
+      entries.push({
+        type: isCrit ? 'crit' : hit ? 'hit' : 'miss',
+        html: hit
+          ? `<strong>${actorName}</strong> → <strong>${targetName}</strong> · ${esc(action.name)}<br/>
+             <span class="log-result">${isCrit?'⚔️ CRITICAL HIT!':'⚔️ Hit!'}</span>
+             &nbsp;${rollText}<br/>
+             <span class="log-dmg">${dmg.summary} damage</span>
+             <div class="log-dice">${dmg.dice}</div>`
+          : `<strong>${actorName}</strong> → <strong>${targetName}</strong> · ${esc(action.name)}<br/>
+             <span style="color:var(--text-muted)">Miss</span>
+             &nbsp;${rollText}`
+      });
+    }
+
+    else if (action.type === 'auto') {
+      const dmg = rollDamageList(action, false);
+      updateHP(targetId, -dmg.total);
+      entries.push({
+        type:'hit',
+        html:`<strong>${actorName}</strong> → <strong>${targetName}</strong><br/>
+              <span class="log-result">✨ ${esc(action.name)}</span><br/>
+              <span class="log-dmg">${dmg.summary} damage</span>
+              <div class="log-dice">${dmg.dice}</div>`
+      });
+    }
+
+    else if (action.type === 'save') {
+      const saveAbility = action.saveAbility;
+      const saveMod = target?.saves?.[saveAbility] ?? mod(target?.scores?.[saveAbility]??10);
+      const saveRoll = rollD(20);
+      const bonus = effectDice(target, 'save');
+      const saveTotal = saveRoll + saveMod + bonus.total;
+      const passed = saveTotal >= action.dc;
+      const hasDmg = (action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0');
+      const dmg = hasDmg ? rollDamageList(action, false) : {total:0, summary:'', dice:''};
+      const actualDmg = passed && action.halfOnSave ? Math.floor(dmg.total/2) : (!passed ? dmg.total : 0);
+
+      if (!passed && action.condition) addCondition(targetId, action.condition);
+      if (actualDmg > 0) updateHP(targetId, -actualDmg);
+
+      entries.push({
+        type: passed ? 'save-pass' : 'save-fail',
+        html:`<strong>${actorName}</strong> → <strong>${targetName}</strong><br/>
+              <span class="log-result">${esc(action.name)}</span><br/>
+              DC ${action.dc} ${esc(saveAbility)} save · Roll: ${saveRoll} ${signed(saveMod)}${bonus.text ? ` (${bonus.text})` : ''} = <strong>${saveTotal}</strong>
+              · <strong style="color:${passed?'var(--success)':'var(--danger)'}">${passed?'Saved!':'Failed!'}</strong><br/>
+              ${actualDmg>0?`<span class="log-dmg">${actualDmg} damage${action.halfOnSave&&passed?' (half)':''}</span><div class="log-dice">${dmg.summary} · ${dmg.dice}</div>`:''}
+              ${!passed&&action.condition?`<div style="color:#ff8a80">Condition: ${esc(action.condition)}</div>`:''}
+              ${action.desc?`<div class="log-detail">${esc(action.desc)}</div>`:''}`
+      });
+    }
+
+    else if (action.type === 'heal' || action.type === 'selfheal') {
+      const healTarget = action.type==='selfheal' ? active.id : (targetId || active.id);
+      const healTargetName = action.type==='selfheal' ? actorName : (target ? esc(target.name) : actorName);
+      const {total:ht, parts} = parseDamage(action.healDice);
+      updateHP(healTarget, ht, true);
+      entries.push({
+        type:'heal',
+        html:`<strong>${actorName}</strong> heals <strong>${healTargetName}</strong><br/>
+              <span class="log-result">💚 ${esc(action.name)}</span><br/>
+              <span class="log-heal-val">+${ht} HP</span>
+              <div class="log-dice">${parts.join(' + ')}</div>`
+      });
+    }
+
+    else if (action.type === 'info') {
+      entries.push({
+        type:'roll',
+        html:`<strong>${actorName}</strong>${target ? ` → <strong>${targetName}</strong>` : ''}<br/>
+              <span class="log-result">${esc(action.name)}</span>
+              <div class="log-detail">${esc(action.desc || '')}</div>`
+      });
+    }
+
+    setLog(prev=>[...prev,...entries.map(stamp)]);
+    setSelectedAction(null);
+    setAdvantage(0);
+  };
+
+  const updateHP = (id, delta, isHeal=false) => {
+    setCombatants(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const newHP = isHeal
+        ? Math.min(c.maxHP, c.currentHP + delta)
+        : Math.max(0, c.currentHP + delta);
+      return {...c, currentHP: newHP};
+    }));
+  };
+
+  const addCondition = (id, cond) => {
+    setCombatants(prev => prev.map(c => {
+      if (c.id !== id || c.conditions.includes(cond)) return c;
+      return {...c, conditions:[...c.conditions, cond]};
+    }));
+  };
+
+  const removeCondition = (id, cond) => {
+    setCombatants(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      return {...c, conditions: c.conditions.filter(x=>x!==cond)};
+    }));
+  };
+
+  // ── BUFF PASSING ────────────────────────────────────────────────────────────
+  const whoAmI = () => (viewed && canControl(viewed)) ? viewed.name : (isDM ? 'DM' : 'A player');
+  const passBuff = () => {
+    const to = inPlay.find(c => c.id === (buffTarget || (viewed && viewed.id)));
+    if (!to) return;
+    const preset = BUFFS.find(b => b.name === buffName);
+    const name = buffName === '__custom' ? buffCustom.trim().slice(0, 40) : buffName;
+    if (!name) return;
+    const eff = {id: newId(), name, by: myId, byName: whoAmI()};
+    if (preset && buffName !== '__custom') ['atk','save','ac','note'].forEach(k => { if (preset[k] != null) eff[k] = preset[k]; });
+    setCombatants(prev => prev.map(c => c.id === to.id ? {...c, effects: [...(c.effects || []).filter(e => e.name !== name), eff]} : c));
+    setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(whoAmI())}</strong> passes <span class="log-result">${esc(name)}</span> to <strong>${esc(to.name)}</strong>${eff.note ? `<div class="log-detail">${esc(eff.note)}</div>` : ''}`})]);
+    setBuffCustom('');
+  };
+  const removeEffect = (id, effId) => setCombatants(prev => prev.map(c => c.id === id ? {...c, effects: (c.effects || []).filter(e => e.id !== effId)} : c));
+
+  // ── DICE ROLLER ─────────────────────────────────────────────────────────────
+  const rollExpr = (exprRaw) => {
+    const expr = String(exprRaw || '').replace(/\s/g, '').toLowerCase().replace(/^d/, '1d').replace(/([+-])d/g, '$11d');
+    if (!DMG_RE.test(expr)) return;
+    const r = parseDamage(expr, true);
+    setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(whoAmI())}</strong> rolls ${esc(expr)}<br/><span class="log-result">🎲 ${r.total}</span><div class="log-dice">${r.parts.join(' + ')}</div>`})]);
+  };
+
+  const hpColor = (cur, max) => {
+    const pct = cur/max;
+    if (pct > 0.5) return '#4CAF50';
+    if (pct > 0.25) return '#FF9800';
+    return '#E53935';
+  };
+
+  // ── LIVE SYNC ───────────────────────────────────────────────────────────────
+  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval});
+  const setHash = h => { try { (window.parent || window).history.replaceState(null, '', h); } catch (e) {} };
+  const enterSession = code => { promptedRef.current = false; setRemoteSigs(null); setSyncMsg(''); setRoom(code); setRoomInput(''); setHash('#room=' + code); };
+
+  const createSession = async () => {
+    if (!db) return;
+    const code = makeCode();
+    setSyncStatus('connecting');
+    try {
+      const updates = {meta: {...metaOf(), dm: myId, approval: false}};
+      combatants.forEach((c, i) => { updates['combatants/' + c.id] = plain({...c, seq: i}); });
+      log.forEach(e => { updates['log/' + e.id] = plain(e); });
+      await db.ref('rooms/' + code).update(updates);
+      enterSession(code);
+    } catch (e) { console.error('Could not create session', e); setSyncStatus('error'); setSyncMsg('Could not connect'); }
+  };
+
+  const joinSession = async (codeRaw) => {
+    const code = cleanCode(codeRaw);
+    if (!code || !db) return;
+    setSyncStatus('connecting');
+    try {
+      const existing = (await db.ref('rooms/' + code + '/meta').get()).val();
+      if (!existing) { setSyncStatus('error'); setSyncMsg('No session with that code'); return; }
+      enterSession(code);
+    } catch (e) { console.error('Could not join session', e); setSyncStatus('error'); setSyncMsg('Could not connect'); }
+  };
+
+  const leaveSession = () => {
+    setRoom(null); setRemoteSigs(null); setSyncStatus('offline'); setSyncMsg(''); setDmId(''); setApproval(false);
+    setHash('#');
+  };
+
+  const inviteLink = () => {
+    let base = window.location.href;
+    try { base = (window.parent || window).location.href; } catch (e) {}
+    return base.split('#')[0] + '#room=' + room;
+  };
+  const copyInvite = () => {
+    const link = inviteLink();
+    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => window.prompt('Copy this invite link:', link));
+    else window.prompt('Copy this invite link:', link);
+  };
+
+  const changePlayerCode = () => {
+    const v = cleanCode(window.prompt('Enter your player code. Your sheet saved on this computer under that code will be used.', playerCode));
+    if (!v || v === playerCode) return;
+    lsSet(CODE_KEY, v);
+    setPlayerCode(v);
+  };
+
+  // Session → this screen
+  useEffect(() => {
+    if (!room || !db) return;
+    const ref = db.ref('rooms/' + room);
+    const onValue = snap => {
+      const v = snap.val() || {};
+      const arr = x => Array.isArray(x) ? x : (x && typeof x === 'object' ? Object.values(x) : []);
+      const list = Object.values(v.combatants || {})
+        .filter(c => c && c.id && c.name != null)
+        .map(c => ({...c, name: String(c.name), maxHP: +c.maxHP || 1, currentHP: +c.currentHP || 0, ac: +c.ac || 10,
+          conditions: arr(c.conditions), effects: arr(c.effects).filter(e => e && e.id && e.name), actions: arr(c.actions), info: arr(c.info),
+          scores: c.scores || {}, saves: c.saves || {}}))
+        .sort((a, b) => ((a.seq || 0) - (b.seq || 0)) || (a.id < b.id ? -1 : 1));
+      const logList = Object.values(v.log || {}).filter(e => e && e.id).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+      const m = v.meta || {};
+      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval};
+      const sigs = {combatants: {}, log: {}, meta: stable(meta)};
+      list.forEach(c => { sigs.combatants[c.id] = stable(c); });
+      logList.forEach(e => { sigs.log[e.id] = true; });
+      setCombatants(list.map(({seq, ...c}) => c));
+      setLog(logList);
+      setRound(meta.round);
+      setCombatStarted(meta.combatStarted);
+      setActiveId(meta.activeId);
+      setDmId(meta.dm);
+      setApproval(meta.approval);
+      setRemoteSigs(sigs);
+      setSyncStatus('live');
+    };
+    const onError = err => { console.error('Session sync error', err); setSyncStatus('error'); setSyncMsg('Lost connection'); };
+    ref.on('value', onValue, onError);
+    return () => ref.off('value', onValue);
+  }, [room]);
+
+  // This screen → session. Only what changed here since the session last spoke is written.
+  useEffect(() => {
+    if (!room || !db || !remoteSigs) return;
+    const updates = {};
+    combatants.forEach((c, i) => {
+      const v = {...c, seq: i};
+      if (stable(v) !== remoteSigs.combatants[c.id]) updates['combatants/' + c.id] = plain(v);
+    });
+    log.forEach(e => { if (!remoteSigs.log[e.id]) updates['log/' + e.id] = plain(e); });
+    const meta = metaOf();
+    if (stable(meta) !== remoteSigs.meta) updates['meta'] = meta;
+    if (Object.keys(updates).length) db.ref('rooms/' + room).update(updates).catch(err => { console.error('Session write failed', err); setSyncStatus('error'); setSyncMsg('Could not save'); });
+  }, [combatants, log, round, activeId, combatStarted, approval, room, remoteSigs]);
+
+  const clearLog = () => {
+    if (room && db) db.ref('rooms/' + room + '/log').remove();
+    setLog([]);
+  };
+
+  // ── CHARACTERS (from the Character Builder) ─────────────────────────────────
+  const loadCharacter = (data, fromSheet) => {
+    if (!data || data.format !== 'homebrew-academy-character') { alert('That file is not a Character Builder save.'); return; }
+    const num = (v, d) => Number.isFinite(+v) ? +v : d;
+    const sc = data.scores || {};
+    const list = v => Array.isArray(v) ? v.filter(x => typeof x === 'string' && x).slice(0, 80).map(x => x.slice(0, 600)) : [];
+    const f = {
+      ...emptyForm,
+      name: String(data.name || 'Unnamed Hero').slice(0, 60), type: 'player',
+      charClass: CLASS_LIST.includes(data.className) ? data.className : 'Fighter',
+      level: Math.max(1, Math.min(20, num(data.level, 1))),
+      maxHP: num(data.maxHP, 10), currentHP: num(data.currentHP, num(data.maxHP, 10)),
+      ac: num(data.ac, 10), initiative: 0, initBonus: num(data.initiativeBonus, 0),
+      features: list(data.features), spells: list(data.spells), fromSheet: !!fromSheet,
+    };
+    ABILITY_KEYS.forEach(([k, full]) => { f[k] = num(sc[full], 10); });
+    if (data.saves && typeof data.saves === 'object') {
+      f.saves = {};
+      ABILITY_KEYS.forEach(([k, full]) => { f.saves[full] = num(data.saves[full], mod(f[k])); });
+    }
+    setForm(f);
+    setShowAddModal(true);
+  };
+  const readCharacterFile = (file) => {
+    if (!file) return;
+    file.text().then(t => loadCharacter(JSON.parse(t), false)).catch(() => alert('Could not read that character file.'));
+  };
+  const addMyCharacter = () => {
+    const d = readStoredCharacter(playerCode);
+    if (!d) { alert(`No character is saved on this computer for player code ${playerCode}. Build one in the Character Builder first.`); return; }
+    loadCharacter(d, true);
+  };
+
+  // A player who has just joined a session is offered their own character straight away.
+  useEffect(() => {
+    if (!room || !remoteSigs || promptedRef.current) return;
+    promptedRef.current = true;
+    if (isDM || combatants.some(c => c.owner === myId)) return;
+    const d = readStoredCharacter(playerCode);
+    if (d && d.name) loadCharacter(d, true);
+  }, [room, remoteSigs]);
+
+  // HP changes to this player's own character are written back to their sheet on this computer.
+  useEffect(() => {
+    const me = combatants.find(c => c.main && c.owner === myId);
+    if (!me) return;
+    const d = readStoredCharacter(playerCode);
+    if (!d || d.name !== me.name || d.currentHP === me.currentHP) return;
+    d.currentHP = me.currentHP;
+    d.builder = {...(d.builder || {}), currentHp: me.currentHP};
+    lsSet(charKey(playerCode), JSON.stringify(d));
+  }, [combatants, playerCode]);
+
+  useEffect(() => {
+    const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+    const over = e => { if (hasFiles(e)) { e.preventDefault(); setDragging(true); } };
+    const leave = e => { if (!e.relatedTarget) setDragging(false); };
+    const drop = e => { if (!hasFiles(e)) return; e.preventDefault(); setDragging(false); readCharacterFile(e.dataTransfer.files[0]); };
+    const msg = e => { if (e.origin === window.location.origin && e.data && e.data.type === 'hba-character') loadCharacter(e.data.character, true); };
+    const storage = e => { if (e.key === CODE_KEY && e.newValue) setPlayerCode(cleanCode(e.newValue) || currentPlayerCode()); };
+    window.addEventListener('dragover', over);
+    window.addEventListener('dragleave', leave);
+    window.addEventListener('drop', drop);
+    window.addEventListener('message', msg);
+    window.addEventListener('storage', storage);
+    const code = sessionFromHash();
+    if (code && db) joinSession(code);
+    return () => {
+      window.removeEventListener('dragover', over);
+      window.removeEventListener('dragleave', leave);
+      window.removeEventListener('drop', drop);
+      window.removeEventListener('message', msg);
+      window.removeEventListener('storage', storage);
+    };
+  }, []);
+
+  // ── RENDER HELPERS ──────────────────────────────────────────────────────────
+  const typeLine = c => c.type === 'player' ? `${c.charClass || 'Character'} ${c.level}` : c.type === 'companion' ? 'Companion' : (c.sub || 'Monster/NPC');
+  const selAction = actions.find(a => a.id === selectedAction);
+  const needsTarget = selAction && !['selfheal','info'].includes(selAction.type);
+  const targets = inPlay.filter(c => viewed && c.id !== viewed.id && c.currentHP > 0);
+  const rosterMatches = useMemo(() => {
+    const q = rosterSearch.trim().toLowerCase();
+    return q ? MONSTERS.filter(m => m.n.toLowerCase().includes(q) || m.t.toLowerCase().includes(q)) : MONSTERS;
+  }, [rosterSearch]);
+  const buffPreset = BUFFS.find(b => b.name === buffName);
+  const tabs = isDM ? [] : mine;
+  const showSheet = viewed && (combatStarted || (viewed.owner === myId));
+
+  // ── RENDER ──────────────────────────────────────────────────────────────────
+  return (
+    <>
+      {/* HEADER */}
+      <div className="header">
+        <h1>⚔ Combat Resolver</h1>
+        {combatStarted && <div className="round-badge">Round {round}</div>}
+        <div className="room-bar">
+          <span>Player code <span className="room-code" data-testid="player-code">{playerCode}</span>
+            {!room && <> <button className="link-btn" onClick={changePlayerCode}>change</button></>}</span>
+          {!SYNC_AVAILABLE ? (
+            <span title="Add your Firebase config to firebase-config.js to turn on live sync">· Live sync not set up</span>
+          ) : room ? (
+            <>
+              <span className={`room-dot ${syncStatus}`} title={syncStatus}/>
+              <span>Session <span className="room-code" data-testid="session-code">{room}</span></span>
+              <span className="role-badge">{isDM ? 'DM' : 'Player'}</span>
+              {isDM && <label title="When on, a player's character waits for you to accept it">
+                <input type="checkbox" style={{width:'auto'}} checked={approval} onChange={e=>setApproval(e.target.checked)}/> Approve players
+              </label>}
+              <button className="btn btn-ghost btn-sm" onClick={copyInvite}>{copied ? 'Copied!' : 'Copy Invite Link'}</button>
+              <button className="btn btn-ghost btn-sm" onClick={leaveSession}>Leave</button>
+            </>
+          ) : (
+            <>
+              {syncStatus === 'error' && <span style={{color:'#ff8a80'}}>{syncMsg || 'Could not connect'}</span>}
+              {syncStatus === 'connecting' && <span>Connecting...</span>}
+              <input value={roomInput} placeholder="Session code" maxLength={12}
+                onChange={e=>setRoomInput(cleanCode(e.target.value))}
+                onKeyDown={e=>{ if (e.key==='Enter') joinSession(roomInput); }} />
+              <button className="btn btn-primary btn-sm" disabled={!roomInput} onClick={()=>joinSession(roomInput)}>Join</button>
+              <button className="btn btn-ghost btn-sm" onClick={createSession}>Create Session as DM</button>
+            </>
+          )}
+        </div>
+      </div>
+      {dragging && <div className="drop-overlay">Drop a character file to add it to combat</div>}
+
+      <div className="app">
+        {/* ── LEFT: INITIATIVE TRACKER ── */}
+        <div className="panel">
+          <div className="panel-header">Initiative Order</div>
+          <div className="panel-body">
+            {!combatStarted && isDM && inPlay.length > 0 && (
+              <div className="initiative-controls">
+                <button className="btn btn-primary btn-full" onClick={startCombat}>⚔ Start Combat</button>
+              </div>
+            )}
+            {visible.length === 0 && (
+              <div className="empty-state">{isDM ? 'Add combatants to begin' : 'Add your character to join the fight'}</div>
+            )}
+            {visible.map((c) => {
+              const isActive = combatStarted && c.id === activeId;
+              const ctl = canControl(c);
+              return (
+              <div
+                key={c.id}
+                className={`combatant-card ${isActive?'active':''} ${targetId===c.id?'targeted':''} ${c.currentHP<=0?'dead':''} ${c.pending?'pending':''} ${c.owner===myId?'mine':''}`}
+                onClick={()=>{ if(!c.pending && (!viewed || c.id!==viewed.id)) setTargetId(c.id===targetId?null:c.id); }}
+              >
+                {isActive && <div className="turn-marker"/>}
+                <div className="combatant-header">
+                  <div className="init-badge">{c.initiative}</div>
+                  <div>
+                    <div className="combatant-name">{c.name} {c.currentHP<=0?'☠':''}</div>
+                    <div className="combatant-type">{typeLine(c)} · AC {effectiveAC(c)} {c.owner===myId && <span className="owner-tag">· yours</span>}</div>
+                  </div>
+                  {ctl && <button className="card-remove" title="Remove from combat" onClick={e=>{e.stopPropagation(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id);}}>×</button>}
+                </div>
+                <div className="hp-bar-wrap">
+                  <div className="hp-bar" style={{width:`${Math.max(0,Math.min(100,(c.currentHP/c.maxHP)*100))}%`,background:hpColor(c.currentHP,c.maxHP)}}/>
+                </div>
+                <div className="hp-text"><span>{c.currentHP}</span><span style={{color:'var(--text-muted)'}}>/ {c.maxHP}</span></div>
+                {(c.conditions.length > 0 || (c.effects||[]).length > 0) && (
+                  <div className="conditions">
+                    {c.conditions.map(cond=>(
+                      <span key={cond} className={`condition-tag bad ${isDM?'removable':''}`} onClick={e=>{e.stopPropagation(); if (isDM) removeCondition(c.id,cond);}} title={isDM?'Click to remove':cond}>{cond}{isDM?' ×':''}</span>
+                    ))}
+                    {(c.effects||[]).map(e=>{
+                      const rm = isDM || ctl || e.by === myId;
+                      return <span key={e.id} className={`condition-tag good ${rm?'removable':''}`} title={`${e.note||e.name}${e.byName?` (from ${e.byName})`:''}`}
+                        onClick={ev=>{ev.stopPropagation(); if (rm) removeEffect(c.id,e.id);}}>{e.name}{rm?' ×':''}</span>;
+                    })}
+                  </div>
+                )}
+                {c.pending && (
+                  <div className="pending-row" onClick={e=>e.stopPropagation()}>
+                    {isDM ? <>
+                      <span>Wants to join</span>
+                      <button className="btn btn-sm btn-success" onClick={()=>acceptCombatant(c.id)}>Accept</button>
+                      <button className="btn btn-sm btn-danger" onClick={()=>removeCombatant(c.id)}>Decline</button>
+                    </> : <span>Waiting for the DM to accept</span>}
+                  </div>
+                )}
+                {/* HP Quick Edit */}
+                {ctl && !c.pending && (
+                  <div className="hp-edit" onClick={e=>e.stopPropagation()}>
+                    <button className="btn btn-sm btn-danger" onClick={()=>updateHP(c.id,-1)}>−1</button>
+                    <button className="btn btn-sm btn-danger" onClick={()=>updateHP(c.id,-5)}>−5</button>
+                    <button className="btn btn-sm btn-success" onClick={()=>updateHP(c.id,5,true)}>+5</button>
+                    <button className="btn btn-sm btn-success" onClick={()=>updateHP(c.id,10,true)}>+10</button>
+                    <input type="number" min="0" placeholder="amt" aria-label={`HP amount for ${c.name}`} id={'amt-'+c.id}/>
+                    <button className="btn btn-sm btn-danger" title="Damage by the typed amount" onClick={()=>{ const el=document.getElementById('amt-'+c.id); const n=Math.abs(+el.value||0); if(n){updateHP(c.id,-n); el.value='';} }}>Dmg</button>
+                    <button className="btn btn-sm btn-success" title="Heal by the typed amount" onClick={()=>{ const el=document.getElementById('amt-'+c.id); const n=Math.abs(+el.value||0); if(n){updateHP(c.id,n,true); el.value='';} }}>Heal</button>
+                  </div>
+                )}
+              </div>
+            );})}
+            <button className="btn btn-ghost btn-full" style={{marginTop:8}} onClick={addMyCharacter}>Add My Character</button>
+            <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={openAdd}>{isDM ? '+ Add Combatant' : '+ Add Companion'}</button>
+            {isDM && <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>setShowRoster(true)}>Monster Roster</button>}
+            <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>fileInputRef.current && fileInputRef.current.click()}>Load Character File</button>
+            <input ref={fileInputRef} type="file" accept=".json,application/json" style={{display:'none'}}
+              onChange={e=>{ const f = e.target.files && e.target.files[0]; e.target.value=''; readCharacterFile(f); }} />
+          </div>
+        </div>
+
+        {/* ── CENTER: CHARACTER VIEW + ACTIONS ── */}
+        <div className="center-panel">
+          <div className="action-area">
+            {!showSheet ? (
+              <div className="setup-screen">
+                <div className="big-icon">⚔️</div>
+                <h2>Combat Resolver</h2>
+                {isDM
+                  ? <p>Add combatants from the left panel or the Monster Roster, then press Start Combat.</p>
+                  : <p>Add your character from the left panel. The DM starts combat.</p>}
+                <p style={{marginTop:12,fontSize:'0.8rem'}}>Click another combatant to mark them as your target.</p>
+              </div>
+            ) : (
+              <>
+                {tabs.length > 1 && (
+                  <div className="view-tabs">
+                    {tabs.map(c => <button key={c.id} className={`view-tab ${viewed.id===c.id?'on':''}`} onClick={()=>{setViewId(c.id); setSelectedAction(null);}}>{c.name}</button>)}
+                  </div>
+                )}
+                <div className="turn-banner">
+                  <div className="who">🎲 {viewed.name}{canAct ? "'s Turn" : ''}</div>
+                  <div className="combatant-type">{typeLine(viewed)} · {viewed.currentHP}/{viewed.maxHP} HP</div>
+                  <div className="stats-row">
+                    {ABILITY_KEYS.map(([k,ab])=>(
+                      <div className="stat-chip" key={ab}>
+                        <div className="val">{modStr((viewed.scores||{})[ab] ?? 10)}</div>
+                        <div className="lbl">{k.toUpperCase()}</div>
+                      </div>
+                    ))}
+                    <div className="stat-chip">
+                      <div className="val">+{viewed.pb||2}</div>
+                      <div className="lbl">PROF</div>
+                    </div>
+                    <div className="stat-chip">
+                      <div className="val">{effectiveAC(viewed)}</div>
+                      <div className="lbl">AC</div>
+                    </div>
+                  </div>
+                  {combatStarted && !canAct && active && <div className="turn-note">Waiting: it is {active.name}'s turn</div>}
+                  {combatStarted && canAct && !isDM && <div className="turn-note yours">It is your turn</div>}
+                </div>
+
+                {/* Target */}
+                <div className="section-title">🎯 Target</div>
+                {targets.length===0 && (
+                  <div className="empty-state">No valid targets</div>
+                )}
+                {targets.map(c=>(
+                  <div key={c.id} className={`target-row ${targetId===c.id?'selected':''}`}
+                    onClick={()=>setTargetId(c.id===targetId?null:c.id)}>
+                    <span className="t-name">{c.name}</span>
+                    <span className="t-ac">AC {effectiveAC(c)}</span>
+                    <span className="t-hp">{c.currentHP}/{c.maxHP} HP</span>
+                  </div>
+                ))}
+
+                {/* Actions */}
+                {canControl(viewed) && <>
+                <div className="section-title">⚡ Actions</div>
+                {actions.length === 0 && <div className="empty-state">No actions set up for this stat block. Use the dice roller.</div>}
+                <div className="action-grid">
+                  {actions.map(a=>(
+                    <div key={a.id} className={`action-btn ${selectedAction===a.id?'selected':''}`}
+                      onClick={()=>setSelectedAction(a.id===selectedAction?null:a.id)}>
+                      <div className="a-name">{a.name}</div>
+                      <div className="a-detail">{a.detail}</div>
+                      <span className={`a-tag tag-${a.tag}`}>{a.tag}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Advantage */}
+                {selAction && selAction.type==='attack' && (
+                  <div className="manual-roll">
+                    <span className="label">Roll modifier</span>
+                    <div className="advantage-row">
+                      <div className={`adv-btn ${advantage===1?'active-adv':''}`} onClick={()=>setAdvantage(advantage===1?0:1)}>Advantage</div>
+                      <div className="adv-btn" onClick={()=>setAdvantage(0)} style={{border:advantage===0?'1px solid var(--brass)':'',color:advantage===0?'var(--parchment)':''}}>Normal</div>
+                      <div className={`adv-btn ${advantage===-1?'active-dis':''}`} onClick={()=>setAdvantage(advantage===-1?0:-1)}>Disadvantage</div>
+                    </div>
+                  </div>
+                )}
+                {selAction && selAction.desc && <div className="buff-note" style={{marginTop:8}}>{selAction.desc}</div>}
+
+                {/* Buff passing */}
+                <div className="section-title">✨ Pass a Buff or Effect</div>
+                <div className="buff-row">
+                  <select aria-label="Buff or effect" value={buffName} onChange={e=>setBuffName(e.target.value)}>
+                    {BUFFS.map(b=><option key={b.name} value={b.name}>{b.name}</option>)}
+                    <option value="__custom">Custom...</option>
+                  </select>
+                  <select aria-label="Who receives it" value={buffTarget || viewed.id} onChange={e=>setBuffTarget(e.target.value)}>
+                    {inPlay.map(c=><option key={c.id} value={c.id}>{c.name}{c.id===viewed.id?' (self)':''}</option>)}
+                  </select>
+                </div>
+                {buffName === '__custom'
+                  ? <div className="buff-row" style={{gridTemplateColumns:'1fr'}}><input placeholder="Name of the buff or effect" maxLength={40} value={buffCustom} onChange={e=>setBuffCustom(e.target.value)}/></div>
+                  : <div className="buff-note">{buffPreset && buffPreset.note}</div>}
+                <button className="btn btn-success btn-sm" onClick={passBuff} disabled={buffName==='__custom' && !buffCustom.trim()}>Pass Buff</button>
+                </>}
+
+                {/* Conditions */}
+                {target && isDM && (
+                  <>
+                    <div className="section-title">🔮 Apply Condition to Target</div>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                      {CONDITIONS.map(cond=>(
+                        <button key={cond} className={`btn btn-sm btn-ghost`}
+                          style={target.conditions.includes(cond)?{borderColor:'var(--blood-light)',color:'#ff8a80'}:{}}
+                          onClick={()=>target.conditions.includes(cond)?removeCondition(target.id,cond):addCondition(target.id,cond)}>
+                          {cond}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Stat block details */}
+                {(viewed.info||[]).map((sec, i) => (
+                  <details className="block" key={i}>
+                    <summary>{sec.h}</summary>
+                    {(sec.items||[]).map((it, j) => <p key={j}>{it[0] && <strong>{it[0]}. </strong>}{it[1]}</p>)}
+                  </details>
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* Resolve Bar */}
+          {combatStarted && (
+            <div className="resolve-bar">
+              <button className="next-turn-btn" disabled={!canControl(active)} style={!canControl(active)?{opacity:0.4,cursor:'default'}:{}} onClick={nextTurn}>Next Turn →</button>
+              <button
+                className="resolve-btn"
+                disabled={!canAct || !selectedAction || (needsTarget && !target)}
+                onClick={resolve}>
+                {canAct ? '⚔ Resolve Action' : 'Not your turn'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── RIGHT: DICE ROLLER + COMBAT LOG ── */}
+        <div className="log-panel">
+          <div className="panel-header">Dice Roller</div>
+          <div className="dice-box">
+            <div className="dice-grid">
+              {[4,6,8,10,12,20,100].map(s => <button key={s} className="die-btn" onClick={()=>rollExpr('1d'+s)}>d{s}</button>)}
+            </div>
+            <div className="dice-expr">
+              <input aria-label="Dice to roll" placeholder="2d6+3" value={diceExpr} onChange={e=>setDiceExpr(e.target.value)} onKeyDown={e=>{ if (e.key==='Enter') rollExpr(diceExpr); }}/>
+              <button className="btn btn-primary btn-sm" onClick={()=>rollExpr(diceExpr)}>Roll</button>
+            </div>
+          </div>
+          <div className="panel-header">Combat Log</div>
+          <div className="log-body">
+            {log.length===0 && <div className="empty-state">Results will appear here</div>}
+            {log.map((entry, i) => (
+              entry.type==='round'
+                ? <div key={entry.id||i} className="log-round">{entry.text}</div>
+                : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result`} dangerouslySetInnerHTML={{__html:sanitizeLogHtml(entry.html)}}/>
+            ))}
+            <div ref={logEndRef}/>
+          </div>
+          {log.length > 0 && isDM && (
+            <div style={{padding:'8px 10px',borderTop:'1px solid #2C3E50'}}>
+              <button className="btn btn-ghost btn-sm btn-full" onClick={clearLog}>Clear Log</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── MONSTER ROSTER ── */}
+      {showRoster && (
+        <div className="modal-overlay" onClick={()=>setShowRoster(false)}>
+          <div className="modal roster" onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">Monster Roster</div>
+            <div className="modal-body" style={{paddingBottom:8}}>
+              <input className="search" autoFocus placeholder={`Search ${MONSTERS.length} stat blocks by name or type`} value={rosterSearch} onChange={e=>setRosterSearch(e.target.value)}
+                style={{width:'100%',background:'#0F1923',border:'1px solid #3d5166',color:'var(--parchment)',padding:'7px 10px',borderRadius:4,fontFamily:"'Crimson Text', serif",fontSize:'0.95rem'}}/>
+            </div>
+            <div className="roster-list">
+              {MONSTERS.length === 0 && <div className="empty-state">monsters.js did not load.</div>}
+              {rosterMatches.slice(0, 80).map(m => (
+                <div key={m.n}>
+                  <div className="roster-row">
+                    <span className="r-name" onClick={()=>setRosterOpen(rosterOpen===m.n?null:m.n)}>{m.n}</span>
+                    <span className="r-meta">{m.t} · CR {m.cr} · AC {m.ac} · {m.hp} HP</span>
+                    <button className="btn btn-primary btn-sm" onClick={()=>addMonster(m)}>Add</button>
+                  </div>
+                  {rosterOpen===m.n && (
+                    <div className="roster-detail">
+                      <div>{ABILITY_KEYS.map(([k],i)=>`${k.toUpperCase()} ${m.s[i]} (${modStr(m.s[i])})`).join(' · ')}</div>
+                      {m.sp && <p><strong>Speed.</strong> {m.sp}</p>}
+                      {(m.tr||[]).map((t,i)=><p key={'t'+i}><strong>{t[0]}.</strong> {t[1]}</p>)}
+                      {(m.a||[]).map((a,i)=><p key={'a'+i}><strong>{a.n}.</strong> {a.d}</p>)}
+                      {(m.ba||[]).map((t,i)=><p key={'b'+i}><strong>{t[0]} (Bonus Action).</strong> {t[1]}</p>)}
+                      {(m.re||[]).map((t,i)=><p key={'r'+i}><strong>{t[0]} (Reaction).</strong> {t[1]}</p>)}
+                      {(m.la||[]).map((t,i)=><p key={'l'+i}><strong>{t[0]} (Legendary Action).</strong> {t[1]}</p>)}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {rosterMatches.length > 80 && <div className="empty-state">Showing 80 of {rosterMatches.length}. Type to narrow it down.</div>}
+            </div>
+            <div className="srd-note">
+              Stat blocks from the System Reference Document 5.2.1 by Wizards of the Coast LLC, licensed under <a href="https://creativecommons.org/licenses/by/4.0/legalcode" target="_blank" rel="noopener">CC BY 4.0</a>. Adding a monster rolls its Initiative with its Dexterity modifier.
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={()=>setShowRoster(false)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD COMBATANT MODAL ── */}
+      {showAddModal && (
+        <div className="modal-overlay" onClick={()=>setShowAddModal(false)}>
+          <div className="modal" onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">{form.fromSheet ? 'Add My Character' : 'Add Combatant'}</div>
+            <div className="modal-body">
+              <div className="two-col">
+                <div className="form-group">
+                  <label>Name</label>
+                  <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Aldric Stoneheart" />
+                </div>
+                <div className="form-group">
+                  <label>Type</label>
+                  <select value={form.type} disabled={!!form.fromSheet} onChange={e=>setForm({...form,type:e.target.value})}>
+                    <option value="player">{isDM ? 'Player Character' : 'My Character'}</option>
+                    {isDM && <option value="monster">Monster / NPC</option>}
+                    <option value="companion">Companion (pet, familiar, summon)</option>
+                  </select>
+                </div>
+              </div>
+              {form.type==='player' && (
+                <div className="two-col">
+                  <div className="form-group">
+                    <label>Class</label>
+                    <select value={form.charClass} onChange={e=>setForm({...form,charClass:e.target.value})}>
+                      {CLASS_LIST.map(c=>(
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Level</label>
+                    <input type="number" min="1" max="20" value={form.level} onChange={e=>setForm({...form,level:e.target.value})} />
+                  </div>
+                </div>
+              )}
+              <div className="three-col">
+                <div className="form-group">
+                  <label>Max HP</label>
+                  <input type="number" value={form.maxHP} onChange={e=>setForm({...form,maxHP:e.target.value,currentHP:e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>AC</label>
+                  <input type="number" value={form.ac} onChange={e=>setForm({...form,ac:e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Initiative{form.initBonus!=null ? ` (d20${signed(form.initBonus)})` : ''}</label>
+                  <input type="number" value={form.initiative} onChange={e=>setForm({...form,initiative:e.target.value})} />
+                </div>
+              </div>
+              {form.type!=='player' && (
+                <>
+                  <div className="section-title" style={{margin:'8px 0 8px'}}>Attack (optional)</div>
+                  <div className="two-col">
+                    <div className="form-group">
+                      <label>Attack name</label>
+                      <input value={form.atkName} placeholder="Bite" onChange={e=>setForm({...form,atkName:e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>To hit bonus</label>
+                      <input type="number" value={form.atkBonus} onChange={e=>setForm({...form,atkBonus:e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="two-col">
+                    <div className="form-group">
+                      <label>Damage dice</label>
+                      <input value={form.atkDmg} placeholder="1d6+2" onChange={e=>setForm({...form,atkDmg:e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Damage type</label>
+                      <input value={form.atkType} placeholder="Piercing" onChange={e=>setForm({...form,atkType:e.target.value})} />
+                    </div>
+                  </div>
+                </>
+              )}
+              <div className="section-title" style={{margin:'8px 0 8px'}}>Ability Scores</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:6}}>
+                {ABILITY_KEYS.map(([k])=>(
+                  <div className="form-group" key={k}>
+                    <label>{k.toUpperCase()}</label>
+                    <input type="number" min="1" max="30" value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} />
+                  </div>
+                ))}
+              </div>
+              {!isDM && approval && <div className="buff-note">The DM has to accept this before it joins the fight.</div>}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={()=>setShowAddModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={addCombatant}>Add to Combat</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

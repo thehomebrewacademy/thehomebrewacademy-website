@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Character Builder & Combat Resolver | The Homebrew Academy</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { background: #1B2430; color: #EDE4D3; font-family: 'Cinzel', 'Times New Roman', serif; display: flex; flex-direction: column; }
+    .bar { display: flex; align-items: flex-end; gap: 4px; padding: 8px 12px 0; background: #0F1923; border-bottom: 2px solid #B8860B; flex-wrap: wrap; }
+    .brand { color: #C9A84C; font-weight: 700; letter-spacing: 1px; font-size: 0.95rem; padding: 0 14px 8px 4px; }
+    .bar button { font: inherit; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.5px; color: #EDE4D3; background: transparent; border: none; border-radius: 6px 6px 0 0; padding: 9px 16px; cursor: pointer; }
+    .bar button:hover { background: #22303F; }
+    .bar button[aria-selected="true"] { background: #B8860B; color: #1B2430; }
+    .bar button:focus-visible { outline: 2px solid #D4A017; outline-offset: 2px; }
+    iframe { flex: 1; width: 100%; border: 0; display: block; }
+    iframe[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <div class="bar" role="tablist">
+    <span class="brand">The Homebrew Academy</span>
+    <button role="tab" data-tab="builder" aria-selected="true">Character Builder</button>
+    <button role="tab" data-tab="resolver" aria-selected="false">Combat Resolver</button>
+  </div>
+  <iframe id="builder" title="Character Builder" src="builder.html"></iframe>
+  <iframe id="resolver" title="Combat Resolver" hidden></iframe>
+  <script>
+    (function () {
+      var frames = { builder: document.getElementById('builder'), resolver: document.getElementById('resolver') };
+      var tabs = document.querySelectorAll('.bar button');
+      function show(name) {
+        Object.keys(frames).forEach(function (k) { frames[k].hidden = k !== name; });
+        tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.dataset.tab === name)); });
+      }
+      tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.dataset.tab); }); });
+
+      // An invite link (#room=CODE) opens straight into the Combat Resolver, already in that room.
+      var room = (/room=([A-Za-z0-9]+)/.exec(location.hash) || [])[1];
+      frames.resolver.src = 'resolver.html' + (room ? '#room=' + room : '');
+      if (room) show('resolver');
+
+      // "Send to Combat Resolver" in the builder hands the character across.
+      window.addEventListener('message', function (e) {
+        if (e.origin !== location.origin || e.source !== frames.builder.contentWindow) return;
+        if (!e.data || e.data.type !== 'hba-character') return;
+        frames.resolver.contentWindow.postMessage(e.data, location.origin);
+        show('resolver');
+      });
+    })();
+  </script>
+</body>
+</html>
