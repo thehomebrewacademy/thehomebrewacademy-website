@@ -346,6 +346,27 @@
     .srd-note { font-size: 0.7rem; color: var(--text-muted); padding: 8px 16px; border-top: 1px solid #2C3E50; }
     .srd-note a { color: var(--brass-light); }
 
+    /* ── SHEET VIEW ── */
+    .stat-chip.changed .val { color: #a5d6a7; }
+    .stat-chip.changed .lbl { color: #a5d6a7; }
+    .stats-row { row-gap: 8px; }
+    .abil-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
+    .abil { background: #161f2b; border: 1px solid #2C3E50; border-radius: 5px; padding: 5px 4px; text-align: center; }
+    .abil .lbl { font-size: 0.62rem; color: var(--brass); letter-spacing: 1px; font-family: 'Cinzel', serif; }
+    .abil .val { font-family: 'Cinzel', serif; font-size: 1rem; font-weight: 700; color: var(--parchment); }
+    .abil .sub { font-size: 0.68rem; color: var(--text-muted); }
+    .senses-line { font-size: 0.82rem; color: var(--parchment); margin-top: 8px; }
+    .senses-line strong { font-family: 'Cinzel', serif; font-size: 0.7rem; color: var(--brass); letter-spacing: 1px; text-transform: uppercase; margin-right: 6px; }
+    .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 3px 14px; margin-top: 6px; color: var(--text-muted); }
+    .skill-grid .prof { color: var(--parchment); }
+    .sheet-card { background: #1a2535; border: 1px solid var(--gold); border-radius: 8px; padding: 12px 14px; }
+    .sheet-card .who { font-family: 'Cinzel', serif; font-size: 1.1rem; color: var(--gold); }
+    .sheet-card .stats-row { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+    .custom-effect { display: grid; gap: 6px; margin-bottom: 6px; }
+    .custom-effect input { width: 100%; background: #0F1923; border: 1px solid #3d5166; color: var(--parchment); padding: 6px 8px; border-radius: 4px; font-family: 'Crimson Text', serif; font-size: 0.9rem; }
+    .custom-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .custom-grid label { font-size: 0.65rem; color: var(--brass); font-family: 'Cinzel', serif; letter-spacing: 0.5px; text-transform: uppercase; display: grid; gap: 2px; }
+
     /* ── SCROLLBAR ── */
     * { scrollbar-width: thin; scrollbar-color: var(--brass) var(--panel); }
   </style>
@@ -487,31 +508,98 @@ const CONDITIONS = ['Blinded','Charmed','Deafened','Frightened','Grappled','Inca
 // atk / save: dice added to the wearer's attack rolls / saving throws. ac: bonus to Armor Class.
 // These four are applied automatically. The rest are reminders shown on the card.
 const BUFFS = [
-  {name:'Bless', note:'+1d4 to attack rolls and saving throws (applied automatically)', atk:'1d4', save:'1d4'},
-  {name:'Bane', note:'-1d4 from attack rolls and saving throws (applied automatically)', atk:'-1d4', save:'-1d4'},
-  {name:'Shield of Faith', note:'+2 AC (applied automatically)', ac:2},
-  {name:'Haste', note:'+2 AC (applied automatically), Advantage on Dexterity saving throws, Speed doubled, one extra action', ac:2},
+  {name:'Bless', note:'+1d4 to attack rolls and saving throws', atk:'1d4', save:'1d4'},
+  {name:'Bane', note:'-1d4 from attack rolls and saving throws', atk:'-1d4', save:'-1d4'},
+  {name:'Shield of Faith', note:'+2 AC', ac:2},
+  {name:'Haste', note:'Speed doubled, +2 AC, Advantage on Dexterity saving throws, one extra action', ac:2, speedMult:2},
+  {name:'Slow', note:"Speed halved, -2 AC and Dexterity saving throws, can't take Reactions", ac:-2, speedMult:0.5},
+  {name:'Longstrider', note:'Speed increases by 10 feet', speed:10},
+  {name:'Darkvision', note:'Darkvision with a range of 150 feet', sense:'Darkvision 150 ft.'},
+  {name:'Fly', note:'Fly Speed of 60 feet and can hover', move:'Fly 60 ft. (hover)'},
   {name:'Bardic Inspiration', note:'Roll the Bardic Inspiration die and add it to one failed D20 Test'},
-  {name:'Guidance', note:'+1d4 to one ability check using the chosen skill'},
-  {name:'Resistance', note:'Once per turn, reduce damage of the chosen type by 1d4'},
+  {name:'Guidance', note:'+1d4 to any ability check using the chosen skill'},
+  {name:'Resistance', note:'Reduces damage of the chosen type by 1d4, once per turn'},
   {name:'Heroism', note:'Immune to Frightened, gains Temporary Hit Points at the start of each turn'},
   {name:'Faerie Fire', note:'Attack rolls against this creature have Advantage'},
   {name:"Hunter's Mark", note:'Takes an extra 1d6 Force damage when hit by the caster'},
   {name:'Hex', note:'Takes an extra 1d6 Necrotic damage when hit by the caster'},
   {name:'Protection from Evil and Good', note:'Certain creature types have Disadvantage on attack rolls against this creature'},
 ];
+const EFFECT_KEYS = ['atk','save','ac','speed','speedMult','init','sense','move','note'];
+function describeEffect(e) { // what an effect changes, in words
+  const parts = [];
+  if (e.ac) parts.push(`${signed(+e.ac)} AC`);
+  if (e.speed) parts.push(`${signed(+e.speed)} ft. Speed`);
+  if (e.speedMult && +e.speedMult !== 1) parts.push(+e.speedMult === 2 ? 'Speed doubled' : +e.speedMult === 0.5 ? 'Speed halved' : `Speed x${e.speedMult}`);
+  if (e.init) parts.push(`${signed(+e.init)} Initiative`);
+  if (e.atk) parts.push(`${String(e.atk)[0] === '-' ? '' : '+'}${e.atk} attack rolls`);
+  if (e.save) parts.push(`${String(e.save)[0] === '-' ? '' : '+'}${e.save} saving throws`);
+  if (e.sense) parts.push(e.sense);
+  if (e.move) parts.push(e.move);
+  return parts.join(', ');
+}
 function effectDice(c, key) {
   let total = 0; const parts = [];
   (c && c.effects || []).forEach(e => {
-    const x = e[key];
-    if (!x || !DMG_RE.test(String(x).replace('-', ''))) return;
-    const r = parseDamage(String(x).replace('-', ''));
-    const v = String(x)[0] === '-' ? -r.total : r.total;
+    const raw = String(e[key] == null ? '' : e[key]).replace(/\s/g, '').replace(/^\+/, '');
+    const body = raw.replace(/^-/, '');
+    if (!body || !DMG_RE.test(body)) return;
+    const r = parseDamage(body);
+    const v = raw[0] === '-' ? -r.total : r.total;
     total += v; parts.push(`${esc(e.name)} ${signed(v)}`);
   });
   return {total, text: parts.join(', ')};
 }
-function effectiveAC(c) { return (+c.ac || 0) + (c.effects || []).reduce((s, e) => s + (+e.ac || 0), 0); }
+// Stats as they stand right now: the sheet's own value plus whatever effects are on the creature.
+const effs = c => (c && c.effects) || [];
+const sumEff = (c, k) => effs(c).reduce((t, e) => t + (Number.isFinite(+e[k]) ? +e[k] : 0), 0);
+const srcEff = (c, test) => effs(c).filter(test).map(e => e.name).join(', ');
+function effectiveAC(c) { return (+c.ac || 0) + sumEff(c, 'ac'); }
+function effectiveSpeed(c) {
+  const mult = effs(c).reduce((t, e) => t * (Number.isFinite(+e.speedMult) && +e.speedMult > 0 ? Math.min(4, +e.speedMult) : 1), 1);
+  return Math.max(0, Math.floor(((+c.speed || 0) + sumEff(c, 'speed')) * mult));
+}
+function speedText(c) { return [`${effectiveSpeed(c)} ft.`, c.speedExtra, ...effs(c).map(e => e.move)].filter(Boolean).join(', '); }
+function effectiveInit(c) { return (+c.initiative || 0) + sumEff(c, 'init'); }       // place in the order
+function effectiveInitBonus(c) { return (+c.initBonus || 0) + sumEff(c, 'init'); }   // modifier to the roll
+function effectiveSenses(c) { return [...(c.senses || []), ...effs(c).map(e => e.sense)].filter(Boolean); }
+const byInit = list => list.map((c, i) => [c, i]).sort((a, b) => (effectiveInit(b[0]) - effectiveInit(a[0])) || (a[1] - b[1])).map(x => x[0]);
+
+// ── CHARACTER SHEETS (files from the Character Builder) ──────────────────────
+// Turns a saved sheet into everything a combatant carries, so the whole sheet comes into the fight.
+function sheetToFields(data) {
+  const num = (v, d) => Number.isFinite(+v) ? +v : d;
+  const str = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const list = (v, n, len) => Array.isArray(v) ? v.filter(x => typeof x === 'string' && x).slice(0, n).map(x => x.slice(0, len)) : [];
+  const sc = data.scores || {};
+  const scores = {}, saves = {}, skills = {};
+  ABILITY_KEYS.forEach(([k, full]) => {
+    scores[full] = num(sc[full], 10);
+    saves[full] = num((data.saves || {})[full], mod(scores[full]));
+  });
+  Object.keys(data.skills && typeof data.skills === 'object' ? data.skills : {}).slice(0, 30).forEach(k => { skills[str(k, 30)] = num(data.skills[k], 0); });
+  const level = Math.max(1, Math.min(20, num(data.level, 1)));
+  const maxHP = Math.max(1, num(data.maxHP, 10));
+  const sp = data.spellcasting && typeof data.spellcasting === 'object' ? data.spellcasting : null;
+  const sheet = {
+    species: str(data.species, 30), background: str(data.background, 30), subclass: str(data.subclassName, 40),
+    player: str(data.player, 40), pp: num(data.passivePerception, 10 + mod(scores.Wisdom)),
+    skills, skillProfs: list(data.skillProfs, 30, 30), skillExpertise: list(data.skillExpertise, 30, 30),
+    hitDie: num(data.hitDie, 0), equipment: str(data.equipment, 2000), items: list(data.items, 60, 80),
+  };
+  if (sp) sheet.spell = {ability: str(sp.ability, 20), dc: num(sp.dc, 8), attack: num(sp.attack, 0), slots: str(sp.slots, 120)};
+  const info = [];
+  const features = list(data.features, 80, 600), spells = list(data.spells, 80, 80);
+  if (features.length) info.push({h:'Features and Traits', items: features.map(f => ['', f])});
+  if (spells.length) info.push({h:'Spells', items: spells.map(x => ['', x])});
+  return {
+    name: str(data.name, 60) || 'Unnamed Hero', type: 'player',
+    charClass: CLASS_LIST.includes(data.className) ? data.className : 'Fighter',
+    level, maxHP, currentHP: Math.max(0, Math.min(maxHP, num(data.currentHP, maxHP))),
+    ac: num(data.ac, 10), speed: num(data.speed, 30), initBonus: num(data.initiativeBonus, mod(scores.Dexterity)),
+    senses: list(data.senses, 10, 40), scores, saves, pb: num(data.profBonus, profBonus(level)), sheet, info,
+  };
+}
 
 // ── ACTIONS ──────────────────────────────────────────────────────────────────
 function buildActions(combatant) {
@@ -628,7 +716,6 @@ function monsterActions(m) {
 }
 function monsterInfo(m) {
   const items = [];
-  if (m.sp) items.push(['Speed', m.sp]);
   if (m.res) items.push(['Resistances', m.res]);
   if (m.imm) items.push(['Immunities', m.imm]);
   if (m.vul) items.push(['Vulnerabilities', m.vul]);
@@ -676,7 +763,8 @@ function App() {
 
   // ── BUFF + DICE STATE ──
   const [buffName, setBuffName] = useState(BUFFS[0].name);
-  const [buffCustom, setBuffCustom] = useState('');
+  const emptyCustom = {name:'', ac:'', speed:'', init:'', atk:'', save:'', sense:'', note:''};
+  const [buffCustom, setBuffCustom] = useState(emptyCustom);
   const [buffTarget, setBuffTarget] = useState('');
   const [diceExpr, setDiceExpr] = useState('');
 
@@ -708,64 +796,71 @@ function App() {
   const emptyForm = {name:'',type:'player',charClass:'Fighter',level:1,
     maxHP:20,currentHP:20,ac:15,initiative:0,
     str:10,dex:10,con:10,int:10,wis:10,cha:10,
-    atkName:'',atkBonus:4,atkDmg:'',atkType:''};
+    speed:30,atkName:'',atkBonus:4,atkDmg:'',atkType:''};
   const [form, setForm] = useState(emptyForm);
   const openAdd = () => { setForm({...emptyForm, type: isDM ? 'monster' : 'companion'}); setShowAddModal(true); };
 
   const placeByInitiative = (list, c) => {
     if (!combatStarted) return [...list, c];
-    const i = list.findIndex(x => (x.initiative || 0) < (c.initiative || 0));
+    const i = list.findIndex(x => effectiveInit(x) < effectiveInit(c));
     return i < 0 ? [...list, c] : [...list.slice(0, i), c, ...list.slice(i)];
   };
 
   const addCombatant = () => {
     if (!form.name.trim()) return;
     const asPlayer = !isDM;
-    const type = form.fromSheet ? 'player' : (asPlayer && form.type !== 'player' ? 'companion' : form.type);
-    const scores = {Strength:+form.str,Dexterity:+form.dex,Constitution:+form.con,
-                    Intelligence:+form.int,Wisdom:+form.wis,Charisma:+form.cha};
-    const pb = profBonus(+form.level || 1);
-    const saves = form.saves ? form.saves : {
-      Strength: mod(scores.Strength)+(type==='player'?pb:0),
-      Dexterity: mod(scores.Dexterity)+(type==='player'?pb:0),
-      Constitution: mod(scores.Constitution)+(type==='player'?pb:0),
-      Intelligence: mod(scores.Intelligence)+(type==='player'?pb:0),
-      Wisdom: mod(scores.Wisdom)+(type==='player'?pb:0),
-      Charisma: mod(scores.Charisma)+(type==='player'?pb:0),
-    };
-    const newC = {
-      id: newId(),
-      name: form.name.trim().slice(0, 60),
-      type,
-      level: +form.level || 1,
-      maxHP: Math.max(1, +form.maxHP || 1),
-      currentHP: +form.currentHP || +form.maxHP || 1,
-      ac: +form.ac || 10,
-      initiative: +form.initiative || 0,
-      scores, saves,
-      conditions: [], effects: [],
-      pb,
-    };
-    if (type === 'player') newC.charClass = form.charClass;
-    else {
-      const dmg = String(form.atkDmg || '').replace(/\s/g, '');
-      if (DMG_RE.test(dmg)) {
-        const atk = +form.atkBonus || 0;
-        newC.actions = [{id:'a0', name:(form.atkName || 'Attack').trim().slice(0, 40), type:'attack', tag:'attack', atk,
-          dmgList:[[dmg, (form.atkType || '').trim().slice(0, 20)]], detail:`${signed(atk)} to hit · ${dmg} ${(form.atkType || '').toLowerCase()}`.trim()}];
+    let newC;
+    if (form.sheetData) {
+      // A real character sheet: everything on it comes along.
+      newC = {...sheetToFields(form.sheetData), id: newId(), initiative: +form.initiative || 0, conditions: [], effects: []};
+      if (asPlayer || form.fromSheet) newC.owner = myId;
+      if (form.fromSheet) newC.main = true;
+    } else {
+      const type = asPlayer && form.type !== 'player' ? 'companion' : form.type;
+      const scores = {Strength:+form.str,Dexterity:+form.dex,Constitution:+form.con,
+                      Intelligence:+form.int,Wisdom:+form.wis,Charisma:+form.cha};
+      const pb = profBonus(+form.level || 1);
+      const saves = {};
+      ABILITY_KEYS.forEach(([k, full]) => { saves[full] = mod(scores[full]) + (type==='player'?pb:0); });
+      newC = {
+        id: newId(),
+        name: form.name.trim().slice(0, 60),
+        type,
+        level: +form.level || 1,
+        maxHP: Math.max(1, +form.maxHP || 1),
+        currentHP: +form.currentHP || +form.maxHP || 1,
+        ac: +form.ac || 10,
+        speed: Math.max(0, +form.speed || 0),
+        initBonus: mod(scores.Dexterity),
+        initiative: +form.initiative || 0,
+        scores, saves,
+        conditions: [], effects: [],
+        pb,
+      };
+      if (type === 'player') newC.charClass = form.charClass;
+      else {
+        const dmg = String(form.atkDmg || '').replace(/\s/g, '');
+        if (DMG_RE.test(dmg)) {
+          const atk = +form.atkBonus || 0;
+          newC.actions = [{id:'a0', name:(form.atkName || 'Attack').trim().slice(0, 40), type:'attack', tag:'attack', atk,
+            dmgList:[[dmg, (form.atkType || '').trim().slice(0, 20)]], detail:`${signed(atk)} to hit · ${dmg} ${(form.atkType || '').toLowerCase()}`.trim()}];
+        }
       }
+      if (asPlayer) newC.owner = myId;
     }
-    if (asPlayer || form.fromSheet) newC.owner = myId;
-    if (form.fromSheet) newC.main = true;
     if (asPlayer && approval) newC.pending = true;
-    const info = [];
-    if (form.features && form.features.length) info.push({h:'Features', items: form.features.map(f => ['', f])});
-    if (form.spells && form.spells.length) info.push({h:'Spells', items: form.spells.map(s => ['', s])});
-    if (info.length) newC.info = info;
     setCombatants(prev => placeByInitiative(prev, newC));
     setViewId(v => v || (newC.owner === myId ? newC.id : v));
     setForm(emptyForm);
     setShowAddModal(false);
+  };
+
+  // Re-reads this player's saved sheet and refreshes their character in the fight (level ups, new gear, and so on).
+  const updateFromSheet = (id) => {
+    const d = readStoredCharacter(playerCode);
+    if (!d) { alert(`No character sheet is saved on this computer for player code ${playerCode}.`); return; }
+    const f = sheetToFields(d);
+    setCombatants(prev => prev.map(c => c.id !== id ? c : {...c, ...f, currentHP: Math.min(f.maxHP, c.currentHP)}));
   };
 
   const addMonster = (m) => {
@@ -775,9 +870,11 @@ function App() {
     const init = rollD(20) + mod(m.s[1]);
     const c = {
       id: newId(), name: n ? `${m.n} ${n + 1}` : m.n, base: m.n, type:'monster', sub:`${m.t}, CR ${m.cr}`,
-      level: 1, maxHP: m.hp, currentHP: m.hp, ac: m.ac, initiative: init, scores, saves,
+      level: 1, maxHP: m.hp, currentHP: m.hp, ac: m.ac, initiative: init, initBonus: mod(m.s[1]), scores, saves,
+      speed: parseInt(m.sp, 10) || 0, speedExtra: String(m.sp || '').split(', ').slice(1).join(', '), senses: m.se || [],
       conditions: [], effects: [], pb: m.pb, actions: monsterActions(m), info: monsterInfo(m),
     };
+    if (m.pp != null) c.sheet = {pp: m.pp};
     setCombatants(prev => placeByInitiative(prev, c));
   };
 
@@ -794,7 +891,7 @@ function App() {
   const acceptCombatant = (id) => setCombatants(prev => prev.map(c => c.id === id ? {...c, pending: false} : c));
 
   const startCombat = () => {
-    const sorted = [...combatants].sort((a,b)=>b.initiative-a.initiative);
+    const sorted = byInit(combatants);
     const first = sorted.find(c => !c.pending);
     setCombatants(sorted);
     setActiveId(first ? first.id : '');
@@ -966,19 +1063,27 @@ function App() {
 
   // ── BUFF PASSING ────────────────────────────────────────────────────────────
   const whoAmI = () => (viewed && canControl(viewed)) ? viewed.name : (isDM ? 'DM' : 'A player');
+  const reorder = list => combatStarted ? byInit(list) : list;
   const passBuff = () => {
     const to = inPlay.find(c => c.id === (buffTarget || (viewed && viewed.id)));
     if (!to) return;
+    const custom = buffName === '__custom';
     const preset = BUFFS.find(b => b.name === buffName);
-    const name = buffName === '__custom' ? buffCustom.trim().slice(0, 40) : buffName;
+    const name = custom ? buffCustom.name.trim().slice(0, 40) : buffName;
     if (!name) return;
     const eff = {id: newId(), name, by: myId, byName: whoAmI()};
-    if (preset && buffName !== '__custom') ['atk','save','ac','note'].forEach(k => { if (preset[k] != null) eff[k] = preset[k]; });
-    setCombatants(prev => prev.map(c => c.id === to.id ? {...c, effects: [...(c.effects || []).filter(e => e.name !== name), eff]} : c));
-    setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(whoAmI())}</strong> passes <span class="log-result">${esc(name)}</span> to <strong>${esc(to.name)}</strong>${eff.note ? `<div class="log-detail">${esc(eff.note)}</div>` : ''}`})]);
-    setBuffCustom('');
+    if (custom) {
+      ['ac','speed','init'].forEach(k => { const n = parseInt(buffCustom[k], 10); if (Number.isFinite(n) && n !== 0) eff[k] = Math.max(-200, Math.min(200, n)); });
+      ['atk','save'].forEach(k => { const v = String(buffCustom[k] || '').replace(/\s/g, '').replace(/^\+/, ''); if (v && DMG_RE.test(v.replace(/^-/, ''))) eff[k] = v; });
+      const sense = buffCustom.sense.trim().slice(0, 60); if (sense) eff.sense = sense;
+      const note = buffCustom.note.trim().slice(0, 200); if (note) eff.note = note;
+    } else if (preset) EFFECT_KEYS.forEach(k => { if (preset[k] != null) eff[k] = preset[k]; });
+    setCombatants(prev => reorder(prev.map(c => c.id === to.id ? {...c, effects: [...(c.effects || []).filter(e => e.name !== name), eff]} : c)));
+    const what = custom ? [describeEffect(eff), eff.note].filter(Boolean).join('. ') : ((preset && preset.note) || '');
+    setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(whoAmI())}</strong> passes <span class="log-result">${esc(name)}</span> to <strong>${esc(to.name)}</strong>${what ? `<div class="log-detail">${esc(what)}</div>` : ''}`})]);
+    setBuffCustom(emptyCustom);
   };
-  const removeEffect = (id, effId) => setCombatants(prev => prev.map(c => c.id === id ? {...c, effects: (c.effects || []).filter(e => e.id !== effId)} : c));
+  const removeEffect = (id, effId) => setCombatants(prev => reorder(prev.map(c => c.id === id ? {...c, effects: (c.effects || []).filter(e => e.id !== effId)} : c)));
 
   // ── DICE ROLLER ─────────────────────────────────────────────────────────────
   const rollExpr = (exprRaw) => {
@@ -1059,7 +1164,7 @@ function App() {
         .filter(c => c && c.id && c.name != null)
         .map(c => ({...c, name: String(c.name), maxHP: +c.maxHP || 1, currentHP: +c.currentHP || 0, ac: +c.ac || 10,
           conditions: arr(c.conditions), effects: arr(c.effects).filter(e => e && e.id && e.name), actions: arr(c.actions), info: arr(c.info),
-          scores: c.scores || {}, saves: c.saves || {}}))
+          senses: arr(c.senses).filter(x => typeof x === 'string'), scores: c.scores || {}, saves: c.saves || {}}))
         .sort((a, b) => ((a.seq || 0) - (b.seq || 0)) || (a.id < b.id ? -1 : 1));
       const logList = Object.values(v.log || {}).filter(e => e && e.id).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const m = v.meta || {};
@@ -1104,24 +1209,9 @@ function App() {
   // ── CHARACTERS (from the Character Builder) ─────────────────────────────────
   const loadCharacter = (data, fromSheet) => {
     if (!data || data.format !== 'homebrew-academy-character') { alert('That file is not a Character Builder save.'); return; }
-    const num = (v, d) => Number.isFinite(+v) ? +v : d;
-    const sc = data.scores || {};
-    const list = v => Array.isArray(v) ? v.filter(x => typeof x === 'string' && x).slice(0, 80).map(x => x.slice(0, 600)) : [];
-    const f = {
-      ...emptyForm,
-      name: String(data.name || 'Unnamed Hero').slice(0, 60), type: 'player',
-      charClass: CLASS_LIST.includes(data.className) ? data.className : 'Fighter',
-      level: Math.max(1, Math.min(20, num(data.level, 1))),
-      maxHP: num(data.maxHP, 10), currentHP: num(data.currentHP, num(data.maxHP, 10)),
-      ac: num(data.ac, 10), initiative: 0, initBonus: num(data.initiativeBonus, 0),
-      features: list(data.features), spells: list(data.spells), fromSheet: !!fromSheet,
-    };
-    ABILITY_KEYS.forEach(([k, full]) => { f[k] = num(sc[full], 10); });
-    if (data.saves && typeof data.saves === 'object') {
-      f.saves = {};
-      ABILITY_KEYS.forEach(([k, full]) => { f.saves[full] = num(data.saves[full], mod(f[k])); });
-    }
-    setForm(f);
+    if (!String(data.name || '').trim()) { alert('That character sheet has no name yet. Fill it in on the Character Builder tab first.'); return; }
+    const f = sheetToFields(data);
+    setForm({...emptyForm, name: f.name, type: 'player', initiative: '', sheetData: data, fromSheet: !!fromSheet});
     setShowAddModal(true);
   };
   const readCharacterFile = (file) => {
@@ -1130,7 +1220,7 @@ function App() {
   };
   const addMyCharacter = () => {
     const d = readStoredCharacter(playerCode);
-    if (!d) { alert(`No character is saved on this computer for player code ${playerCode}. Build one in the Character Builder first.`); return; }
+    if (!d) { alert(`No character sheet is saved on this computer for player code ${playerCode}. Build one on the Character Builder tab first.`); return; }
     loadCharacter(d, true);
   };
 
@@ -1140,7 +1230,7 @@ function App() {
     promptedRef.current = true;
     if (isDM || combatants.some(c => c.owner === myId)) return;
     const d = readStoredCharacter(playerCode);
-    if (d && d.name) loadCharacter(d, true);
+    if (d && String(d.name || '').trim()) loadCharacter(d, true);
   }, [room, remoteSigs]);
 
   // HP changes to this player's own character are written back to their sheet on this computer.
@@ -1179,6 +1269,26 @@ function App() {
 
   // ── RENDER HELPERS ──────────────────────────────────────────────────────────
   const typeLine = c => c.type === 'player' ? `${c.charClass || 'Character'} ${c.level}` : c.type === 'companion' ? 'Companion' : (c.sub || 'Monster/NPC');
+  const sheetLine = c => {
+    const sh = c.sheet || {};
+    if (c.type !== 'player' || !sh.species) return typeLine(c);
+    return `Level ${c.level} ${sh.species} ${c.charClass}${sh.subclass ? ` (${sh.subclass})` : ''}${sh.background ? ` · ${sh.background}` : ''}`;
+  };
+  const statChips = c => {
+    const sh = c.sheet || {};
+    const chip = (lbl, val, src) => ({lbl, val, src});
+    const out = [
+      chip('AC', effectiveAC(c), srcEff(c, e => +e.ac)),
+      chip('Initiative', signed(effectiveInitBonus(c)), srcEff(c, e => +e.init)),
+      chip('Speed', speedText(c), srcEff(c, e => +e.speed || (e.speedMult && +e.speedMult !== 1) || e.move)),
+      chip('HP', `${c.currentHP}/${c.maxHP}`, ''),
+      chip('Prof', `+${c.pb || 2}`, ''),
+    ];
+    if (sh.pp != null) out.push(chip('Passive Perception', sh.pp, ''));
+    if (sh.spell) { out.push(chip('Spell Save DC', sh.spell.dc, '')); out.push(chip('Spell Attack', signed(sh.spell.attack), '')); }
+    return out;
+  };
+  const sheetPreview = form.sheetData ? sheetToFields(form.sheetData) : null;
   const selAction = actions.find(a => a.id === selectedAction);
   const needsTarget = selAction && !['selfheal','info'].includes(selAction.type);
   const targets = inPlay.filter(c => viewed && c.id !== viewed.id && c.currentHP > 0);
@@ -1252,10 +1362,10 @@ function App() {
               >
                 {isActive && <div className="turn-marker"/>}
                 <div className="combatant-header">
-                  <div className="init-badge">{c.initiative}</div>
+                  <div className="init-badge" title="Initiative">{effectiveInit(c)}</div>
                   <div>
                     <div className="combatant-name">{c.name} {c.currentHP<=0?'☠':''}</div>
-                    <div className="combatant-type">{typeLine(c)} · AC {effectiveAC(c)} {c.owner===myId && <span className="owner-tag">· yours</span>}</div>
+                    <div className="combatant-type">{typeLine(c)} · AC {effectiveAC(c)} · {effectiveSpeed(c)} ft. {c.owner===myId && <span className="owner-tag">· yours</span>}</div>
                   </div>
                   {ctl && <button className="card-remove" title="Remove from combat" onClick={e=>{e.stopPropagation(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id);}}>×</button>}
                 </div>
@@ -1270,7 +1380,7 @@ function App() {
                     ))}
                     {(c.effects||[]).map(e=>{
                       const rm = isDM || ctl || e.by === myId;
-                      return <span key={e.id} className={`condition-tag good ${rm?'removable':''}`} title={`${e.note||e.name}${e.byName?` (from ${e.byName})`:''}`}
+                      return <span key={e.id} className={`condition-tag good ${rm?'removable':''}`} title={`${[describeEffect(e), e.note].filter(Boolean).join('. ')||e.name}${e.byName?` (from ${e.byName})`:''}`}
                         onClick={ev=>{ev.stopPropagation(); if (rm) removeEffect(c.id,e.id);}}>{e.name}{rm?' ×':''}</span>;
                     })}
                   </div>
@@ -1298,10 +1408,10 @@ function App() {
                 )}
               </div>
             );})}
-            <button className="btn btn-ghost btn-full" style={{marginTop:8}} onClick={addMyCharacter}>Add My Character</button>
+            <button className="btn btn-ghost btn-full" style={{marginTop:8}} onClick={addMyCharacter}>Add My Character Sheet</button>
             <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={openAdd}>{isDM ? '+ Add Combatant' : '+ Add Companion'}</button>
             {isDM && <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>setShowRoster(true)}>Monster Roster</button>}
-            <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>fileInputRef.current && fileInputRef.current.click()}>Load Character File</button>
+            <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>fileInputRef.current && fileInputRef.current.click()}>Upload Character File</button>
             <input ref={fileInputRef} type="file" accept=".json,application/json" style={{display:'none'}}
               onChange={e=>{ const f = e.target.files && e.target.files[0]; e.target.value=''; readCharacterFile(f); }} />
           </div>
@@ -1316,7 +1426,7 @@ function App() {
                 <h2>Combat Resolver</h2>
                 {isDM
                   ? <p>Add combatants from the left panel or the Monster Roster, then press Start Combat.</p>
-                  : <p>Add your character from the left panel. The DM starts combat.</p>}
+                  : <p>Click Add My Character Sheet on the left to bring in the sheet you built. The DM starts combat.</p>}
                 <p style={{marginTop:12,fontSize:'0.8rem'}}>Click another combatant to mark them as your target.</p>
               </div>
             ) : (
@@ -1328,25 +1438,31 @@ function App() {
                 )}
                 <div className="turn-banner">
                   <div className="who">🎲 {viewed.name}{canAct ? "'s Turn" : ''}</div>
-                  <div className="combatant-type">{typeLine(viewed)} · {viewed.currentHP}/{viewed.maxHP} HP</div>
+                  <div className="combatant-type">{sheetLine(viewed)}</div>
                   <div className="stats-row">
-                    {ABILITY_KEYS.map(([k,ab])=>(
-                      <div className="stat-chip" key={ab}>
-                        <div className="val">{modStr((viewed.scores||{})[ab] ?? 10)}</div>
-                        <div className="lbl">{k.toUpperCase()}</div>
+                    {statChips(viewed).map(ch => (
+                      <div className={`stat-chip ${ch.src ? 'changed' : ''}`} key={ch.lbl} title={ch.src ? `Changed by ${ch.src}` : ''}>
+                        <div className="val">{ch.val}</div>
+                        <div className="lbl">{ch.lbl}{ch.src ? ' ✦' : ''}</div>
                       </div>
                     ))}
-                    <div className="stat-chip">
-                      <div className="val">+{viewed.pb||2}</div>
-                      <div className="lbl">PROF</div>
-                    </div>
-                    <div className="stat-chip">
-                      <div className="val">{effectiveAC(viewed)}</div>
-                      <div className="lbl">AC</div>
-                    </div>
                   </div>
+                  <div className="abil-row">
+                    {ABILITY_KEYS.map(([k,ab])=>{
+                      const score = (viewed.scores||{})[ab] ?? 10;
+                      return (
+                        <div className="abil" key={ab}>
+                          <div className="lbl">{k.toUpperCase()}</div>
+                          <div className="val">{modStr(score)}</div>
+                          <div className="sub">{score} · save {signed((viewed.saves||{})[ab] ?? mod(score))}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="senses-line"><strong>Senses</strong> {effectiveSenses(viewed).join(', ') || 'None listed'}</div>
                   {combatStarted && !canAct && active && <div className="turn-note">Waiting: it is {active.name}'s turn</div>}
                   {combatStarted && canAct && !isDM && <div className="turn-note yours">It is your turn</div>}
+                  {viewed.main && viewed.owner === myId && <button className="link-btn" style={{marginTop:6,fontSize:'0.8rem'}} onClick={()=>updateFromSheet(viewed.id)}>Update from my sheet</button>}
                 </div>
 
                 {/* Target */}
@@ -1402,10 +1518,19 @@ function App() {
                     {inPlay.map(c=><option key={c.id} value={c.id}>{c.name}{c.id===viewed.id?' (self)':''}</option>)}
                   </select>
                 </div>
-                {buffName === '__custom'
-                  ? <div className="buff-row" style={{gridTemplateColumns:'1fr'}}><input placeholder="Name of the buff or effect" maxLength={40} value={buffCustom} onChange={e=>setBuffCustom(e.target.value)}/></div>
-                  : <div className="buff-note">{buffPreset && buffPreset.note}</div>}
-                <button className="btn btn-success btn-sm" onClick={passBuff} disabled={buffName==='__custom' && !buffCustom.trim()}>Pass Buff</button>
+                {buffName === '__custom' ? (
+                  <div className="custom-effect">
+                    <input aria-label="Effect name" placeholder="Name of the buff or effect" maxLength={40} value={buffCustom.name} onChange={e=>setBuffCustom({...buffCustom,name:e.target.value})}/>
+                    <div className="custom-grid">
+                      {[['ac','AC','+1'],['speed','Speed (ft.)','+10'],['init','Initiative','+2'],['atk','Attack rolls','1d4'],['save','Saving throws','1d4']].map(([k,l,ph])=>(
+                        <label key={k}>{l}<input aria-label={l} placeholder={ph} value={buffCustom[k]} onChange={e=>setBuffCustom({...buffCustom,[k]:e.target.value})}/></label>
+                      ))}
+                    </div>
+                    <input aria-label="Sense granted" placeholder="Sense granted, for example Darkvision 60 ft." maxLength={60} value={buffCustom.sense} onChange={e=>setBuffCustom({...buffCustom,sense:e.target.value})}/>
+                    <input aria-label="Note" placeholder="Anything else it does (shown as a reminder)" maxLength={200} value={buffCustom.note} onChange={e=>setBuffCustom({...buffCustom,note:e.target.value})}/>
+                  </div>
+                ) : <div className="buff-note">{buffPreset && [describeEffect(buffPreset) && `Applied to the sheet: ${describeEffect(buffPreset)}.`, buffPreset.note].filter(Boolean).join(' ')}</div>}
+                <button className="btn btn-success btn-sm" onClick={passBuff} disabled={buffName==='__custom' && !buffCustom.name.trim()}>Pass Buff</button>
                 </>}
 
                 {/* Conditions */}
@@ -1424,13 +1549,38 @@ function App() {
                   </>
                 )}
 
-                {/* Stat block details */}
+                {/* Sheet details */}
+                {viewed.sheet && viewed.sheet.skills && Object.keys(viewed.sheet.skills).length > 0 && (
+                  <details className="block">
+                    <summary>Skills</summary>
+                    <div className="skill-grid">
+                      {Object.keys(viewed.sheet.skills).sort().map(sk => {
+                        const ex = (viewed.sheet.skillExpertise||[]).includes(sk), pr = (viewed.sheet.skillProfs||[]).includes(sk);
+                        return <div key={sk} className={pr||ex?'prof':''}>{sk} <strong>{signed(viewed.sheet.skills[sk])}</strong>{ex?' (Expertise)':pr?' (Proficient)':''}</div>;
+                      })}
+                    </div>
+                  </details>
+                )}
+                {viewed.sheet && viewed.sheet.spell && (
+                  <details className="block">
+                    <summary>Spellcasting</summary>
+                    <p><strong>Ability.</strong> {viewed.sheet.spell.ability} · <strong>Spell save DC</strong> {viewed.sheet.spell.dc} · <strong>Spell attack</strong> {signed(viewed.sheet.spell.attack)}</p>
+                    {viewed.sheet.spell.slots && <p><strong>Spell slots.</strong> {viewed.sheet.spell.slots}</p>}
+                  </details>
+                )}
                 {(viewed.info||[]).map((sec, i) => (
                   <details className="block" key={i}>
                     <summary>{sec.h}</summary>
                     {(sec.items||[]).map((it, j) => <p key={j}>{it[0] && <strong>{it[0]}. </strong>}{it[1]}</p>)}
                   </details>
                 ))}
+                {viewed.sheet && (viewed.sheet.equipment || (viewed.sheet.items||[]).length > 0) && (
+                  <details className="block">
+                    <summary>Equipment and Items</summary>
+                    {(viewed.sheet.items||[]).length > 0 && <p><strong>Items.</strong> {viewed.sheet.items.join(', ')}</p>}
+                    {viewed.sheet.equipment && <p style={{whiteSpace:'pre-wrap'}}>{viewed.sheet.equipment}</p>}
+                  </details>
+                )}
               </>
             )}
           </div>
@@ -1526,8 +1676,30 @@ function App() {
       {showAddModal && (
         <div className="modal-overlay" onClick={()=>setShowAddModal(false)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
-            <div className="modal-header">{form.fromSheet ? 'Add My Character' : 'Add Combatant'}</div>
+            <div className="modal-header">{sheetPreview ? 'Add Character Sheet' : 'Add Combatant'}</div>
             <div className="modal-body">
+              {sheetPreview ? (
+                <>
+                  <div className="sheet-card">
+                    <div className="who">{sheetPreview.name}</div>
+                    <div className="combatant-type">{sheetLine(sheetPreview)}</div>
+                    <div className="stats-row">
+                      {statChips(sheetPreview).map(ch => (
+                        <div className="stat-chip" key={ch.lbl}><div className="val">{ch.val}</div><div className="lbl">{ch.lbl}</div></div>
+                      ))}
+                    </div>
+                    <div className="senses-line"><strong>Senses</strong> {sheetPreview.senses.join(', ') || 'None listed'}</div>
+                    <div className="buff-note" style={{marginTop:8,marginBottom:0}}>The whole sheet comes with it: ability scores, saving throws, skills, features, spells and equipment.</div>
+                  </div>
+                  <div className="form-group" style={{marginTop:12}}>
+                    <label>Initiative roll (d20{signed(sheetPreview.initBonus)})</label>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8}}>
+                      <input type="number" aria-label="Initiative roll" value={form.initiative} placeholder="Type your total, or roll" onChange={e=>setForm({...form,initiative:e.target.value})} />
+                      <button className="btn btn-ghost" onClick={()=>setForm({...form,initiative:rollD(20)+sheetPreview.initBonus})}>Roll for me</button>
+                    </div>
+                  </div>
+                </>
+              ) : (<>
               <div className="two-col">
                 <div className="form-group">
                   <label>Name</label>
@@ -1535,7 +1707,7 @@ function App() {
                 </div>
                 <div className="form-group">
                   <label>Type</label>
-                  <select value={form.type} disabled={!!form.fromSheet} onChange={e=>setForm({...form,type:e.target.value})}>
+                  <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>
                     <option value="player">{isDM ? 'Player Character' : 'My Character'}</option>
                     {isDM && <option value="monster">Monster / NPC</option>}
                     <option value="companion">Companion (pet, familiar, summon)</option>
@@ -1568,9 +1740,13 @@ function App() {
                   <input type="number" value={form.ac} onChange={e=>setForm({...form,ac:e.target.value})} />
                 </div>
                 <div className="form-group">
-                  <label>Initiative{form.initBonus!=null ? ` (d20${signed(form.initBonus)})` : ''}</label>
+                  <label>Initiative</label>
                   <input type="number" value={form.initiative} onChange={e=>setForm({...form,initiative:e.target.value})} />
                 </div>
+              </div>
+              <div className="form-group">
+                <label>Speed (ft.)</label>
+                <input type="number" min="0" step="5" value={form.speed} onChange={e=>setForm({...form,speed:e.target.value})} />
               </div>
               {form.type!=='player' && (
                 <>
@@ -1606,6 +1782,7 @@ function App() {
                   </div>
                 ))}
               </div>
+              </>)}
               {!isDM && approval && <div className="buff-note">The DM has to accept this before it joins the fight.</div>}
             </div>
             <div className="modal-footer">

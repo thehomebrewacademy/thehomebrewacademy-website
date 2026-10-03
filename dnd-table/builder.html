@@ -799,7 +799,7 @@ function CharacterSheet() {
   function buildCharacterFile() {
     return {
       format: "homebrew-academy-character",
-      version: 2,
+      version: 3,
       name: charName, player: playerName,
       className, subclassName, level, species, background, alignment,
       scores: finalScores, saves: savingThrows, profBonus,
@@ -807,6 +807,20 @@ function CharacterSheet() {
       ac: armorClass, initiativeBonus: initiative, speed,
       features: featureLedger.map(f => f.text),
       spells: spells.filter(Boolean),
+      passivePerception,
+      senses: ((SPECIES[species] || {}).traits || []).map(t => { const m = /^(Darkvision|Blindsight|Tremorsense|Truesight) \((\d+) ft\.\)/.exec(t); return m ? `${m[1]} ${m[2]} ft.` : null; }).filter(Boolean),
+      skills: skillMods, skillProfs, skillExpertise,
+      spellcasting: cls && cls.casterType ? {
+        ability: cls.spellAbility,
+        dc: 8 + profBonus + finalMods[cls.spellAbility],
+        attack: profBonus + finalMods[cls.spellAbility],
+        slots: cls.casterType === "pact"
+          ? `${PACT_SLOTS[level].slots} Pact Magic slots of Level ${PACT_SLOTS[level].level}`
+          : (getSpellSlots(className, level) || []).map((n, i) => `Level ${i + 1}: ${n}`).join(", ")
+      } : null,
+      hitDie: cls ? cls.hitDie : null, hitDiceUsed,
+      equipment,
+      items: Array.from(new Set([...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean))),
       builder: { pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, characterItems, pinnedItems, spells }
     };
   }
