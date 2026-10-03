@@ -367,6 +367,41 @@
     .custom-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
     .custom-grid label { font-size: 0.65rem; color: var(--brass); font-family: 'Cinzel', serif; letter-spacing: 0.5px; text-transform: uppercase; display: grid; gap: 2px; }
 
+    /* ── ROLLS FROM THE SHEET ── */
+    .abil-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin-top: 4px; }
+    .abil-btns button, .skill-roll { background: #0F1923; border: 1px solid #3d5166; color: var(--text-muted); border-radius: 3px; font-family: 'Cinzel', serif; font-size: 0.58rem; padding: 2px 0; cursor: pointer; }
+    .abil-btns button:hover, .skill-roll:hover { border-color: var(--brass); color: var(--parchment); }
+    .skill-roll { padding: 1px 6px; margin-right: 6px; }
+    .temp-hp { color: #80d8ff; font-weight: 400; font-size: 0.72rem; }
+    .opt-label { font-family: 'Cinzel', serif; font-size: 0.7rem; color: var(--brass); letter-spacing: 0.5px; text-transform: uppercase; align-self: center; }
+
+    /* ── PHONE LAYOUT: one panel at a time ── */
+    .pane-tabs { display: none; }
+    @media (max-width: 900px) {
+      .header { padding: 10px 12px; gap: 8px; }
+      .header h1 { font-size: 1.1rem; letter-spacing: 1px; }
+      .room-bar { margin-left: 0; width: 100%; }
+      .pane-tabs { display: grid; grid-template-columns: repeat(3, 1fr); background: #0F1923; border-bottom: 1px solid var(--brass); flex-shrink: 0; }
+      .pane-tabs button { font-family: 'Cinzel', serif; font-size: 0.8rem; letter-spacing: 1px; padding: 10px 4px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; }
+      .pane-tabs button.on { background: var(--brass); color: var(--ink); font-weight: 700; }
+      .app { grid-template-columns: 1fr; }
+      .app > .panel, .app > .center-panel, .app > .log-panel { display: none; border-right: none; }
+      .app.pane-order > .panel, .app.pane-sheet > .center-panel, .app.pane-log > .log-panel { display: flex; }
+      .abil-row { grid-template-columns: repeat(3, 1fr); }
+      .action-grid { grid-template-columns: 1fr; }
+      .custom-grid { grid-template-columns: repeat(2, 1fr); }
+      .buff-row { grid-template-columns: 1fr; }
+      .action-area { padding: 12px; }
+      .hp-edit input { width: 64px; }
+      .btn-sm { padding: 6px 10px; }
+      .abil-btns button, .skill-roll { font-size: 0.7rem; padding: 5px 0; }
+      .skill-roll { padding: 4px 10px; }
+      .roster-row { flex-wrap: wrap; }
+      .roster-row .r-meta { white-space: normal; order: 3; width: 100%; }
+      .modal-overlay { padding: 8px; }
+      input, select, textarea { font-size: 16px !important; } /* stops phones zooming in on focus */
+    }
+
     /* ── SCROLLBAR ── */
     * { scrollbar-width: thin; scrollbar-color: var(--brass) var(--panel); }
   </style>
@@ -504,43 +539,74 @@ function profBonus(level) { return Math.ceil(level/4)+1; }
 // ── CONDITIONS ───────────────────────────────────────────────────────────────
 const CONDITIONS = ['Blinded','Charmed','Deafened','Frightened','Grappled','Incapacitated','Invisible','Paralyzed','Petrified','Poisoned','Prone','Restrained','Stunned','Unconscious'];
 
+// ── RULES DATA (2024 rules) ──────────────────────────────────────────────────
+const ABILITIES = ABILITY_KEYS.map(a => a[1]);
+const SKILL_ABILITY = {Acrobatics:'Dexterity','Animal Handling':'Wisdom',Arcana:'Intelligence',Athletics:'Strength',Deception:'Charisma',History:'Intelligence',Insight:'Wisdom',Intimidation:'Charisma',Investigation:'Intelligence',Medicine:'Wisdom',Nature:'Intelligence',Perception:'Wisdom',Performance:'Charisma',Persuasion:'Charisma',Religion:'Intelligence','Sleight of Hand':'Dexterity',Stealth:'Dexterity',Survival:'Wisdom'};
+const RESISTANCE_TYPES = ['Acid','Bludgeoning','Cold','Fire','Lightning','Necrotic','Piercing','Poison','Radiant','Slashing','Thunder'];
+const PROTECTED_FROM = ['Aberration','Celestial','Elemental','Fey','Fiend','Undead'];
+const SPEED_ZERO = ['Grappled','Paralyzed','Petrified','Restrained','Unconscious'];
+const AUTO_FAIL_STR_DEX = ['Paralyzed','Petrified','Stunned','Unconscious'];
+
 // ── BUFFS AND EFFECTS PLAYERS CAN PASS ───────────────────────────────────────
-// atk / save: dice added to the wearer's attack rolls / saving throws. ac: bonus to Armor Class.
-// These four are applied automatically. The rest are reminders shown on the card.
+// Every preset below is applied by the app. "note" lists the parts that stay with the table.
+// opt: a choice made when the effect is passed (stored on the effect under opt.key).
 const BUFFS = [
-  {name:'Bless', note:'+1d4 to attack rolls and saving throws', atk:'1d4', save:'1d4'},
-  {name:'Bane', note:'-1d4 from attack rolls and saving throws', atk:'-1d4', save:'-1d4'},
-  {name:'Shield of Faith', note:'+2 AC', ac:2},
-  {name:'Haste', note:'Speed doubled, +2 AC, Advantage on Dexterity saving throws, one extra action', ac:2, speedMult:2},
-  {name:'Slow', note:"Speed halved, -2 AC and Dexterity saving throws, can't take Reactions", ac:-2, speedMult:0.5},
-  {name:'Longstrider', note:'Speed increases by 10 feet', speed:10},
-  {name:'Darkvision', note:'Darkvision with a range of 150 feet', sense:'Darkvision 150 ft.'},
-  {name:'Fly', note:'Fly Speed of 60 feet and can hover', move:'Fly 60 ft. (hover)'},
-  {name:'Bardic Inspiration', note:'Roll the Bardic Inspiration die and add it to one failed D20 Test'},
-  {name:'Guidance', note:'+1d4 to any ability check using the chosen skill'},
-  {name:'Resistance', note:'Reduces damage of the chosen type by 1d4, once per turn'},
-  {name:'Heroism', note:'Immune to Frightened, gains Temporary Hit Points at the start of each turn'},
-  {name:'Faerie Fire', note:'Attack rolls against this creature have Advantage'},
-  {name:"Hunter's Mark", note:'Takes an extra 1d6 Force damage when hit by the caster'},
-  {name:'Hex', note:'Takes an extra 1d6 Necrotic damage when hit by the caster'},
-  {name:'Protection from Evil and Good', note:'Certain creature types have Disadvantage on attack rolls against this creature'},
+  {name:'Bless', atk:'1d4', save:'1d4'},
+  {name:'Bane', atk:'-1d4', save:'-1d4'},
+  {name:'Shield of Faith', ac:2},
+  {name:'Haste', ac:2, speedMult:2, saveAdv:'Dexterity', note:'One extra action each turn (Attack for one attack, Dash, Disengage, Hide or Utilize). When it ends, the target is Incapacitated with Speed 0 until the end of its next turn.'},
+  {name:'Slow', ac:-2, speedMult:0.5, saveAbil:'Dexterity', saveAbilMod:-2, note:"Can't take Reactions. On its turn it takes an action or a Bonus Action, not both, and makes only one attack."},
+  {name:'Longstrider', speed:10},
+  {name:'Darkvision', sense:'Darkvision 150 ft.'},
+  {name:'Fly', move:'Fly 60 ft. (hover)'},
+  {name:'Faerie Fire', advAgainst:true, noInvisible:true, note:'Sheds Dim Light in a 10-foot radius.'},
+  {name:"Hunter's Mark", bonusDmg:'1d6', bonusType:'Force', fromCaster:true, note:'The caster has Advantage on Wisdom (Perception or Survival) checks to find it.'},
+  {name:'Hex', bonusDmg:'1d6', bonusType:'Necrotic', fromCaster:true, opt:{key:'checkDis', label:'Ability', choices:ABILITIES}},
+  {name:'Protection from Evil and Good', protect:true, note:"Can't be possessed by those creature types, or Charmed or Frightened by them."},
+  {name:'Resistance', opt:{key:'resistType', label:'Damage type', choices:RESISTANCE_TYPES}},
+  {name:'Guidance', check:'1d4', opt:{key:'checkSkill', label:'Skill', choices:Object.keys(SKILL_ABILITY)}},
+  {name:'Bardic Inspiration', opt:{key:'inspire', label:'Die', choices:['d6','d8','d10','d12']}},
+  {name:'Heroism', immune:'Frightened', opt:{key:'tempEachTurn', label:'Temporary Hit Points each turn', number:true}},
+  {name:'Exhaustion', opt:{key:'lvl', label:'Level', choices:['1','2','3','4','5']}},
 ];
-const EFFECT_KEYS = ['atk','save','ac','speed','speedMult','init','sense','move','note'];
-function describeEffect(e) { // what an effect changes, in words
+const BUFF_SUMMARY = {
+  Hex: 'Takes an extra 1d6 Necrotic damage when the caster hits it with an attack roll, and has Disadvantage on checks with the chosen ability',
+  Resistance: 'Reduces damage of the chosen type by 1d4, once per turn',
+  Guidance: 'Adds 1d4 to ability checks using the chosen skill',
+  'Bardic Inspiration': 'Adds the die to one failed attack roll or saving throw, used automatically when it could turn the failure around',
+  Heroism: 'Immune to Frightened, and gains the Temporary Hit Points at the start of each of its turns',
+  Exhaustion: 'Every D20 Test is reduced by 2 per level and Speed by 5 feet per level',
+};
+const EFFECT_KEYS = ['atk','save','ac','speed','speedMult','init','sense','move','note','saveAdv','saveAbil','saveAbilMod','advAgainst','noInvisible','bonusDmg','bonusType','protect','check','immune'];
+function describeEffect(e) { // what an effect does, in words
   const parts = [];
   if (e.ac) parts.push(`${signed(+e.ac)} AC`);
   if (e.speed) parts.push(`${signed(+e.speed)} ft. Speed`);
   if (e.speedMult && +e.speedMult !== 1) parts.push(+e.speedMult === 2 ? 'Speed doubled' : +e.speedMult === 0.5 ? 'Speed halved' : `Speed x${e.speedMult}`);
   if (e.init) parts.push(`${signed(+e.init)} Initiative`);
+  if (e.d20) parts.push(`${signed(+e.d20)} to every D20 Test`);
   if (e.atk) parts.push(`${String(e.atk)[0] === '-' ? '' : '+'}${e.atk} attack rolls`);
   if (e.save) parts.push(`${String(e.save)[0] === '-' ? '' : '+'}${e.save} saving throws`);
+  if (e.saveAdv) parts.push(`Advantage on ${e.saveAdv} saving throws`);
+  if (e.saveAbil && e.saveAbilMod) parts.push(`${signed(+e.saveAbilMod)} ${e.saveAbil} saving throws`);
+  if (e.check && e.checkSkill) parts.push(`+${e.check} ${e.checkSkill} checks`);
+  if (e.checkDis) parts.push(`Disadvantage on ${e.checkDis} checks`);
+  if (e.advAgainst) parts.push('attack rolls against it have Advantage');
+  if (e.noInvisible) parts.push("can't benefit from the Invisible condition");
+  if (e.bonusDmg) parts.push(`takes an extra ${e.bonusDmg} ${e.bonusType || ''} damage when ${e.srcName || 'the caster'} hits it with an attack roll`.replace('  ', ' '));
+  if (e.protect) parts.push(`${PROTECTED_FROM.join(', ')} creatures have Disadvantage on attack rolls against it`);
+  if (e.resistType) parts.push(`reduces ${e.resistType} damage by 1d4, once per turn`);
+  if (e.inspire) parts.push(`adds a ${e.inspire} to one failed attack roll or saving throw`);
+  if (e.immune) parts.push(`immune to ${e.immune}`);
+  if (e.tempEachTurn) parts.push(`${e.tempEachTurn} Temporary Hit Points at the start of each of its turns`);
   if (e.sense) parts.push(e.sense);
   if (e.move) parts.push(e.move);
   return parts.join(', ');
 }
-function effectDice(c, key) {
+function effectDice(c, key, only) {
   let total = 0; const parts = [];
   (c && c.effects || []).forEach(e => {
+    if (only && !only(e)) return;
     const raw = String(e[key] == null ? '' : e[key]).replace(/\s/g, '').replace(/^\+/, '');
     const body = raw.replace(/^-/, '');
     if (!body || !DMG_RE.test(body)) return;
@@ -550,12 +616,83 @@ function effectDice(c, key) {
   });
   return {total, text: parts.join(', ')};
 }
+const listHas = (str, item) => String(str || '').toLowerCase().split(/,\s*/).includes(String(item || '').toLowerCase());
+function hasCond(c, name) {
+  if (!c) return false;
+  const cs = c.conditions || [];
+  if (name === 'Invisible' && ((c.effects) || []).some(e => e.noInvisible)) return false;
+  if (cs.includes(name)) return true;
+  if (name === 'Prone' && cs.includes('Unconscious')) return true;
+  return false;
+}
+function immuneTo(c, cond) { // why this creature can't get a condition, or ''
+  if (listHas(c.ci, cond)) return 'its stat block';
+  const e = ((c.effects) || []).find(x => x.immune === cond);
+  if (e) return e.name;
+  if (cond === 'Poisoned' && (c.conditions || []).includes('Petrified')) return 'Petrified';
+  return '';
+}
+// Everything that bears on one D20 Test: Advantage, Disadvantage, bonuses and automatic failure.
+function d20Test(c, kind, ctx) {
+  const adv = [], dis = [], flatParts = [];
+  let flat = 0, autoFail = '', dice = {total: 0, text: ''};
+  const es = (c && c.effects) || [];
+  const addFlat = (n, label) => { if (Number.isFinite(+n) && +n) { flat += +n; flatParts.push(`${esc(label)} ${signed(+n)}`); } };
+  es.forEach(e => addFlat(e.d20, e.name));
+  if (kind === 'attack') {
+    dice = effectDice(c, 'atk');
+    ['Blinded','Frightened','Poisoned','Prone','Restrained'].forEach(n => { if (hasCond(c, n)) dis.push(n); });
+    if (hasCond(c, 'Invisible')) adv.push('Invisible');
+    const t = ctx.target;
+    if (t) {
+      ['Blinded','Paralyzed','Petrified','Restrained','Stunned','Unconscious'].forEach(n => { if (hasCond(t, n)) adv.push(`target ${n}`); });
+      if (hasCond(t, 'Invisible')) dis.push('target Invisible');
+      if (hasCond(t, 'Prone')) (ctx.ranged ? dis : adv).push(ctx.ranged ? 'target Prone, attacker not within 5 feet' : 'target Prone');
+      ((t.effects) || []).forEach(e => {
+        if (e.advAgainst) adv.push(e.name);
+        if (e.protect && PROTECTED_FROM.some(p => new RegExp('\\b' + p + '\\b', 'i').test(c.sub || ''))) dis.push(e.name);
+      });
+    }
+  } else if (kind === 'save') {
+    dice = effectDice(c, 'save');
+    es.forEach(e => { if (e.saveAdv === ctx.ability) adv.push(e.name); if (e.saveAbil === ctx.ability) addFlat(e.saveAbilMod, e.name); });
+    if (ctx.ability === 'Dexterity' && hasCond(c, 'Restrained')) dis.push('Restrained');
+    if (['Strength','Dexterity'].includes(ctx.ability)) autoFail = AUTO_FAIL_STR_DEX.find(n => hasCond(c, n)) || '';
+  } else {
+    ['Frightened','Poisoned'].forEach(n => { if (hasCond(c, n)) dis.push(n); });
+    es.forEach(e => { if (e.checkDis && e.checkDis === ctx.ability) dis.push(e.name); });
+    dice = effectDice(c, 'check', e => !!ctx.skill && e.checkSkill === ctx.skill);
+  }
+  return {adv, dis, flat, dice, autoFail, bonus: flat + dice.total, bonusText: [dice.text, flatParts.join(', ')].filter(Boolean).join(', ')};
+}
+const testMode = t => t.adv.length && !t.dis.length ? 1 : t.dis.length && !t.adv.length ? -1 : 0;
+function modeText(t) {
+  const m = testMode(t);
+  if (m === 1) return `Advantage (${esc(t.adv.join(', '))})`;
+  if (m === -1) return `Disadvantage (${esc(t.dis.join(', '))})`;
+  return t.adv.length ? `Advantage and Disadvantage cancel (${esc([...t.adv, ...t.dis].join(', '))})` : '';
+}
+// Damage after Immunity, Resistance, Vulnerability and the Resistance cantrip. parts: [{amount, type}]
+function adjustDamage(target, parts, turnKey) {
+  let total = 0; const notes = [], usedEffects = [];
+  parts.forEach(pt => {
+    let amt = pt.amount; const type = pt.type || '';
+    const rz = ((target.effects) || []).find(e => e.resistType && e.resistType.toLowerCase() === type.toLowerCase() && e.usedAt !== turnKey && !usedEffects.includes(e.id));
+    if (rz && amt > 0) { const r = rollD(4); amt = Math.max(0, amt - r); usedEffects.push(rz.id); notes.push(`${esc(rz.name)} reduces ${esc(type)} by ${r}`); }
+    if (type && listHas(target.imm, type)) { if (amt) notes.push(`Immune to ${esc(type)}`); amt = 0; }
+    else if ((type && listHas(target.res, type)) || hasCond(target, 'Petrified')) { notes.push(`Resistant to ${esc(type || 'all damage')}`); amt = Math.floor(amt / 2); }
+    if (type && listHas(target.vul, type) && amt) { notes.push(`Vulnerable to ${esc(type)}`); amt *= 2; }
+    total += amt;
+  });
+  return {total, notes, usedEffects};
+}
 // Stats as they stand right now: the sheet's own value plus whatever effects are on the creature.
 const effs = c => (c && c.effects) || [];
 const sumEff = (c, k) => effs(c).reduce((t, e) => t + (Number.isFinite(+e[k]) ? +e[k] : 0), 0);
 const srcEff = (c, test) => effs(c).filter(test).map(e => e.name).join(', ');
 function effectiveAC(c) { return (+c.ac || 0) + sumEff(c, 'ac'); }
 function effectiveSpeed(c) {
+  if (SPEED_ZERO.some(n => hasCond(c, n))) return 0;
   const mult = effs(c).reduce((t, e) => t * (Number.isFinite(+e.speedMult) && +e.speedMult > 0 ? Math.min(4, +e.speedMult) : 1), 1);
   return Math.max(0, Math.floor(((+c.speed || 0) + sumEff(c, 'speed')) * mult));
 }
@@ -596,7 +733,7 @@ function sheetToFields(data) {
     name: str(data.name, 60) || 'Unnamed Hero', type: 'player',
     charClass: CLASS_LIST.includes(data.className) ? data.className : 'Fighter',
     level, maxHP, currentHP: Math.max(0, Math.min(maxHP, num(data.currentHP, maxHP))),
-    ac: num(data.ac, 10), speed: num(data.speed, 30), initBonus: num(data.initiativeBonus, mod(scores.Dexterity)),
+    tempHP: Math.max(0, num(data.tempHP, 0)), ac: num(data.ac, 10), speed: num(data.speed, 30), initBonus: num(data.initiativeBonus, mod(scores.Dexterity)),
     senses: list(data.senses, 10, 40), scores, saves, pb: num(data.profBonus, profBonus(level)), sheet, info,
   };
 }
@@ -636,7 +773,7 @@ function buildActions(combatant) {
       detail:`+${strMod+pb} to hit · 2d6${strMod>=0?'+':''}${strMod} slashing`});
     actions.push({id:'shortbow',name:'Shortbow',type:'attack',tag:'attack',
       atk:dexMod+pb, dmg:`1d6+${dexMod}`, dmgType:'Piercing',
-      detail:`+${dexMod+pb} to hit · 1d6${dexMod>=0?'+':''}${dexMod} piercing · 80/320ft`});
+      ranged:true, detail:`+${dexMod+pb} to hit · 1d6${dexMod>=0?'+':''}${dexMod} piercing · 80/320ft`});
   }
 
   if (charClass==='Rogue'||charClass==='Bard') {
@@ -651,7 +788,7 @@ function buildActions(combatant) {
     const fbDice = level>=17?'4d10': level>=11?'3d10': level>=5?'2d10':'1d10';
     actions.push({id:'firebolt',name:'Fire Bolt',type:'attack',tag:'attack',
       atk:spellAtk, dmg: fbDice,
-      dmgType:'Fire', detail:`+${spellAtk} to hit · ${fbDice} fire · 120ft`});
+      dmgType:'Fire', ranged:true, detail:`+${spellAtk} to hit · ${fbDice} fire · 120ft`});
 
     actions.push({id:'fireball',name:'Fireball (Level 3)',type:'save',tag:'save',
       dc:spellDC, saveAbility:'Dexterity', dmg:'8d6', dmgType:'Fire', halfOnSave:true,
@@ -704,7 +841,11 @@ function dmgText(list) { return (list || []).map(d => `${d[0]} ${String(d[1] || 
 function monsterActions(m) {
   return (m.a || []).map((a, i) => {
     const base = {id: 'm' + i, name: a.n, desc: a.d};
-    if (a.ab != null && a.dm) return {...base, type:'attack', tag:'attack', atk:a.ab, dmgList:a.dm, detail:`+${a.ab} to hit · ${dmgText(a.dm)}`};
+    if (a.ab != null && a.dm) {
+      const o = {...base, type:'attack', tag:'attack', atk:a.ab, dmgList:a.dm, detail:`+${a.ab} to hit · ${dmgText(a.dm)}`};
+      if (/^Ranged Attack Roll/.test(a.d)) o.ranged = true;
+      return o;
+    }
     if (a.dc) {
       const o = {...base, type:'save', tag:'save', dc:a.dc[1], saveAbility:a.dc[0], halfOnSave:!!a.dc[2],
         detail:`DC ${a.dc[1]} ${a.dc[0].slice(0,3)} save${a.dm ? ' · ' + dmgText(a.dm) : ''}${a.dc[2] ? ' · half on save' : ''}`};
@@ -766,6 +907,8 @@ function App() {
   const emptyCustom = {name:'', ac:'', speed:'', init:'', atk:'', save:'', sense:'', note:''};
   const [buffCustom, setBuffCustom] = useState(emptyCustom);
   const [buffTarget, setBuffTarget] = useState('');
+  const [buffOpt, setBuffOpt] = useState('');
+  const [pane, setPane] = useState('order'); // which panel shows on a phone: order | sheet | log
   const [diceExpr, setDiceExpr] = useState('');
 
   useEffect(() => { logEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [log]);
@@ -789,7 +932,7 @@ function App() {
 
   useEffect(() => { // when the turn passes to someone this screen controls, show them
     const a = combatants.find(c => c.id === activeId);
-    if (combatStarted && a && canControl(a)) { setViewId(a.id); setSelectedAction(null); }
+    if (combatStarted && a && canControl(a)) { setViewId(a.id); setSelectedAction(null); if (!isDM) setPane('sheet'); }
   }, [activeId, combatStarted]);
 
   // ── ADD COMBATANT FORM STATE ──
@@ -875,6 +1018,7 @@ function App() {
       conditions: [], effects: [], pb: m.pb, actions: monsterActions(m), info: monsterInfo(m),
     };
     if (m.pp != null) c.sheet = {pp: m.pp};
+    ['res','imm','vul','ci'].forEach(k => { if (m[k]) c[k] = m[k]; });
     setCombatants(prev => placeByInitiative(prev, c));
   };
 
@@ -914,23 +1058,49 @@ function App() {
       }
       safety++;
     } while (inPlay[idx].currentHP <= 0 && safety <= inPlay.length);
-    setActiveId(inPlay[idx].id);
+    const up = inPlay[idx];
+    const hero = ((up.effects) || []).filter(e => +e.tempEachTurn > 0);
+    if (hero.length) {
+      const n = Math.max(...hero.map(e => +e.tempEachTurn));
+      setCombatants(prev => prev.map(c => c.id === up.id ? {...c, tempHP: Math.max(+c.tempHP || 0, n)} : c));
+      setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(up.name)}</strong> has ${n} Temporary Hit Points from <span class="log-result">${esc(hero[0].name)}</span>`})]);
+    }
+    setActiveId(up.id);
     setTargetId(null);
     setSelectedAction(null);
     setAdvantage(0);
   };
 
   // ── RESOLVE ACTION ──────────────────────────────────────────────────────────
-  const rollDamageList = (action, crit) => {
+  const turnKey = `${round}:${activeId}`;
+  const rollDamageParts = (action, crit) => {
     const list = action.dmgList && action.dmgList.length ? action.dmgList : [[action.dmg, action.dmgType]];
-    let total = 0; const summary = []; const dice = [];
-    list.forEach(([expr, type]) => {
+    return list.map(([expr, type]) => {
       let e = String(expr || '0');
       if (crit) e = e.replace(/(\d+)d(\d+)/g, (_, c, s) => `${c*2}d${s}`);
       const r = parseDamage(e);
-      total += r.total; summary.push(`${r.total} ${esc(type || '')}`.trim()); dice.push(r.parts.join(' + '));
+      return {amount: r.total, type: type || '', dice: r.parts.join(' + ')};
     });
-    return {total, summary: summary.join(' + '), dice: dice.join(' · ')};
+  };
+  // Applies rolled damage to a creature, honouring Immunity, Resistance, Vulnerability and Temporary Hit Points.
+  const dealDamage = (tgt, parts, halve) => {
+    const dealt = halve ? parts.map(pt => ({...pt, amount: Math.floor(pt.amount / 2)})) : parts;
+    const adj = adjustDamage(tgt, dealt, turnKey);
+    if (adj.usedEffects.length) setCombatants(prev => prev.map(c => c.id !== tgt.id ? c : {...c, effects: (c.effects || []).map(e => adj.usedEffects.includes(e.id) ? {...e, usedAt: turnKey} : e)}));
+    if (adj.total > 0) updateHP(tgt.id, -adj.total);
+    const rolled = parts.map(pt => `${pt.amount} ${esc(pt.type)}`.trim()).join(' + ');
+    const raw = parts.reduce((t, pt) => t + pt.amount, 0);
+    return {total: adj.total, html:`<span class="log-dmg">${adj.total} damage</span>${adj.total !== raw || parts.length > 1 ? ` <span class="log-detail">(${rolled}${halve ? ', halved' : ''})</span>` : ` <span class="log-detail">${esc(parts[0].type)}</span>`}
+      <div class="log-dice">${parts.map(pt => pt.dice).join(' · ')}</div>${adj.notes.length ? `<div class="log-detail">${adj.notes.join(' · ')}</div>` : ''}`};
+  };
+  // Bardic Inspiration is spent on a failed roll, but only when its die could turn the failure around.
+  const tryInspire = (c, shortBy) => {
+    const e = ((c.effects) || []).find(x => x.inspire);
+    const size = e ? parseInt(String(e.inspire).replace('d', ''), 10) : 0;
+    if (!e || !size || shortBy > size) return null;
+    const r = rollD(size);
+    removeEffect(c.id, e.id);
+    return {add: r, text: `${esc(e.name)} ${e.inspire}: +${r}`};
   };
 
   const resolve = () => {
@@ -943,68 +1113,81 @@ function App() {
     const targetName = esc(target?.name || '???');
 
     if (action.type === 'attack') {
-      const roll = roll20(advantage);
-      const bonus = effectDice(active, 'atk');
-      const total = roll.total + action.atk + bonus.total;
-      const isCrit = roll.total === 20;
-      const isMiss = roll.total === 1;
+      const t = d20Test(active, 'attack', {target, ranged: !!action.ranged});
+      if (advantage === 1) t.adv.push('chosen');
+      if (advantage === -1) t.dis.push('chosen');
+      const roll = roll20(testMode(t));
+      let total = roll.total + action.atk + t.bonus;
       const targetAC = target ? effectiveAC(target) : 10;
-      const hit = isCrit || (!isMiss && total >= targetAC);
-      const rollText = `Roll: ${roll.rolls.join('/')} ${signed(action.atk)}${bonus.text ? ` (${bonus.text})` : ''} = <strong>${total}</strong> vs AC ${targetAC}`;
+      const nat20 = roll.total === 20, nat1 = roll.total === 1;
+      let inspired = null;
+      if (!nat20 && !nat1 && total < targetAC) { inspired = tryInspire(active, targetAC - total); if (inspired) total += inspired.add; }
+      const hit = nat20 || (!nat1 && total >= targetAC);
+      const autoCrit = hit && !action.ranged && target && ['Paralyzed','Unconscious'].find(n => hasCond(target, n));
+      const isCrit = nat20 || !!autoCrit;
+      const extras = [t.bonusText, inspired && inspired.text].filter(Boolean).join(', ');
+      const rollText = `Roll: ${roll.rolls.join('/')} ${signed(action.atk)}${extras ? ` (${extras})` : ''} = <strong>${total}</strong> vs AC ${targetAC}${modeText(t) ? `<div class="log-detail">${modeText(t)}</div>` : ''}`;
 
-      let dmg = null;
-      if (hit) {
-        dmg = rollDamageList(action, isCrit);
-        updateHP(targetId, -dmg.total);
+      let dmgHtml = '';
+      if (hit && target) {
+        const parts = rollDamageParts(action, isCrit);
+        ((target.effects) || []).forEach(e => {
+          if (e.bonusDmg && e.src === active.id && DMG_RE.test(String(e.bonusDmg))) parts.push(...rollDamageParts({dmgList:[[e.bonusDmg, e.bonusType || '']]}, isCrit).map(pt => ({...pt, dice: `${esc(e.name)} ${pt.dice}`})));
+        });
+        dmgHtml = dealDamage(target, parts, false).html;
       }
       entries.push({
-        type: isCrit ? 'crit' : hit ? 'hit' : 'miss',
+        type: isCrit && hit ? 'crit' : hit ? 'hit' : 'miss',
         html: hit
           ? `<strong>${actorName}</strong> → <strong>${targetName}</strong> · ${esc(action.name)}<br/>
              <span class="log-result">${isCrit?'⚔️ CRITICAL HIT!':'⚔️ Hit!'}</span>
-             &nbsp;${rollText}<br/>
-             <span class="log-dmg">${dmg.summary} damage</span>
-             <div class="log-dice">${dmg.dice}</div>`
+             &nbsp;${rollText}${autoCrit && !nat20 ? `<div class="log-detail">Critical Hit because the target is ${autoCrit} (attacker within 5 feet)</div>` : ''}
+             ${dmgHtml}`
           : `<strong>${actorName}</strong> → <strong>${targetName}</strong> · ${esc(action.name)}<br/>
              <span style="color:var(--text-muted)">Miss</span>
              &nbsp;${rollText}`
       });
     }
 
-    else if (action.type === 'auto') {
-      const dmg = rollDamageList(action, false);
-      updateHP(targetId, -dmg.total);
+    else if (action.type === 'auto' && target) {
+      const dmg = dealDamage(target, rollDamageParts(action, false), false);
       entries.push({
         type:'hit',
         html:`<strong>${actorName}</strong> → <strong>${targetName}</strong><br/>
               <span class="log-result">✨ ${esc(action.name)}</span><br/>
-              <span class="log-dmg">${dmg.summary} damage</span>
-              <div class="log-dice">${dmg.dice}</div>`
+              ${dmg.html}`
       });
     }
 
-    else if (action.type === 'save') {
+    else if (action.type === 'save' && target) {
       const saveAbility = action.saveAbility;
-      const saveMod = target?.saves?.[saveAbility] ?? mod(target?.scores?.[saveAbility]??10);
-      const saveRoll = rollD(20);
-      const bonus = effectDice(target, 'save');
-      const saveTotal = saveRoll + saveMod + bonus.total;
-      const passed = saveTotal >= action.dc;
+      const saveMod = target.saves?.[saveAbility] ?? mod(target.scores?.[saveAbility]??10);
+      const t = d20Test(target, 'save', {ability: saveAbility});
+      const roll = roll20(testMode(t));
+      let saveTotal = roll.total + saveMod + t.bonus;
+      let inspired = null;
+      if (!t.autoFail && saveTotal < action.dc) { inspired = tryInspire(target, action.dc - saveTotal); if (inspired) saveTotal += inspired.add; }
+      const passed = !t.autoFail && saveTotal >= action.dc;
       const hasDmg = (action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0');
-      const dmg = hasDmg ? rollDamageList(action, false) : {total:0, summary:'', dice:''};
-      const actualDmg = passed && action.halfOnSave ? Math.floor(dmg.total/2) : (!passed ? dmg.total : 0);
-
-      if (!passed && action.condition) addCondition(targetId, action.condition);
-      if (actualDmg > 0) updateHP(targetId, -actualDmg);
-
+      let dmgHtml = '';
+      if (hasDmg && (!passed || action.halfOnSave)) dmgHtml = dealDamage(target, rollDamageParts(action, false), passed).html;
+      let condHtml = '';
+      if (!passed && action.condition) {
+        const why = immuneTo(target, action.condition);
+        if (why) condHtml = `<div class="log-detail">Immune to ${esc(action.condition)} (${esc(why)})</div>`;
+        else { addCondition(targetId, action.condition); condHtml = `<div style="color:#ff8a80">Condition: ${esc(action.condition)}</div>`; }
+      }
+      const extras = [t.bonusText, inspired && inspired.text].filter(Boolean).join(', ');
       entries.push({
         type: passed ? 'save-pass' : 'save-fail',
         html:`<strong>${actorName}</strong> → <strong>${targetName}</strong><br/>
               <span class="log-result">${esc(action.name)}</span><br/>
-              DC ${action.dc} ${esc(saveAbility)} save · Roll: ${saveRoll} ${signed(saveMod)}${bonus.text ? ` (${bonus.text})` : ''} = <strong>${saveTotal}</strong>
-              · <strong style="color:${passed?'var(--success)':'var(--danger)'}">${passed?'Saved!':'Failed!'}</strong><br/>
-              ${actualDmg>0?`<span class="log-dmg">${actualDmg} damage${action.halfOnSave&&passed?' (half)':''}</span><div class="log-dice">${dmg.summary} · ${dmg.dice}</div>`:''}
-              ${!passed&&action.condition?`<div style="color:#ff8a80">Condition: ${esc(action.condition)}</div>`:''}
+              DC ${action.dc} ${esc(saveAbility)} save · ${t.autoFail
+                ? `<strong style="color:var(--danger)">Fails automatically (${esc(t.autoFail)})</strong>`
+                : `Roll: ${roll.rolls.join('/')} ${signed(saveMod)}${extras ? ` (${extras})` : ''} = <strong>${saveTotal}</strong>
+              · <strong style="color:${passed?'var(--success)':'var(--danger)'}">${passed?'Saved!':'Failed!'}</strong>`}
+              ${modeText(t) && !t.autoFail ? `<div class="log-detail">${modeText(t)}</div>` : ''}
+              ${dmgHtml}${condHtml}
               ${action.desc?`<div class="log-detail">${esc(action.desc)}</div>`:''}`
       });
     }
@@ -1037,17 +1220,36 @@ function App() {
     setAdvantage(0);
   };
 
+  // Ability checks, skill checks and saving throws rolled straight from the sheet.
+  const rollTest = (c, kind, ability, skill) => {
+    const score = (c.scores || {})[ability] ?? 10;
+    const base = kind === 'save' ? ((c.saves || {})[ability] ?? mod(score))
+      : (skill && c.sheet && c.sheet.skills && Number.isFinite(+c.sheet.skills[skill])) ? +c.sheet.skills[skill] : mod(score);
+    const t = d20Test(c, kind, {ability, skill});
+    const label = kind === 'save' ? `${ability} saving throw` : skill ? `${ability} (${skill}) check` : `${ability} check`;
+    let body;
+    if (t.autoFail) body = `<strong style="color:var(--danger)">Fails automatically (${esc(t.autoFail)})</strong>`;
+    else {
+      const roll = roll20(testMode(t));
+      body = `<span class="log-result">🎲 ${roll.total + base + t.bonus}</span><div class="log-dice">${roll.rolls.join('/')} ${signed(base)}${t.bonusText ? ` (${t.bonusText})` : ''}</div>${modeText(t) ? `<div class="log-detail">${modeText(t)}</div>` : ''}`;
+    }
+    setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> · ${esc(label)}<br/>${body}`})]);
+  };
+
   const updateHP = (id, delta, isHeal=false) => {
     setCombatants(prev => prev.map(c => {
       if (c.id !== id) return c;
-      const newHP = isHeal
-        ? Math.min(c.maxHP, c.currentHP + delta)
-        : Math.max(0, c.currentHP + delta);
-      return {...c, currentHP: newHP};
+      if (isHeal) return {...c, currentHP: Math.min(c.maxHP, c.currentHP + delta)};
+      const dmg = Math.max(0, -delta), temp = +c.tempHP || 0, soak = Math.min(temp, dmg); // Temporary Hit Points are lost first
+      return {...c, tempHP: temp - soak, currentHP: Math.max(0, c.currentHP - (dmg - soak))};
     }));
   };
+  const setTempHP = (id, n) => setCombatants(prev => prev.map(c => c.id === id ? {...c, tempHP: Math.max(0, n)} : c));
 
   const addCondition = (id, cond) => {
+    const tgt = combatants.find(c => c.id === id);
+    const why = tgt ? immuneTo(tgt, cond) : '';
+    if (why) { setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(tgt.name)}</strong> is immune to <span class="log-result">${esc(cond)}</span><div class="log-detail">${esc(why)}</div>`})]); return; }
     setCombatants(prev => prev.map(c => {
       if (c.id !== id || c.conditions.includes(cond)) return c;
       return {...c, conditions:[...c.conditions, cond]};
@@ -1064,11 +1266,19 @@ function App() {
   // ── BUFF PASSING ────────────────────────────────────────────────────────────
   const whoAmI = () => (viewed && canControl(viewed)) ? viewed.name : (isDM ? 'DM' : 'A player');
   const reorder = list => combatStarted ? byInit(list) : list;
+  const buffPresetNow = BUFFS.find(b => b.name === buffName);
+  const defaultOpt = (b) => {
+    if (!b || !b.opt) return '';
+    if (b.opt.key === 'inspire') { const l = viewed && viewed.charClass === 'Bard' ? viewed.level : 1; return l >= 15 ? 'd12' : l >= 10 ? 'd10' : l >= 5 ? 'd8' : 'd6'; }
+    if (b.opt.key === 'tempEachTurn') { const sp = viewed && viewed.sheet && viewed.sheet.spell; return String(Math.max(1, sp ? sp.attack - (viewed.pb || 2) : 3)); }
+    return b.opt.choices[0];
+  };
+  const optValue = buffOpt !== '' ? buffOpt : defaultOpt(buffPresetNow);
   const passBuff = () => {
     const to = inPlay.find(c => c.id === (buffTarget || (viewed && viewed.id)));
     if (!to) return;
     const custom = buffName === '__custom';
-    const preset = BUFFS.find(b => b.name === buffName);
+    const preset = buffPresetNow;
     const name = custom ? buffCustom.name.trim().slice(0, 40) : buffName;
     if (!name) return;
     const eff = {id: newId(), name, by: myId, byName: whoAmI()};
@@ -1077,10 +1287,24 @@ function App() {
       ['atk','save'].forEach(k => { const v = String(buffCustom[k] || '').replace(/\s/g, '').replace(/^\+/, ''); if (v && DMG_RE.test(v.replace(/^-/, ''))) eff[k] = v; });
       const sense = buffCustom.sense.trim().slice(0, 60); if (sense) eff.sense = sense;
       const note = buffCustom.note.trim().slice(0, 200); if (note) eff.note = note;
-    } else if (preset) EFFECT_KEYS.forEach(k => { if (preset[k] != null) eff[k] = preset[k]; });
-    setCombatants(prev => reorder(prev.map(c => c.id === to.id ? {...c, effects: [...(c.effects || []).filter(e => e.name !== name), eff]} : c)));
-    const what = custom ? [describeEffect(eff), eff.note].filter(Boolean).join('. ') : ((preset && preset.note) || '');
-    setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(whoAmI())}</strong> passes <span class="log-result">${esc(name)}</span> to <strong>${esc(to.name)}</strong>${what ? `<div class="log-detail">${esc(what)}</div>` : ''}`})]);
+    } else if (preset) {
+      EFFECT_KEYS.forEach(k => { if (preset[k] != null) eff[k] = preset[k]; });
+      if (preset.fromCaster && viewed) { eff.src = viewed.id; eff.srcName = viewed.name; }
+      if (preset.opt) {
+        if (preset.opt.number) eff[preset.opt.key] = Math.max(0, Math.min(99, parseInt(optValue, 10) || 0));
+        else if (preset.opt.choices.includes(optValue)) eff[preset.opt.key] = optValue;
+        if (preset.opt.key === 'lvl') { const l = +eff.lvl || 1; eff.d20 = -2 * l; eff.speed = -5 * l; }
+      }
+    }
+    const blocked = !custom && name === 'Exhaustion' ? immuneTo(to, 'Exhaustion') : '';
+    if (blocked) { setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(to.name)}</strong> is immune to <span class="log-result">Exhaustion</span>`})]); return; }
+    setCombatants(prev => reorder(prev.map(c => c.id !== to.id ? c : {
+      ...c,
+      effects: [...(c.effects || []).filter(e => e.name !== name), eff],
+      conditions: eff.immune ? (c.conditions || []).filter(x => x !== eff.immune) : c.conditions,
+    })));
+    const what = [describeEffect(eff), eff.note].filter(Boolean).join('. ');
+    setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(whoAmI())}</strong> passes <span class="log-result">${esc(name)}${eff.lvl ? ` ${esc(eff.lvl)}` : ''}</span> to <strong>${esc(to.name)}</strong>${what ? `<div class="log-detail">${esc(what)}</div>` : ''}`})]);
     setBuffCustom(emptyCustom);
   };
   const removeEffect = (id, effId) => setCombatants(prev => reorder(prev.map(c => c.id === id ? {...c, effects: (c.effects || []).filter(e => e.id !== effId)} : c)));
@@ -1280,8 +1504,8 @@ function App() {
     const out = [
       chip('AC', effectiveAC(c), srcEff(c, e => +e.ac)),
       chip('Initiative', signed(effectiveInitBonus(c)), srcEff(c, e => +e.init)),
-      chip('Speed', speedText(c), srcEff(c, e => +e.speed || (e.speedMult && +e.speedMult !== 1) || e.move)),
-      chip('HP', `${c.currentHP}/${c.maxHP}`, ''),
+      chip('Speed', speedText(c), [SPEED_ZERO.filter(n => hasCond(c, n)).join(', '), srcEff(c, e => +e.speed || (e.speedMult && +e.speedMult !== 1) || e.move)].filter(Boolean).join(', ')),
+      chip('HP', `${c.currentHP}/${c.maxHP}${+c.tempHP > 0 ? ` +${c.tempHP}` : ''}`, ''),
       chip('Prof', `+${c.pb || 2}`, ''),
     ];
     if (sh.pp != null) out.push(chip('Passive Perception', sh.pp, ''));
@@ -1338,7 +1562,12 @@ function App() {
       </div>
       {dragging && <div className="drop-overlay">Drop a character file to add it to combat</div>}
 
-      <div className="app">
+      <div className="pane-tabs" role="tablist">
+        {[['order','Order'],['sheet','Sheet'],['log','Log']].map(([k,l]) => (
+          <button key={k} role="tab" aria-selected={pane===k} className={pane===k?'on':''} onClick={()=>setPane(k)}>{l}{k==='log' && log.length>0 ? ` (${log.filter(e=>e.type!=='round').length})` : ''}</button>
+        ))}
+      </div>
+      <div className={`app pane-${pane}`}>
         {/* ── LEFT: INITIATIVE TRACKER ── */}
         <div className="panel">
           <div className="panel-header">Initiative Order</div>
@@ -1372,7 +1601,7 @@ function App() {
                 <div className="hp-bar-wrap">
                   <div className="hp-bar" style={{width:`${Math.max(0,Math.min(100,(c.currentHP/c.maxHP)*100))}%`,background:hpColor(c.currentHP,c.maxHP)}}/>
                 </div>
-                <div className="hp-text"><span>{c.currentHP}</span><span style={{color:'var(--text-muted)'}}>/ {c.maxHP}</span></div>
+                <div className="hp-text"><span>{c.currentHP}{+c.tempHP > 0 && <span className="temp-hp"> +{c.tempHP} temp</span>}</span><span style={{color:'var(--text-muted)'}}>/ {c.maxHP}</span></div>
                 {(c.conditions.length > 0 || (c.effects||[]).length > 0) && (
                   <div className="conditions">
                     {c.conditions.map(cond=>(
@@ -1381,7 +1610,7 @@ function App() {
                     {(c.effects||[]).map(e=>{
                       const rm = isDM || ctl || e.by === myId;
                       return <span key={e.id} className={`condition-tag good ${rm?'removable':''}`} title={`${[describeEffect(e), e.note].filter(Boolean).join('. ')||e.name}${e.byName?` (from ${e.byName})`:''}`}
-                        onClick={ev=>{ev.stopPropagation(); if (rm) removeEffect(c.id,e.id);}}>{e.name}{rm?' ×':''}</span>;
+                        onClick={ev=>{ev.stopPropagation(); if (rm) removeEffect(c.id,e.id);}}>{e.name}{e.lvl?` ${e.lvl}`:''}{rm?' ×':''}</span>;
                     })}
                   </div>
                 )}
@@ -1404,6 +1633,7 @@ function App() {
                     <input type="number" min="0" placeholder="amt" aria-label={`HP amount for ${c.name}`} id={'amt-'+c.id}/>
                     <button className="btn btn-sm btn-danger" title="Damage by the typed amount" onClick={()=>{ const el=document.getElementById('amt-'+c.id); const n=Math.abs(+el.value||0); if(n){updateHP(c.id,-n); el.value='';} }}>Dmg</button>
                     <button className="btn btn-sm btn-success" title="Heal by the typed amount" onClick={()=>{ const el=document.getElementById('amt-'+c.id); const n=Math.abs(+el.value||0); if(n){updateHP(c.id,n,true); el.value='';} }}>Heal</button>
+                    <button className="btn btn-sm btn-ghost" title="Set Temporary Hit Points to the typed amount (0 clears them)" onClick={()=>{ const el=document.getElementById('amt-'+c.id); if(el.value!==''){setTempHP(c.id,Math.abs(+el.value||0)); el.value='';} }}>Temp</button>
                   </div>
                 )}
               </div>
@@ -1412,7 +1642,7 @@ function App() {
             <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={openAdd}>{isDM ? '+ Add Combatant' : '+ Add Companion'}</button>
             {isDM && <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>setShowRoster(true)}>Monster Roster</button>}
             <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>fileInputRef.current && fileInputRef.current.click()}>Upload Character File</button>
-            <input ref={fileInputRef} type="file" accept=".json,application/json" style={{display:'none'}}
+            <input ref={fileInputRef} type="file" accept=".json,.txt,application/json,text/plain" style={{display:'none'}}
               onChange={e=>{ const f = e.target.files && e.target.files[0]; e.target.value=''; readCharacterFile(f); }} />
           </div>
         </div>
@@ -1455,6 +1685,10 @@ function App() {
                           <div className="lbl">{k.toUpperCase()}</div>
                           <div className="val">{modStr(score)}</div>
                           <div className="sub">{score} · save {signed((viewed.saves||{})[ab] ?? mod(score))}</div>
+                          {canControl(viewed) && <div className="abil-btns">
+                            <button onClick={()=>rollTest(viewed,'check',ab)} title={`Roll a ${ab} check`}>Check</button>
+                            <button onClick={()=>rollTest(viewed,'save',ab)} title={`Roll a ${ab} saving throw`}>Save</button>
+                          </div>}
                         </div>
                       );
                     })}
@@ -1510,7 +1744,7 @@ function App() {
                 {/* Buff passing */}
                 <div className="section-title">✨ Pass a Buff or Effect</div>
                 <div className="buff-row">
-                  <select aria-label="Buff or effect" value={buffName} onChange={e=>setBuffName(e.target.value)}>
+                  <select aria-label="Buff or effect" value={buffName} onChange={e=>{setBuffName(e.target.value); setBuffOpt('');}}>
                     {BUFFS.map(b=><option key={b.name} value={b.name}>{b.name}</option>)}
                     <option value="__custom">Custom...</option>
                   </select>
@@ -1529,7 +1763,17 @@ function App() {
                     <input aria-label="Sense granted" placeholder="Sense granted, for example Darkvision 60 ft." maxLength={60} value={buffCustom.sense} onChange={e=>setBuffCustom({...buffCustom,sense:e.target.value})}/>
                     <input aria-label="Note" placeholder="Anything else it does (shown as a reminder)" maxLength={200} value={buffCustom.note} onChange={e=>setBuffCustom({...buffCustom,note:e.target.value})}/>
                   </div>
-                ) : <div className="buff-note">{buffPreset && [describeEffect(buffPreset) && `Applied to the sheet: ${describeEffect(buffPreset)}.`, buffPreset.note].filter(Boolean).join(' ')}</div>}
+                ) : (<>
+                  {buffPreset && buffPreset.opt && (
+                    <div className="buff-row">
+                      <label className="opt-label">{buffPreset.opt.label}</label>
+                      {buffPreset.opt.number
+                        ? <input type="number" min="0" aria-label={buffPreset.opt.label} value={optValue} onChange={e=>setBuffOpt(e.target.value)}/>
+                        : <select aria-label={buffPreset.opt.label} value={optValue} onChange={e=>setBuffOpt(e.target.value)}>{buffPreset.opt.choices.map(x=><option key={x} value={x}>{x}</option>)}</select>}
+                    </div>
+                  )}
+                  <div className="buff-note">{buffPreset && [BUFF_SUMMARY[buffPreset.name] || describeEffect(buffPreset), buffPreset.note && `Left to the table: ${buffPreset.note}`].filter(Boolean).join('. ')}</div>
+                </>)}
                 <button className="btn btn-success btn-sm" onClick={passBuff} disabled={buffName==='__custom' && !buffCustom.name.trim()}>Pass Buff</button>
                 </>}
 
@@ -1556,7 +1800,9 @@ function App() {
                     <div className="skill-grid">
                       {Object.keys(viewed.sheet.skills).sort().map(sk => {
                         const ex = (viewed.sheet.skillExpertise||[]).includes(sk), pr = (viewed.sheet.skillProfs||[]).includes(sk);
-                        return <div key={sk} className={pr||ex?'prof':''}>{sk} <strong>{signed(viewed.sheet.skills[sk])}</strong>{ex?' (Expertise)':pr?' (Proficient)':''}</div>;
+                        return <div key={sk} className={pr||ex?'prof':''}>
+                          {canControl(viewed) && SKILL_ABILITY[sk] && <button className="skill-roll" title={`Roll ${sk}`} onClick={()=>rollTest(viewed,'check',SKILL_ABILITY[sk],sk)}>Roll</button>}
+                          {sk} <strong>{signed(viewed.sheet.skills[sk])}</strong>{ex?' (Expertise)':pr?' (Proficient)':''}</div>;
                       })}
                     </div>
                   </details>

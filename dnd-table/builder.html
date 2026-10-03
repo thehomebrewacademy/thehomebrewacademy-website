@@ -825,15 +825,33 @@ function CharacterSheet() {
     };
   }
 
-  function saveCharacterFile() {
-    const blob = new Blob([JSON.stringify(buildCharacterFile(), null, 2)], { type: "application/json" });
+  async function saveCharacterFile() {
+    const json = JSON.stringify(buildCharacterFile(), null, 2);
+    const base = (charName || "character").trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || "character";
+    const touch = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+    if (touch && navigator.canShare && navigator.share) {
+      // On a phone or tablet the share sheet saves the file without leaving this page.
+      const tries = [[base + ".json", "application/json"], [base + ".json", "text/plain"], [base + "-character.txt", "text/plain"]];
+      for (const [name, type] of tries) {
+        try {
+          const file = new File([json], name, { type });
+          if (!navigator.canShare({ files: [file] })) continue;
+          await navigator.share({ files: [file], title: charName || "Character" });
+          return;
+        } catch (e) {
+          if (e && e.name === "AbortError") return; // closed the share sheet
+        }
+      }
+    }
+    const blob = new Blob([json], { type: touch ? "application/octet-stream" : "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = ((charName || "character").trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || "character") + ".json";
+    a.download = base + ".json";
+    if (touch) { a.target = "_blank"; a.rel = "noopener"; } // if the phone opens it instead, it opens in a new tab
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
   }
 
   function applyCharacterFile(data) {
@@ -952,6 +970,8 @@ function CharacterSheet() {
           outline-offset: 2px;
         }
         input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+        .name-field::placeholder { color: ${colors.ink}; opacity: 0.5; }
+        @media (max-width: 900px) { .tab-strip { justify-content: flex-start !important; } }
         @media (max-width: 640px) {
           .header-stats { flex-wrap: wrap !important; }
           .two-col { grid-template-columns: 1fr !important; }
@@ -972,19 +992,21 @@ function CharacterSheet() {
               placeholder="Character Name"
               style={{
                 fontFamily: fontDisplay, fontWeight: 700, fontSize: "clamp(22px, 4vw, 32px)",
-                background: "transparent", border: "none", borderBottom: `2px solid ${colors.ink}55`,
-                color: colors.ink, padding: "4px 2px", flex: "1 1 280px", minWidth: 0,
+                background: colors.parchment, border: `2px solid ${colors.ink}`, borderRadius: 8,
+                color: colors.ink, padding: "8px 12px", flex: "1 1 280px", minWidth: 0, width: "100%",
               }}
+              className="name-field" aria-label="Character name" autoComplete="off" 
             />
             <input
               value={playerName}
               onChange={e => setPlayerName(e.target.value)}
               placeholder="Player name"
               style={{
-                fontFamily: fontBody, fontStyle: "italic", fontSize: 14,
-                background: "transparent", border: "none", borderBottom: `1px solid ${colors.ink}55`,
-                color: colors.ink, padding: "4px 2px", width: 160,
+                fontFamily: fontBody, fontStyle: "italic", fontSize: 16,
+                background: colors.parchment, border: `1px solid ${colors.ink}`, borderRadius: 6,
+                color: colors.ink, padding: "6px 10px", width: 180,
               }}
+              className="name-field" aria-label="Player name" autoComplete="off" 
             />
           </div>
           <div style={{ fontSize: 14, color: colors.ink, marginTop: 6, fontWeight: 600 }}>
@@ -1001,7 +1023,7 @@ function CharacterSheet() {
                 padding: "6px 12px", fontFamily: fontDisplay, fontSize: 12, fontWeight: 600, cursor: "pointer"
               }}>{label}</button>
             ))}
-            <input ref={fileInputRef} type="file" accept=".json,application/json" onChange={onPickFile} style={{ display: "none" }} />
+            <input ref={fileInputRef} type="file" accept=".json,.txt,application/json,text/plain" onChange={onPickFile} style={{ display: "none" }} />
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, alignItems: "center", fontSize: 13, color: colors.ink }}>
             <span>Player code: <strong data-testid="player-code" style={{ fontFamily: fontDisplay, letterSpacing: "0.15em" }}>{playerCode}</strong></span>
@@ -1014,7 +1036,7 @@ function CharacterSheet() {
                 padding: "4px 10px", fontFamily: fontDisplay, fontSize: 11, fontWeight: 600, cursor: off ? "default" : "pointer"
               }}>{label}</button>
             ))}
-            <span style={{ fontStyle: "italic", opacity: 0.85 }}>This sheet saves itself on this computer under your code.</span>
+            <span style={{ fontStyle: "italic", opacity: 0.85 }}>This sheet saves itself on this device under your code. A character file is only needed to move it to another device.</span>
           </div>
         </div>
       </div>
@@ -1043,7 +1065,7 @@ function CharacterSheet() {
       </div>
 
       {/* TABS */}
-      <div style={{
+      <div className="tab-strip" style={{
         display: "flex", justifyContent: "center", gap: 2, background: colors.inkLight,
         padding: "0 8px", borderBottom: `2px solid ${colors.brass}`, overflowX: "auto"
       }}>
