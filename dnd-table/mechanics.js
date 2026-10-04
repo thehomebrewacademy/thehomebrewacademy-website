@@ -70,7 +70,7 @@
   const sparkDice = byLevel({ 2: "1d8+WIS", 7: "2d8+WIS", 13: "3d8+WIS", 18: "4d8+WIS" });
   M.push(
     cls("Cleric", 1, "Divine Order", { options: { label: "Divine Order", choices: [
-      { name: "Protector" },
+      { name: "Protector", statics: { proficiencies: { armor: ["Heavy"], weapons: ["Martial"] } } },
       { name: "Thaumaturge", statics: { cantripBonus: 1, skillBonus: { skills: ["Arcana", "Religion"], formula: "MAX(1,WIS)" } } }] } }),
     cls("Cleric", 2, "Channel Divinity", { resource: { name: "Channel Divinity", max: table("Cleric", "channel_divinity_charges"), recharge: "long", shortRegain: 1 } }),
     cls("Cleric", 2, "Divine Spark (heal)", { feature: "Channel Divinity", activation: "action", target: "creature", roll: "none", heal: sparkDice, uses: { pool: "Channel Divinity", cost: 1 } }),
@@ -98,7 +98,7 @@
     cls("Druid", 1, "Druidic", { statics: spellsAt({ 1: ["Speak with Animals"] }) }),
     cls("Druid", 1, "Primal Order", { options: { label: "Primal Order", choices: [
       { name: "Magician", statics: { cantripBonus: 1, skillBonus: { skills: ["Arcana", "Nature"], formula: "MAX(1,WIS)" } } },
-      { name: "Warden" }] } }),
+      { name: "Warden", statics: { proficiencies: { armor: ["Medium"], weapons: ["Martial"] } } }] } }),
     cls("Druid", 2, "Wild Shape", { resource: { name: "Wild Shape", max: table("Druid", "wild_shape_uses"), recharge: "long", shortRegain: 1 },
       activation: "bonus", target: "self", roll: "none", uses: { pool: "Wild Shape", cost: 1 } }),
     cls("Druid", 2, "Wild Companion", { activation: "action", target: "self", roll: "none", uses: { pool: "Wild Shape", cost: 1 } }),

@@ -337,6 +337,7 @@ PASSIVE FEATURES: statics
   "schoolDamage": { "school": "Evocation", "formula": "INT" }       added to the damage of spells of that school
   "weaponDamage": { "dice": "1d8", "type": "Radiant", "when": "melee" }   extra damage on every hit. when: "melee", "weapon" or "all".
   "weaponMasteries": 2                                    how many kinds of weapons it can use the mastery property of (a list of 20 for a number that grows)
+  "proficiencies": { "armor": ["Heavy"], "weapons": ["Martial"] }   armor or weapon proficiencies a feature adds. armor: "Light", "Medium", "Heavy", "Shield". weapons: "Simple", "Martial", or a weapon name such as "Longsword"
   "unarmedDie": 6                                         its Unarmed Strike rolls this die (a list of 20 for a die that grows)
   "unarmedDexterity": true                                Unarmed Strikes can use Dexterity
   "passives": { ... }                                     standing combat rules, below
@@ -450,6 +451,7 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 - Every number that depends on the character is a formula, not a fixed number.
 - Every condition or effect that the text gives a time limit has a duration. Every "repeats the save" has a repeatSave with the right turn.
 - Limited-use features have uses with the right recharge.
+- Every class has armorProf and weaponProf written in the standard words ("Light, Medium, Heavy, Shields" and "Simple, Martial", or "Martial weapons with Finesse or Light property"), because the builder reads them to know what the character is proficient with. A weapon the character is not proficient with gets no Proficiency Bonus on its attack roll.
 - Every magic armor, shield and weapon has a type in the exact "Armor (...)" or "Weapon (...)" form, and a "bonus" when it has one.
 - Every feat is an object with a category, and every "choose a cantrip" or "choose a spell" in a feat is a spellChoices entry with the exact level, lists and schools the text allows.
 - Rules text is copied as written, and spell levels read "Level X School".
@@ -485,13 +487,13 @@ const CLASSES = {
   Barbarian: { hitDie:12, primaryAbility:"Strength", saves:["Strength","Constitution"], armorProf:"Light, Medium, Shields", weaponProf:"Simple, Martial", skillChoices:2, skillList:["Animal Handling","Athletics","Intimidation","Nature","Perception","Survival"], subclassLevel:3, subclassName:"Primal Path",
     features:{1:["Rage (2 uses, +2 dmg)","Unarmored Defense (10+Dex+Con)","Weapon Mastery (2 weapons)"],2:["Danger Sense","Reckless Attack"],3:["Primal Knowledge","Subclass feature"],4:["Ability Score Improvement"],5:["Extra Attack","Fast Movement (+10ft)"],6:["Subclass feature"],7:["Feral Instinct"],8:["Ability Score Improvement"],9:["Brutal Strike"],10:["Subclass feature"],11:["Relentless Rage"],12:["Ability Score Improvement"],13:["Improved Brutal Strike"],14:["Subclass feature"],15:["Persistent Rage"],16:["Ability Score Improvement"],17:["Improved Brutal Strike (2nd)"],18:["Indomitable Might"],19:["Epic Boon"],20:["Primal Champion (Str/Con +4, max 25)"]},
     subclasses:{"Path of the Berserker":{3:["Frenzy"],6:["Mindless Rage"],10:["Retaliation"],14:["Intimidating Presence"]}}},
-  Bard: { hitDie:8, primaryAbility:"Charisma", saves:["Dexterity","Charisma"], armorProf:"Light", weaponProf:"Simple, Hand crossbows, Longswords, Rapiers, Shortswords", skillChoices:3, skillList:["Any three"], subclassLevel:3, subclassName:"Bard College", casterType:"full", spellAbility:"Charisma",
+  Bard: { hitDie:8, primaryAbility:"Charisma", saves:["Dexterity","Charisma"], armorProf:"Light", weaponProf:"Simple", skillChoices:3, skillList:["Any three"], subclassLevel:3, subclassName:"Bard College", casterType:"full", spellAbility:"Charisma",
     features:{1:["Bardic Inspiration (d6)","Spellcasting"],2:["Expertise (2 skills)","Jack of All Trades"],3:["Subclass feature"],4:["Ability Score Improvement"],5:["Bardic Inspiration (d8)","Font of Inspiration"],6:["Subclass feature"],7:["Countercharm"],8:["Ability Score Improvement"],9:["—"],10:["Bardic Inspiration (d10)","Expertise (2 more)","Magical Secrets"],11:["—"],12:["Ability Score Improvement"],13:["—"],14:["Subclass feature"],15:["Bardic Inspiration (d12)"],16:["Ability Score Improvement"],17:["—"],18:["Superior Inspiration"],19:["Epic Boon"],20:["Words of Creation"]},
     subclasses:{"College of Lore":{3:["Bonus Proficiencies","Cutting Words"],6:["Magical Discoveries"],14:["Peerless Skill"]}}},
   Cleric: { hitDie:8, primaryAbility:"Wisdom", saves:["Wisdom","Charisma"], armorProf:"Light, Medium, Shields", weaponProf:"Simple", skillChoices:2, skillList:["History","Insight","Medicine","Persuasion","Religion"], subclassLevel:1, subclassName:"Divine Domain", casterType:"full", spellAbility:"Wisdom",
     features:{1:["Spellcasting","Divine Order","Subclass feature"],2:["Channel Divinity (1/rest)"],3:["—"],4:["Ability Score Improvement"],5:["—"],6:["Channel Divinity (2/rest)","Subclass feature"],7:["Blessed Strikes"],8:["Ability Score Improvement","Divine Strike"],9:["—"],10:["Divine Intervention"],11:["—"],12:["Ability Score Improvement"],13:["—"],14:["—"],15:["—"],16:["Ability Score Improvement"],17:["Channel Divinity (3/rest)","Subclass feature"],18:["—"],19:["Epic Boon"],20:["Greater Divine Intervention"]},
     subclasses:{"Life Domain":{1:["Bonus Proficiency","Disciple of Life"],2:["Preserve Life (CD)"],6:["Blessed Healer"],8:["Divine Strike (radiant)"],17:["Supreme Healing"]}}},
-  Druid: { hitDie:8, primaryAbility:"Wisdom", saves:["Intelligence","Wisdom"], armorProf:"Light, Medium, Shields (non-metal)", weaponProf:"Clubs, Daggers, Darts, Javelins, Maces, Quarterstaffs, Scimitars, Sickles, Slings, Spears", skillChoices:2, skillList:["Arcana","Animal Handling","Insight","Medicine","Nature","Perception","Religion","Survival"], subclassLevel:2, subclassName:"Druid Circle", casterType:"full", spellAbility:"Wisdom",
+  Druid: { hitDie:8, primaryAbility:"Wisdom", saves:["Intelligence","Wisdom"], armorProf:"Light, Shields", weaponProf:"Simple", skillChoices:2, skillList:["Arcana","Animal Handling","Insight","Medicine","Nature","Perception","Religion","Survival"], subclassLevel:2, subclassName:"Druid Circle", casterType:"full", spellAbility:"Wisdom",
     features:{1:["Druidic","Spellcasting"],2:["Wild Shape","Wild Companion","Subclass feature"],3:["—"],4:["Ability Score Improvement","Wild Shape Improvement"],5:["—"],6:["Subclass feature"],7:["—"],8:["Ability Score Improvement","Wild Shape Improvement"],9:["—"],10:["Subclass feature"],11:["—"],12:["Ability Score Improvement"],13:["—"],14:["Subclass feature"],15:["—"],16:["Ability Score Improvement"],17:["—"],18:["Beast Spells"],19:["Epic Boon"],20:["Archdruid"]},
     subclasses:{"Circle of the Land":{2:["Circle Spells","Land's Aid"],6:["Land's Stride"],10:["Nature's Ward"],14:["Nature's Sanctuary"]}}},
   Fighter: { hitDie:10, primaryAbility:"Strength or Dexterity", saves:["Strength","Constitution"], armorProf:"Light, Medium, Heavy, Shields", weaponProf:"Simple, Martial", skillChoices:2, skillList:["Acrobatics","Animal Handling","Athletics","History","Insight","Intimidation","Perception","Survival"], subclassLevel:3, subclassName:"Fighter Subclass",
@@ -510,13 +512,13 @@ const CLASSES = {
     features:{1:["Expertise (2 skills)","Sneak Attack (1d6)","Thieves' Cant","Weapon Mastery (1 weapon)"],2:["Cunning Action"],3:["Subclass feature","Steady Aim"],4:["Ability Score Improvement"],5:["Cunning Strike","Uncanny Dodge"],6:["Expertise (2 more)"],7:["Evasion","Reliable Talent"],8:["Ability Score Improvement"],9:["Subclass feature"],10:["Ability Score Improvement"],11:["Improved Cunning Strike"],12:["Ability Score Improvement"],13:["Subclass feature"],14:["Devious Strikes"],15:["Slippery Mind"],16:["Ability Score Improvement"],17:["Subclass feature"],18:["Elusive"],19:["Epic Boon"],20:["Stroke of Luck"]},
     sneakAttack:{1:"1d6",3:"2d6",5:"3d6",7:"4d6",9:"5d6",11:"6d6",13:"7d6",15:"8d6",17:"9d6",19:"10d6"},
     subclasses:{"Thief":{3:["Fast Hands","Second-Story Work"],9:["Supreme Sneak"],13:["Use Magic Device"],17:["Thief's Reflexes"]}}},
-  Sorcerer: { hitDie:6, primaryAbility:"Charisma", saves:["Constitution","Charisma"], armorProf:"None", weaponProf:"Daggers, Darts, Slings, Quarterstaffs, Light crossbows", skillChoices:2, skillList:["Arcana","Deception","Insight","Intimidation","Persuasion","Religion"], subclassLevel:3, subclassName:"Sorcerous Origin", casterType:"full", spellAbility:"Charisma",
+  Sorcerer: { hitDie:6, primaryAbility:"Charisma", saves:["Constitution","Charisma"], armorProf:"None", weaponProf:"Simple", skillChoices:2, skillList:["Arcana","Deception","Insight","Intimidation","Persuasion","Religion"], subclassLevel:3, subclassName:"Sorcerous Origin", casterType:"full", spellAbility:"Charisma",
     features:{1:["Innate Sorcery","Spellcasting"],2:["Font of Magic (Sorcery Points)"],3:["Metamagic (2 options)","Subclass feature"],4:["Ability Score Improvement"],5:["—"],6:["Subclass feature"],7:["Sorcery Incarnate"],8:["Ability Score Improvement"],9:["—"],10:["Metamagic (1 more)"],11:["—"],12:["Ability Score Improvement"],13:["—"],14:["Subclass feature"],15:["—"],16:["Ability Score Improvement"],17:["Metamagic (1 more)"],18:["Subclass feature"],19:["Epic Boon"],20:["Arcane Apotheosis"]},
     subclasses:{"Draconic Sorcery":{3:["Draconic Resilience","Draconic Spells"],6:["Elemental Affinity"],14:["Dragon Wings"],18:["Climb"]}}},
   Warlock: { hitDie:8, primaryAbility:"Charisma", saves:["Wisdom","Charisma"], armorProf:"Light", weaponProf:"Simple", skillChoices:2, skillList:["Arcana","Deception","History","Intimidation","Investigation","Nature","Religion"], subclassLevel:1, subclassName:"Otherworldly Patron", casterType:"pact", spellAbility:"Charisma",
     features:{1:["Eldritch Invocations","Pact Magic","Subclass feature"],2:["Magical Cunning"],3:["Pact Boon"],4:["Ability Score Improvement"],5:["—"],6:["Subclass feature"],7:["—"],8:["Ability Score Improvement"],9:["Contact Patron"],10:["Subclass feature"],11:["Mystic Arcanum (6th)"],12:["Ability Score Improvement"],13:["Mystic Arcanum (7th)"],14:["Subclass feature"],15:["Mystic Arcanum (8th)"],16:["Ability Score Improvement"],17:["Mystic Arcanum (9th)"],18:["—"],19:["Epic Boon"],20:["Eldritch Master"]},
     subclasses:{"Fiend Patron":{1:["Dark One's Blessing"],6:["Dark One's Own Luck"],10:["Fiendish Resilience"],14:["Hurl Through Hell"]}}},
-  Wizard: { hitDie:6, primaryAbility:"Intelligence", saves:["Intelligence","Wisdom"], armorProf:"None", weaponProf:"Daggers, Darts, Slings, Quarterstaffs, Light crossbows", skillChoices:3, skillList:["Arcana","History","Insight","Investigation","Medicine","Religion"], subclassLevel:3, subclassName:"Arcane Tradition", casterType:"full", spellAbility:"Intelligence",
+  Wizard: { hitDie:6, primaryAbility:"Intelligence", saves:["Intelligence","Wisdom"], armorProf:"None", weaponProf:"Simple", skillChoices:3, skillList:["Arcana","History","Insight","Investigation","Medicine","Religion"], subclassLevel:3, subclassName:"Arcane Tradition", casterType:"full", spellAbility:"Intelligence",
     features:{1:["Ritual Adept","Spellcasting","Arcane Recovery"],2:["Scholar"],3:["Subclass feature"],4:["Ability Score Improvement"],5:["Memorize Spell"],6:["Subclass feature"],7:["—"],8:["Ability Score Improvement"],9:["—"],10:["Subclass feature"],11:["—"],12:["Ability Score Improvement"],13:["—"],14:["Subclass feature"],15:["—"],16:["Ability Score Improvement"],17:["—"],18:["Spell Mastery"],19:["Epic Boon"],20:["Signature Spells"]},
     subclasses:{"Evoker":{3:["Evocation Savant","Potent Cantrip"],6:["Sculpt Spells"],10:["Critical Hit Expansion"],14:["Overchannel"]}}}
 };
@@ -1668,7 +1670,7 @@ function activeMechanics(ch) {
 // Adds up the passive changes. Formulas are worked out against ctx (this character's numbers).
 function gatherStatics(entries, ctx, gear, level) {
   const d = { acBases: [], acBonus: 0, speedBonus: 0, speedBase: 0, hp: 0, initiative: 0, saveProf: [], saveBonus: 0, saveAdv: [], condImmune: [], condAdv: [], resist: [], senses: [],
-    halfProf: false, classPicks: 0, anyPicks: 0, spells: [], cantripBonus: 0, skillBonus: {}, cantripDamage: 0, schoolDamage: {}, weaponDamage: [], unarmedDie: 0, unarmedDex: false, monkWeapons: false, masteryCount: 0, passives: {} };
+    halfProf: false, classPicks: 0, anyPicks: 0, spells: [], cantripBonus: 0, skillBonus: {}, cantripDamage: 0, schoolDamage: {}, weaponDamage: [], unarmedDie: 0, unarmedDex: false, monkWeapons: false, masteryCount: 0, profArmor: [], profWeapons: [], passives: {} };
   const num = (f) => { const n = evalFormula(f, ctx); return Number.isFinite(n) ? n : 0; };
   const armorCat = gear.armor ? gear.armor.cat : "";
   const when = (w) => w === "noHeavy" ? armorCat !== "Heavy" : w === "noArmor" ? !armorCat : w === "noArmorNoShield" ? !armorCat && !gear.shield : w === "armor" ? !!armorCat : true;
@@ -1698,6 +1700,7 @@ function gatherStatics(entries, ctx, gear, level) {
     if (s.unarmedDie) d.unarmedDie = Math.max(d.unarmedDie, num(s.unarmedDie));
     if (s.unarmedDexterity) d.unarmedDex = true;
     if (s.monkWeapons) d.monkWeapons = true;
+    if (s.proficiencies) { pArr(pObj(s.proficiencies).armor).forEach(x => d.profArmor.push(pStr(x, 20))); pArr(pObj(s.proficiencies).weapons).forEach(x => d.profWeapons.push(pStr(x, 30))); }
     if (s.weaponMasteries != null) d.masteryCount = Math.max(d.masteryCount, num(s.weaponMasteries));
     Object.keys(pObj(s.passives)).forEach(k => { const v = s.passives[k]; d.passives[k] = typeof v === "string" ? num(v) : v; });
   });
@@ -1714,7 +1717,7 @@ function armorClassOf(d, gear, dexMod) {
   return { value: base + sb + d.acBonus, how: how + (gear.shield ? ` + ${gear.shieldName || "Shield"}` : "") };
 }
 // Attacks the character can always make: Unarmed Strike and each weapon on the sheet.
-function weaponActions(weaponNames, ctx, d, featNames, mastered) { // mastered: weapons whose mastery property this character can use
+function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { // mastered: weapons whose mastery property this character can use
   const best = Math.max(ctx.STR, ctx.DEX);
   const rider = (melee) => d.weaponDamage.filter(w => w.when === "all" || w.when === "weapon" || (w.when === "melee" && melee)).map(w => [w.dice, w.type]);
   const out = [];
@@ -1725,15 +1728,16 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered) { // mastered: 
   weaponNames.forEach(n => {
     const w = weaponOf(n); if (!w) return;
     const plus = w.bonus || 0; // a magic weapon's bonus to attack and damage rolls
+    const trained = !proficient || proficient(w), pb = trained ? ctx.PROF : 0; // no Proficiency Bonus without proficiency
     const finesse = w.props.includes("Finesse"), monk = d.monkWeapons && !w.ranged && (w.cat === "Simple" || w.props.includes("Light"));
     const mod = w.ranged ? ctx.DEX : (finesse || monk) ? best : ctx.STR;
     const abil = w.ranged ? "Dexterity" : (finesse || monk) && ctx.DEX > ctx.STR ? "Dexterity" : "Strength";
-    const info = [w.magic ? `Magic ${w.plain}${plus ? ` +${plus}` : ""}` : "", w.props.join(", "), w.range ? `Range ${w.range} ft.` : "", w.thrown ? `Thrown ${w.thrown} ft.` : "", w.mastery ? `Mastery: ${w.mastery}` : ""].filter(Boolean).join(". ");
+    const info = [trained ? "" : "Not proficient: no Proficiency Bonus on the attack roll", w.magic ? `Magic ${w.plain}${plus ? ` +${plus}` : ""}` : "", w.props.join(", "), w.range ? `Range ${w.range} ft.` : "", w.thrown ? `Thrown ${w.thrown} ft.` : "", w.mastery ? `Mastery: ${w.mastery}` : ""].filter(Boolean).join(". ");
     const make = (label, die, two) => {
       let dice = die;
       if (monk && d.unarmedDie) { const m = /^1d(\d+)$/.exec(die); if (m && +m[1] < d.unarmedDie) dice = `1d${d.unarmedDie}`; }
-      const a = { name: label, type: "attack", activation: "action", atk: ctx.PROF + mod + plus, weapon: true, abil, dmgList: [[evalDice(`${dice}+${mod + plus}`, ctx), w.type], ...rider(!w.ranged)], desc: w.magic ? `${info}. ${String(w.magic.description || "").slice(0, 600)}` : info };
-      if (w.mastery && (mastered || []).includes(w.plain || w.name)) { // the Combat Resolver applies the mastery property on a hit (or a miss, for Graze)
+      const a = { name: label, type: "attack", activation: "action", atk: pb + mod + plus, weapon: true, abil, dmgList: [[evalDice(`${dice}+${mod + plus}`, ctx), w.type], ...rider(!w.ranged)], desc: w.magic ? `${info}. ${String(w.magic.description || "").slice(0, 600)}` : info };
+      if (w.mastery && trained && (mastered || []).includes(w.plain || w.name)) { // the Combat Resolver applies the mastery property on a hit (or a miss, for Graze)
         a.mastery = w.mastery; a.masteryMod = mod; a.masteryDc = 8 + mod + ctx.PROF;
         a.desc = `${info}. ${w.mastery}: ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`;
       }
@@ -1767,6 +1771,12 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
   // Same order everywhere: armor by Armor Class inside Light, Medium, Heavy; weapons by name inside Simple, Martial.
   armorChoices.sort((x, y) => ARMOR.findIndex(a => a.name === (x.plain || x.name)) - ARMOR.findIndex(a => a.name === (y.plain || y.name)) || (x.magic ? 1 : 0) - (y.magic ? 1 : 0));
   weaponChoices.sort((x, y) => (x.plain || x.name).localeCompare(y.plain || y.name) || (x.magic ? 1 : 0) - (y.magic ? 1 : 0) || x.name.localeCompare(y.name));
+  // Toggles on the pickers: only what you are proficient with, only the weapons whose mastery you have.
+  const [onlyProf, setOnlyProf] = useState(false), [onlyMastery, setOnlyMastery] = useState(false);
+  const prof = inventory.prof;
+  const armorShown = onlyProf && prof ? armorChoices.filter(a => a.name === armor || prof.armor.includes(a.cat)) : armorChoices;
+  const weaponsShown = weaponChoices.filter(w => (!onlyProf || !prof || prof.weapon(w)) && (!onlyMastery || masteries.includes(w.plain || w.name)));
+  const pill = (on) => ({ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12, border: `1px solid ${colors.brass}`, borderRadius: 14, padding: "3px 10px", background: on ? colors.brass : "transparent", color: on ? colors.ink : colors.parchment });
   const hasShield = has("Shield") || shield || (inventory.items || []).some(i => (magicGearInfo(i) || {}).kind === "shield");
   const used = masteries;
   const toggleMastery = (kind) => {
@@ -1774,20 +1784,20 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
     if (used.length >= masteryCount && !(custom && window.confirm(`Use the mastery property of the ${kind}? Your class allows ${masteryCount}, so this one will show in red.`))) return;
     setMasteries([...used, kind]);
   };
-  const MASTERY_GREY = "#8a8f98"; // a mastery property the character has not chosen: grey and dashed. Gold with a star: chosen.
+  // Mastery chips: a gold box with black letters when you have the mastery; a dark box with a gold outline and gold letters when you do not.
   return (
     <Section title="Armor & Weapons" colors={colors} fontDisplay={fontDisplay}>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
         <select aria-label="Armor" value={armor} onChange={e => setArmor(e.target.value)} style={sel}>
           <option value="">No armor</option>
-          {["Light", "Medium", "Heavy"].filter(cat => armorChoices.some(a => a.cat === cat)).map(cat => <optgroup key={cat} label={`${cat} armor`}>{armorChoices.filter(a => a.cat === cat).map(a => <option key={a.name} value={a.name}>{a.name} (AC {a.base}{a.dex ? (a.max != null ? ` + Dex, max ${a.max}` : " + Dex") : ""})</option>)}</optgroup>)}
+          {["Light", "Medium", "Heavy"].filter(cat => armorShown.some(a => a.cat === cat)).map(cat => <optgroup key={cat} label={`${cat} armor`}>{armorShown.filter(a => a.cat === cat).map(a => <option key={a.name} value={a.name}>{a.name} (AC {a.base}{a.dex ? (a.max != null ? ` + Dex, max ${a.max}` : " + Dex") : ""})</option>)}</optgroup>)}
         </select>
         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: hasShield ? "pointer" : "default", opacity: hasShield ? 1 : 0.5 }} title={hasShield ? "" : "Add a Shield to your items first"}><input type="checkbox" checked={shield} disabled={!hasShield} onChange={e => setShield(e.target.checked)} aria-label="Shield" /> {inventory.shieldName || "Shield"} (+{2 + (inventory.shieldBonus || 0)})</label>
         <span style={{ fontSize: 13, opacity: 0.8 }} data-testid="ac-how">Armor Class {ac.value}: {ac.how}</span>
       </div>
       <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Only armor and weapons among your items are offered here. Add them on the Inventory tab. Magic armor and weapons are listed as the kind you chose for them there{custom ? " (Further Customization is on, so everything is offered)" : ""}. Each weapon you wield becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
       {masteryCount > 0 && <div data-testid="mastery-note" data-glow={glow || ""} style={{ fontSize: 13, marginBottom: 8, padding: glow ? "6px 10px" : 0, border: glow ? `2px solid ${glow === "open" ? REST_PURPLE : colors.brassLight}` : "none", borderRadius: 6, color: glow === "open" ? REST_PURPLE : glow === "done" ? colors.brassLight : "inherit" }}>
-        <strong>Weapon Mastery:</strong> you can use the mastery property of {masteryCount} kinds of weapons ({used.length} chosen{used.length ? `: ${used.join(", ")}` : ""}). Choose them on the Features tab, or click a weapon's mastery name here. Gold with a star means you have it; grey means you do not. You can change one when you finish a Long Rest.</div>}
+        <strong>Weapon Mastery:</strong> you can use the mastery property of {masteryCount} kinds of weapons ({used.length} chosen{used.length ? `: ${used.join(", ")}` : ""}). Choose them on the Features tab, or click a weapon's mastery name here. A gold box with black letters means you have it; a gold outline means you do not. You can change one when you finish a Long Rest.</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
         {weapons.map(n => {
           const w = weaponOf(n) || {}; const kind = weaponKind(n); const on = used.includes(kind); const over = on && used.indexOf(kind) >= masteryCount; const can = masteryCount > 0 || custom || on;
@@ -1796,14 +1806,19 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
             {n}
             {w.mastery && <button aria-label={`Mastery for ${n}`} data-have={on ? "yes" : "no"} disabled={!can} onClick={() => toggleMastery(kind)}
               title={`${on ? "You have this mastery property." : can ? "You have not chosen this kind of weapon for Weapon Mastery. Click to choose it." : "Your class has no Weapon Mastery."} ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`}
-              style={{ marginLeft: 6, background: on ? colors.brass : "transparent", color: on ? colors.ink : MASTERY_GREY, border: on ? `1px solid ${colors.brass}` : `1px dashed ${MASTERY_GREY}`, borderRadius: 10, padding: "0 8px", fontSize: 11, cursor: can ? "pointer" : "default" }}>{on ? "★ " : ""}{w.mastery}</button>}
+              style={{ marginLeft: 6, background: on ? colors.brass : colors.ink, color: on ? "#000" : colors.brassLight, border: `1px solid ${colors.brass}`, borderRadius: 10, padding: "0 8px", fontSize: 11, fontWeight: on ? 700 : 400, cursor: can ? "pointer" : "default" }}>{w.mastery}</button>}
             {" "}<button aria-label={`Remove ${n}`} onClick={() => setWeapons(weapons.filter(x => x !== n))} style={{ background: "transparent", border: "none", color: colors.parchment, cursor: "pointer" }}>×</button>
           </span>
         ); })}
       </div>
+      {((prof && prof.any) || masteryCount > 0) && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
+        <span style={{ fontSize: 12, opacity: 0.75 }}>Show only:</span>
+        {prof && prof.any && <label style={pill(onlyProf)}><input type="checkbox" data-testid="gear-only-prof" checked={onlyProf} onChange={e => setOnlyProf(e.target.checked)} /> Proficient</label>}
+        {masteryCount > 0 && <label style={pill(onlyMastery)}><input type="checkbox" data-testid="gear-only-mastery" checked={onlyMastery} onChange={e => setOnlyMastery(e.target.checked)} /> Weapon Mastery</label>}
+      </div>}
       <select aria-label="Add a weapon" value="" onChange={e => { if (e.target.value && !weapons.includes(e.target.value)) setWeapons([...weapons, e.target.value]); }} style={sel}>
         <option value="">+ Add a weapon</option>
-        {WEAPON_GROUPS.filter(([cat, fits]) => weaponChoices.some(fits)).map(([cat, fits]) => <optgroup key={cat} label={cat}>{weaponChoices.filter(fits).map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice}{w.bonus ? ` +${w.bonus}` : ""} {w.type})</option>)}</optgroup>)}
+        {WEAPON_GROUPS.filter(([cat, fits]) => weaponsShown.some(fits)).map(([cat, fits]) => <optgroup key={cat} label={cat}>{weaponsShown.filter(fits).map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice}{w.bonus ? ` +${w.bonus}` : ""} {w.type})</option>)}</optgroup>)}
       </select>
     </Section>
   );
@@ -2226,10 +2241,12 @@ function CharacterSheet() {
   }, [spellInfo, spellCtx, takenFeats, cls, derived]);
   const spellSummary = (sp) => { try { const a = spellAction(sp, spellCtx); return a ? actionSummary(a) : ""; } catch (e) { return ""; } };
 
+  const classTools = { Rogue: ["Thieves' Tools"], Druid: ["Herbalism Kit"] }[className] || [];
+  const prof = useMemo(() => proficiencyOf(cls, derived, [...classTools, bgEff && bgEff.tool, ...featSkills.tools.map(t => t.tool), ...journal.tools]), [cls, derived, className, bgEff, featSkills, journal.tools]);
   // Activated features from Content Packs, worked out from this character's numbers as they stand now.
   // Everything this character can activate, worked out from its numbers as they stand now.
   const sheetActions = useMemo(() => {
-    const out = weaponActions(weapons, spellCtx, derived, takenFeats.map(f => f.base), masteries);
+    const out = weaponActions(weapons, spellCtx, derived, takenFeats.map(f => f.base), masteries, prof.weapon);
     mech.entries.forEach(e => {
       if (!isActivated(e)) return;
       try {
@@ -2239,7 +2256,7 @@ function CharacterSheet() {
       } catch (err) {}
     });
     return out;
-  }, [mech, spellCtx, derived, weapons, masteries, takenFeats, species, lineage]);
+  }, [mech, spellCtx, derived, weapons, masteries, takenFeats, species, lineage, prof]);
   // Pools of uses shared by several features (Rage, Focus Points, Channel Divinity...).
   const pools = useMemo(() => {
     const out = {};
@@ -2299,7 +2316,7 @@ function CharacterSheet() {
     setCurrentHp(Math.min(effectiveMaxHp, displayHp + gain));
   }
 
-  const knownTools = [bgEff && bgEff.tool ? { name: bgEff.tool, source: "Background" } : null, ...featSkills.tools.map(t => ({ name: t.tool, source: t.source }))].filter(Boolean);
+  const knownTools = [...classTools.map(t => ({ name: t, source: "Class" })), bgEff && bgEff.tool ? { name: bgEff.tool, source: "Background" } : null, ...featSkills.tools.map(t => ({ name: t.tool, source: t.source }))].filter(Boolean);
   // Inventory: everything the character carries. Important Items: the ones marked to show on the Identity tab.
   const sameItem = (it) => (p) => p.name === it.name;
   const inv = {
@@ -2753,7 +2770,7 @@ function CharacterSheet() {
           <SkillsTab {...{ expertiseMax, expertiseList, expertiseCustom, cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }} />
         )}
         {tab === "combat" && (
-          <CombatTab {...{ possibleMaxHp, averageHp: maxHp, setHpTotal, statAdj, setStatAdj, inventory: Object.assign(characterItems.map(i => i && i.name).filter(Boolean), { typed: "", items: characterItems, shieldBonus: gear.shieldBonus, shieldName: gear.shieldName }), masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
+          <CombatTab {...{ possibleMaxHp, averageHp: maxHp, setHpTotal, statAdj, setStatAdj, inventory: Object.assign(characterItems.map(i => i && i.name).filter(Boolean), { typed: "", prof, items: characterItems, shieldBonus: gear.shieldBonus, shieldName: gear.shieldName }), masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
         )}
         {tab === "features" && (
           <FeaturesTab {...{ masteries, setMasteries, masteryCount: derived.masteryCount, className, glowOf, optionSlots: mech.optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay, slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }} />
@@ -2765,7 +2782,7 @@ function CharacterSheet() {
           <JournalTab {...{ journal, setJournal, alignment, setAlignment, knownTools, colors, fontDisplay }} />
         )}
         {tab === "inventory" && (
-          <InventoryTab {...{ inv, colors, fontDisplay,
+          <InventoryTab {...{ inv, prof, colors, fontDisplay,
             magic: { itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem },
             mundane: { mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane } }} />
         )}
@@ -4021,7 +4038,13 @@ function inventoryGroup(item) {
   if (cat === "Your own item") return "Your Own Items";
   return "Gear";
 }
-function InventoryTab({ inv, magic, mundane, colors, fontDisplay }) {
+let inventoryFolded = false, inventoryOnlyProf = false; // stay as you left them while the page is open
+function InventoryTab({ inv, prof, magic, mundane, colors, fontDisplay }) {
+  const [folded, setFoldedState] = React.useState(inventoryFolded);
+  const setFolded = (v) => { inventoryFolded = v; setFoldedState(v); };
+  const [onlyProf, setOnlyProfState] = React.useState(inventoryOnlyProf);
+  const setOnlyProf = (v) => { inventoryOnlyProf = v; setOnlyProfState(v); };
+  const keep = onlyProf && prof && prof.any ? (item) => itemProficient(item, prof) !== false : null;
   const [source, setSource] = React.useState("mundane");
   const [shut, setShut] = React.useState({});      // group name -> folded
   const [openItem, setOpenItem] = React.useState("");
@@ -4040,7 +4063,9 @@ function InventoryTab({ inv, magic, mundane, colors, fontDisplay }) {
   );
   return (
     <div>
-      <Section title={`Your Inventory (${inv.items.length})`} colors={colors} fontDisplay={fontDisplay}>
+      <div style={{ marginBottom: 24 }} data-testid="inventory-section" data-folded={folded ? "yes" : ""}>
+        <h3 data-testid="inventory-fold" onClick={() => setFolded(!folded)} style={{ fontFamily: fontDisplay, color: colors.brassLight, fontSize: 16, letterSpacing: "0.04em", textTransform: "uppercase", borderBottom: `1px solid ${colors.brass}55`, paddingBottom: 8, marginBottom: 14, cursor: "pointer" }}>{folded ? "▸" : "▾"} Your Inventory ({inv.items.length})</h3>
+        {!folded && (<>
         {inv.items.length === 0 && <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 10 }}>Nothing yet. Add items from the lists below.</div>}
         <div data-testid="inventory-list">
           {groups.map(([g, items]) => (
@@ -4076,12 +4101,17 @@ function InventoryTab({ inv, magic, mundane, colors, fontDisplay }) {
           <button data-testid="add-own-item" onClick={addOwn} disabled={!ownName.trim() || ownTaken} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "7px 14px", cursor: "pointer", opacity: !ownName.trim() || ownTaken ? 0.45 : 1 }}>Add to Inventory</button>
           {ownTaken && <span style={{ fontSize: 12, color: CUSTOM_RED }}>Already in your inventory.</span>}
         </div>
-      </Section>
+      </>)}
+      </div>
       <Section title="Add Items" colors={colors} fontDisplay={fontDisplay}>
-        <div style={{ marginBottom: 14 }}>{sw("mundane", "Mundane Items")}{sw("magic", "Magic Items")}</div>
+        <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <div>{sw("mundane", "Mundane Items")}{sw("magic", "Magic Items")}</div>
+          {prof && prof.any && <label data-testid="only-proficient-label" title="Hides armor, weapons and tools you are not proficient with. Everything else still shows." style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, border: `1px solid ${colors.brass}`, borderRadius: 14, padding: "4px 12px", background: onlyProf ? colors.brass : "transparent", color: onlyProf ? colors.ink : colors.parchment }}>
+            <input type="checkbox" data-testid="only-proficient" checked={onlyProf} onChange={e => setOnlyProf(e.target.checked)} /> Proficient only</label>}
+        </div>
         {source === "mundane"
-          ? <MundaneItemsTab {...mundane} inv={inv} colors={colors} fontDisplay={fontDisplay} />
-          : <MagicItemsTab {...magic} inv={inv} colors={colors} fontDisplay={fontDisplay} />}
+          ? <MundaneItemsTab {...mundane} keep={keep} inv={inv} colors={colors} fontDisplay={fontDisplay} />
+          : <MagicItemsTab {...magic} keep={keep} inv={inv} colors={colors} fontDisplay={fontDisplay} />}
       </Section>
     </div>
   );
@@ -4097,6 +4127,36 @@ function masteryEligible(className, w) {
   if (className === "Barbarian") return !w.ranged;                                                   // Simple and Martial Melee weapons
   if (className === "Rogue") return w.cat === "Simple" || w.props.includes("Finesse") || w.props.includes("Light"); // the weapons a Rogue is proficient with
   return true;
+}
+// What the character is proficient with, read from the class lines ("Light, Medium, Shields" and
+// "Simple, Martial weapons with Finesse or Light property") plus anything features add.
+function proficiencyOf(cls, d, toolNames) {
+  const a = String((cls && cls.armorProf) || ""), w = String((cls && cls.weaponProf) || "");
+  const armor = ["Light", "Medium", "Heavy"].filter(c => new RegExp(c, "i").test(a) || (d.profArmor || []).includes(c));
+  const shield = /Shield/i.test(a) || (d.profArmor || []).includes("Shield");
+  const simple = /Simple/i.test(w) || (d.profWeapons || []).includes("Simple");
+  const props = (/Martial weapons with (.+?) property/i.exec(w) || [])[1];
+  const martialAll = (d.profWeapons || []).includes("Martial") || (/Martial/i.test(w) && !props);
+  const named = w.split(",").map(x => gearNorm(x).replace(/s$/, "")).filter(Boolean).concat((d.profWeapons || []).map(gearNorm));
+  const weapon = (x) => (x.cat === "Simple" ? simple : martialAll || (props ? x.props.some(pr => new RegExp(pr, "i").test(props)) : false)) || named.includes(gearNorm(x.plain || x.name));
+  const tools = (toolNames || []).map(gearNorm).filter(Boolean);
+  return { armor, shield, weapon, tools, any: armor.length > 0 || shield || simple || martialAll || !!props || tools.length > 0 };
+}
+// true or false for something you can be proficient with; null for everything else (rope, a potion, a ring).
+function itemProficient(item, prof) {
+  const g = magicGearInfo(item);
+  if (g) {
+    if (g.kind === "shield") return prof.shield;
+    const bases = item.kind && g.bases.includes(item.kind) ? [item.kind] : g.bases;
+    return g.kind === "armor" ? bases.some(b => prof.armor.includes((ARMOR.find(x => x.name === b) || {}).cat)) : bases.some(b => prof.weapon(WEAPONS.find(x => x.name === b)));
+  }
+  if (item.rarity) return null;
+  const cat = String(item.category || "");
+  if (/Armor$/.test(cat)) return prof.armor.includes(cat.split(" ")[0]);
+  if (cat === "Shield") return prof.shield;
+  if (/Weapon$/.test(cat)) { const w = WEAPONS.find(x => gearNorm(x.name) === gearNorm(item.name)); return w ? prof.weapon(w) : null; }
+  if (["Artisan's Tools", "Gaming Set", "Musical Instrument", "Tool"].includes(cat)) { const n = gearNorm(item.name), c = gearNorm(cat).replace(/s$/, ""); return prof.tools.some(t => t === n || t.includes(n) || n.includes(t) || (cat !== "Tool" && t.includes(c))); } // "One Gaming Set" covers the gaming sets
+  return null;
 }
 // The four weapon groups of the weapon tables, in order.
 const WEAPON_GROUPS = [["Simple Melee weapons", w => w.cat === "Simple" && !w.ranged], ["Simple Ranged weapons", w => w.cat === "Simple" && w.ranged], ["Martial Melee weapons", w => w.cat === "Martial" && !w.ranged], ["Martial Ranged weapons", w => w.cat === "Martial" && w.ranged]];
@@ -4167,7 +4227,7 @@ function ItemRowHover({ item, inv, onSelect, isSelected, accentColor, colors, ex
   );
 }
 
-function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, inv, colors, fontDisplay }) {
+function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, inv, keep, colors, fontDisplay }) {
   const [expanded, setExpanded] = React.useState(false);  // false: Armor, Ring, Weapon... true: every exact kind, such as Armor (plate)
   const [raritiesOff, setRaritiesOff] = React.useState([]);
   const [kindPick, setKindPick] = React.useState({});     // item name -> the kind picked before adding it
@@ -4187,9 +4247,9 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
       const matchAtt = itemAttunementFilter === "All" ||
         (itemAttunementFilter === "Yes" && item.attunement) ||
         (itemAttunementFilter === "No" && !item.attunement);
-      return matchSearch && matchRarity && matchType && matchAtt;
+      return matchSearch && matchRarity && matchType && matchAtt && (!keep || keep(item));
     });
-  }, [itemSearch, raritiesOff, expanded, itemTypeFilter, itemAttunementFilter]);
+  }, [itemSearch, raritiesOff, expanded, itemTypeFilter, itemAttunementFilter, keep]);
 
   const grouped = React.useMemo(() => {
     const g = {};
@@ -4322,7 +4382,7 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
   );
 }
 
-function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, inv, colors, fontDisplay }) {
+function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, inv, keep, colors, fontDisplay }) {
   const allCategories = React.useMemo(() => {
     const cats = new Set(MUNDANE_ITEMS.map(i => i.category));
     return ["All", ...Array.from(cats).sort()];
@@ -4333,9 +4393,9 @@ function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, s
       const matchSearch = item.name.toLowerCase().includes(mundaneSearch.toLowerCase()) ||
         item.description.toLowerCase().includes(mundaneSearch.toLowerCase());
       const matchCat = mundaneTypeFilter === "All" || item.category === mundaneTypeFilter;
-      return matchSearch && matchCat;
+      return matchSearch && matchCat && (!keep || keep(item));
     });
-  }, [mundaneSearch, mundaneTypeFilter]);
+  }, [mundaneSearch, mundaneTypeFilter, keep]);
 
   const grouped = React.useMemo(() => {
     const g = {};
