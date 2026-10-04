@@ -1220,6 +1220,8 @@ function App() {
   const [buffTime, setBuffTime] = useState(null); // how long the effect lasts; null = the preset's own duration
   const [lapse, setLapse] = useState({n:'10', unit:'minutes'});
   const [prompts, setPrompts] = useState([]); // rolls waiting for someone to press the button
+  const [restSummary, setRestSummary] = useState(null); // what a player's rest just gave back
+  const restRef = useRef(null);
   const [castLevel, setCastLevel] = useState(0); // spell slot level chosen for the selected spell (0 = lowest available)
   const [condOpts, setCondOpts] = useState({n:'', unit:'minutes', when:'', abil:'Wisdom', dc:''}); // how the next condition applied behaves
   const [pane, setPane] = useState('order'); // which panel shows on a phone: order | sheet | log
@@ -1835,6 +1837,43 @@ function App() {
   const removeEffect = (id, effId) => setCombatants(prev => reorder(prev.map(c => c.id === id ? {...c, effects: (c.effects || []).filter(e => e.id !== effId)} : c)));
 
   // ── TIME, RESTS AND ENDING AN ENCOUNTER (DM) ────────────────────────────────
+  // What a rest gives back to one creature: spell slots, shared pools and each feature's own uses.
+  const restoreUses = (c0, longRest) => {
+    let c = c0;
+    if (c.slotsUsed && (longRest || (c.sheet || {}).pact)) c = {...c, slotsUsed: {}}; // Long Rest, or Pact Magic on a Short Rest
+    if (c.poolUsed) { // shared pools: all back on a Long Rest; on a Short Rest the short ones, and one use of some others
+      const left = {};
+      if (!longRest) Object.keys(c.poolUsed).forEach(k => {
+        const q = ((c.sheet || {}).pools || {})[k] || {};
+        const n = q.recharge === 'short' ? 0 : Math.max(0, c.poolUsed[k] - (q.shortRegain || 0));
+        if (n > 0) left[k] = n;
+      });
+      c = {...c, poolUsed: left};
+    }
+    if (c.used) {
+      const used = {};
+      if (!longRest) buildActions(c).forEach(a => { if (a.recharge !== 'short' && c.used[a.id]) used[a.id] = c.used[a.id]; });
+      c = {...c, used};
+    }
+    return c;
+  };
+  // A player finishing a rest for their own character: sets what comes back and says what changed.
+  const restCharacter = (id, kind) => {
+    const c = combatants.find(x => x.id === id);
+    if (!c || !canControl(c)) return;
+    const longRest = kind === 'long';
+    let after = restoreUses(c, longRest);
+    if (longRest) after = {...after, currentHP: c.maxHP, tempHP: 0};
+    const lines = [];
+    if (after.currentHP !== c.currentHP) lines.push(`Hit Points: ${c.currentHP} to ${after.currentHP}`);
+    if ((+c.tempHP || 0) !== (+after.tempHP || 0)) lines.push(`Temporary Hit Points: ${c.tempHP} to 0`);
+    Object.entries((c.sheet || {}).pools || {}).forEach(([n, q]) => { const b = poolLeft(c, n), a = poolLeft(after, n); if (a !== b) lines.push(`${n}: ${b} to ${a} of ${q.max}`); });
+    (((c.sheet || {}).slotMax) || []).forEach((n, i) => { const b = slotsLeft(c, i + 1), a = slotsLeft(after, i + 1); if (n > 0 && a !== b) lines.push(`Level ${i + 1} spell slots: ${b} to ${a} of ${n}`); });
+    buildActions(c).forEach(a => { if (a.usesMax && !a.pool) { const b = usesLeft(c, a), x = usesLeft(after, a); if (x !== b) lines.push(`${a.name}: ${b} to ${x} of ${a.usesMax}`); } });
+    setCombatants(prev => prev.map(x => x.id === id ? {...restoreUses(x, longRest), ...(longRest ? {currentHP: x.maxHP, tempHP: 0} : {})} : x));
+    setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(c.name)}</strong> finishes a <span class="log-result">${longRest ? 'Long Rest' : 'Short Rest'}</span>${lines.length ? `<div class="log-detail">${lines.map(esc).join(' · ')}</div>` : ''}`})]);
+    setRestSummary({name: c.name, kind, lines});
+  };
   const advanceTime = (seconds, label, rest) => { // rest: 'short' or 'long' when the time passes as a rest
     if (!isDM || !(seconds > 0)) return;
     const longRest = rest === 'long';
@@ -1842,21 +1881,7 @@ function App() {
     // A rest gives back the uses of features that recharge on it
     const restore = c0 => {
       if (!rest) return c0;
-      let c = c0;
-      if (c.slotsUsed && (longRest || (c.sheet || {}).pact)) c = {...c, slotsUsed: {}}; // Long Rest, or Pact Magic on a Short Rest
-      if (c.poolUsed) { // shared pools: all back on a Long Rest; on a Short Rest the short ones, and one use of some others
-        const left = {};
-        if (!longRest) Object.keys(c.poolUsed).forEach(k => {
-          const q = ((c.sheet || {}).pools || {})[k] || {};
-          const n = q.recharge === 'short' ? 0 : Math.max(0, c.poolUsed[k] - (q.shortRegain || 0));
-          if (n > 0) left[k] = n;
-        });
-        c = {...c, poolUsed: left};
-      }
-      if (!c.used) return c;
-      const used = {};
-      if (!longRest) buildActions(c).forEach(a => { if (a.recharge !== 'short' && c.used[a.id]) used[a.id] = c.used[a.id]; });
-      return {...c, used};
+      return restoreUses(c0, longRest);
     };
     setCombatants(prev => reorder(passTime(prev, seconds, longRest).list.map(restore)));
     setLog(prev => [...prev, stamp({type:'round', text: label}), ...endedEntries(t.ended)]);
@@ -2096,7 +2121,10 @@ function App() {
     const leave = e => { if (!e.relatedTarget) setDragging(false); };
     const drop = e => { if (!hasFiles(e)) return; e.preventDefault(); setDragging(false); readCharacterFile(e.dataTransfer.files[0]); };
     const msg = e => { if (e.origin === window.location.origin && e.data && e.data.type === 'hba-character') loadCharacter(e.data.character, true); };
-    const storage = e => { if (e.key === CODE_KEY && e.newValue) setPlayerCode(cleanCode(e.newValue) || currentPlayerCode()); };
+    const storage = e => {
+      if (e.key === CODE_KEY && e.newValue) setPlayerCode(cleanCode(e.newValue) || currentPlayerCode());
+      if (e.key === 'hba-rest' && e.newValue && restRef.current) { try { restRef.current(JSON.parse(e.newValue)); } catch (err) {} } // a rest taken on the Character Builder tab
+    };
     window.addEventListener('dragover', over);
     window.addEventListener('dragleave', leave);
     window.addEventListener('drop', drop);
@@ -2137,6 +2165,12 @@ function App() {
   };
   const sheetPreview = form.sheetData ? sheetToFields(form.sheetData) : null;
   const selAction = actions.find(a => a.id === selectedAction);
+  // A rest taken in the Character Builder resets this player's own character here too.
+  restRef.current = (msg) => {
+    if (!msg || cleanCode(msg.code) !== playerCode || (msg.kind !== 'short' && msg.kind !== 'long')) return;
+    const me = combatants.find(c => c.main && c.owner === myId);
+    if (me) restCharacter(me.id, msg.kind);
+  };
   const selMax = maxTargets(selAction, castOptions(viewed || {}, selAction).includes(castLevel) ? castLevel : (castOptions(viewed || {}, selAction)[0] || 0));
   // Picking targets: one at a time, or several when the chosen action allows it.
   const toggleTarget = id => setTargetIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : selMax > 1 ? [...prev, id].slice(-selMax) : [id]);
@@ -2197,6 +2231,18 @@ function App() {
         </div>
       </div>
       {dragging && <div className="drop-overlay">Drop a character file to add it to combat</div>}
+      {restSummary && (
+        <div className="modal-overlay" onClick={()=>setRestSummary(null)} data-testid="rest-summary">
+          <div className="modal" onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">{restSummary.name}: {restSummary.kind === 'long' ? 'Long Rest' : 'Short Rest'} complete</div>
+            <div className="modal-body">
+              {restSummary.lines.length ? <ul style={{marginLeft:18, lineHeight:1.6}}>{restSummary.lines.map((x, i) => <li key={i}>{x}</li>)}</ul> : <div>Nothing needed restoring.</div>}
+              <div className="buff-note" style={{marginTop:10}}>Timed effects and conditions are not changed by this. The DM's Pass Time buttons move the clock for everyone.</div>
+            </div>
+            <div className="modal-footer"><button className="btn btn-primary" onClick={()=>setRestSummary(null)}>OK</button></div>
+          </div>
+        </div>
+      )}
       {openPrompts.length > 0 && (
         <div className="prompt-bar" data-testid="prompt-bar">
           {openPrompts.map(({q, c, text, dc}) => (
@@ -2400,6 +2446,13 @@ function App() {
                   ))}
                 </div>
 
+                {/* A player rests their own character */}
+                {viewed && viewed.type === 'player' && canControl(viewed) && (viewed.owner === myId || isDM) && (
+                  <div className="buff-row" style={{marginTop:6}} data-testid="own-rest">
+                    <button className="btn btn-ghost btn-sm" title="Gives back what this character regains on a Short Rest" onClick={()=>restCharacter(viewed.id, 'short')}>{viewed.name}: Short Rest</button>
+                    <button className="btn btn-ghost btn-sm" title="Gives back Hit Points, spell slots and every feature use" onClick={()=>restCharacter(viewed.id, 'long')}>{viewed.name}: Long Rest</button>
+                  </div>
+                )}
                 {/* Resources and standing features */}
                 {viewed && Object.keys((viewed.sheet || {}).pools || {}).length > 0 && (
                   <div className="slot-row" data-testid="pool-row">
