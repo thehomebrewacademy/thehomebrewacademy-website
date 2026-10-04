@@ -323,6 +323,23 @@
     .buff-row select, .buff-row input, .dice-box input, .roster input.search {
       width: 100%; background: #0F1923; border: 1px solid #3d5166; color: var(--parchment);
       padding: 6px 8px; border-radius: 4px; font-family: 'Crimson Text', serif; font-size: 0.9rem; }
+    .prompt-bar { background: #2a2210; border-bottom: 2px solid var(--gold); padding: 8px 14px; display: grid; gap: 6px; }
+    .prompt-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 0.95rem; color: var(--parchment); }
+    .prompt-item.yours strong { color: var(--gold); }
+    .prompt-wait { color: var(--text-muted); font-style: italic; font-size: 0.85rem; }
+    .cond-box { padding: 8px 10px; border-bottom: 1px solid var(--brass); flex-shrink: 0; max-height: 30vh; overflow-y: auto; }
+    .cond-empty { color: var(--text-muted); font-size: 0.82rem; font-style: italic; text-align: center; }
+    .cond-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #2C3E50; font-size: 0.85rem; }
+    .cond-item:last-child { border-bottom: none; }
+    .cond-icon { font-size: 1.3rem; width: 26px; text-align: center; flex-shrink: 0; }
+    .cond-main { flex: 1; min-width: 0; color: var(--parchment); }
+    .cond-main strong { color: #ff8a80; font-family: 'Cinzel', serif; font-size: 0.78rem; }
+    .cond-sub { color: var(--text-muted); font-size: 0.74rem; }
+    .cond-time { color: var(--gold); font-size: 0.78rem; white-space: nowrap; }
+    .time-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .time-row input[type=number], .time-row select { flex: 1 1 70px; min-width: 0; background: #0F1923; border: 1px solid #3d5166; color: var(--parchment); padding: 5px 8px; border-radius: 4px; font-family: 'Crimson Text', serif; font-size: 0.9rem; }
+    .conc-label { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--text-muted); cursor: pointer; }
+    .conc-label input { width: auto; }
     .buff-note { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 6px; font-style: italic; }
 
     /* ── DICE ROLLER ── */
@@ -430,7 +447,8 @@ if (window.firebase && FB_CFG.apiKey && FB_CFG.databaseURL) {
 const SYNC_AVAILABLE = !!db;
 const MONSTERS = window.HBA_MONSTERS || [];
 
-function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+let idSeq = 0; // keeps entries made in the same millisecond in the order they were made
+function newId() { idSeq = (idSeq + 1) % 1296; return Date.now().toString(36) + idSeq.toString(36).padStart(2, '0') + Math.random().toString(36).slice(2, 6); }
 function makeCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return Array.from({length: 6}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
@@ -539,6 +557,21 @@ function profBonus(level) { return Math.ceil(level/4)+1; }
 // ── CONDITIONS ───────────────────────────────────────────────────────────────
 const CONDITIONS = ['Blinded','Charmed','Deafened','Frightened','Grappled','Incapacitated','Invisible','Paralyzed','Petrified','Poisoned','Prone','Restrained','Stunned','Unconscious'];
 
+const CONDITION_ICON = {Blinded:'🙈', Charmed:'💖', Deafened:'🔇', Frightened:'😱', Grappled:'🤼', Incapacitated:'💫', Invisible:'👻',
+  Paralyzed:'⚡', Petrified:'🗿', Poisoned:'🤢', Prone:'🛌', Restrained:'⛓️', Stunned:'😵', Unconscious:'💤'};
+// A condition can carry details in condInfo[name]: {left (seconds), dc, abil, when ('start' or 'end'), turnOf (creature id), src}.
+// With dc and abil set, the creature repeats the save on that turn and the condition ends on a success.
+const condInfoOf = (c, cond) => (c && c.condInfo && c.condInfo[cond]) || null;
+function dropCondition(c, cond) {
+  const info = {...(c.condInfo || {})}; delete info[cond];
+  return {...c, conditions: (c.conditions || []).filter(x => x !== cond), condInfo: info};
+}
+function condSaveText(info, list, self) {
+  if (!info || !info.dc || !info.abil) return '';
+  const other = info.turnOf && info.turnOf !== self.id ? list.find(x => x.id === info.turnOf) : null;
+  return `DC ${info.dc} ${info.abil} save at the ${info.when === 'start' ? 'start' : 'end'} of ${other ? other.name + "'s" : 'its'} turn`;
+}
+
 // ── RULES DATA (2024 rules) ──────────────────────────────────────────────────
 const ABILITIES = ABILITY_KEYS.map(a => a[1]);
 const SKILL_ABILITY = {Acrobatics:'Dexterity','Animal Handling':'Wisdom',Arcana:'Intelligence',Athletics:'Strength',Deception:'Charisma',History:'Intelligence',Insight:'Wisdom',Intimidation:'Charisma',Investigation:'Intelligence',Medicine:'Wisdom',Nature:'Intelligence',Perception:'Wisdom',Performance:'Charisma',Persuasion:'Charisma',Religion:'Intelligence','Sleight of Hand':'Dexterity',Stealth:'Dexterity',Survival:'Wisdom'};
@@ -577,6 +610,207 @@ const BUFF_SUMMARY = {
   Heroism: 'Immune to Frightened, and gains the Temporary Hit Points at the start of each of its turns',
   Exhaustion: 'Every D20 Test is reduced by 2 per level and Speed by 5 feet per level',
 };
+// ── TIME ─────────────────────────────────────────────────────────────────────
+// Timed effects carry "left", the seconds they have remaining. A round of combat takes 6 seconds off,
+// and the DM's Short Rest, Long Rest and Advance Time buttons take off as much as they say.
+const ROUND_SECONDS = 6;
+const SHORT_REST = 3600, LONG_REST = 8 * 3600;
+const UNIT_SECONDS = {rounds: ROUND_SECONDS, minutes: 60, hours: 3600, days: 86400};
+const MAX_SECONDS = 3650 * 86400;
+const STALE_MS = 90 * 86400000; // a session nobody has touched for 90 days is removed
+const ROOMS_KEY = 'hba-dm-rooms'; // session codes this computer created, so it can tidy up its own
+// Default durations from the 2024 rules: [seconds, Concentration]
+const BUFF_TIME = {
+  Bless:[60,true], Bane:[60,true], 'Shield of Faith':[600,true], Haste:[60,true], Slow:[60,true],
+  Longstrider:[3600,false], Darkvision:[8*3600,false], Fly:[600,true], 'Faerie Fire':[60,true],
+  "Hunter's Mark":[3600,true], Hex:[3600,true], 'Protection from Evil and Good':[600,true],
+  Resistance:[60,true], Guidance:[60,true], 'Bardic Inspiration':[3600,false], Heroism:[60,true],
+};
+function defaultTime(name) {
+  const t = BUFF_TIME[name];
+  if (!t) return {n:'', unit:'minutes', conc:false};
+  const unit = t[0] % 86400 === 0 ? 'days' : t[0] % 3600 === 0 ? 'hours' : 'minutes';
+  return {n: String(t[0] / UNIT_SECONDS[unit]), unit, conc: t[1]};
+}
+function timeText(sec) {
+  sec = Math.max(0, Math.round(+sec || 0));
+  const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60), r = sec % 60;
+  return [d && `${d} d`, h && `${h} h`, m && `${m} min`, (r || !sec) && `${r} sec`].filter(Boolean).join(' ');
+}
+// Takes time off every timed effect. Returns the new list and what ended: [creature, effect, why].
+// A Long Rest also ends Concentration, clears Temporary Hit Points and removes one level of Exhaustion.
+function passTime(list, seconds, longRest) {
+  const ended = [];
+  const next = list.map(c => {
+    let changed = false; const kept = [];
+    (c.effects || []).forEach(e => {
+      if (longRest && e.conc) { ended.push([c.name, e.name, 'Concentration ends on a Long Rest']); changed = true; return; }
+      if (longRest && e.name === 'Exhaustion' && e.lvl) {
+        const l = (+e.lvl || 1) - 1; changed = true;
+        if (l <= 0) ended.push([c.name, e.name, 'A Long Rest removes one level']);
+        else { kept.push({...e, lvl: String(l), d20: -2 * l, speed: -5 * l}); ended.push([c.name, '', `Exhaustion drops to level ${l}`]); }
+        return;
+      }
+      if (!(+e.left > 0)) { kept.push(e); return; }
+      const left = +e.left - seconds; changed = true;
+      if (left <= 0) ended.push([c.name, e.name, 'Its time ran out']); else kept.push({...e, left});
+    });
+    let out = changed ? {...c, effects: kept} : c;
+    (c.conditions || []).forEach(cond => {
+      const info = condInfoOf(out, cond);
+      if (!info || !(+info.left > 0)) return;
+      const left = +info.left - seconds;
+      if (left <= 0) { out = dropCondition(out, cond); ended.push([c.name, cond, 'Its time ran out']); }
+      else out = {...out, condInfo: {...out.condInfo, [cond]: {...info, left}}};
+    });
+    return longRest && +c.tempHP > 0 ? {...out, tempHP: 0} : out;
+  });
+  return {list: next, ended};
+}
+const endedEntries = ended => ended.map(([who, what, why]) => stamp({type:'roll', html: what
+  ? `<span class="log-result">${esc(what)}</span> ends on <strong>${esc(who)}</strong><div class="log-detail">${esc(why)}</div>`
+  : `<strong>${esc(who)}</strong><div class="log-detail">${esc(why)}</div>`}));
+// Repeat saves against conditions. dueCondSaves lists the ones that fall on a turn's start or end;
+// each becomes a roll prompt for whoever controls the creature, and rollCondSave rolls it when they press the button.
+function dueCondSaves(list, turnId, when) {
+  const live = id => list.some(x => x.id === id && !x.pending && x.currentHP > 0);
+  const due = [];
+  list.forEach(c => {
+    if (c.pending) return;
+    (c.conditions || []).forEach(cond => {
+      const info = condInfoOf(c, cond);
+      if (!info || !info.dc || !info.abil || (info.when === 'start' ? 'start' : 'end') !== when) return;
+      if ((info.turnOf && live(info.turnOf) ? info.turnOf : c.id) !== turnId) return;
+      due.push({targetId: c.id, cond});
+    });
+  });
+  return due;
+}
+function rollCondSave(c, cond) {
+  const info = condInfoOf(c, cond);
+  const saveMod = (c.saves && c.saves[info.abil] != null) ? +c.saves[info.abil] : mod((c.scores && c.scores[info.abil]) || 10);
+  const t = d20Test(c, 'save', {ability: info.abil});
+  const roll = roll20(testMode(t));
+  let total = roll.total + saveMod + t.bonus, inspired = '', usedEffect = '';
+  const insp = !t.autoFail && total < info.dc ? (c.effects || []).find(x => x.inspire) : null;
+  const size = insp ? parseInt(String(insp.inspire).replace('d', ''), 10) : 0;
+  if (insp && size && info.dc - total <= size) { const r = rollD(size); total += r; inspired = `${esc(insp.name)} ${insp.inspire}: +${r}`; usedEffect = insp.id; }
+  const passed = !t.autoFail && total >= info.dc;
+  const extras = [t.bonusText, inspired].filter(Boolean).join(', ');
+  return {passed, usedEffect, entry: stamp({type: passed ? 'save-pass' : 'save-fail', html:
+    `<strong>${esc(c.name)}</strong> repeats the save against <span class="log-result">${esc(cond)}</span><br/>
+     DC ${+info.dc} ${esc(info.abil)} save · ${t.autoFail
+      ? `<strong style="color:var(--danger)">Fails automatically (${esc(t.autoFail)})</strong>`
+      : `Roll: ${roll.rolls.join('/')} ${signed(saveMod)}${extras ? ` (${extras})` : ''} = <strong>${total}</strong>
+     · <strong style="color:${passed ? 'var(--success)' : 'var(--danger)'}">${passed ? 'Saved!' : 'Failed!'}</strong>`}
+     ${modeText(t) && !t.autoFail ? `<div class="log-detail">${modeText(t)}</div>` : ''}
+     <div class="log-detail">${passed ? `${esc(cond)} ends` : `Still ${esc(cond)}`}</div>`})};
+}
+
+// ── SHEET ACTIONS ────────────────────────────────────────────────────────────
+// Activated features, spells and items arrive on a character sheet already worked out from that character's
+// own numbers (attack bonus, save DC, dice). They are checked here before they are trusted.
+// An outcome says what lands on the target: {conds:[{name,left,when,turn,abil,dc}], effs:[effect]}.
+const ACTION_TYPES = ['attack','save','auto','apply','heal','selfheal','info'];
+const ACTIVATIONS = {action:'Action', bonus:'Bonus Action', reaction:'Reaction', free:'No action'};
+function cleanEffect(e) {
+  if (!e || typeof e !== 'object' || !String(e.name || '').trim()) return null;
+  const out = {name: String(e.name).trim().slice(0, 40)};
+  ['ac','speed','init','d20','saveAbilMod','tempEachTurn'].forEach(k => { const n = parseInt(e[k], 10); if (Number.isFinite(n) && n) out[k] = Math.max(-200, Math.min(200, n)); });
+  if (+e.speedMult > 0 && +e.speedMult !== 1) out.speedMult = Math.min(4, +e.speedMult);
+  ['atk','save','check','bonusDmg'].forEach(k => { const v = String(e[k] == null ? '' : e[k]).replace(/\s/g, '').replace(/^\+/, ''); if (v && DMG_RE.test(v.replace(/^-/, ''))) out[k] = v; });
+  ['sense','move','bonusType'].forEach(k => { if (e[k]) out[k] = String(e[k]).slice(0, 60); });
+  if (e.note) out.note = String(e.note).slice(0, 300);
+  ['saveAdv','saveAbil','checkDis'].forEach(k => { if (ABILITIES.includes(e[k])) out[k] = e[k]; });
+  if (SKILL_ABILITY[e.checkSkill]) out.checkSkill = e.checkSkill;
+  if (CONDITIONS.includes(e.immune)) out.immune = e.immune;
+  if (RESISTANCE_TYPES.includes(e.resistType)) out.resistType = e.resistType;
+  ['advAgainst','noInvisible','protect','conc','fromCaster'].forEach(k => { if (e[k]) out[k] = true; });
+  if (+e.left > 0) out.left = Math.min(MAX_SECONDS, Math.round(+e.left));
+  return out;
+}
+function cleanOutcome(o) {
+  if (!o || typeof o !== 'object') return null;
+  const conds = (Array.isArray(o.conds) ? o.conds : []).slice(0, 4).map(k => {
+    if (!k || !CONDITIONS.includes(k.name)) return null;
+    const c = {name: k.name};
+    if (+k.left > 0) c.left = Math.min(MAX_SECONDS, Math.round(+k.left));
+    if (k.when === 'start' || k.when === 'end') {
+      c.when = k.when;
+      if (k.turn === 'source') c.turn = 'source';
+      if (ABILITIES.includes(k.abil)) c.abil = k.abil;
+      if (+k.dc > 0) c.dc = Math.min(40, Math.round(+k.dc));
+    }
+    return c;
+  }).filter(Boolean);
+  const effs = (Array.isArray(o.effs) ? o.effs : []).slice(0, 4).map(cleanEffect).filter(Boolean);
+  const out = {};
+  if (conds.length) out.conds = conds;
+  if (effs.length) out.effs = effs;
+  return conds.length || effs.length ? out : null;
+}
+function outcomeText(o) {
+  if (!o) return '';
+  return [...(o.conds || []).map(k => `${k.name}${k.left ? ` for ${timeText(k.left)}` : ''}${k.when ? `, save repeats at the ${k.when} of ${k.turn === 'source' ? "the user's" : 'its'} turn` : ''}`),
+    ...(o.effs || []).map(e => `${e.name}${e.left ? ` for ${timeText(e.left)}` : ''}${e.conc ? ' (Concentration)' : ''}`)].join(', ');
+}
+function cleanAction(a, i) {
+  if (!a || typeof a !== 'object' || !ACTION_TYPES.includes(a.type) || !String(a.name || '').trim()) return null;
+  const out = {id: 's' + i, name: String(a.name).trim().slice(0, 60), type: a.type, fromSheet: true,
+    tag: {attack:'attack', save:'save', auto:'attack', heal:'heal', selfheal:'heal'}[a.type] || 'utility'};
+  const bits = [];
+  if (ACTIVATIONS[a.activation]) { out.activation = a.activation; bits.push(ACTIVATIONS[a.activation]); }
+  const dmgList = (Array.isArray(a.dmgList) ? a.dmgList : []).slice(0, 4)
+    .map(d => Array.isArray(d) ? [String(d[0] || '').replace(/\s/g, ''), String(d[1] || '').slice(0, 20)] : null)
+    .filter(d => d && DMG_RE.test(d[0]));
+  if (a.type === 'attack') {
+    out.atk = Math.max(-20, Math.min(40, parseInt(a.atk, 10) || 0));
+    if (a.ranged) out.ranged = true;
+    bits.push(`${signed(out.atk)} to hit`);
+  }
+  if (a.type === 'save') {
+    if (!ABILITIES.includes(a.saveAbility) || !(+a.dc > 0)) return null;
+    out.saveAbility = a.saveAbility; out.dc = Math.min(40, Math.round(+a.dc));
+    if (a.halfOnSave) out.halfOnSave = true;
+    bits.push(`DC ${out.dc} ${out.saveAbility.slice(0, 3)} save`);
+  }
+  if (a.type === 'auto' && !dmgList.length) return null;
+  if (['attack','save','auto'].includes(a.type) && dmgList.length) { out.dmgList = dmgList; bits.push(dmgText(dmgList) + (out.halfOnSave ? ', half on a save' : '')); }
+  if (a.type === 'heal' || a.type === 'selfheal') {
+    const h = String(a.healDice || '').replace(/\s/g, '');
+    if (!DMG_RE.test(h)) return null;
+    out.healDice = h; bits.push(`${h} HP${a.type === 'selfheal' ? ' to self' : ''}`);
+  }
+  if (a.self || a.type === 'selfheal') out.self = true;
+  ['onHit','onFail','onSuccess','onUse'].forEach(k => {
+    const o = cleanOutcome(a[k]);
+    if (o) { out[k] = o; bits.push(`${{onHit:'On a hit', onFail:'On a failed save', onSuccess:'On a successful save', onUse:'Applies'}[k]}: ${outcomeText(o)}`); }
+  });
+  if (a.type === 'apply' && !out.onUse) return null;
+  if (+a.usesMax > 0) { out.usesMax = Math.min(99, Math.round(+a.usesMax)); out.recharge = a.recharge === 'short' ? 'short' : 'long'; }
+  if (a.desc) out.desc = String(a.desc).slice(0, 1200);
+  if (a.type === 'info') bits.push('Posts its text to the log');
+  out.detail = bits.join(' · ');
+  return out;
+}
+
+function dmRooms() { try { const a = JSON.parse(lsGet(ROOMS_KEY) || '[]'); return Array.isArray(a) ? a.map(cleanCode).filter(Boolean) : []; } catch (e) { return []; } }
+function rememberRoom(code) { const a = dmRooms(); if (!a.includes(code)) lsSet(ROOMS_KEY, JSON.stringify([...a, code])); }
+function forgetRoom(code) { lsSet(ROOMS_KEY, JSON.stringify(dmRooms().filter(c => c !== code))); }
+// Removes this computer's own sessions that nobody has touched for 90 days.
+async function sweepOldSessions(me, skip) {
+  if (!db) return;
+  for (const code of dmRooms()) {
+    if (code === skip) continue;
+    try {
+      const dm = (await db.ref('rooms/' + code + '/meta/dm').get()).val();
+      if (!dm || dm !== me) { forgetRoom(code); continue; }
+      const touched = +(await db.ref('rooms/' + code + '/touched').get()).val() || 0;
+      if (touched && Date.now() - touched > STALE_MS) { await db.ref('rooms/' + code).remove(); forgetRoom(code); }
+    } catch (e) { console.error('Could not check session ' + code, e); }
+  }
+}
+
 const EFFECT_KEYS = ['atk','save','ac','speed','speedMult','init','sense','move','note','saveAdv','saveAbil','saveAbilMod','advAgainst','noInvisible','bonusDmg','bonusType','protect','check','immune'];
 function describeEffect(e) { // what an effect does, in words
   const parts = [];
@@ -731,17 +965,18 @@ function sheetToFields(data) {
   if (spells.length) info.push({h:'Spells', items: spells.map(x => ['', x])});
   return {
     name: str(data.name, 60) || 'Unnamed Hero', type: 'player',
-    charClass: CLASS_LIST.includes(data.className) ? data.className : 'Fighter',
+    charClass: str(data.className, 40).trim() || 'Fighter', // any class name, so homebrew classes keep theirs
     level, maxHP, currentHP: Math.max(0, Math.min(maxHP, num(data.currentHP, maxHP))),
     tempHP: Math.max(0, num(data.tempHP, 0)), ac: num(data.ac, 10), speed: num(data.speed, 30), initBonus: num(data.initiativeBonus, mod(scores.Dexterity)),
     senses: list(data.senses, 10, 40), scores, saves, pb: num(data.profBonus, profBonus(level)), sheet, info,
+    sheetActions: (Array.isArray(data.actions) ? data.actions : []).slice(0, 60).map(cleanAction).filter(Boolean),
   };
 }
 
 // ── ACTIONS ──────────────────────────────────────────────────────────────────
 function buildActions(combatant) {
   if (combatant.actions && combatant.actions.length) return combatant.actions;
-  const actions = [];
+  const actions = [...(combatant.sheetActions || [])]; // what the character's own sheet brought in comes first
   const {charClass, level, scores} = combatant;
   if (!charClass) return actions;
   const pb = profBonus(level||1);
@@ -804,7 +1039,7 @@ function buildActions(combatant) {
 
     actions.push({id:'holdperson',name:'Hold Person (Level 2)',type:'save',tag:'save',
       dc:spellDC, saveAbility:'Wisdom', dmg:'0', dmgType:'', halfOnSave:false,
-      condition:'Paralyzed', detail:`DC ${spellDC} Wis save or Paralyzed · concentration`});
+      onFail:{conds:[{name:'Paralyzed', left:60, when:'end'}]}, detail:`DC ${spellDC} Wis save or Paralyzed · concentration`});
 
     actions.push({id:'magicmissile',name:'Magic Missile (Level 1)',type:'auto',tag:'attack',
       dmg:'3d4+3', dmgType:'Force', detail:'Auto-hit · 3 darts · 3d4+3 force total'});
@@ -908,6 +1143,10 @@ function App() {
   const [buffCustom, setBuffCustom] = useState(emptyCustom);
   const [buffTarget, setBuffTarget] = useState('');
   const [buffOpt, setBuffOpt] = useState('');
+  const [buffTime, setBuffTime] = useState(null); // how long the effect lasts; null = the preset's own duration
+  const [lapse, setLapse] = useState({n:'10', unit:'minutes'});
+  const [prompts, setPrompts] = useState([]); // rolls waiting for someone to press the button
+  const [condOpts, setCondOpts] = useState({n:'', unit:'minutes', when:'', abil:'Wisdom', dc:''}); // how the next condition applied behaves
   const [pane, setPane] = useState('order'); // which panel shows on a phone: order | sheet | log
   const [diceExpr, setDiceExpr] = useState('');
 
@@ -1046,25 +1285,38 @@ function App() {
 
   const nextTurn = () => {
     if (!inPlay.some(c => c.currentHP > 0)) return;
+    let work = combatants; const entries = [], due = [];
+    // Saves that fall at the end of the turn that is finishing
+    if (inPlay.some(c => c.id === activeId)) due.push(...dueCondSaves(work, activeId, 'end'));
     let idx = inPlay.findIndex(c => c.id === activeId);
     let safety = 0;
+    let wrapped = false;
     do {
       idx += 1;
       if (idx >= inPlay.length) {
         idx = 0;
+        wrapped = true;
         const newRound = round + 1;
         setRound(newRound);
-        setLog(prev=>[...prev,stamp({type:'round',text:`Round ${newRound}`})]);
+        entries.push(stamp({type:'round',text:`Round ${newRound}`}));
       }
       safety++;
     } while (inPlay[idx].currentHP <= 0 && safety <= inPlay.length);
-    const up = inPlay[idx];
+    // A new round takes 6 seconds off everything that is timed
+    if (wrapped) { const t = passTime(work, ROUND_SECONDS); work = t.list; entries.push(...endedEntries(t.ended)); }
+    const upId = inPlay[idx].id;
+    // Saves that fall at the start of the turn that is beginning
+    due.push(...dueCondSaves(work, upId, 'start'));
+    if (due.length) setPrompts(prev => [...prev, ...due.filter(d => !prev.some(q => q.kind === 'repeat' && q.targetId === d.targetId && q.cond === d.cond)).map(d => ({id: newId(), kind: 'repeat', ...d}))]);
+    const up = work.find(c => c.id === upId) || inPlay[idx];
     const hero = ((up.effects) || []).filter(e => +e.tempEachTurn > 0);
     if (hero.length) {
       const n = Math.max(...hero.map(e => +e.tempEachTurn));
-      setCombatants(prev => prev.map(c => c.id === up.id ? {...c, tempHP: Math.max(+c.tempHP || 0, n)} : c));
-      setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(up.name)}</strong> has ${n} Temporary Hit Points from <span class="log-result">${esc(hero[0].name)}</span>`})]);
+      work = work.map(c => c.id === up.id ? {...c, tempHP: Math.max(+c.tempHP || 0, n)} : c);
+      entries.push(stamp({type:'heal', html:`<strong>${esc(up.name)}</strong> has ${n} Temporary Hit Points from <span class="log-result">${esc(hero[0].name)}</span>`}));
     }
+    if (work !== combatants) setCombatants(reorder(work));
+    if (entries.length) setLog(prev => [...prev, ...entries]);
     setActiveId(up.id);
     setTargetId(null);
     setSelectedAction(null);
@@ -1103,10 +1355,94 @@ function App() {
     return {add: r, text: `${esc(e.name)} ${e.inspire}: +${r}`};
   };
 
+  // Puts an outcome's conditions and effects on a creature. Returns the log lines for it.
+  const applyOutcome = (tgt, outcome, action, actor) => {
+    if (!tgt || !outcome) return '';
+    const notes = [];
+    (outcome.conds || []).forEach(k => {
+      const why = immuneTo(tgt, k.name);
+      if (why) { notes.push(`Immune to ${k.name} (${why})`); return; }
+      const info = {src: String(action.name || '').slice(0, 40)};
+      if (k.left) info.left = k.left;
+      const dc = k.dc || action.dc, abil = k.abil || action.saveAbility;
+      if (k.when && dc && abil) { info.dc = dc; info.abil = abil; info.when = k.when; if (k.turn === 'source' && actor && actor.id !== tgt.id) info.turnOf = actor.id; }
+      addCondition(tgt.id, k.name, info);
+      notes.push(`Condition: ${k.name}${k.left ? ` for ${timeText(k.left)}` : ''}`);
+    });
+    (outcome.effs || []).forEach(e => {
+      const {fromCaster, ...rest} = e;
+      const eff = {...rest, id: newId(), by: myId, byName: actor ? actor.name : 'DM'};
+      if (fromCaster && actor) { eff.src = actor.id; eff.srcName = actor.name; }
+      setCombatants(prev => reorder(prev.map(c => c.id !== tgt.id ? c : {
+        ...c,
+        effects: [...(c.effects || []).filter(x => x.name !== eff.name), eff],
+        conditions: eff.immune ? (c.conditions || []).filter(x => x !== eff.immune) : c.conditions,
+      })));
+      notes.push(`${e.name}${e.left ? ` for ${timeText(e.left)}` : ''}${e.conc ? ' (Concentration)' : ''}`);
+    });
+    return notes.length ? `<div class="log-detail" style="color:#ff8a80">${notes.map(esc).join(' · ')}</div>` : '';
+  };
+
+  // A saving throw, rolled with the target's numbers as they stand when the button is pressed.
+  const resolveSave = (action, actorNameRaw, actor, tgt) => {
+    const actorName = esc(actorNameRaw), targetName = esc(tgt.name);
+    const saveAbility = action.saveAbility;
+    const saveMod = tgt.saves?.[saveAbility] ?? mod(tgt.scores?.[saveAbility]??10);
+    const t = d20Test(tgt, 'save', {ability: saveAbility});
+    const roll = roll20(testMode(t));
+    let saveTotal = roll.total + saveMod + t.bonus;
+    let inspired = null;
+    if (!t.autoFail && saveTotal < action.dc) { inspired = tryInspire(tgt, action.dc - saveTotal); if (inspired) saveTotal += inspired.add; }
+    const passed = !t.autoFail && saveTotal >= action.dc;
+    const hasDmg = (action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0');
+    let dmgHtml = '';
+    if (hasDmg && (!passed || action.halfOnSave)) dmgHtml = dealDamage(tgt, rollDamageParts(action, false), passed).html;
+    const condHtml = applyOutcome(tgt, passed ? action.onSuccess : action.onFail, action, actor);
+    const extras = [t.bonusText, inspired && inspired.text].filter(Boolean).join(', ');
+    return {
+      type: passed ? 'save-pass' : 'save-fail',
+      html:`<strong>${actorName}</strong> → <strong>${targetName}</strong><br/>
+            <span class="log-result">${esc(action.name)}</span><br/>
+            DC ${action.dc} ${esc(saveAbility)} save · ${t.autoFail
+              ? `<strong style="color:var(--danger)">Fails automatically (${esc(t.autoFail)})</strong>`
+              : `Roll: ${roll.rolls.join('/')} ${signed(saveMod)}${extras ? ` (${extras})` : ''} = <strong>${saveTotal}</strong>
+            · <strong style="color:${passed?'var(--success)':'var(--danger)'}">${passed?'Saved!':'Failed!'}</strong>`}
+            ${modeText(t) && !t.autoFail ? `<div class="log-detail">${modeText(t)}</div>` : ''}
+            ${dmgHtml}${condHtml}
+            ${action.desc?`<div class="log-detail">${esc(action.desc)}</div>`:''}`
+    };
+  };
+
+  // ── ROLL PROMPTS ──
+  // A save is never rolled for someone. It waits here until whoever controls the creature presses Roll.
+  const removePrompt = (id) => {
+    if (room && db) db.ref('rooms/' + room + '/prompts/' + id).remove();
+    setPrompts(prev => prev.filter(q => q.id !== id));
+  };
+  const resolvePrompt = (q) => {
+    const tgt = inPlay.find(c => c.id === q.targetId);
+    if (tgt && !canControl(tgt)) return;
+    removePrompt(q.id);
+    if (!tgt) return;
+    if (q.kind === 'save' && q.action) {
+      const actor = combatants.find(c => c.id === q.actorId) || null;
+      setLog(prev => [...prev, stamp(resolveSave(q.action, q.actorName || 'Someone', actor, tgt))]);
+    } else if (q.kind === 'repeat' && (tgt.conditions || []).includes(q.cond) && condInfoOf(tgt, q.cond)) {
+      const r = rollCondSave(tgt, q.cond);
+      if (r.usedEffect) removeEffect(tgt.id, r.usedEffect);
+      if (r.passed) removeCondition(tgt.id, q.cond);
+      setLog(prev => [...prev, r.entry]);
+    }
+  };
+  const usesLeft = (c, a) => a.usesMax ? Math.max(0, a.usesMax - (+((c.used || {})[a.id]) || 0)) : null;
+
   const resolve = () => {
     if (!selectedAction || !canAct) return;
     const action = actions.find(a=>a.id===selectedAction);
     if (!action) return;
+    if (action.usesMax && usesLeft(active, action) <= 0) return;
+    if (action.usesMax) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, used: {...(c.used || {}), [action.id]: (+((c.used || {})[action.id]) || 0) + 1}}));
+    const target = action.self ? active : inPlay.find(c => c.id === targetId) || null; // a self feature lands on its user
 
     let entries = [];
     const actorName = esc(active.name);
@@ -1130,11 +1466,11 @@ function App() {
 
       let dmgHtml = '';
       if (hit && target) {
-        const parts = rollDamageParts(action, isCrit);
+        const parts = (action.dmgList && action.dmgList.length) || action.dmg ? rollDamageParts(action, isCrit) : [];
         ((target.effects) || []).forEach(e => {
           if (e.bonusDmg && e.src === active.id && DMG_RE.test(String(e.bonusDmg))) parts.push(...rollDamageParts({dmgList:[[e.bonusDmg, e.bonusType || '']]}, isCrit).map(pt => ({...pt, dice: `${esc(e.name)} ${pt.dice}`})));
         });
-        dmgHtml = dealDamage(target, parts, false).html;
+        dmgHtml = (parts.length ? dealDamage(target, parts, false).html : '') + applyOutcome(target, action.onHit, action, active);
       }
       entries.push({
         type: isCrit && hit ? 'crit' : hit ? 'hit' : 'miss',
@@ -1149,51 +1485,33 @@ function App() {
       });
     }
 
-    else if (action.type === 'auto' && target) {
-      const dmg = dealDamage(target, rollDamageParts(action, false), false);
+    else if ((action.type === 'auto' || action.type === 'apply') && target) {
+      const hasDmg = (action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0');
+      const dmgHtml = hasDmg ? dealDamage(target, rollDamageParts(action, false), false).html : '';
       entries.push({
-        type:'hit',
+        type: hasDmg ? 'hit' : 'heal',
         html:`<strong>${actorName}</strong> → <strong>${targetName}</strong><br/>
               <span class="log-result">✨ ${esc(action.name)}</span><br/>
-              ${dmg.html}`
+              ${dmgHtml}${applyOutcome(target, action.onUse, action, active)}
+              ${action.fromSheet && action.desc ? `<div class="log-detail">${esc(action.desc)}</div>` : ''}`
       });
     }
 
     else if (action.type === 'save' && target) {
-      const saveAbility = action.saveAbility;
-      const saveMod = target.saves?.[saveAbility] ?? mod(target.scores?.[saveAbility]??10);
-      const t = d20Test(target, 'save', {ability: saveAbility});
-      const roll = roll20(testMode(t));
-      let saveTotal = roll.total + saveMod + t.bonus;
-      let inspired = null;
-      if (!t.autoFail && saveTotal < action.dc) { inspired = tryInspire(target, action.dc - saveTotal); if (inspired) saveTotal += inspired.add; }
-      const passed = !t.autoFail && saveTotal >= action.dc;
-      const hasDmg = (action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0');
-      let dmgHtml = '';
-      if (hasDmg && (!passed || action.halfOnSave)) dmgHtml = dealDamage(target, rollDamageParts(action, false), passed).html;
-      let condHtml = '';
-      if (!passed && action.condition) {
-        const why = immuneTo(target, action.condition);
-        if (why) condHtml = `<div class="log-detail">Immune to ${esc(action.condition)} (${esc(why)})</div>`;
-        else { addCondition(targetId, action.condition); condHtml = `<div style="color:#ff8a80">Condition: ${esc(action.condition)}</div>`; }
-      }
-      const extras = [t.bonusText, inspired && inspired.text].filter(Boolean).join(', ');
+      // The target's own player (or the DM) rolls this one: it goes up as a prompt.
+      const {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc} = action;
+      setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', targetId: target.id, actorId: active.id, actorName: active.name,
+        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc}})]);
       entries.push({
-        type: passed ? 'save-pass' : 'save-fail',
+        type:'roll',
         html:`<strong>${actorName}</strong> → <strong>${targetName}</strong><br/>
               <span class="log-result">${esc(action.name)}</span><br/>
-              DC ${action.dc} ${esc(saveAbility)} save · ${t.autoFail
-                ? `<strong style="color:var(--danger)">Fails automatically (${esc(t.autoFail)})</strong>`
-                : `Roll: ${roll.rolls.join('/')} ${signed(saveMod)}${extras ? ` (${extras})` : ''} = <strong>${saveTotal}</strong>
-              · <strong style="color:${passed?'var(--success)':'var(--danger)'}">${passed?'Saved!':'Failed!'}</strong>`}
-              ${modeText(t) && !t.autoFail ? `<div class="log-detail">${modeText(t)}</div>` : ''}
-              ${dmgHtml}${condHtml}
-              ${action.desc?`<div class="log-detail">${esc(action.desc)}</div>`:''}`
+              DC ${action.dc} ${esc(saveAbility)} save<div class="log-detail">Waiting for ${targetName} to roll</div>`
       });
     }
 
     else if (action.type === 'heal' || action.type === 'selfheal') {
-      const healTarget = action.type==='selfheal' ? active.id : (targetId || active.id);
+      const healTarget = action.type==='selfheal' ? active.id : ((target && target.id) || active.id);
       const healTargetName = action.type==='selfheal' ? actorName : (target ? esc(target.name) : actorName);
       const {total:ht, parts} = parseDamage(action.healDice);
       updateHP(healTarget, ht, true);
@@ -1202,7 +1520,7 @@ function App() {
         html:`<strong>${actorName}</strong> heals <strong>${healTargetName}</strong><br/>
               <span class="log-result">💚 ${esc(action.name)}</span><br/>
               <span class="log-heal-val">+${ht} HP</span>
-              <div class="log-dice">${parts.join(' + ')}</div>`
+              <div class="log-dice">${parts.join(' + ')}</div>${applyOutcome(action.type==='selfheal' ? active : (target || active), action.onUse, action, active)}`
       });
     }
 
@@ -1246,20 +1564,22 @@ function App() {
   };
   const setTempHP = (id, n) => setCombatants(prev => prev.map(c => c.id === id ? {...c, tempHP: Math.max(0, n)} : c));
 
-  const addCondition = (id, cond) => {
+  const addCondition = (id, cond, info) => {
     const tgt = combatants.find(c => c.id === id);
     const why = tgt ? immuneTo(tgt, cond) : '';
     if (why) { setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(tgt.name)}</strong> is immune to <span class="log-result">${esc(cond)}</span><div class="log-detail">${esc(why)}</div>`})]); return; }
     setCombatants(prev => prev.map(c => {
       if (c.id !== id || c.conditions.includes(cond)) return c;
-      return {...c, conditions:[...c.conditions, cond]};
+      const all = {...(c.condInfo || {})}; delete all[cond];
+      if (info && Object.keys(info).length) all[cond] = info;
+      return {...c, conditions:[...c.conditions, cond], condInfo: all};
     }));
   };
 
   const removeCondition = (id, cond) => {
     setCombatants(prev => prev.map(c => {
       if (c.id !== id) return c;
-      return {...c, conditions: c.conditions.filter(x=>x!==cond)};
+      return dropCondition(c, cond);
     }));
   };
 
@@ -1274,6 +1594,7 @@ function App() {
     return b.opt.choices[0];
   };
   const optValue = buffOpt !== '' ? buffOpt : defaultOpt(buffPresetNow);
+  const timeNow = buffTime || defaultTime(buffName);
   const passBuff = () => {
     const to = inPlay.find(c => c.id === (buffTarget || (viewed && viewed.id)));
     if (!to) return;
@@ -1296,6 +1617,9 @@ function App() {
         if (preset.opt.key === 'lvl') { const l = +eff.lvl || 1; eff.d20 = -2 * l; eff.speed = -5 * l; }
       }
     }
+    const secs = Math.round(parseFloat(timeNow.n) * (UNIT_SECONDS[timeNow.unit] || 60));
+    if (Number.isFinite(secs) && secs > 0) eff.left = Math.min(MAX_SECONDS, secs);
+    if (timeNow.conc) eff.conc = true;
     const blocked = !custom && name === 'Exhaustion' ? immuneTo(to, 'Exhaustion') : '';
     if (blocked) { setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(to.name)}</strong> is immune to <span class="log-result">Exhaustion</span>`})]); return; }
     setCombatants(prev => reorder(prev.map(c => c.id !== to.id ? c : {
@@ -1303,11 +1627,80 @@ function App() {
       effects: [...(c.effects || []).filter(e => e.name !== name), eff],
       conditions: eff.immune ? (c.conditions || []).filter(x => x !== eff.immune) : c.conditions,
     })));
-    const what = [describeEffect(eff), eff.note].filter(Boolean).join('. ');
+    const what = [describeEffect(eff), eff.note, eff.left ? `Lasts ${timeText(eff.left)}${eff.conc ? ' (Concentration)' : ''}` : (eff.conc ? 'Concentration' : '')].filter(Boolean).join('. ');
     setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(whoAmI())}</strong> passes <span class="log-result">${esc(name)}${eff.lvl ? ` ${esc(eff.lvl)}` : ''}</span> to <strong>${esc(to.name)}</strong>${what ? `<div class="log-detail">${esc(what)}</div>` : ''}`})]);
     setBuffCustom(emptyCustom);
+    setBuffTime(null);
   };
   const removeEffect = (id, effId) => setCombatants(prev => reorder(prev.map(c => c.id === id ? {...c, effects: (c.effects || []).filter(e => e.id !== effId)} : c)));
+
+  // ── TIME, RESTS AND ENDING AN ENCOUNTER (DM) ────────────────────────────────
+  const advanceTime = (seconds, label, rest) => { // rest: 'short' or 'long' when the time passes as a rest
+    if (!isDM || !(seconds > 0)) return;
+    const longRest = rest === 'long';
+    const t = passTime(combatants, seconds, longRest);
+    // A rest gives back the uses of features that recharge on it
+    const restore = c => {
+      if (!rest || !c.used) return c;
+      const used = {};
+      if (!longRest) buildActions(c).forEach(a => { if (a.recharge !== 'short' && c.used[a.id]) used[a.id] = c.used[a.id]; });
+      return {...c, used};
+    };
+    setCombatants(prev => reorder(passTime(prev, seconds, longRest).list.map(restore)));
+    setLog(prev => [...prev, stamp({type:'round', text: label}), ...endedEntries(t.ended)]);
+  };
+  const advanceCustom = () => {
+    const n = parseFloat(lapse.n);
+    const secs = Math.min(MAX_SECONDS, Math.round(n * (UNIT_SECONDS[lapse.unit] || 60)));
+    if (!(secs > 0)) return;
+    advanceTime(secs, `${timeText(secs)} pass`);
+  };
+  // Ending the encounter clears the monsters, the turn order and the log. Players stay, with their effects.
+  const endEncounter = () => {
+    if (!isDM) return;
+    if (!window.confirm('End this encounter? Monsters, the turn order and the combat log are cleared. Players and their active effects stay.')) return;
+    const gone = combatants.filter(c => c.type === 'monster');
+    if (room && db) {
+      const updates = {log: null, prompts: null, meta: {...metaOf(), round: 1, combatStarted: false, activeId: ''}};
+      gone.forEach(c => { updates['combatants/' + c.id] = null; });
+      db.ref('rooms/' + room).update(updates);
+    }
+    setCombatants(prev => prev.filter(c => c.type !== 'monster'));
+    setPrompts([]);
+    setLog([]);
+    setCombatStarted(false);
+    setRound(1);
+    setActiveId('');
+    setTargetId(null);
+    setSelectedAction(null);
+    setAdvantage(0);
+  };
+  const deleteSession = () => {
+    if (!isDM || !room || !db) return;
+    if (!window.confirm(`Delete session ${room}? The shared room is erased for everyone and the code stops working. Character sheets saved on each player's own computer are not touched.`)) return;
+    const code = room;
+    db.ref('rooms/' + code).remove()
+      .then(() => forgetRoom(code))
+      .catch(err => { console.error('Could not delete session', err); alert('Could not delete the session. Check your connection and try again.'); });
+  };
+
+  // What the DM has set for the next condition: how long it lasts and whether it has a repeat save.
+  const condDc = condOpts.dc !== '' ? condOpts.dc : String((viewed && viewed.sheet && viewed.sheet.spell && viewed.sheet.spell.dc) || 13);
+  const applyCondition = (tgt, cond) => {
+    const info = {};
+    const secs = Math.round(parseFloat(condOpts.n) * (UNIT_SECONDS[condOpts.unit] || 60));
+    if (Number.isFinite(secs) && secs > 0) info.left = Math.min(MAX_SECONDS, secs);
+    if (condOpts.when) {
+      const dc = Math.max(1, Math.min(40, parseInt(condDc, 10) || 0));
+      if (dc && ABILITIES.includes(condOpts.abil)) {
+        info.dc = dc; info.abil = condOpts.abil; info.when = condOpts.when.replace('src-', '');
+        if (condOpts.when.startsWith('src-') && viewed && viewed.id !== tgt.id) info.turnOf = viewed.id;
+      }
+    }
+    if (viewed && viewed.id !== tgt.id) info.src = viewed.name;
+    addCondition(tgt.id, cond, info);
+  };
+  const activeConditions = inPlay.flatMap(c => (c.conditions || []).map(cond => ({c, cond, info: condInfoOf(c, cond)})));
 
   // ── DICE ROLLER ─────────────────────────────────────────────────────────────
   const rollExpr = (exprRaw) => {
@@ -1334,10 +1727,11 @@ function App() {
     const code = makeCode();
     setSyncStatus('connecting');
     try {
-      const updates = {meta: {...metaOf(), dm: myId, approval: false}};
+      const updates = {meta: {...metaOf(), dm: myId, approval: false}, touched: firebase.database.ServerValue.TIMESTAMP};
       combatants.forEach((c, i) => { updates['combatants/' + c.id] = plain({...c, seq: i}); });
       log.forEach(e => { updates['log/' + e.id] = plain(e); });
       await db.ref('rooms/' + code).update(updates);
+      rememberRoom(code);
       enterSession(code);
     } catch (e) { console.error('Could not create session', e); setSyncStatus('error'); setSyncMsg('Could not connect'); }
   };
@@ -1383,21 +1777,28 @@ function App() {
     const ref = db.ref('rooms/' + room);
     const onValue = snap => {
       const v = snap.val() || {};
+      if (!v.meta) { // the DM deleted this session, or it was cleaned up after 90 days unused
+        leaveSession(); setSyncStatus('error'); setSyncMsg('That session was deleted');
+        return;
+      }
       const arr = x => Array.isArray(x) ? x : (x && typeof x === 'object' ? Object.values(x) : []);
       const list = Object.values(v.combatants || {})
         .filter(c => c && c.id && c.name != null)
         .map(c => ({...c, name: String(c.name), maxHP: +c.maxHP || 1, currentHP: +c.currentHP || 0, ac: +c.ac || 10,
-          conditions: arr(c.conditions), effects: arr(c.effects).filter(e => e && e.id && e.name), actions: arr(c.actions), info: arr(c.info),
+          sheetActions: arr(c.sheetActions), conditions: arr(c.conditions), effects: arr(c.effects).filter(e => e && e.id && e.name), actions: arr(c.actions), info: arr(c.info),
           senses: arr(c.senses).filter(x => typeof x === 'string'), scores: c.scores || {}, saves: c.saves || {}}))
         .sort((a, b) => ((a.seq || 0) - (b.seq || 0)) || (a.id < b.id ? -1 : 1));
       const logList = Object.values(v.log || {}).filter(e => e && e.id).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const m = v.meta || {};
       const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval};
-      const sigs = {combatants: {}, log: {}, meta: stable(meta)};
+      const promptList = Object.values(v.prompts || {}).filter(q => q && q.id && q.targetId).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+      const sigs = {combatants: {}, log: {}, prompts: {}, meta: stable(meta)};
+      promptList.forEach(q => { sigs.prompts[q.id] = true; });
       list.forEach(c => { sigs.combatants[c.id] = stable(c); });
       logList.forEach(e => { sigs.log[e.id] = true; });
       setCombatants(list.map(({seq, ...c}) => c));
       setLog(logList);
+      setPrompts(promptList);
       setRound(meta.round);
       setCombatStarted(meta.combatStarted);
       setActiveId(meta.activeId);
@@ -1420,10 +1821,19 @@ function App() {
       if (stable(v) !== remoteSigs.combatants[c.id]) updates['combatants/' + c.id] = plain(v);
     });
     log.forEach(e => { if (!remoteSigs.log[e.id]) updates['log/' + e.id] = plain(e); });
+    prompts.forEach(q => { if (!remoteSigs.prompts[q.id]) updates['prompts/' + q.id] = plain(q); });
     const meta = metaOf();
     if (stable(meta) !== remoteSigs.meta) updates['meta'] = meta;
+    if (Object.keys(updates).length) updates['touched'] = firebase.database.ServerValue.TIMESTAMP; // last activity, for the 90-day cleanup
     if (Object.keys(updates).length) db.ref('rooms/' + room).update(updates).catch(err => { console.error('Session write failed', err); setSyncStatus('error'); setSyncMsg('Could not save'); });
-  }, [combatants, log, round, activeId, combatStarted, approval, room, remoteSigs]);
+  }, [combatants, log, prompts, round, activeId, combatStarted, approval, room, remoteSigs]);
+
+  // The DM's computer remembers its sessions and marks them as used whenever the DM opens them.
+  useEffect(() => {
+    if (!room || !db || !dmId || dmId !== myId) return;
+    rememberRoom(room);
+    db.ref('rooms/' + room + '/touched').set(firebase.database.ServerValue.TIMESTAMP).catch(() => {});
+  }, [room, dmId, myId]);
 
   const clearLog = () => {
     if (room && db) db.ref('rooms/' + room + '/log').remove();
@@ -1482,6 +1892,7 @@ function App() {
     window.addEventListener('storage', storage);
     const code = sessionFromHash();
     if (code && db) joinSession(code);
+    sweepOldSessions(publicId(currentPlayerCode()), code);
     return () => {
       window.removeEventListener('dragover', over);
       window.removeEventListener('dragleave', leave);
@@ -1514,7 +1925,16 @@ function App() {
   };
   const sheetPreview = form.sheetData ? sheetToFields(form.sheetData) : null;
   const selAction = actions.find(a => a.id === selectedAction);
-  const needsTarget = selAction && !['selfheal','info'].includes(selAction.type);
+  const needsTarget = selAction && !['selfheal','info'].includes(selAction.type) && !selAction.self;
+  const openPrompts = prompts.map(q => {
+    const c = inPlay.find(x => x.id === q.targetId);
+    if (!c) return null;
+    if (q.kind === 'repeat') {
+      const info = (c.conditions || []).includes(q.cond) ? condInfoOf(c, q.cond) : null;
+      return info && info.dc ? {q, c, text: `${info.abil} save to end ${q.cond}`, dc: info.dc} : null;
+    }
+    return q.action ? {q, c, text: `${q.action.saveAbility} save against ${q.action.name}${q.actorName ? ` from ${q.actorName}` : ''}`, dc: q.action.dc} : null;
+  }).filter(Boolean);
   const targets = inPlay.filter(c => viewed && c.id !== viewed.id && c.currentHP > 0);
   const rosterMatches = useMemo(() => {
     const q = rosterSearch.trim().toLowerCase();
@@ -1546,6 +1966,7 @@ function App() {
               </label>}
               <button className="btn btn-ghost btn-sm" onClick={copyInvite}>{copied ? 'Copied!' : 'Copy Invite Link'}</button>
               <button className="btn btn-ghost btn-sm" onClick={leaveSession}>Leave</button>
+              {dmId === myId && <button className="btn btn-danger btn-sm" onClick={deleteSession}>Delete Session</button>}
             </>
           ) : (
             <>
@@ -1561,6 +1982,18 @@ function App() {
         </div>
       </div>
       {dragging && <div className="drop-overlay">Drop a character file to add it to combat</div>}
+      {openPrompts.length > 0 && (
+        <div className="prompt-bar" data-testid="prompt-bar">
+          {openPrompts.map(({q, c, text, dc}) => (
+            <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`}>
+              <span><strong>{c.name}</strong>: {text} · DC {dc}</span>
+              {canControl(c)
+                ? <button className="btn btn-primary btn-sm" onClick={()=>resolvePrompt(q)}>🎲 Roll {c.name}'s save</button>
+                : <span className="prompt-wait">Waiting for {c.owner ? 'its player' : 'the DM'}</span>}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="pane-tabs" role="tablist">
         {[['order','Order'],['sheet','Sheet'],['log','Log']].map(([k,l]) => (
@@ -1575,6 +2008,11 @@ function App() {
             {!combatStarted && isDM && inPlay.length > 0 && (
               <div className="initiative-controls">
                 <button className="btn btn-primary btn-full" onClick={startCombat}>⚔ Start Combat</button>
+              </div>
+            )}
+            {isDM && (combatStarted || combatants.some(c => c.type === 'monster')) && (
+              <div className="initiative-controls">
+                <button className="btn btn-danger btn-full" onClick={endEncounter}>End Encounter</button>
               </div>
             )}
             {visible.length === 0 && (
@@ -1605,12 +2043,12 @@ function App() {
                 {(c.conditions.length > 0 || (c.effects||[]).length > 0) && (
                   <div className="conditions">
                     {c.conditions.map(cond=>(
-                      <span key={cond} className={`condition-tag bad ${isDM?'removable':''}`} onClick={e=>{e.stopPropagation(); if (isDM) removeCondition(c.id,cond);}} title={isDM?'Click to remove':cond}>{cond}{isDM?' ×':''}</span>
+                      <span key={cond} className={`condition-tag bad ${isDM?'removable':''}`} onClick={e=>{e.stopPropagation(); if (isDM) removeCondition(c.id,cond);}} title={[condSaveText(condInfoOf(c,cond), inPlay, c), isDM?'Click to remove':''].filter(Boolean).join('. ') || cond}>{CONDITION_ICON[cond] ? CONDITION_ICON[cond] + ' ' : ''}{cond}{condInfoOf(c,cond) && +condInfoOf(c,cond).left > 0 ? ` · ${timeText(condInfoOf(c,cond).left)}` : ''}{isDM?' ×':''}</span>
                     ))}
                     {(c.effects||[]).map(e=>{
                       const rm = isDM || ctl || e.by === myId;
-                      return <span key={e.id} className={`condition-tag good ${rm?'removable':''}`} title={`${[describeEffect(e), e.note].filter(Boolean).join('. ')||e.name}${e.byName?` (from ${e.byName})`:''}`}
-                        onClick={ev=>{ev.stopPropagation(); if (rm) removeEffect(c.id,e.id);}}>{e.name}{e.lvl?` ${e.lvl}`:''}{rm?' ×':''}</span>;
+                      return <span key={e.id} className={`condition-tag good ${rm?'removable':''}`} title={`${[describeEffect(e), e.note].filter(Boolean).join('. ')||e.name}${e.conc?'. Concentration':''}${+e.left>0?`. ${timeText(e.left)} left`:''}${e.byName?` (from ${e.byName})`:''}`}
+                        onClick={ev=>{ev.stopPropagation(); if (rm) removeEffect(c.id,e.id);}}>{e.name}{e.lvl?` ${e.lvl}`:''}{+e.left>0?` · ${timeText(e.left)}`:''}{rm?' ×':''}</span>;
                     })}
                   </div>
                 )}
@@ -1641,6 +2079,23 @@ function App() {
             <button className="btn btn-ghost btn-full" style={{marginTop:8}} onClick={addMyCharacter}>Add My Character Sheet</button>
             <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={openAdd}>{isDM ? '+ Add Combatant' : '+ Add Companion'}</button>
             {isDM && <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>setShowRoster(true)}>Monster Roster</button>}
+            {isDM && (
+              <div className="manual-roll" data-testid="time-panel">
+                <span className="label">Pass Time</span>
+                <div className="buff-row">
+                  <button className="btn btn-ghost btn-sm" title="1 hour passes. Features that recharge on a Short Rest get their uses back" onClick={()=>advanceTime(SHORT_REST, 'Short Rest: 1 hour passes', 'short')}>Take Short Rest</button>
+                  <button className="btn btn-ghost btn-sm" title="8 hours pass. Also ends Concentration, clears Temporary Hit Points, removes one level of Exhaustion and gives back all feature uses" onClick={()=>advanceTime(LONG_REST, 'Long Rest: 8 hours pass', 'long')}>Take Long Rest</button>
+                </div>
+                <div className="time-row">
+                  <input type="number" min="1" aria-label="Amount of time" value={lapse.n} onChange={e=>setLapse({...lapse, n:e.target.value})} onKeyDown={e=>{ if (e.key==='Enter') advanceCustom(); }}/>
+                  <select aria-label="Unit of time" value={lapse.unit} onChange={e=>setLapse({...lapse, unit:e.target.value})}>
+                    {['minutes','hours','days'].map(u=><option key={u} value={u}>{u}</option>)}
+                  </select>
+                  <button className="btn btn-primary btn-sm" disabled={!(parseFloat(lapse.n) > 0)} onClick={advanceCustom}>Advance Time</button>
+                </div>
+                <div className="buff-note" style={{margin:'6px 0 0'}}>Timed effects count down and end when their time runs out. Hit Points and spell slots are restored on each player's own sheet.</div>
+              </div>
+            )}
             <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>fileInputRef.current && fileInputRef.current.click()}>Upload Character File</button>
             <input ref={fileInputRef} type="file" accept=".json,.txt,application/json,text/plain" style={{display:'none'}}
               onChange={e=>{ const f = e.target.files && e.target.files[0]; e.target.value=''; readCharacterFile(f); }} />
@@ -1720,8 +2175,9 @@ function App() {
                 <div className="action-grid">
                   {actions.map(a=>(
                     <div key={a.id} className={`action-btn ${selectedAction===a.id?'selected':''}`}
+                      style={a.usesMax && usesLeft(viewed, a) <= 0 ? {opacity:0.45} : {}}
                       onClick={()=>setSelectedAction(a.id===selectedAction?null:a.id)}>
-                      <div className="a-name">{a.name}</div>
+                      <div className="a-name">{a.name}{a.usesMax ? ` (${usesLeft(viewed, a)}/${a.usesMax} left)` : ''}</div>
                       <div className="a-detail">{a.detail}</div>
                       <span className={`a-tag tag-${a.tag}`}>{a.tag}</span>
                     </div>
@@ -1744,7 +2200,7 @@ function App() {
                 {/* Buff passing */}
                 <div className="section-title">✨ Pass a Buff or Effect</div>
                 <div className="buff-row">
-                  <select aria-label="Buff or effect" value={buffName} onChange={e=>{setBuffName(e.target.value); setBuffOpt('');}}>
+                  <select aria-label="Buff or effect" value={buffName} onChange={e=>{setBuffName(e.target.value); setBuffOpt(''); setBuffTime(null);}}>
                     {BUFFS.map(b=><option key={b.name} value={b.name}>{b.name}</option>)}
                     <option value="__custom">Custom...</option>
                   </select>
@@ -1774,6 +2230,14 @@ function App() {
                   )}
                   <div className="buff-note">{buffPreset && [BUFF_SUMMARY[buffPreset.name] || describeEffect(buffPreset), buffPreset.note && `Left to the table: ${buffPreset.note}`].filter(Boolean).join('. ')}</div>
                 </>)}
+                <div className="time-row" style={{marginBottom:6}}>
+                  <label className="opt-label">Lasts</label>
+                  <input type="number" min="0" aria-label="How long it lasts" placeholder="until removed" value={timeNow.n} onChange={e=>setBuffTime({...timeNow, n:e.target.value})}/>
+                  <select aria-label="Duration unit" value={timeNow.unit} onChange={e=>setBuffTime({...timeNow, unit:e.target.value})}>
+                    {['rounds','minutes','hours','days'].map(u=><option key={u} value={u}>{u}</option>)}
+                  </select>
+                  <label className="conc-label"><input type="checkbox" checked={!!timeNow.conc} onChange={e=>setBuffTime({...timeNow, conc:e.target.checked})}/> Concentration</label>
+                </div>
                 <button className="btn btn-success btn-sm" onClick={passBuff} disabled={buffName==='__custom' && !buffCustom.name.trim()}>Pass Buff</button>
                 </>}
 
@@ -1781,12 +2245,36 @@ function App() {
                 {target && isDM && (
                   <>
                     <div className="section-title">🔮 Apply Condition to Target</div>
+                    <div className="time-row" style={{marginBottom:6}}>
+                      <label className="opt-label">Lasts</label>
+                      <input type="number" min="0" aria-label="How long the condition lasts" placeholder="until removed" value={condOpts.n} onChange={e=>setCondOpts({...condOpts, n:e.target.value})}/>
+                      <select aria-label="Condition duration unit" value={condOpts.unit} onChange={e=>setCondOpts({...condOpts, unit:e.target.value})}>
+                        {['rounds','minutes','hours','days'].map(u=><option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </div>
+                    <div className="time-row" style={{marginBottom:6}}>
+                      <label className="opt-label">Repeat save</label>
+                      <select aria-label="When the save repeats" value={condOpts.when} onChange={e=>setCondOpts({...condOpts, when:e.target.value})}>
+                        <option value="">None</option>
+                        <option value="end">End of {target.name}'s turn</option>
+                        <option value="start">Start of {target.name}'s turn</option>
+                        {viewed && viewed.id !== target.id && <option value="src-end">End of {viewed.name}'s turn</option>}
+                        {viewed && viewed.id !== target.id && <option value="src-start">Start of {viewed.name}'s turn</option>}
+                      </select>
+                      {condOpts.when && <>
+                        <select aria-label="Save ability" value={condOpts.abil} onChange={e=>setCondOpts({...condOpts, abil:e.target.value})}>
+                          {ABILITIES.map(a=><option key={a} value={a}>{a}</option>)}
+                        </select>
+                        <label className="opt-label">DC</label>
+                        <input type="number" min="1" max="40" aria-label="Save DC" value={condDc} onChange={e=>setCondOpts({...condOpts, dc:e.target.value})}/>
+                      </>}
+                    </div>
                     <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
                       {CONDITIONS.map(cond=>(
                         <button key={cond} className={`btn btn-sm btn-ghost`}
                           style={target.conditions.includes(cond)?{borderColor:'var(--blood-light)',color:'#ff8a80'}:{}}
-                          onClick={()=>target.conditions.includes(cond)?removeCondition(target.id,cond):addCondition(target.id,cond)}>
-                          {cond}
+                          onClick={()=>target.conditions.includes(cond)?removeCondition(target.id,cond):applyCondition(target,cond)}>
+                          {CONDITION_ICON[cond]} {cond}
                         </button>
                       ))}
                     </div>
@@ -1837,7 +2325,7 @@ function App() {
               <button className="next-turn-btn" disabled={!canControl(active)} style={!canControl(active)?{opacity:0.4,cursor:'default'}:{}} onClick={nextTurn}>Next Turn →</button>
               <button
                 className="resolve-btn"
-                disabled={!canAct || !selectedAction || (needsTarget && !target)}
+                disabled={!canAct || !selectedAction || (needsTarget && !target) || (selAction && selAction.usesMax && usesLeft(viewed, selAction) <= 0)}
                 onClick={resolve}>
                 {canAct ? '⚔ Resolve Action' : 'Not your turn'}
               </button>
@@ -1856,6 +2344,21 @@ function App() {
               <input aria-label="Dice to roll" placeholder="2d6+3" value={diceExpr} onChange={e=>setDiceExpr(e.target.value)} onKeyDown={e=>{ if (e.key==='Enter') rollExpr(diceExpr); }}/>
               <button className="btn btn-primary btn-sm" onClick={()=>rollExpr(diceExpr)}>Roll</button>
             </div>
+          </div>
+          <div className="panel-header">Conditions</div>
+          <div className="cond-box" data-testid="cond-panel">
+            {activeConditions.length === 0 && <div className="cond-empty">No conditions in effect</div>}
+            {activeConditions.map(({c, cond, info}) => (
+              <div key={c.id + cond} className="cond-item">
+                <span className="cond-icon" aria-hidden="true">{CONDITION_ICON[cond] || '❔'}</span>
+                <div className="cond-main">
+                  <div><strong>{cond}</strong> · {c.name}</div>
+                  {(condSaveText(info, inPlay, c) || (info && info.src)) && <div className="cond-sub">{[condSaveText(info, inPlay, c), info && info.src && `from ${info.src}`].filter(Boolean).join(' · ')}</div>}
+                </div>
+                <span className="cond-time">{info && +info.left > 0 ? timeText(info.left) : 'until removed'}</span>
+                {isDM && <button className="link-btn" title="Remove" aria-label={`Remove ${cond} from ${c.name}`} onClick={()=>removeCondition(c.id, cond)}>×</button>}
+              </div>
+            ))}
           </div>
           <div className="panel-header">Combat Log</div>
           <div className="log-body">

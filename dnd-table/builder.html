@@ -15,6 +15,314 @@
 </head>
 <body>
   <div id="root"></div>
+  <script type="text/plain" id="pack-prompt">
+THE HOMEBREW ACADEMY: CONTENT PACK PROMPT (format version 1)
+
+Give this whole file to an AI assistant. It tells the assistant how to turn your homebrew document or source book into a Content Pack file that the Character Builder can load.
+
+=====================================================================
+INSTRUCTIONS FOR THE AI ASSISTANT
+=====================================================================
+
+You are converting tabletop content written for the 2024 rules of the world's most popular fantasy roleplaying game (often called 5.5e) into a Content Pack for The Homebrew Academy Character Builder and Combat Resolver.
+
+STEP 1. Ask the user to upload or paste their content: a homebrew document, a source book they own, or a list of the options they want. Do not write the pack until you have it. If the content is long, ask which parts they want (classes, subclasses, species, backgrounds, feats, spells, items) and work through them in order.
+
+STEP 2. Read all of it. For every option, work out two things:
+  a. The character option itself (what shows on the character sheet).
+  b. Every feature, spell or item that a character ACTIVATES (uses on purpose, or that triggers). Each of those becomes an entry in "abilities" with full mechanics, so the Combat Resolver can run it.
+
+STEP 3. Output ONE JSON file and nothing else, in a single code block, so the user can save it as a .json file. It must be valid JSON: double quotes, no comments, no trailing commas. If the content is too long for one reply, tell the user, then continue the same file in the next reply so the pieces join into one file.
+
+STEP 4. After the file, list anything you could not express in this format, so the user knows what stays a table ruling.
+
+Follow the 2024 rules terms exactly: Bonus Action, Reaction, Short Rest, Long Rest, Advantage, Disadvantage, D20 Test, Temporary Hit Points, Origin Feat, species (not race). Write spell levels as "Level 3 Evocation", never "3rd-level evocation". Copy rules text from the user's content as written; do not paraphrase it.
+
+---------------------------------------------------------------------
+FILE SHAPE
+---------------------------------------------------------------------
+
+{
+  "format": "homebrew-academy-content",
+  "version": 1,
+  "name": "Short name of this pack",
+  "author": "Who wrote the content",
+  "classes": { },
+  "subclasses": { },
+  "species": { },
+  "backgrounds": { },
+  "feats": { },
+  "spells": [ ],
+  "items": [ ],
+  "abilities": [ ]
+}
+
+Leave out any section you have nothing for. Names are the keys. A pack entry with the same name as a built-in option replaces it.
+
+---------------------------------------------------------------------
+CLASSES
+---------------------------------------------------------------------
+
+"classes": {
+  "Warden": {
+    "hitDie": 12,
+    "primaryAbility": "Constitution & Wisdom",
+    "saves": ["Constitution", "Wisdom"],
+    "armorProf": "Light, Medium, Shields",
+    "weaponProf": "Simple, Martial",
+    "skillChoices": 2,
+    "skillList": ["Athletics", "Insight", "Medicine", "Nature", "Perception", "Survival"],
+    "subclassLevel": 3,
+    "subclassName": "Warden Oath",
+    "casterType": "half",
+    "spellAbility": "Wisdom",
+    "features": {
+      "1": ["Sentinel's Stand", "Spellcasting"],
+      "2": ["Warding Strike"],
+      "3": ["Subclass feature"],
+      "4": ["Ability Score Improvement"]
+    },
+    "subclasses": {
+      "Oath of the Stone": { "3": ["Stoneskin Ward"], "7": ["Unmoving"] }
+    }
+  }
+}
+
+Rules for classes:
+- hitDie is 6, 8, 10 or 12. saves is exactly two full ability names.
+- Ability names are always written in full: Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma.
+- casterType is "full", "half" or "pact". Leave casterType and spellAbility out for a class with no spellcasting.
+- features has one list per level, levels "1" to "20". A level with nothing new can be left out.
+- Write the exact text "Ability Score Improvement" at each level that grants one, and "Epic Boon" at level 19 if the class has it.
+- Write the exact text "Subclass feature" at each level where the subclass grants something. The subclass entry then lists what it grants at that same level.
+- Put a short reminder of the numbers in the feature text when it helps, for example "Rage (2 uses, +2 damage)".
+
+---------------------------------------------------------------------
+SUBCLASSES FOR CLASSES THAT ALREADY EXIST
+---------------------------------------------------------------------
+
+"subclasses": {
+  "Fighter": {
+    "Rune Carver": { "3": ["Rune Lore", "Giant's Might"], "7": ["Runic Shield"], "10": ["Great Stature"], "15": ["Master of Runes"], "18": ["Runic Juggernaut"] }
+  }
+}
+
+The built-in classes are Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock and Wizard. Use the levels at which that class already says "Subclass feature".
+
+---------------------------------------------------------------------
+SPECIES, BACKGROUNDS, FEATS
+---------------------------------------------------------------------
+
+"species": {
+  "Emberkin": { "speed": 30, "traits": ["Darkvision (60 ft.)", "Kindled Blood: Resistance to Fire damage.", "Cinder Breath: Bonus Action, each creature in a 15-foot Cone makes a Dexterity saving throw."] }
+}
+Write senses exactly as "Darkvision (60 ft.)", "Blindsight (30 ft.)", "Tremorsense (30 ft.)" or "Truesight (30 ft.)" so the sheet picks them up.
+If the species lets the player choose a skill proficiency, add "skillChoice": { "count": 1, "from": ["Insight", "Perception", "Survival"] }. Leave "from" empty for any skill.
+
+"backgrounds": {
+  "Lamplighter": { "abilityScores": ["Dexterity", "Constitution", "Wisdom"], "feat": "Alert", "skills": ["Perception", "Stealth"], "tool": "Tinker's Tools" }
+}
+abilityScores is exactly three abilities, skills is exactly two skills, feat is an Origin Feat (add it under "feats" if it is new).
+
+"feats": {
+  "Stone's Patience": "Full text of the feat."
+}
+
+---------------------------------------------------------------------
+SPELLS AND ITEMS
+---------------------------------------------------------------------
+
+"spells": [
+  { "name": "Ashen Grasp", "level": 2, "school": "Necromancy", "classes": ["Warden", "Warlock"], "castingTime": "Action", "range": "60 feet", "duration": "1 minute", "concentration": true, "ritual": false, "text": "Full spell text." }
+]
+level 0 is a cantrip. A spell a character casts in a fight also needs an entry in "abilities" (see below) with grantedBy type "spell".
+
+"items": [
+  { "name": "Lantern of the Deep", "rarity": "Rare", "type": "Wondrous Item", "attunement": true, "description": "Full item text." }
+]
+rarity is Common, Uncommon, Rare, Very Rare, Legendary or Artifact.
+
+---------------------------------------------------------------------
+ABILITIES: EVERYTHING A CHARACTER ACTIVATES
+---------------------------------------------------------------------
+
+This is the most important section. Passive features (a flat bonus that is always on, a proficiency, a ribbon) only need their text in the class, species or feat. Anything that is USED needs an entry here: an attack, a spell, a breath weapon, a smite, a healing pool, a buff, a debuff, a reaction.
+
+The Combat Resolver does this with each ability:
+  1. The player picks it on their turn and picks a target (or it lands on themselves).
+  2. The app reads the user's numbers AS THEY ARE AT THAT MOMENT to get the attack bonus, the save DC and the dice.
+  3. If there is an attack roll, the user presses a button and the app rolls against the target's current Armor Class, counting every effect and condition on both creatures.
+  4. If there is a saving throw, the TARGET's player (or the DM, for a monster) gets a Roll button. Nothing is rolled for them. The roll uses the target's current save bonus and everything affecting it.
+  5. The result is applied: damage (after Resistance, Immunity, Vulnerability and Temporary Hit Points), then the conditions and effects for that result. A different result can apply something different (onFail and onSuccess).
+  6. Durations start counting. A round of combat is 6 seconds. A Short Rest is 1 hour and a Long Rest is 8 hours. When the time runs out the condition or effect ends.
+  7. Anything that recurs (a save repeated each turn) comes up again as a Roll button on the right turn, and a success ends it.
+
+Each ability looks like this. Leave out any field that does not apply.
+
+{
+  "name": "Cinder Breath",
+  "grantedBy": { "type": "species", "name": "Emberkin" },
+  "activation": "bonus",
+  "target": "creature",
+  "roll": "save",
+  "save": { "ability": "Dexterity", "dc": "8+PROF+CON" },
+  "damage": [ { "dice": "2d6", "type": "Fire" } ],
+  "halfOnSave": true,
+  "onFail": {
+    "conditions": [ { "name": "Blinded", "duration": { "amount": 1, "unit": "rounds" } } ]
+  },
+  "uses": { "max": "PROF", "recharge": "long" },
+  "atLevel": { "5": { "damage": [ { "dice": "3d6", "type": "Fire" } ] }, "11": { "damage": [ { "dice": "4d6", "type": "Fire" } ] } },
+  "text": "Full rules text of the feature."
+}
+
+grantedBy: who gets it.
+  type is "class", "subclass", "species", "background", "feat", "spell" or "item".
+  name is the exact name of that class, subclass, species, background, feat, spell or item.
+  level (class and subclass only) is the level at which it is gained. Leave it out for level 1.
+  A character gets the ability when their sheet has that option. A "spell" ability is granted when the spell is on their spell list. An "item" ability is granted when the item is on their sheet.
+
+activation: "action", "bonus", "reaction" or "free".
+
+target: "creature" (the user picks a target) or "self" (it lands on the user).
+  For an area, use "creature": the user resolves it once per creature in the area.
+
+roll: what decides the result.
+  "attack": the user rolls to hit the target's Armor Class. Needs "attack".
+  "save": the target rolls a saving throw. Needs "save".
+  "none": it just happens.
+
+attack: { "bonus": "PROF+STR", "ranged": false }
+  bonus is a formula (see FORMULAS). Use "SPELLATK" for a spell attack.
+  ranged is true for a ranged attack, so the rules for a Prone target and for automatic Critical Hits apply correctly.
+
+save: { "ability": "Wisdom", "dc": "SPELLDC" }
+  ability is the save the TARGET makes. dc is a formula, for example "SPELLDC", "8+PROF+CON" or 15.
+
+damage: a list, one entry per damage type: { "dice": "1d8+STR", "type": "Slashing" }.
+  dice is a dice formula (see FORMULAS). With roll "attack" it is dealt on a hit and the dice are doubled on a Critical Hit. With roll "save" it is dealt on a failed save. With roll "none" it is dealt automatically.
+halfOnSave: true if a successful save still takes half damage.
+
+heal: a dice formula for Hit Points restored, for example "1d10+LEVEL" or "2d4+SPELLMOD". With target "self" it heals the user.
+
+RESULTS. Each of these holds "conditions" and "effects":
+  "onHit": applied to the target when the attack hits.
+  "onFail": applied to the target when it fails the save.
+  "onSuccess": applied to the target when it succeeds on the save. Use this for the alternative result, such as a weaker effect on a success.
+  "onUse": applied when there is no roll (roll "none"), to the target or to the user if target is "self".
+
+conditions: a list of
+  { "name": "Frightened", "duration": { "amount": 1, "unit": "minutes" }, "repeatSave": { "when": "end", "turn": "target", "ability": "Wisdom" } }
+  name is one of: Blinded, Charmed, Deafened, Frightened, Grappled, Incapacitated, Invisible, Paralyzed, Petrified, Poisoned, Prone, Restrained, Stunned, Unconscious.
+  duration: amount and unit ("rounds", "minutes", "hours" or "days"). Leave it out if it lasts until something removes it. "Until the end of its next turn" is 1 round.
+  repeatSave: include it when the text says the creature repeats the save.
+    when is "start" or "end" (of the turn).
+    turn is "target" (the affected creature's own turn) or "source" (the turn of whoever used the ability).
+    ability is the save to repeat; leave it out to reuse the ability of the first save. The DC is the same DC.
+  On a successful repeat the condition ends. Otherwise it ends when the duration runs out.
+
+effects: a list of timed bonuses, penalties and riders. Give each a name (usually the ability's name), then only the fields it needs:
+  "duration": { "amount": 1, "unit": "minutes" }   leave out for "until removed"
+  "concentration": true                            ends on a Long Rest and is marked as Concentration
+  "ac": 2                                          bonus or penalty to Armor Class
+  "speed": 10                                      feet added to Speed (negative to reduce)
+  "speedMultiplier": 2                             2 doubles Speed, 0.5 halves it
+  "initiative": 2                                  bonus to Initiative
+  "d20Tests": -2                                   flat modifier to every D20 Test
+  "attackRolls": "1d4"                             dice or number added to attack rolls ("-1d4" to subtract)
+  "savingThrows": "1d4"                            dice or number added to saving throws
+  "advantageOnSaves": "Dexterity"                  Advantage on saves with that ability
+  "saveModifier": { "ability": "Dexterity", "amount": -2 }   flat modifier to one ability's saves
+  "checkDisadvantage": "Strength"                  Disadvantage on checks with that ability
+  "checkBonus": { "skill": "Stealth", "dice": "1d4" }        dice added to one skill
+  "attacksAgainstHaveAdvantage": true              attack rolls against the creature have Advantage
+  "cannotBeInvisible": true                        it can't benefit from the Invisible condition
+  "extraDamageFromUser": { "dice": "1d6", "type": "Force" }  the user deals this extra damage each time they hit the creature
+  "immuneTo": "Frightened"                         immune to that condition while it lasts
+  "reduceDamageType": "Fire"                       reduces that damage type by 1d4 once per turn
+  "tempHPEachTurn": "CHA"                          formula: Temporary Hit Points at the start of each of its turns
+  "sense": "Darkvision 60 ft."                     a sense it gains
+  "movement": "Fly 60 ft. (hover)"                 a movement mode it gains
+  "note": "Anything the app cannot apply by itself. It is shown to the table as a reminder."
+
+uses: { "max": "PROF", "recharge": "short" }
+  max is a formula for how many times it can be used. recharge is "short" (back on a Short or Long Rest) or "long" (back on a Long Rest). Leave uses out if it is unlimited or spends spell slots.
+
+atLevel: changes at higher character levels. The key is the level, the value holds the fields to replace from that level on. The highest level reached wins.
+
+text: the full rules text, copied as written. It is shown in the combat log.
+
+---------------------------------------------------------------------
+FORMULAS
+---------------------------------------------------------------------
+
+A formula is a number or a sum using these words, in capitals:
+  STR DEX CON INT WIS CHA    the user's ability modifier
+  PROF                       the user's Proficiency Bonus
+  LEVEL                      the user's character level
+  SPELLMOD                   the user's spellcasting ability modifier
+  SPELLDC                    the user's spell save DC
+  SPELLATK                   the user's spell attack bonus
+You can use + - * / and brackets. Division rounds down. Examples: "8+PROF+WIS", "LEVEL*5", "(LEVEL+1)/2".
+
+A dice formula adds dice, written with a small letter d: "2d6", "1d8+STR", "1d10+LEVEL". The number of dice can itself be a formula in brackets: "(LEVEL+1)/2d6" means that many d6.
+
+Never write the finished number for something that depends on the character. Write the formula, so the app works it out from each character's current numbers.
+
+---------------------------------------------------------------------
+WORKED EXAMPLES
+---------------------------------------------------------------------
+
+A weapon-like attack that also slows the target:
+{
+  "name": "Warding Strike", "grantedBy": { "type": "class", "name": "Warden", "level": 2 },
+  "activation": "action", "target": "creature", "roll": "attack",
+  "attack": { "bonus": "PROF+STR" },
+  "damage": [ { "dice": "1d8+STR", "type": "Bludgeoning" }, { "dice": "1d6", "type": "Radiant" } ],
+  "onHit": { "effects": [ { "name": "Warding Strike", "duration": { "amount": 1, "unit": "rounds" }, "speed": -10 } ] },
+  "text": "..."
+}
+
+A spell with a save, a condition, a repeat save and an alternative on a success:
+{
+  "name": "Ashen Grasp", "grantedBy": { "type": "spell", "name": "Ashen Grasp" },
+  "activation": "action", "target": "creature", "roll": "save",
+  "save": { "ability": "Constitution", "dc": "SPELLDC" },
+  "damage": [ { "dice": "3d8", "type": "Necrotic" } ], "halfOnSave": true,
+  "onFail": { "conditions": [ { "name": "Restrained", "duration": { "amount": 1, "unit": "minutes" }, "repeatSave": { "when": "end", "turn": "target" } } ] },
+  "onSuccess": { "effects": [ { "name": "Ashen Grasp", "duration": { "amount": 1, "unit": "rounds" }, "speedMultiplier": 0.5 } ] },
+  "text": "..."
+}
+
+A buff on yourself with limited uses:
+{
+  "name": "Sentinel's Stand", "grantedBy": { "type": "class", "name": "Warden" },
+  "activation": "bonus", "target": "self", "roll": "none",
+  "onUse": { "effects": [ { "name": "Sentinel's Stand", "duration": { "amount": 1, "unit": "minutes" }, "ac": 2, "advantageOnSaves": "Strength", "note": "Your Speed is 0 while this lasts." } ] },
+  "uses": { "max": "PROF", "recharge": "long" },
+  "text": "..."
+}
+
+A self heal:
+{
+  "name": "Second Breath", "grantedBy": { "type": "feat", "name": "Stone's Patience" },
+  "activation": "bonus", "target": "self", "roll": "none", "heal": "1d10+LEVEL",
+  "uses": { "max": 1, "recharge": "short" }, "text": "..."
+}
+
+---------------------------------------------------------------------
+CHECK YOUR WORK BEFORE YOU ANSWER
+---------------------------------------------------------------------
+
+- The file is valid JSON with "format": "homebrew-academy-content" and "version": 1.
+- Every ability's grantedBy name matches a name in this file or a built-in option, spelled the same way.
+- Every activated feature, castable spell and usable item has an ability. Passive ones do not.
+- Every roll "attack" has "attack". Every roll "save" has "save" with an ability and a dc.
+- Every number that depends on the character is a formula, not a fixed number.
+- Every condition or effect that the text gives a time limit has a duration. Every "repeats the save" has a repeatSave with the right turn.
+- Limited-use features have uses with the right recharge.
+- Rules text is copied as written, and spell levels read "Level X School".
+  </script>
   <script type="text/babel">
 const { useState, useMemo, useRef, useEffect } = React;
 
@@ -581,9 +889,444 @@ function getSpellSlots(className, level) {
   return null;
 }
 
+/* ============ WHERE PROFICIENCIES COME FROM ============ */
+// Species that let you choose a skill. A Content Pack species can carry its own: skillChoice {count, from}.
+const SPECIES_SKILL_CHOICE = { Human: { count: 1, from: [] }, Elf: { count: 1, from: ["Insight", "Perception", "Survival"] } };
+// Sorts a character's skills by what grants each one. picks = skills the player chose, removed = granted skills taken away.
+// Anything chosen that no source can pay for is "Custom".
+function sortSkills(cls, species, background, picks, removed) {
+  const valid = (list) => (Array.isArray(list) ? list : []).filter(k => ALL_SKILLS.includes(k));
+  const bgAll = valid((BACKGROUNDS[background] || {}).skills);
+  const classList = valid(cls && cls.skillList);
+  const classAny = !classList.length, classPool = classAny ? ALL_SKILLS : classList, classCount = (cls && cls.skillChoices) || 0;
+  const sc = (SPECIES[species] || {}).skillChoice || SPECIES_SKILL_CHOICE[species] || { count: 0, from: [] };
+  const speciesList = valid(sc.from), speciesCount = Math.max(0, parseInt(sc.count, 10) || 0);
+  const speciesAny = speciesCount > 0 && !speciesList.length, speciesPool = speciesAny ? ALL_SKILLS : speciesList;
+  const source = {};
+  const bg = bgAll.filter(k => !removed.includes(k));
+  bg.forEach(k => { source[k] = "Background"; });
+  const free = Array.from(new Set(picks)).filter(k => ALL_SKILLS.includes(k) && !bgAll.includes(k));
+  let classLeft = classCount, speciesLeft = speciesCount;
+  const inC = k => classPool.includes(k), inS = k => speciesCount > 0 && speciesPool.includes(k);
+  free.filter(k => inC(k) && !inS(k)).forEach(k => { if (classLeft > 0) { source[k] = "Class"; classLeft--; } });
+  free.filter(k => inS(k) && !inC(k)).forEach(k => { if (speciesLeft > 0) { source[k] = "Species"; speciesLeft--; } });
+  free.filter(k => !source[k] && inC(k) && inS(k)).forEach(k => {
+    if (classLeft > 0) { source[k] = "Class"; classLeft--; } else if (speciesLeft > 0) { source[k] = "Species"; speciesLeft--; }
+  });
+  free.filter(k => !source[k]).forEach(k => { source[k] = "Custom"; });
+  const canChoose = ALL_SKILLS.filter(k => !source[k] && !bgAll.includes(k) && ((classLeft > 0 && inC(k)) || (speciesLeft > 0 && inS(k))));
+  return { source, bg: bgAll, removed: bgAll.filter(k => removed.includes(k)), canChoose,
+    classPool, classAny, classCount, classLeft, speciesPool, speciesAny, speciesCount, speciesLeft };
+}
+
+/* ============ CONTENT PACKS ============ */
+// A Content Pack is a JSON file of homebrew or source book options. It is kept on this computer, merged into
+// the lists above when the page loads, and its activated features travel to the Combat Resolver on the
+// character's own sheet, already worked out from that character's numbers.
+const PACKS_KEY = "hba-content-packs";
+const PACK_ABILITIES = [];
+const PACK_SPELLS = [];
+const CONDITION_NAMES = ["Blinded","Charmed","Deafened","Frightened","Grappled","Incapacitated","Invisible","Paralyzed","Petrified","Poisoned","Prone","Restrained","Stunned","Unconscious"];
+const RESIST_TYPES = ["Acid","Bludgeoning","Cold","Fire","Lightning","Necrotic","Piercing","Poison","Radiant","Slashing","Thunder"];
+const UNIT_SECONDS = { rounds: 6, minutes: 60, hours: 3600, days: 86400 };
+const GRANT_TYPES = ["class","subclass","species","background","feat","spell","item"];
+const pObj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
+const pArr = (v) => (Array.isArray(v) ? v : []);
+const pStr = (v, n) => String(v == null ? "" : v).slice(0, n);
+const sameName = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+
+// Formulas: numbers, + - * / and brackets, and the words STR DEX CON INT WIS CHA PROF LEVEL SPELLMOD SPELLDC SPELLATK.
+function evalFormula(src, ctx) {
+  if (typeof src === "number") return Number.isFinite(src) ? Math.floor(src) : NaN;
+  const s = String(src == null ? "" : src).replace(/\s+/g, "");
+  if (!s || s.length > 80) return NaN;
+  let i = 0;
+  const peek = () => s[i];
+  function expr() { let v = term(); while (peek() === "+" || peek() === "-") { const op = s[i++]; const r = term(); v = op === "+" ? v + r : v - r; } return v; }
+  function term() { let v = factor(); while (peek() === "*" || peek() === "/") { const op = s[i++]; const r = factor(); v = op === "*" ? v * r : (r ? Math.floor(v / r) : NaN); } return v; }
+  function factor() {
+    if (peek() === "-") { i++; return -factor(); }
+    if (peek() === "+") { i++; return factor(); }
+    if (peek() === "(") { i++; const v = expr(); if (peek() !== ")") return NaN; i++; return v; }
+    const m = /^(\d+|[A-Z]+)/.exec(s.slice(i));
+    if (!m) return NaN;
+    i += m[0].length;
+    if (/^\d/.test(m[0])) return parseInt(m[0], 10);
+    return Object.prototype.hasOwnProperty.call(ctx, m[0]) ? ctx[m[0]] : NaN;
+  }
+  const v = expr();
+  return i === s.length && Number.isFinite(v) ? v : NaN;
+}
+// Dice formulas such as "1d8+STR" or "(LEVEL+1)/2d6" become plain dice such as "1d8+3" or "3d6". Returns null if unreadable.
+function evalDice(src, ctx) {
+  const s = String(src == null ? "" : src).replace(/\s+/g, "");
+  if (!s || s.length > 80) return null;
+  const terms = []; let depth = 0, cur = "", sign = 1;
+  for (let k = 0; k < s.length; k++) {
+    const ch = s[k];
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if ((ch === "+" || ch === "-") && depth === 0) {
+      if (cur) { terms.push([sign, cur]); cur = ""; sign = ch === "+" ? 1 : -1; }
+      else if (ch === "-") sign = -sign;
+    } else cur += ch;
+  }
+  if (!cur) return null;
+  terms.push([sign, cur]);
+  let flat = 0; const parts = [];
+  for (const [sg, t] of terms) {
+    const m = /^(.*)d(\d+)$/.exec(t);
+    if (m) {
+      const n = m[1] === "" ? 1 : evalFormula(m[1], ctx); const sides = parseInt(m[2], 10);
+      if (!Number.isFinite(n) || sides < 1 || sides > 1000) return null;
+      if (n > 0) parts.push([sg, `${Math.min(100, n)}d${sides}`]);
+    } else {
+      const v = evalFormula(t, ctx);
+      if (!Number.isFinite(v)) return null;
+      flat += sg * v;
+    }
+  }
+  if (flat) parts.push([flat > 0 ? 1 : -1, String(Math.abs(flat))]);
+  parts.sort((a, b) => b[0] - a[0]);
+  if (!parts.length || parts[0][0] < 0) parts.unshift([1, "0"]);
+  return parts.map(([sg, t], k) => (k === 0 ? "" : sg > 0 ? "+" : "-") + t).join("");
+}
+function signedDice(src, ctx) { // for bonuses that can be a penalty: "-1d4"
+  const s = String(src == null ? "" : src).replace(/\s+/g, "");
+  if (s[0] === "-") { const d = evalDice(s.slice(1), ctx); return d ? "-" + d : null; }
+  return evalDice(s, ctx);
+}
+function durationSeconds(d) {
+  if (!d || typeof d !== "object") return 0;
+  const n = parseFloat(d.amount) * (UNIT_SECONDS[d.unit] || 0);
+  return n > 0 ? Math.round(n) : 0;
+}
+function compileOutcome(o, ctx) {
+  if (!o || typeof o !== "object") return null;
+  const conds = pArr(o.conditions).map((k) => {
+    if (!k || !CONDITION_NAMES.includes(k.name)) return null;
+    const c = { name: k.name };
+    const left = durationSeconds(k.duration); if (left) c.left = left;
+    const r = k.repeatSave;
+    if (r && (r.when === "start" || r.when === "end")) {
+      c.when = r.when;
+      if (r.turn === "source") c.turn = "source";
+      if (ABILITIES.includes(r.ability)) c.abil = r.ability;
+    }
+    return c;
+  }).filter(Boolean);
+  const effs = pArr(o.effects).map((e) => {
+    if (!e || !pStr(e.name, 40).trim()) return null;
+    const out = { name: pStr(e.name, 40).trim() };
+    const left = durationSeconds(e.duration); if (left) out.left = left;
+    if (e.concentration) out.conc = true;
+    [["ac", "ac"], ["speed", "speed"], ["initiative", "init"], ["d20Tests", "d20"], ["tempHPEachTurn", "tempEachTurn"]].forEach(([from, to]) => {
+      if (e[from] == null) return;
+      const n = evalFormula(e[from], ctx); if (Number.isFinite(n) && n) out[to] = n;
+    });
+    if (+e.speedMultiplier > 0 && +e.speedMultiplier !== 1) out.speedMult = +e.speedMultiplier;
+    [["attackRolls", "atk"], ["savingThrows", "save"]].forEach(([from, to]) => { if (e[from] != null) { const d = signedDice(e[from], ctx); if (d) out[to] = d; } });
+    if (ABILITIES.includes(e.advantageOnSaves)) out.saveAdv = e.advantageOnSaves;
+    const sm = pObj(e.saveModifier);
+    if (ABILITIES.includes(sm.ability)) { const n = evalFormula(sm.amount, ctx); if (Number.isFinite(n) && n) { out.saveAbil = sm.ability; out.saveAbilMod = n; } }
+    if (ABILITIES.includes(e.checkDisadvantage)) out.checkDis = e.checkDisadvantage;
+    const cb = pObj(e.checkBonus);
+    if (SKILL_ABILITY[cb.skill]) { const d = evalDice(cb.dice, ctx); if (d) { out.check = d; out.checkSkill = cb.skill; } }
+    if (e.attacksAgainstHaveAdvantage) out.advAgainst = true;
+    if (e.cannotBeInvisible) out.noInvisible = true;
+    const xd = pObj(e.extraDamageFromUser);
+    if (xd.dice) { const d = evalDice(xd.dice, ctx); if (d) { out.bonusDmg = d; out.bonusType = pStr(xd.type, 20); out.fromCaster = true; } }
+    if (CONDITION_NAMES.includes(e.immuneTo)) out.immune = e.immuneTo;
+    if (RESIST_TYPES.includes(e.reduceDamageType)) out.resistType = e.reduceDamageType;
+    if (e.sense) out.sense = pStr(e.sense, 60);
+    if (e.movement) out.move = pStr(e.movement, 60);
+    if (e.note) out.note = pStr(e.note, 300);
+    return out;
+  }).filter(Boolean);
+  const out = {};
+  if (conds.length) out.conds = conds;
+  if (effs.length) out.effs = effs;
+  return conds.length || effs.length ? out : null;
+}
+// Works one ability out for one character. ctx holds that character's numbers. Throws with a reason if it can't.
+function compileAbility(ab0, ctx) {
+  let ab = pObj(ab0);
+  Object.keys(pObj(ab.atLevel)).map(Number).filter((l) => l >= 1 && l <= ctx.LEVEL).sort((a, b) => a - b)
+    .forEach((l) => { ab = { ...ab, ...pObj(ab0.atLevel[l]) }; });
+  const name = pStr(ab.name, 60).trim();
+  if (!name) throw new Error("it has no name");
+  const out = { name };
+  if (["action", "bonus", "reaction", "free"].includes(ab.activation)) out.activation = ab.activation;
+  if (ab.text) out.desc = pStr(ab.text, 1200);
+  const self = ab.target === "self";
+  if (self) out.self = true;
+  const dmgList = pArr(ab.damage).map((d) => {
+    const dice = evalDice(d && d.dice, ctx);
+    if (!dice) throw new Error(`the damage dice "${d && d.dice}" can't be read`);
+    return [dice, pStr(d.type, 20)];
+  });
+  if (ab.roll === "attack") {
+    const atk = evalFormula(pObj(ab.attack).bonus, ctx);
+    if (!Number.isFinite(atk)) throw new Error('roll is "attack" but attack.bonus is missing or can\'t be read');
+    out.type = "attack"; out.atk = atk;
+    if (pObj(ab.attack).ranged) out.ranged = true;
+    if (dmgList.length) out.dmgList = dmgList;
+    const o = compileOutcome(ab.onHit, ctx); if (o) out.onHit = o;
+    if (!dmgList.length && !o) throw new Error("the attack has no damage and no onHit result");
+  } else if (ab.roll === "save") {
+    const sv = pObj(ab.save); const dc = evalFormula(sv.dc, ctx);
+    if (!ABILITIES.includes(sv.ability)) throw new Error('roll is "save" but save.ability is not a full ability name');
+    if (!Number.isFinite(dc) || dc < 1) throw new Error("save.dc is missing or can't be read");
+    out.type = "save"; out.saveAbility = sv.ability; out.dc = dc;
+    if (dmgList.length) out.dmgList = dmgList;
+    if (ab.halfOnSave) out.halfOnSave = true;
+    const f = compileOutcome(ab.onFail, ctx); if (f) out.onFail = f;
+    const ok = compileOutcome(ab.onSuccess, ctx); if (ok) out.onSuccess = ok;
+  } else {
+    const o = compileOutcome(ab.onUse, ctx); if (o) out.onUse = o;
+    if (ab.heal != null) {
+      const h = evalDice(ab.heal, ctx);
+      if (!h) throw new Error(`the heal formula "${ab.heal}" can't be read`);
+      out.type = self ? "selfheal" : "heal"; out.healDice = h;
+    } else if (dmgList.length) { out.type = "auto"; out.dmgList = dmgList; }
+    else if (o) out.type = "apply";
+    else out.type = "info";
+  }
+  const uses = pObj(ab.uses);
+  if (uses.max != null) {
+    const max = evalFormula(uses.max, ctx);
+    if (!Number.isFinite(max)) throw new Error("uses.max can't be read");
+    if (max > 0) { out.usesMax = max; out.recharge = uses.recharge === "short" ? "short" : "long"; }
+  }
+  return out;
+}
+function actionSummary(a) {
+  const bits = [];
+  if (a.activation) bits.push({ action: "Action", bonus: "Bonus Action", reaction: "Reaction", free: "No action" }[a.activation]);
+  if (a.type === "attack") bits.push(`${fmt(a.atk)} to hit`);
+  if (a.type === "save") bits.push(`DC ${a.dc} ${a.saveAbility} save`);
+  if (a.dmgList) bits.push(a.dmgList.map((d) => `${d[0]} ${d[1]}`.trim()).join(" + ") + (a.halfOnSave ? ", half on a save" : ""));
+  if (a.healDice) bits.push(`heals ${a.healDice}`);
+  const oc = (label, o) => {
+    if (!o) return;
+    const time = (n) => (n ? ` (${n >= 3600 ? n / 3600 + " h" : n >= 60 ? n / 60 + " min" : (n / 6 === 1 ? "1 round" : n / 6 + " rounds")})` : "");
+    bits.push(`${label}: ${[...(o.conds || []).map((c) => c.name + time(c.left) + (c.when ? ", save repeats" : "")), ...(o.effs || []).map((e) => e.name + time(e.left))].join(", ")}`);
+  };
+  oc("on a hit", a.onHit); oc("on a failed save", a.onFail); oc("on a successful save", a.onSuccess); oc("applies", a.onUse);
+  if (a.usesMax) bits.push(`${a.usesMax} per ${a.recharge === "short" ? "Short Rest" : "Long Rest"}`);
+  return bits.join(" · ");
+}
+function abilityGranted(ab, ch) {
+  const g = pObj(ab.grantedBy); const lvl = parseInt(g.level, 10) || 1;
+  switch (g.type) {
+    case "class": return sameName(g.name, ch.className) && ch.level >= lvl;
+    case "subclass": return sameName(g.name, ch.subclassName) && ch.level >= lvl;
+    case "species": return sameName(g.name, ch.species);
+    case "background": return sameName(g.name, ch.background);
+    case "feat": return ch.feats.some((f) => sameName(f, g.name));
+    case "item": return ch.items.some((f) => sameName(f, g.name));
+    case "spell": return ch.spells.some((sp) => { const t = String(sp).trim().toLowerCase(), n = String(g.name || "").trim().toLowerCase(); return !!n && (t === n || t.startsWith(n + " (")); });
+    default: return false;
+  }
+}
+const spellLabel = (s) => (s.level ? `${s.name} (Level ${s.level}${s.school ? " " + s.school : ""})` : `${s.name} (${s.school ? s.school + " " : ""}cantrip)`);
+
+// Reads a pack file, keeps what is usable and says what was wrong with the rest.
+function checkPack(raw) {
+  const errors = [], warnings = [];
+  if (!raw || typeof raw !== "object" || raw.format !== "homebrew-academy-content") {
+    return { pack: null, errors: ['This is not a Content Pack file. A pack starts with "format": "homebrew-academy-content".'], warnings, counts: {} };
+  }
+  const pack = { format: "homebrew-academy-content", version: 1, name: pStr(raw.name, 60).trim() || "Unnamed pack", author: pStr(raw.author, 60),
+    classes: {}, subclasses: {}, species: {}, backgrounds: {}, feats: {}, spells: [], items: [], abilities: [] };
+  const levels = (o, where) => {
+    const out = {};
+    Object.keys(pObj(o)).forEach((k) => {
+      const l = parseInt(k, 10);
+      if (!(l >= 1 && l <= 20)) { warnings.push(`${where}: "${k}" is not a level from 1 to 20, so it was skipped.`); return; }
+      const list = pArr(o[k]).map((x) => pStr(x, 400).trim()).filter(Boolean);
+      if (list.length) out[l] = list;
+    });
+    return out;
+  };
+  Object.keys(pObj(raw.classes)).slice(0, 40).forEach((key) => {
+    const name = pStr(key, 40).trim(); const c = pObj(raw.classes[key]);
+    const saves = pArr(c.saves).filter((a) => ABILITIES.includes(a));
+    if (!name) return;
+    if (![6, 8, 10, 12].includes(+c.hitDie)) { errors.push(`Class ${name}: hitDie must be 6, 8, 10 or 12. The class was skipped.`); return; }
+    if (saves.length !== 2) { errors.push(`Class ${name}: saves must be exactly two full ability names. The class was skipped.`); return; }
+    const casterType = ["full", "half", "pact"].includes(c.casterType) ? c.casterType : null;
+    if (casterType && !ABILITIES.includes(c.spellAbility)) { errors.push(`Class ${name}: casterType is set but spellAbility is not a full ability name. The class was skipped.`); return; }
+    const features = levels(c.features, `Class ${name}`);
+    const subclasses = {};
+    Object.keys(pObj(c.subclasses)).slice(0, 40).forEach((sn) => {
+      const sub = levels(c.subclasses[sn], `Subclass ${sn}`);
+      Object.keys(sub).forEach((l) => { if (!(features[l] || []).includes("Subclass feature")) warnings.push(`Class ${name}: subclass ${sn} grants features at level ${l}, but the class has no "Subclass feature" at that level, so they will not show.`); });
+      subclasses[pStr(sn, 60).trim()] = sub;
+    });
+    if (!Object.keys(features).length) warnings.push(`Class ${name} has no features listed.`);
+    const entry = { hitDie: +c.hitDie, primaryAbility: pStr(c.primaryAbility, 60), saves, armorProf: pStr(c.armorProf, 120) || "None", weaponProf: pStr(c.weaponProf, 160) || "None",
+      skillChoices: Math.max(0, Math.min(18, parseInt(c.skillChoices, 10) || 2)), skillList: pArr(c.skillList).map((x) => pStr(x, 30)),
+      subclassLevel: Math.max(1, Math.min(20, parseInt(c.subclassLevel, 10) || 3)), subclassName: pStr(c.subclassName, 40) || "Subclass", features, subclasses };
+    if (casterType) { entry.casterType = casterType; entry.spellAbility = c.spellAbility; }
+    pack.classes[name] = entry;
+  });
+  Object.keys(pObj(raw.subclasses)).forEach((cn) => {
+    if (!CLASSES[cn] && !pack.classes[cn]) { warnings.push(`Subclasses for "${cn}" were skipped because there is no class with that name.`); return; }
+    Object.keys(pObj(raw.subclasses[cn])).slice(0, 40).forEach((sn) => {
+      const name = pStr(sn, 60).trim(); if (!name) return;
+      (pack.subclasses[cn] = pack.subclasses[cn] || {})[name] = levels(raw.subclasses[cn][sn], `Subclass ${sn}`);
+    });
+  });
+  Object.keys(pObj(raw.species)).slice(0, 80).forEach((key) => {
+    const name = pStr(key, 40).trim(); const sp = pObj(raw.species[key]); if (!name) return;
+    pack.species[name] = { speed: Math.max(0, Math.min(120, parseInt(sp.speed, 10) || 30)), traits: pArr(sp.traits).map((x) => pStr(x, 600)).filter(Boolean) };
+    const sk = pObj(sp.skillChoice);
+    if (parseInt(sk.count, 10) > 0) pack.species[name].skillChoice = { count: Math.min(18, parseInt(sk.count, 10)), from: pArr(sk.from).filter((k) => ALL_SKILLS.includes(k)) };
+  });
+  Object.keys(pObj(raw.backgrounds)).slice(0, 80).forEach((key) => {
+    const name = pStr(key, 40).trim(); const b = pObj(raw.backgrounds[key]); if (!name) return;
+    const abilityScores = pArr(b.abilityScores).filter((a) => ABILITIES.includes(a));
+    if (abilityScores.length !== 3) { errors.push(`Background ${name}: abilityScores must be exactly three full ability names. The background was skipped.`); return; }
+    const skills = pArr(b.skills).filter((k) => ALL_SKILLS.includes(k));
+    if (skills.length !== 2) warnings.push(`Background ${name}: skills should be exactly two skill names.`);
+    pack.backgrounds[name] = { abilityScores, feat: pStr(b.feat, 60), skills, tool: pStr(b.tool, 60) };
+  });
+  Object.keys(pObj(raw.feats)).slice(0, 300).forEach((key) => { const name = pStr(key, 60).trim(); if (name) pack.feats[name] = pStr(raw.feats[key], 2000); });
+  pArr(raw.spells).slice(0, 600).forEach((sp) => {
+    const name = pStr(pObj(sp).name, 60).trim(); if (!name) return;
+    pack.spells.push({ name, level: Math.max(0, Math.min(9, parseInt(sp.level, 10) || 0)), school: pStr(sp.school, 20), classes: pArr(sp.classes).map((x) => pStr(x, 40)),
+      castingTime: pStr(sp.castingTime, 60), range: pStr(sp.range, 60), duration: pStr(sp.duration, 60), concentration: !!sp.concentration, ritual: !!sp.ritual, text: pStr(sp.text, 3000) });
+  });
+  pArr(raw.items).slice(0, 600).forEach((it) => {
+    const name = pStr(pObj(it).name, 80).trim(); if (!name) return;
+    let rarity = pStr(it.rarity, 20);
+    if (!RARITY_ORDER.includes(rarity)) { warnings.push(`Item ${name}: rarity "${rarity}" is not one of ${RARITY_ORDER.join(", ")}. It was set to Common.`); rarity = "Common"; }
+    pack.items.push({ name, rarity, type: pStr(it.type, 60) || "Wondrous Item", attunement: !!it.attunement, description: pStr(it.description, 3000) });
+  });
+  // Abilities are test-run at level 1 and level 20 with ordinary numbers, so a bad formula is caught now.
+  const probe = (LEVEL) => ({ STR: 3, DEX: 3, CON: 3, INT: 3, WIS: 3, CHA: 3, PROF: LEVEL >= 17 ? 6 : 2, LEVEL, SPELLMOD: 3, SPELLDC: 13, SPELLATK: 5 });
+  pArr(raw.abilities).slice(0, 800).forEach((ab, i) => {
+    const label = `Ability ${pStr(pObj(ab).name, 60) || "#" + (i + 1)}`;
+    const g = pObj(pObj(ab).grantedBy);
+    if (!GRANT_TYPES.includes(g.type) || !pStr(g.name, 60).trim()) { errors.push(`${label}: grantedBy needs a type (${GRANT_TYPES.join(", ")}) and a name. It was skipped.`); return; }
+    try { compileAbility(ab, probe(1)); compileAbility(ab, probe(20)); }
+    catch (e) { errors.push(`${label}: ${e.message}. It was skipped.`); return; }
+    pack.abilities.push(ab);
+  });
+  const counts = { classes: Object.keys(pack.classes).length, subclasses: Object.values(pack.subclasses).reduce((t, o) => t + Object.keys(o).length, 0) + Object.values(pack.classes).reduce((t, c) => t + Object.keys(c.subclasses).length, 0),
+    species: Object.keys(pack.species).length, backgrounds: Object.keys(pack.backgrounds).length, feats: Object.keys(pack.feats).length, spells: pack.spells.length, items: pack.items.length, abilities: pack.abilities.length };
+  if (!Object.values(counts).some(Boolean)) errors.push("Nothing usable was found in this file.");
+  return { pack, errors, warnings, counts };
+}
+function mergePack(pack) {
+  Object.assign(CLASSES, JSON.parse(JSON.stringify(pack.classes)));
+  Object.keys(pack.subclasses).forEach((cn) => { if (CLASSES[cn]) Object.assign(CLASSES[cn].subclasses, pack.subclasses[cn]); });
+  Object.assign(SPECIES, pack.species);
+  Object.assign(BACKGROUNDS, pack.backgrounds);
+  Object.assign(ORIGIN_FEATS, pack.feats);
+  pack.items.forEach((it) => { const k = MAGIC_ITEMS.findIndex((x) => x.name === it.name); if (k >= 0) MAGIC_ITEMS[k] = it; else MAGIC_ITEMS.push(it); });
+  pack.spells.forEach((sp) => { const k = PACK_SPELLS.findIndex((x) => x.name === sp.name); if (k >= 0) PACK_SPELLS[k] = sp; else PACK_SPELLS.push(sp); });
+  pack.abilities.forEach((ab) => PACK_ABILITIES.push(ab));
+}
+function storedPacks() { try { const a = JSON.parse(lsGet(PACKS_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function storePacks(list) { try { window.localStorage.setItem(PACKS_KEY, JSON.stringify(list)); return true; } catch (e) { return false; } }
+const INSTALLED_PACKS = [];
+storedPacks().forEach((raw) => { const r = checkPack(raw); if (r.pack) { mergePack(r.pack); INSTALLED_PACKS.push({ name: r.pack.name, author: r.pack.author, counts: r.counts }); } });
+
+function ContentPacksTab({ colors, fontDisplay, sheetActions }) {
+  const inputRef = useRef(null);
+  const [report] = useState(() => { try { const r = JSON.parse(window.sessionStorage.getItem("hba-pack-report") || "null"); window.sessionStorage.removeItem("hba-pack-report"); return r; } catch (e) { return null; } });
+  const btn = { background: colors.brass, color: colors.ink, border: "none", borderRadius: 6, padding: "9px 16px", fontFamily: fontDisplay, fontWeight: 700, fontSize: 13, cursor: "pointer" };
+  const ghost = { ...btn, background: "transparent", color: colors.brassLight, border: `1px solid ${colors.brass}` };
+  const reloadHere = () => { try { window.sessionStorage.setItem("hba-tab", "packs"); } catch (e) {} window.location.reload(); };
+  const downloadPrompt = () => {
+    const el = document.getElementById("pack-prompt");
+    const blob = new Blob([(el ? el.textContent : "").trim() + "\n"], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "homebrew-academy-content-pack-prompt.txt";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  };
+  const onPick = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    file.text().then((t) => {
+      let raw;
+      try { raw = JSON.parse(t.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "")); }
+      catch (err) { alert("That file is not valid JSON, so it could not be read. Ask your AI to check it for a missing comma or bracket."); return; }
+      const r = checkPack(raw);
+      if (!r.pack || !Object.values(r.counts).some(Boolean)) { alert(r.errors.join("\n")); return; }
+      const list = storedPacks().filter((p) => !sameName(p && p.name, r.pack.name));
+      if (!storePacks([...list, r.pack])) { alert("This pack is too large to keep on this computer. Split it into smaller packs."); return; }
+      try { window.sessionStorage.setItem("hba-pack-report", JSON.stringify({ name: r.pack.name, counts: r.counts, errors: r.errors, warnings: r.warnings })); } catch (err) {}
+      reloadHere();
+    }).catch(() => alert("Could not read that file."));
+  };
+  const removePack = (name) => {
+    if (!window.confirm(`Remove the pack "${name}"? Its options disappear from the builder. A character that uses them goes back to a built-in option.`)) return;
+    storePacks(storedPacks().filter((p) => !sameName(p && p.name, name)));
+    reloadHere();
+  };
+  const countText = (c) => Object.entries(c).filter(([, n]) => n).map(([k, n]) => `${n} ${k}`).join(", ") || "nothing";
+  return (
+    <div>
+      <Section title="Add Your Own Content" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 14 }}>
+          Bring homebrew or a source book you own into the builder in three steps.
+          <ol style={{ margin: "8px 0 0 20px" }}>
+            <li>Download the prompt and give it to your AI assistant.</li>
+            <li>The AI asks for your content, then gives you back one Content Pack file. Save it as a .json file.</li>
+            <li>Upload that file here. Its classes, subclasses, species, backgrounds, feats, spells and items appear in the builder, and its activated features go into the Combat Resolver with your character.</li>
+          </ol>
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button style={btn} onClick={downloadPrompt}>Download AI Prompt</button>
+          <button style={ghost} onClick={() => inputRef.current && inputRef.current.click()}>Upload Content Pack</button>
+          <input ref={inputRef} type="file" accept=".json,.txt,application/json,text/plain" style={{ display: "none" }} onChange={onPick} data-testid="pack-input" />
+        </div>
+      </Section>
+      {report && (
+        <Section title={`Added: ${report.name}`} colors={colors} fontDisplay={fontDisplay}>
+          <div style={{ fontSize: 14, marginBottom: 6 }} data-testid="pack-report">Loaded {countText(report.counts)}.</div>
+          {report.errors.length > 0 && <div style={{ fontSize: 13, color: "#ff8a80", marginBottom: 6 }}><strong>Skipped:</strong><ul style={{ marginLeft: 20 }}>{report.errors.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
+          {report.warnings.length > 0 && <div style={{ fontSize: 13, opacity: 0.85 }}><strong>Worth checking:</strong><ul style={{ marginLeft: 20 }}>{report.warnings.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
+        </Section>
+      )}
+      <Section title="Installed Packs" colors={colors} fontDisplay={fontDisplay}>
+        {INSTALLED_PACKS.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No packs yet. Packs are kept on this computer only.</div>}
+        {INSTALLED_PACKS.map((p) => (
+          <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: `1px solid ${colors.brass}22` }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: fontDisplay, fontWeight: 700, color: colors.brassLight }}>{p.name}{p.author ? ` by ${p.author}` : ""}</div>
+              <div style={{ fontSize: 12, opacity: 0.75 }}>{countText(p.counts)}</div>
+            </div>
+            <button style={{ ...ghost, padding: "5px 12px", fontSize: 12 }} onClick={() => removePack(p.name)}>Remove</button>
+          </div>
+        ))}
+      </Section>
+      <Section title="This Character's Activated Features" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>
+          These come from your packs and are worked out from this character's current numbers. They go to the Combat Resolver with the character.
+        </div>
+        {sheetActions.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>None yet. They appear when this character has an option from a pack that can be activated.</div>}
+        {sheetActions.map((a, i) => (
+          <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${colors.brass}22` }} data-testid="sheet-action">
+            <div style={{ fontFamily: fontDisplay, fontSize: 14, color: colors.brassLight }}>{a.name}</div>
+            <div style={{ fontSize: 13 }}>{actionSummary(a)}</div>
+          </div>
+        ))}
+      </Section>
+    </div>
+  );
+}
+
 /* ============ MAIN COMPONENT ============ */
 function CharacterSheet() {
-  const [tab, setTab] = useState("identity");
+  const [tab, setTab] = useState(() => { // after a pack is added or removed the page reloads and comes back to the same tab
+    try { const t = window.sessionStorage.getItem("hba-tab"); window.sessionStorage.removeItem("hba-tab"); return t || "identity"; } catch (e) { return "identity"; }
+  });
 
   // Identity
   const [charName, setCharName] = useState("");
@@ -604,6 +1347,16 @@ function CharacterSheet() {
   // Skills
   const [skillProfs, setSkillProfs] = useState([]);
   const [skillExpertise, setSkillExpertise] = useState([]);
+
+  // Further Customization: going past what the rules allow. Everything changed this way is marked in red.
+  const [custom, setCustom] = useState(false);
+  const [skillRemove, setSkillRemove] = useState([]);   // granted skills taken away
+  const [saveAdd, setSaveAdd] = useState([]);           // save proficiencies nothing grants
+  const [saveRemove, setSaveRemove] = useState([]);     // class save proficiencies taken away
+  const [abilityMode, setAbilityMode] = useState("pointbuy"); // "pointbuy" or "custom"
+  const [customScores, setCustomScores] = useState({Strength:8,Dexterity:8,Constitution:8,Intelligence:8,Wisdom:8,Charisma:8});
+  const [abilityAdj, setAbilityAdj] = useState({});     // additional modifier to each score
+  const [showCustomList, setShowCustomList] = useState(false);
 
   // ASI / Feat choices made at ASI levels: { level: {type:"asi", abilities:[a,b]} or {type:"feat", name:""} }
   const [asiChoices, setAsiChoices] = useState({});
@@ -672,10 +1425,10 @@ function CharacterSheet() {
   const finalScores = useMemo(() => {
     const out = {};
     ABILITIES.forEach(a => {
-      out[a] = pointBuy[a] + (bgBonuses[a] || 0) + (asiBonuses[a] || 0);
+      out[a] = (abilityMode === "custom" ? customScores[a] : pointBuy[a]) + (bgBonuses[a] || 0) + (asiBonuses[a] || 0) + (abilityAdj[a] || 0);
     });
     return out;
-  }, [pointBuy, bgBonuses, asiBonuses]);
+  }, [pointBuy, bgBonuses, asiBonuses, abilityMode, customScores, abilityAdj]);
 
   const finalMods = useMemo(() => {
     const out = {};
@@ -722,26 +1475,50 @@ function CharacterSheet() {
     return entries.sort((a, b) => a.level - b.level);
   }, [species, background, className, subclassName, level, asiChoices]);
 
+  // Each save: "class" (granted), "added" (custom), "removed" (granted but taken away) or "".
+  const saveInfo = useMemo(() => {
+    const out = {};
+    ABILITIES.forEach(a => {
+      const granted = !!(cls && cls.saves.includes(a));
+      out[a] = granted ? (saveRemove.includes(a) ? "removed" : "class") : (saveAdd.includes(a) ? "added" : "");
+    });
+    return out;
+  }, [cls, saveAdd, saveRemove]);
+
   const savingThrows = useMemo(() => {
     const out = {};
     ABILITIES.forEach(a => {
-      const isProf = cls && cls.saves.includes(a);
+      const isProf = saveInfo[a] === "class" || saveInfo[a] === "added";
       out[a] = finalMods[a] + (isProf ? profBonus : 0);
     });
     return out;
-  }, [cls, finalMods, profBonus]);
+  }, [saveInfo, finalMods, profBonus]);
+
+  const skillInfo = useMemo(() => sortSkills(cls, species, background, skillProfs, skillRemove), [cls, species, background, skillProfs, skillRemove]);
+  const allSkillProfs = useMemo(() => ALL_SKILLS.filter(k => skillInfo.source[k]), [skillInfo]);
 
   const skillMods = useMemo(() => {
     const out = {};
     ALL_SKILLS.forEach(skill => {
       const ability = SKILL_ABILITY[skill];
       let bonus = finalMods[ability];
-      if (skillExpertise.includes(skill)) bonus += profBonus * 2;
-      else if (skillProfs.includes(skill)) bonus += profBonus;
+      if (allSkillProfs.includes(skill) && skillExpertise.includes(skill)) bonus += profBonus * 2;
+      else if (allSkillProfs.includes(skill)) bonus += profBonus;
       out[skill] = bonus;
     });
     return out;
-  }, [finalMods, skillProfs, skillExpertise, profBonus]);
+  }, [finalMods, allSkillProfs, skillExpertise, profBonus]);
+
+  // Everything on this sheet that goes past the rules, in words.
+  const customizations = useMemo(() => {
+    const out = [];
+    if (abilityMode === "custom") out.push(`Custom ability scores: ${ABILITIES.map(a => `${ABBR[a]} ${customScores[a]}`).join(", ")}`);
+    ABILITIES.forEach(a => { if (abilityAdj[a]) out.push(`${a}: additional modifier ${fmt(abilityAdj[a])}`); });
+    ABILITIES.forEach(a => { if (saveInfo[a] === "added") out.push(`Added ${a} saving throw proficiency`); if (saveInfo[a] === "removed") out.push(`Removed ${a} saving throw proficiency`); });
+    ALL_SKILLS.forEach(k => { if (skillInfo.source[k] === "Custom") out.push(`Added ${k} proficiency`); });
+    skillInfo.removed.forEach(k => out.push(`Removed ${k} proficiency`));
+    return out;
+  }, [abilityMode, customScores, abilityAdj, saveInfo, skillInfo]);
 
   const initiative = finalMods.Dexterity;
   const armorClass = 10 + finalMods.Dexterity; // base unarmored; user can override mentally
@@ -759,19 +1536,40 @@ function CharacterSheet() {
     setPointBuy(prev => ({ ...prev, [ability]: newVal }));
   }
 
-  function toggleSkillProf(skill) {
-    setSkillProfs(prev => {
-      if (prev.includes(skill)) {
-        setSkillExpertise(e => e.filter(s => s !== skill));
-        return prev.filter(s => s !== skill);
-      }
-      if (prev.length >= cls.skillChoices) return prev;
-      return [...prev, skill];
-    });
+  function dropSkill(skill) {
+    setSkillProfs(prev => prev.filter(k => k !== skill));
+    setSkillExpertise(e => e.filter(k => k !== skill));
+  }
+  // Clicking a skill: choose it if a source can pay for it; otherwise it takes Further Customization.
+  function toggleSkill(skill) {
+    const src = skillInfo.source[skill];
+    if (skillInfo.removed.includes(skill)) { setSkillRemove(prev => prev.filter(k => k !== skill)); return; } // put a removed one back
+    if (src === "Background") {
+      if (custom && window.confirm(`Remove ${skill}? Your background grants it, so it will show in red as removed.`)) { setSkillRemove(prev => [...prev, skill]); setSkillExpertise(e => e.filter(k => k !== skill)); }
+      return;
+    }
+    if (src) { dropSkill(skill); return; }
+    if (skillInfo.canChoose.includes(skill)) { setSkillProfs(prev => [...prev, skill]); return; }
+    if (custom && window.confirm(`Add ${skill}? Nothing on this sheet grants it, so it will show in red as a custom proficiency.`)) setSkillProfs(prev => [...prev, skill]);
+  }
+  function addSkill(skill) { // the Add a skill button: any skill at all
+    if (!skillInfo.source[skill]) { setSkillRemove(prev => prev.filter(k => k !== skill)); if (!skillInfo.bg.includes(skill)) setSkillProfs(prev => [...prev, skill]); }
+  }
+  function removeSkill(skill) { // the Remove a skill button
+    if (skillInfo.source[skill] === "Background") { setSkillRemove(prev => [...prev, skill]); setSkillExpertise(e => e.filter(k => k !== skill)); }
+    else dropSkill(skill);
+  }
+  function toggleSave(a) {
+    if (!custom) return;
+    const st = saveInfo[a];
+    if (st === "class") { if (window.confirm(`Remove ${a} saving throw proficiency? Your class grants it, so it will show in red as removed.`)) setSaveRemove(prev => [...prev, a]); }
+    else if (st === "removed") { if (window.confirm(`Restore ${a} saving throw proficiency?`)) setSaveRemove(prev => prev.filter(x => x !== a)); }
+    else if (st === "added") { if (window.confirm(`Remove ${a} saving throw proficiency?`)) setSaveAdd(prev => prev.filter(x => x !== a)); }
+    else if (window.confirm(`Become proficient in ${a} saving throws? Your class does not grant it, so it will show in red as a custom proficiency.`)) setSaveAdd(prev => [...prev, a]);
   }
 
   function toggleExpertise(skill) {
-    if (!skillProfs.includes(skill)) return;
+    if (!allSkillProfs.includes(skill)) return;
     setSkillExpertise(prev => prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]);
   }
 
@@ -792,6 +1590,22 @@ function CharacterSheet() {
     setAsiChoices(prev => ({ ...prev, [lvl]: { type: "feat", name } }));
   }
 
+  // Activated features from Content Packs, worked out from this character's numbers as they stand now.
+  const sheetActions = useMemo(() => {
+    const spellMod = cls && cls.spellAbility ? finalMods[cls.spellAbility] : 0;
+    const ctx = { STR: finalMods.Strength, DEX: finalMods.Dexterity, CON: finalMods.Constitution, INT: finalMods.Intelligence, WIS: finalMods.Wisdom, CHA: finalMods.Charisma,
+      PROF: profBonus, LEVEL: level, SPELLMOD: spellMod, SPELLDC: 8 + profBonus + spellMod, SPELLATK: profBonus + spellMod };
+    const ch = { className, subclassName, level, species, background, spells: spells.filter(Boolean),
+      feats: [BACKGROUNDS[background] ? BACKGROUNDS[background].feat : "", ...Object.entries(asiChoices).filter(([l, c]) => parseInt(l) <= level && c && c.type === "feat" && c.name).map(([, c]) => c.name)].filter(Boolean),
+      items: [...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean) };
+    const out = [];
+    PACK_ABILITIES.forEach(ab => {
+      if (!abilityGranted(ab, ch)) return;
+      try { out.push(compileAbility(ab, ctx)); } catch (e) {}
+    });
+    return out;
+  }, [cls, finalMods, profBonus, level, className, subclassName, species, background, spells, asiChoices, pinnedItems, characterItems]);
+
   /* ============ CHARACTER FILE (save / load / send to Combat Resolver) ============ */
   const fileInputRef = useRef(null);
   const inSuite = window.parent !== window;
@@ -807,9 +1621,12 @@ function CharacterSheet() {
       ac: armorClass, initiativeBonus: initiative, speed,
       features: featureLedger.map(f => f.text),
       spells: spells.filter(Boolean),
+      actions: sheetActions,
+      packs: INSTALLED_PACKS.map(p => p.name),
       passivePerception,
       senses: ((SPECIES[species] || {}).traits || []).map(t => { const m = /^(Darkvision|Blindsight|Tremorsense|Truesight) \((\d+) ft\.\)/.exec(t); return m ? `${m[1]} ${m[2]} ft.` : null; }).filter(Boolean),
-      skills: skillMods, skillProfs, skillExpertise,
+      skills: skillMods, skillProfs: allSkillProfs, skillExpertise: skillExpertise.filter(k => allSkillProfs.includes(k)),
+      customizations,
       spellcasting: cls && cls.casterType ? {
         ability: cls.spellAbility,
         dc: 8 + profBonus + finalMods[cls.spellAbility],
@@ -821,7 +1638,8 @@ function CharacterSheet() {
       hitDie: cls ? cls.hitDie : null, hitDiceUsed,
       equipment,
       items: Array.from(new Set([...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean))),
-      builder: { pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, characterItems, pinnedItems, spells }
+      builder: { custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
+        pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, characterItems, pinnedItems, spells }
     };
   }
 
@@ -873,6 +1691,18 @@ function CharacterSheet() {
     setBgBonusChoices(arr(s.bgBonusChoices).filter(a => ABILITIES.includes(a)));
     setSkillProfs(arr(s.skillProfs).filter(k => ALL_SKILLS.includes(k)));
     setSkillExpertise(arr(s.skillExpertise).filter(k => ALL_SKILLS.includes(k)));
+    setCustom(!!s.custom);
+    setSkillRemove(arr(s.skillRemove).filter(k => ALL_SKILLS.includes(k)));
+    setSaveAdd(arr(s.saveAdd).filter(a => ABILITIES.includes(a)));
+    setSaveRemove(arr(s.saveRemove).filter(a => ABILITIES.includes(a)));
+    setAbilityMode(s.abilityMode === "custom" ? "custom" : "pointbuy");
+    const cs = {}, adj = {};
+    ABILITIES.forEach(a => {
+      const v = parseInt((s.customScores || {})[a]); cs[a] = v >= 1 && v <= 30 ? v : pb[a];
+      const d = parseInt((s.abilityAdj || {})[a]); if (d && d >= -20 && d <= 20) adj[a] = d;
+    });
+    setCustomScores(cs);
+    setAbilityAdj(adj);
     setAsiChoices(s.asiChoices && typeof s.asiChoices === "object" ? s.asiChoices : {});
     setCurrentHp(typeof s.currentHp === "number" ? s.currentHp : null);
     setTempHp(parseInt(s.tempHp) || 0);
@@ -1079,6 +1909,7 @@ function CharacterSheet() {
           ["notes", "Equipment & Notes"],
           ["magic", "✦ Magic Items"],
           ["mundane", "⚔ Mundane Items"],
+          ["packs", "Content Packs"],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -1097,16 +1928,36 @@ function CharacterSheet() {
         ))}
       </div>
 
+      {/* FURTHER CUSTOMIZATION */}
+      <div data-testid="custom-bar" style={{ background: colors.ink, borderBottom: `1px solid ${customizations.length ? CUSTOM_RED : colors.brass + "44"}`, padding: "8px 16px" }}>
+        <div style={{ maxWidth: 980, margin: "0 auto", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", fontSize: 13 }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontFamily: fontDisplay, fontWeight: 700, color: custom ? CUSTOM_RED : colors.brassLight }}>
+            <input type="checkbox" checked={custom} onChange={e => setCustom(e.target.checked)} data-testid="custom-toggle" /> Further Customization
+          </label>
+          <span style={{ opacity: 0.8 }}>{custom ? "On: you can go past the rules. Anything you add that way gets a red outline, and anything you remove shows in red letters." : "Off: the sheet follows the rules."}</span>
+          {customizations.length > 0 && (
+            <button onClick={() => setShowCustomList(v => !v)} data-testid="custom-count" style={{ marginLeft: "auto", background: "transparent", border: `1px solid ${CUSTOM_RED}`, color: CUSTOM_RED, borderRadius: 12, padding: "2px 10px", fontSize: 12, cursor: "pointer" }}>
+              {customizations.length} {customizations.length === 1 ? "customization" : "customizations"} {showCustomList ? "▲" : "▼"}
+            </button>
+          )}
+        </div>
+        {showCustomList && customizations.length > 0 && (
+          <ul data-testid="custom-list" style={{ maxWidth: 980, margin: "8px auto 0", paddingLeft: 36, fontSize: 13, color: CUSTOM_RED }}>
+            {customizations.map((c, i) => <li key={i}>{c}</li>)}
+          </ul>
+        )}
+      </div>
+
       {/* CONTENT */}
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px 16px 60px" }}>
         {tab === "identity" && (
           <IdentityTab {...{ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems }} />
         )}
         {tab === "abilities" && (
-          <AbilitiesTab {...{ pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay }} />
+          <AbilitiesTab {...{ pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay, custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }} />
         )}
         {tab === "skills" && (
-          <SkillsTab {...{ cls, skillProfs, toggleSkillProf, skillExpertise, toggleExpertise, skillMods, savingThrows, finalMods, profBonus, colors, fontDisplay }} />
+          <SkillsTab {...{ cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }} />
         )}
         {tab === "combat" && (
           <CombatTab {...{ cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
@@ -1123,6 +1974,11 @@ function CharacterSheet() {
         {tab === "magic" && (
           <MagicItemsTab {...{ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, characterItems, setCharacterItems, pinnedItems, setPinnedItems, colors, fontDisplay }} />
         )}
+        {tab === "packs" && (
+          <ContentPacksTab {...{ colors, fontDisplay, sheetActions }} />
+        )}
+        <datalist id="hba-spell-list">{PACK_SPELLS.map(sp => <option key={sp.name} value={spellLabel(sp)} />)}</datalist>
+        <datalist id="hba-feat-list">{Object.keys(ORIGIN_FEATS).map(f => <option key={f} value={f} />)}</datalist>
         {tab === "mundane" && (
           <MundaneItemsTab {...{ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, pinnedItems, setPinnedItems, colors, fontDisplay }} />
         )}
@@ -1301,85 +2157,162 @@ function PinnedItemRow({ item, isMagic, dotColor, onRemove, colors }) {
   );
 }
 
-function AbilitiesTab({ pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay }) {
+const CUSTOM_RED = "#E5484D"; // anything changed beyond the rules: red outline when added, red letters when removed
+
+function SourceTag({ text, custom, colors }) {
+  return <span style={{ fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase", padding: "1px 5px", borderRadius: 8, marginLeft: 6,
+    border: `1px solid ${custom ? CUSTOM_RED : colors.brass + "88"}`, color: custom ? CUSTOM_RED : colors.brassLight }}>{text}</span>;
+}
+
+function AbilitiesTab({ pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay,
+  custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }) {
+  const [editing, setEditing] = useState(false);     // custom scores are being set
+  const [adjOpen, setAdjOpen] = useState(null);      // which ability's additional modifier is open
+  const isCustom = abilityMode === "custom";
+  const base = (a) => (isCustom ? customScores[a] : pointBuy[a]);
+  const round = { width: 28, height: 28, borderRadius: 14, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.parchment, cursor: "pointer" };
+  const modeBtn = (on) => ({ background: on ? colors.brass : "transparent", color: on ? colors.ink : colors.brassLight, border: `1px solid ${colors.brass}`, padding: "6px 14px", fontFamily: fontDisplay, fontSize: 12, fontWeight: 700, cursor: "pointer" });
+  const setCustom = (a, v) => setCustomScores((prev) => ({ ...prev, [a]: Math.max(1, Math.min(30, parseInt(v, 10) || 1)) }));
+  const setAdj = (a, d) => setAbilityAdj((prev) => { const n = Math.max(-20, Math.min(20, (prev[a] || 0) + d)); const next = { ...prev }; if (n) next[a] = n; else delete next[a]; return next; });
+  const startCustom = () => { if (!isCustom) { setCustomScores({ ...pointBuy }); setAbilityMode("custom"); } setEditing(true); };
   return (
     <div>
-      <Section title="Point Buy" colors={colors} fontDisplay={fontDisplay}>
-        <div style={{
-          display: "inline-block", marginBottom: 16, padding: "8px 16px", borderRadius: 6,
-          background: pointBuyRemaining < 0 ? colors.blood : colors.inkLight,
-          border: `1px solid ${colors.brass}66`, fontFamily: fontDisplay, fontWeight: 700
-        }}>
-          Points Remaining: {pointBuyRemaining} / 27
+      <Section title="Ability Scores" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <div style={{ display: "inline-flex", borderRadius: 6, overflow: "hidden" }}>
+            <button style={modeBtn(!isCustom)} onClick={() => { setAbilityMode("pointbuy"); setEditing(false); }}>Point Buy</button>
+            {(custom || isCustom) && <button style={modeBtn(isCustom)} onClick={startCustom} data-testid="mode-custom">Custom</button>}
+          </div>
+          <div data-testid="points-badge" style={{ padding: "8px 16px", borderRadius: 6, background: !isCustom && pointBuyRemaining < 0 ? colors.blood : colors.inkLight,
+            border: `1px solid ${isCustom ? CUSTOM_RED : colors.brass + "66"}`, fontFamily: fontDisplay, fontWeight: 700, color: isCustom ? CUSTOM_RED : colors.parchment }}>
+            {isCustom ? `Custom Points: ${ABILITIES.reduce((t, a) => t + customScores[a], 0)} / ∞` : `Points Remaining: ${pointBuyRemaining} / 27`}
+          </div>
+          {isCustom && (editing
+            ? <button style={modeBtn(true)} onClick={() => setEditing(false)} data-testid="accept-custom">Accept</button>
+            : custom && <button style={modeBtn(false)} onClick={() => setEditing(true)}>Edit Scores</button>)}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
           {ABILITIES.map(a => (
-            <div key={a} style={{ background: colors.inkLight, border: `1px solid ${colors.brass}40`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div key={a} data-testid={`ability-${a}`} style={{ background: colors.inkLight, border: `1px solid ${isCustom ? CUSTOM_RED : colors.brass + "40"}`, borderRadius: 8, padding: 12, textAlign: "center" }}>
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", opacity: 0.8 }}>{a}</div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "8px 0" }}>
-                <button onClick={() => updatePointBuy(a, pointBuy[a] - 1)} disabled={pointBuy[a] <= 8}
-                  style={{ width: 28, height: 28, borderRadius: 14, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.parchment, cursor: "pointer", opacity: pointBuy[a] <= 8 ? 0.3 : 1 }}>−</button>
-                <span style={{ fontFamily: fontDisplay, fontSize: 24, fontWeight: 700, minWidth: 28 }}>{pointBuy[a]}</span>
-                <button onClick={() => updatePointBuy(a, pointBuy[a] + 1)} disabled={pointBuy[a] >= 15}
-                  style={{ width: 28, height: 28, borderRadius: 14, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.parchment, cursor: "pointer", opacity: pointBuy[a] >= 15 ? 0.3 : 1 }}>+</button>
+                {isCustom ? (editing ? <>
+                  <button onClick={() => setCustom(a, customScores[a] - 1)} style={round}>−</button>
+                  <input type="number" min="1" max="30" aria-label={`${a} score`} value={customScores[a]} onChange={e => setCustom(a, e.target.value)}
+                    style={{ width: 58, textAlign: "center", fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, background: colors.ink, color: CUSTOM_RED, border: `1px solid ${CUSTOM_RED}`, borderRadius: 6, padding: "2px 0" }} />
+                  <button onClick={() => setCustom(a, customScores[a] + 1)} style={round}>+</button>
+                </> : <span style={{ fontFamily: fontDisplay, fontSize: 24, fontWeight: 700, minWidth: 44, border: `2px solid ${CUSTOM_RED}`, borderRadius: 20, padding: "0 10px" }}>{customScores[a]}</span>) : <>
+                  <button onClick={() => updatePointBuy(a, pointBuy[a] - 1)} disabled={pointBuy[a] <= 8} style={{ ...round, opacity: pointBuy[a] <= 8 ? 0.3 : 1 }}>−</button>
+                  <span style={{ fontFamily: fontDisplay, fontSize: 24, fontWeight: 700, minWidth: 28 }}>{pointBuy[a]}</span>
+                  <button onClick={() => updatePointBuy(a, pointBuy[a] + 1)} disabled={pointBuy[a] >= 15} style={{ ...round, opacity: pointBuy[a] >= 15 ? 0.3 : 1 }}>+</button>
+                </>}
               </div>
-              {(bgBonuses[a] || asiBonuses[a]) ? (
-                <div style={{ fontSize: 11, color: colors.brassLight }}>
-                  {bgBonuses[a] ? `+${bgBonuses[a]} bg` : ""} {asiBonuses[a] ? `+${asiBonuses[a]} ASI` : ""}
-                </div>
-              ) : null}
+              <div style={{ fontSize: 11, color: colors.brassLight, minHeight: 16 }}>
+                {bgBonuses[a] ? `+${bgBonuses[a]} BG ` : ""}{asiBonuses[a] ? `+${asiBonuses[a]} ASI ` : ""}
+                {abilityAdj[a] ? <span style={{ color: CUSTOM_RED }}>{fmt(abilityAdj[a])} Custom</span> : null}
+              </div>
               <div style={{ fontFamily: fontDisplay, fontSize: 18, color: colors.brassLight, marginTop: 4 }}>
                 {finalScores[a]} ({fmt(finalMods[a])})
               </div>
+              {(custom || abilityAdj[a]) && (adjOpen === a ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8 }}>
+                  <button onClick={() => setAdj(a, -1)} style={round} aria-label={`Lower ${a} additional modifier`}>−</button>
+                  <span style={{ fontFamily: fontDisplay, fontWeight: 700, color: abilityAdj[a] ? CUSTOM_RED : colors.parchment, minWidth: 28 }}>{fmt(abilityAdj[a] || 0)}</span>
+                  <button onClick={() => setAdj(a, 1)} style={round} aria-label={`Raise ${a} additional modifier`}>+</button>
+                  <button onClick={() => setAdjOpen(null)} style={{ ...round, width: "auto", padding: "0 10px", fontSize: 11 }}>Done</button>
+                </div>
+              ) : custom && (
+                <button onClick={() => setAdjOpen(a)} style={{ marginTop: 8, background: "transparent", border: `1px dashed ${colors.brass}88`, color: colors.brassLight, borderRadius: 6, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}>Additional modifier</button>
+              ))}
             </div>
           ))}
         </div>
         <div style={{ fontSize: 12, opacity: 0.7, marginTop: 12, lineHeight: 1.5 }}>
-          Standard point buy: scores range 8–15 before bonuses. Cost: 9=1pt, 10=2, 11=3, 12=4, 13=5, 14=7, 15=9. Background increases and Ability Score Improvements are added automatically above.
+          {isCustom
+            ? "Custom scores have no point limit: set each score from 1 to 30, then press Accept. Background increases, Ability Score Improvements and additional modifiers are added on top."
+            : "Standard point buy: scores range 8 to 15 before bonuses. Cost: 9=1pt, 10=2, 11=3, 12=4, 13=5, 14=7, 15=9. Background increases and Ability Score Improvements are added automatically above."}
+          {!custom && " Turn on Further Customization to set scores freely or add modifiers."}
         </div>
       </Section>
     </div>
   );
 }
 
-function SkillsTab({ cls, skillProfs, toggleSkillProf, skillExpertise, toggleExpertise, skillMods, savingThrows, finalMods, profBonus, colors, fontDisplay }) {
+function SkillsTab({ cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }) {
+  const pick = { ...fieldStyle(colors), width: "auto", cursor: "pointer" };
+  const notProf = ALL_SKILLS.filter(k => !skillInfo.source[k]);
+  const prof = ALL_SKILLS.filter(k => skillInfo.source[k]);
   return (
     <div>
       <Section title="Saving Throws" colors={colors} fontDisplay={fontDisplay}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-          {ABILITIES.map(a => (
-            <div key={a} style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              background: colors.inkLight, border: `1px solid ${cls.saves.includes(a) ? colors.brass : colors.brass + "30"}`,
-              borderRadius: 6, padding: "8px 12px"
-            }}>
-              <span style={{ fontSize: 13 }}>{a} {cls.saves.includes(a) && <span style={{ color: colors.brassLight, fontSize: 11 }}>●prof</span>}</span>
-              <span style={{ fontFamily: fontDisplay, fontWeight: 700 }}>{fmt(savingThrows[a])}</span>
-            </div>
-          ))}
+        <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+          {custom ? "Click a saving throw to add or remove proficiency." : "Your class grants these. Turn on Further Customization to change them."}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+          {ABILITIES.map(a => {
+            const st = saveInfo[a]; // "class" | "added" | "removed" | ""
+            return (
+              <div key={a} data-testid={`save-${a}`} data-state={st} onClick={() => toggleSave(a)} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center", background: colors.inkLight,
+                border: `${st === "added" ? 2 : 1}px solid ${st === "added" ? CUSTOM_RED : st === "class" ? colors.brass : colors.brass + "30"}`,
+                borderRadius: 6, padding: "8px 12px", cursor: custom ? "pointer" : "default"
+              }}>
+                <span style={{ fontSize: 13, color: st === "removed" ? CUSTOM_RED : colors.parchment }}>
+                  {a}
+                  {st === "class" && <SourceTag text="Class" colors={colors} />}
+                  {st === "added" && <SourceTag text="Custom" custom colors={colors} />}
+                  {st === "removed" && <span style={{ fontSize: 10, marginLeft: 6 }}>removed</span>}
+                </span>
+                <span style={{ fontFamily: fontDisplay, fontWeight: 700, color: st === "removed" ? CUSTOM_RED : colors.parchment }}>{fmt(savingThrows[a])}</span>
+              </div>
+            );
+          })}
         </div>
       </Section>
 
-      <Section title={`Skills (choose ${cls.skillChoices} proficiencies)`} colors={colors} fontDisplay={fontDisplay}>
-        <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
-          Selected: {skillProfs.length}/{cls.skillChoices}. Click a skill to toggle proficiency; click the star to toggle Expertise (double proficiency, if your class grants it).
+      <Section title="Skills" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ fontSize: 13, marginBottom: 10, lineHeight: 1.6 }} data-testid="skill-choices">
+          {skillInfo.bg.length > 0 && <div><strong>Background</strong> grants {skillInfo.bg.join(" and ")}.</div>}
+          <div><strong>Class</strong>: choose {skillInfo.classCount} from {skillInfo.classAny ? "any skill" : skillInfo.classPool.join(", ")} ({skillInfo.classLeft} left).</div>
+          {skillInfo.speciesCount > 0 && <div><strong>Species</strong>: choose {skillInfo.speciesCount} from {skillInfo.speciesAny ? "any skill" : skillInfo.speciesPool.join(", ")} ({skillInfo.speciesLeft} left).</div>}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 6 }}>
+        <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+          Click a skill with a dashed outline to choose it. Click the star for Expertise.
+          {custom ? " Further Customization is on: you can also add any skill or remove one you were granted." : ""}
+        </div>
+        {custom && (
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+            <select aria-label="Add a skill" value="" onChange={e => { if (e.target.value) addSkill(e.target.value); }} style={pick}>
+              <option value="">+ Add a skill</option>
+              {notProf.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+            <select aria-label="Remove a skill" value="" onChange={e => { if (e.target.value) removeSkill(e.target.value); }} style={pick}>
+              <option value="">− Remove a skill</option>
+              {prof.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </div>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 6 }}>
           {ALL_SKILLS.map(skill => {
-            const isProf = skillProfs.includes(skill);
+            const src = skillInfo.source[skill] || "";
+            const removed = skillInfo.removed.includes(skill);
+            const isCustom = src === "Custom";
+            const open = !src && !removed && skillInfo.canChoose.includes(skill);
             const isExpertise = skillExpertise.includes(skill);
             return (
-              <div key={skill} style={{
+              <div key={skill} data-testid={`skill-${skill}`} data-state={removed ? "removed" : src} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
-                background: isProf ? colors.brass + "22" : colors.inkLight,
-                border: `1px solid ${isProf ? colors.brass : colors.brass + "30"}`,
+                background: src && !isCustom ? colors.brass + "22" : colors.inkLight,
+                border: isCustom ? `2px solid ${CUSTOM_RED}` : src ? `1px solid ${colors.brass}` : open ? `1px dashed ${colors.brass}` : `1px solid ${colors.brass}30`,
                 borderRadius: 6, padding: "6px 10px", cursor: "pointer"
               }}>
-                <span onClick={() => toggleSkillProf(skill)} style={{ fontSize: 13, flex: 1 }}>
+                <span onClick={() => toggleSkill(skill)} style={{ fontSize: 13, flex: 1, color: removed ? CUSTOM_RED : colors.parchment }}>
                   {skill} <span style={{ opacity: 0.6, fontSize: 11 }}>({ABBR[SKILL_ABILITY[skill]]})</span>
+                  {src && <SourceTag text={src === "Background" ? "BG" : src} custom={isCustom} colors={colors} />}
+                  {removed && <span style={{ fontSize: 10, marginLeft: 6 }}>removed</span>}
                 </span>
                 <span onClick={() => toggleExpertise(skill)} style={{ marginRight: 8, color: isExpertise ? colors.brassLight : colors.parchment + "40", fontSize: 14 }}>★</span>
-                <span style={{ fontFamily: fontDisplay, fontWeight: 700, minWidth: 30, textAlign: "right" }}>{fmt(skillMods[skill])}</span>
+                <span style={{ fontFamily: fontDisplay, fontWeight: 700, minWidth: 30, textAlign: "right", color: removed ? CUSTOM_RED : colors.parchment }}>{fmt(skillMods[skill])}</span>
               </div>
             );
           })}
@@ -1463,7 +2396,7 @@ function FeaturesTab({ featureLedger, reachedAsiLevels, asiChoices, setAsiAbilit
                   ))}
                 </div>
               ) : (
-                <input value={choice.name || ""} onChange={e => setFeatName(lvl, e.target.value)} placeholder="Feat name" style={fieldStyle(colors)} />
+                <input value={choice.name || ""} onChange={e => setFeatName(lvl, e.target.value)} placeholder="Feat name" list="hba-feat-list" style={fieldStyle(colors)} />
               )}
             </div>
           );
@@ -1572,7 +2505,7 @@ function SpellList({ colors, fontDisplay, spells, setSpells }) {
       {spells.map((s, i) => (
         <input key={i} value={s} onChange={e => {
           const next = [...spells]; next[i] = e.target.value; setSpells(next);
-        }} placeholder={`Spell ${i + 1}`} style={{ ...fieldStyle(colors), marginBottom: 6 }} />
+        }} placeholder={`Spell ${i + 1}`} list="hba-spell-list" style={{ ...fieldStyle(colors), marginBottom: 6 }} />
       ))}
       <button onClick={() => setSpells([...spells, ""])} style={{
         background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight,
