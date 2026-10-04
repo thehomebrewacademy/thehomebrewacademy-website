@@ -351,6 +351,13 @@
     .dice-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 6px; }
     .die-btn { background: #1a2535; border: 1px solid #3d5166; color: var(--parchment); border-radius: 4px; padding: 6px 0; font-family: 'Cinzel', serif; font-size: 0.7rem; cursor: pointer; }
     .die-btn:hover { border-color: var(--brass); }
+    .die-btn.has { background: var(--brass); color: #10161f; border-color: var(--brass); font-weight: 700; }
+    .rule-label { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer; }
+    .rule-label input { width: auto; }
+    .dice-opts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 0.78rem; }
+    .dice-opts label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+    .dice-opts input { width: auto; }
+    .dice-opts select { flex: 1; min-width: 120px; background: #0F1923; border: 1px solid #3d5166; color: var(--parchment); padding: 4px 6px; border-radius: 4px; font-size: 0.78rem; }
     .dice-expr { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
     .log-entry.roll { border-left-color: var(--brass); }
 
@@ -595,6 +602,8 @@ const BUFFS = [
   {name:'Haste', ac:2, speedMult:2, saveAdv:'Dexterity', note:'One extra action each turn (Attack for one attack, Dash, Disengage, Hide or Utilize). When it ends, the target is Incapacitated with Speed 0 until the end of its next turn.'},
   {name:'Slow', ac:-2, speedMult:0.5, saveAbil:'Dexterity', saveAbilMod:-2, note:"Can't take Reactions. On its turn it takes an action or a Bonus Action, not both, and makes only one attack."},
   {name:'Longstrider', speed:10},
+  {name:'Aid', hpMax:5},
+  {name:'Silenced', note:'Inside a Silence spell: no sound, so no spell with a Verbal component can be cast. Immune to Thunder damage and has the Deafened condition while there.'},
   {name:'Darkvision', sense:'Darkvision 150 ft.'},
   {name:'Fly', move:'Fly 60 ft. (hover)'},
   {name:'Faerie Fire', advAgainst:true, noInvisible:true, note:'Sheds Dim Light in a 10-foot radius.'},
@@ -629,7 +638,7 @@ const BUFF_TIME = {
   Bless:[60,true], Bane:[60,true], 'Shield of Faith':[600,true], Haste:[60,true], Slow:[60,true],
   Longstrider:[3600,false], Darkvision:[8*3600,false], Fly:[600,true], 'Faerie Fire':[60,true],
   "Hunter's Mark":[3600,true], Hex:[3600,true], 'Protection from Evil and Good':[600,true],
-  Resistance:[60,true], Guidance:[60,true], 'Bardic Inspiration':[3600,false], Heroism:[60,true],
+  Aid:[8*3600,false], Resistance:[60,true], Guidance:[60,true], 'Bardic Inspiration':[3600,false], Heroism:[60,true],
 };
 function defaultTime(name) {
   const t = BUFF_TIME[name];
@@ -735,7 +744,7 @@ const ACTIVATIONS = {action:'Action', bonus:'Bonus Action', reaction:'Reaction',
 function cleanEffect(e) {
   if (!e || typeof e !== 'object' || !String(e.name || '').trim()) return null;
   const out = {name: String(e.name).trim().slice(0, 40)};
-  ['ac','speed','init','d20','saveAbilMod','tempEachTurn'].forEach(k => { const n = parseInt(e[k], 10); if (Number.isFinite(n) && n) out[k] = Math.max(-200, Math.min(200, n)); });
+  ['ac','speed','init','d20','saveAbilMod','tempEachTurn','hpMax'].forEach(k => { const n = parseInt(e[k], 10); if (Number.isFinite(n) && n) out[k] = Math.max(-200, Math.min(200, n)); });
   if (+e.speedMult > 0 && +e.speedMult !== 1) out.speedMult = Math.min(4, +e.speedMult);
   ['atk','save','check','bonusDmg'].forEach(k => { const v = String(e[k] == null ? '' : e[k]).replace(/\s/g, '').replace(/^\+/, ''); if (v && DMG_RE.test(v.replace(/^-/, ''))) out[k] = v; });
   ['sense','move','bonusType'].forEach(k => { if (e[k]) out[k] = String(e[k]).slice(0, 60); });
@@ -825,6 +834,9 @@ function cleanAction(a, i) {
   if (+a.slot >= 1 && +a.slot <= 9) { out.slot = Math.round(+a.slot); bits.unshift(`Level ${out.slot} spell`); }
   else if (a.spell) bits.unshift('Cantrip');
   if (/^\d+d\d+$/.test(String(a.up || ''))) out.up = a.up;
+  if (a.upEff && +a.upEff.hpMax > 0) out.upEff = {hpMax: Math.min(50, Math.round(+a.upEff.hpMax))};
+  // Spell components, for the tables that track them
+  if (a.spell && /^[VSM]{1,3}$/.test(String(a.comp || ''))) { out.comp = a.comp; if (a.mat) out.mat = String(a.mat).slice(0, 240); if (a.matCost) out.matCost = true; if (a.matConsumed) out.matConsumed = true; }
   ['onHit','onFail','onSuccess','onUse'].forEach(k => {
     const o = cleanOutcome(a[k]);
     if (o) { out[k] = o; bits.push(`${{onHit:'On a hit', onFail:'On a failed save', onSuccess:'On a successful save', onUse:'Applies'}[k]}: ${outcomeText(o)}`); }
@@ -856,9 +868,14 @@ async function sweepOldSessions(me, skip) {
   }
 }
 
-const EFFECT_KEYS = ['atk','save','ac','speed','speedMult','init','sense','move','note','saveAdv','saveAbil','saveAbilMod','advAgainst','noInvisible','bonusDmg','bonusType','protect','check','immune'];
+const EFFECT_KEYS = ['atk','save','ac','speed','speedMult','init','sense','move','note','saveAdv','saveAbil','saveAbilMod','advAgainst','noInvisible','bonusDmg','bonusType','protect','check','immune','hpMax'];
+// A creature's Hit Point total: its own, plus anything an effect such as Aid adds while it lasts.
+function totalHP(c) { return Math.max(1, (+c.maxHP || 1) + ((c && c.effects) || []).reduce((s, e) => s + (+e.hpMax || 0), 0)); }
+// Spellcasting Focuses and the Component Pouch, found by name among a character's items.
+const FOCUS_RE = /arcane focus|druidic focus|holy symbol/i, INSTRUMENT_RE = /bagpipes|drum|dulcimer|flute|horn|lute|lyre|shawm|viol/i;
 function describeEffect(e) { // what an effect does, in words
   const parts = [];
+  if (e.hpMax) parts.push(`${signed(+e.hpMax)} Hit Point total`);
   if (e.ac) parts.push(`${signed(+e.ac)} AC`);
   if (e.speed) parts.push(`${signed(+e.speed)} ft. Speed`);
   if (e.speedMult && +e.speedMult !== 1) parts.push(+e.speedMult === 2 ? 'Speed doubled' : +e.speedMult === 0.5 ? 'Speed halved' : `Speed x${e.speedMult}`);
@@ -1018,6 +1035,7 @@ function sheetToFields(data) {
     player: str(data.player, 40), pp: num(data.passivePerception, 10 + mod(scores.Wisdom)),
     skills, skillProfs: list(data.skillProfs, 30, 30), skillExpertise: list(data.skillExpertise, 30, 30),
     hitDie: num(data.hitDie, 0), equipment: str(data.equipment, 2000), items: list(data.items, 60, 80),
+    shield: !!data.shield, feats: list(data.feats, 40, 60), components: list(data.components, 80, 60),
   };
   if (sp) sheet.spell = {ability: str(sp.ability, 20), dc: num(sp.dc, 8), attack: num(sp.attack, 0), slots: str(sp.slots, 120)};
   // Spell slots by level (index 0 = Level 1). Pact Magic slots are all one level and come back on a Short Rest.
@@ -1226,6 +1244,10 @@ function App() {
   const [condOpts, setCondOpts] = useState({n:'', unit:'minutes', when:'', abil:'Wisdom', dc:''}); // how the next condition applied behaves
   const [pane, setPane] = useState('order'); // which panel shows on a phone: order | sheet | log
   const [diceExpr, setDiceExpr] = useState('');
+  const [diceOpts, setDiceOpts] = useState({reroll: false, twice: ''}); // reroll 1s once; roll everything twice and keep the higher or lower total
+  const [handsOn, setHandsOn] = useState(false);   // table rule: track what each character holds
+  const [compMode, setCompMode] = useState('');    // table rule: spell components. '' off, 'simple', 'full'
+  const [showPouch, setShowPouch] = useState(false);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [log]);
 
@@ -1234,6 +1256,10 @@ function App() {
   // everything, and each player controls only the characters and companions they brought.
   const isDM = !room || !dmId || dmId === myId;
   const canControl = c => !!c && (isDM || (!!c.owner && c.owner === myId));
+  // When an effect that raised a Hit Point total ends, current Hit Points come down to the total again.
+  useEffect(() => {
+    if (combatants.some(c => canControl(c) && c.currentHP > totalHP(c))) setCombatants(prev => prev.map(c => canControl(c) && c.currentHP > totalHP(c) ? {...c, currentHP: totalHP(c)} : c));
+  });
   const visible = combatants.filter(c => !c.pending || isDM || c.owner === myId);
   const inPlay = combatants.filter(c => !c.pending);
   const mine = visible.filter(c => c.owner === myId);
@@ -1454,6 +1480,7 @@ function App() {
       if (fromCaster && actor) { eff.src = actor.id; eff.srcName = actor.name; }
       setCombatants(prev => reorder(prev.map(c => c.id !== tgt.id ? c : {
         ...c,
+        currentHP: +eff.hpMax > 0 ? c.currentHP + Math.max(0, +eff.hpMax - (+(((c.effects || []).find(x => x.name === eff.name) || {}).hpMax) || 0)) : c.currentHP,
         effects: [...(c.effects || []).filter(x => x.name !== eff.name), eff],
         conditions: eff.immune ? (c.conditions || []).filter(x => x !== eff.immune) : c.conditions,
       })));
@@ -1527,12 +1554,49 @@ function App() {
       setLog(prev => [...prev, r.entry]);
     }
   };
+  // ── WHAT IS IN HAND, AND SPELL COMPONENTS (table rules the DM switches on) ──
+  const itemsOf = c => ((c && c.sheet) || {}).items || [];
+  const focusItems = c => itemsOf(c).filter(n => FOCUS_RE.test(n) || (c.charClass === 'Bard' && INSTRUMENT_RE.test(n)));
+  const hasPouch = c => itemsOf(c).some(n => /component pouch/i.test(n));
+  const weaponNames = c => Array.from(new Set(((c && c.sheetActions) || []).filter(a => a.weapon).map(a => a.name.replace(/ \(two hands\)$/, ''))));
+  const handChoices = c => [...weaponNames(c), ...(((c.sheet || {}).shield) ? ['Shield'] : []), ...focusItems(c), 'Something else'];
+  const handsOf = c => Array.isArray(c.hands) ? [c.hands[0] || '', c.hands[1] || ''] : [weaponNames(c)[0] || '', ((c.sheet || {}).shield) ? 'Shield' : ''];
+  const setHand = (id, i, v) => setCombatants(prev => prev.map(c => { if (c.id !== id) return c; const hd = handsOf(c); hd[i] = v; return {...c, hands: hd}; }));
+  const silenced = c => ((c && c.effects) || []).some(e => /silenc/i.test(e.name));
+  const compOwned = (c, a) => { const o = (c.compOwned || {})[a.name.replace(/ \(Level \d slot\)$/, '')]; return o == null ? (((c.sheet || {}).components) || []).includes(a.name.replace(/ \(Level \d slot\)$/, '')) : !!o; };
+  const setCompOwned = (id, name, v) => setCombatants(prev => prev.map(c => c.id === id ? {...c, compOwned: {...(c.compOwned || {}), [name]: !!v}} : c));
+  // Why this creature cannot use this action right now, or '' when it can.
+  const blockReason = (c, a) => {
+    if (!c || !a || !c.sheet || !c.ownActions) return '';
+    const tracked = handsOn && !c.handsIgnore, hands = handsOf(c);
+    if (a.weapon && tracked) {
+      const base = a.name.replace(/ \(two hands\)$/, ''), i = hands.indexOf(base);
+      if (i < 0) return `${base} is not in hand. Change what is in hand above.`;
+      if (a.twoHanded) { const other = hands[1 - i]; if (other && other !== base) return `${base} needs both hands, and the other hand holds ${other}.`; }
+    }
+    if (a.spell && compMode && a.comp) {
+      const foci = focusItems(c), has = k => a.comp.includes(k);
+      if (has('V') && silenced(c)) return 'Verbal component: it cannot be spoken while Silenced.';
+      if (has('M')) {
+        if (compMode === 'full' && a.matCost) { if (!compOwned(c, a)) return `Material component: needs ${a.mat || 'a component with a cost'}. A Component Pouch or Spellcasting Focus cannot replace a component that has a cost.`; }
+        else if (!hasPouch(c) && !foci.length) return 'Material component: needs a Component Pouch or a Spellcasting Focus among your items.';
+      }
+      if (tracked) {
+        const free = hands.includes(''), focusHeld = hands.some(x => x && foci.includes(x));
+        const warCaster = (((c.sheet || {}).feats) || []).some(f => /war caster/i.test(f));
+        if (has('M') && !free && !focusHeld) return 'Material component: needs a free hand to reach it, or a Spellcasting Focus in hand.';
+        if (has('S') && !free && !(has('M') && focusHeld) && !warCaster) return 'Somatic component: needs a free hand.';
+      }
+    }
+    return '';
+  };
   // Spell slots: what a creature has left at each level, and the levels a spell can be cast with.
   const slotsLeft = (c, lvl) => Math.max(0, ((((c.sheet || {}).slotMax) || [])[lvl - 1] || 0) - (+((c.slotsUsed || {})[lvl]) || 0));
   const castOptions = (c, a) => a && a.slot ? [1,2,3,4,5,6,7,8,9].filter(l => l >= a.slot && slotsLeft(c, l) > 0) : [];
   // A spell cast with a higher slot: its damage or healing grows by "up" for each level above its own.
   const upcast = (a, lvl) => {
     const extra = lvl - a.slot;
+    if (extra > 0 && a.upEff && a.onUse && a.onUse.effs) return {...a, name: `${a.name} (Level ${lvl} slot)`, onUse: {...a.onUse, effs: a.onUse.effs.map(e => e.hpMax ? {...e, hpMax: e.hpMax + a.upEff.hpMax * extra} : e)}};
     if (!(extra > 0) || !a.up) return a;
     const [n, d] = a.up.split('d').map(Number);
     const more = `+${n * extra}d${d}`;
@@ -1565,6 +1629,11 @@ function App() {
     let action = actions.find(a=>a.id===selectedAction);
     if (!action) return;
     if (limited(action) && usesLeft(active, action) <= 0) return;
+    if (blockReason(active, action)) return;
+    if (compMode === 'full' && action.spell && action.matCost && action.matConsumed && active.sheet && active.ownActions) { // the spell uses up its costly component
+      setCompOwned(active.id, action.name, false);
+      setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<br/><div class="log-dice">Material component consumed: ${esc(action.mat || '')}</div>`})]);
+    }
     let castLvl = 0;
     if (action.slot) { // a levelled spell spends a slot
       const opts = castOptions(active, action);
@@ -1759,7 +1828,7 @@ function App() {
   const updateHP = (id, delta, isHeal=false) => {
     setCombatants(prev => prev.map(c => {
       if (c.id !== id) return c;
-      if (isHeal) return {...c, currentHP: Math.min(c.maxHP, c.currentHP + delta)};
+      if (isHeal) return {...c, currentHP: Math.min(totalHP(c), c.currentHP + delta)};
       const dmg = Math.max(0, -delta), temp = +c.tempHP || 0, soak = Math.min(temp, dmg); // Temporary Hit Points are lost first
       return {...c, tempHP: temp - soak, currentHP: Math.max(0, c.currentHP - (dmg - soak))};
     }));
@@ -1826,6 +1895,7 @@ function App() {
     if (blocked) { setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(to.name)}</strong> is immune to <span class="log-result">Exhaustion</span>`})]); return; }
     setCombatants(prev => reorder(prev.map(c => c.id !== to.id ? c : {
       ...c,
+      currentHP: +eff.hpMax > 0 ? c.currentHP + Math.max(0, +eff.hpMax - (+(((c.effects || []).find(e => e.name === name) || {}).hpMax) || 0)) : c.currentHP,
       effects: [...(c.effects || []).filter(e => e.name !== name), eff],
       conditions: eff.immune ? (c.conditions || []).filter(x => x !== eff.immune) : c.conditions,
     })));
@@ -1863,14 +1933,14 @@ function App() {
     if (!c || !canControl(c)) return;
     const longRest = kind === 'long';
     let after = restoreUses(c, longRest);
-    if (longRest) after = {...after, currentHP: c.maxHP, tempHP: 0};
+    if (longRest) after = {...after, currentHP: totalHP(c), tempHP: 0};
     const lines = [];
     if (after.currentHP !== c.currentHP) lines.push(`Hit Points: ${c.currentHP} to ${after.currentHP}`);
     if ((+c.tempHP || 0) !== (+after.tempHP || 0)) lines.push(`Temporary Hit Points: ${c.tempHP} to 0`);
     Object.entries((c.sheet || {}).pools || {}).forEach(([n, q]) => { const b = poolLeft(c, n), a = poolLeft(after, n); if (a !== b) lines.push(`${n}: ${b} to ${a} of ${q.max}`); });
     (((c.sheet || {}).slotMax) || []).forEach((n, i) => { const b = slotsLeft(c, i + 1), a = slotsLeft(after, i + 1); if (n > 0 && a !== b) lines.push(`Level ${i + 1} spell slots: ${b} to ${a} of ${n}`); });
     buildActions(c).forEach(a => { if (a.usesMax && !a.pool) { const b = usesLeft(c, a), x = usesLeft(after, a); if (x !== b) lines.push(`${a.name}: ${b} to ${x} of ${a.usesMax}`); } });
-    setCombatants(prev => prev.map(x => x.id === id ? {...restoreUses(x, longRest), ...(longRest ? {currentHP: x.maxHP, tempHP: 0} : {})} : x));
+    setCombatants(prev => prev.map(x => x.id === id ? {...restoreUses(x, longRest), ...(longRest ? {currentHP: totalHP(x), tempHP: 0} : {})} : x));
     setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(c.name)}</strong> finishes a <span class="log-result">${longRest ? 'Long Rest' : 'Short Rest'}</span>${lines.length ? `<div class="log-detail">${lines.map(esc).join(' · ')}</div>` : ''}`})]);
     setRestSummary({name: c.name, kind, lines});
   };
@@ -1940,11 +2010,36 @@ function App() {
   const activeConditions = inPlay.flatMap(c => (c.conditions || []).map(cond => ({c, cond, info: condInfoOf(c, cond)})));
 
   // ── DICE ROLLER ─────────────────────────────────────────────────────────────
+  // The pool is one line of text, such as 2d6+1d8+3. Clicking a die adds one to it, right-clicking takes one away, and it can be typed too.
+  const normExpr = (raw) => String(raw || '').replace(/\s/g, '').toLowerCase().replace(/^d/, '1d').replace(/([+-])d/g, '$11d');
+  const poolOf = (raw) => { // {dice: {6: 2, 8: 1}, mod: 3}
+    const dice = {}; let mod = 0;
+    (normExpr(raw).match(/[+-]?[^+-]+/g) || []).forEach(t => {
+      const sign = t[0] === '-' ? -1 : 1, body = t.replace(/^[+-]/, ''), m = /^(\d+)d(\d+)$/.exec(body);
+      if (m) dice[+m[2]] = (dice[+m[2]] || 0) + sign * +m[1]; else if (/^\d+$/.test(body)) mod += sign * +body;
+    });
+    return {dice, mod};
+  };
+  const exprOf = ({dice, mod}) => { const d = Object.keys(dice).map(Number).filter(s => dice[s] > 0).sort((a, b) => a - b).map(s => `${dice[s]}d${s}`).join('+'); return d + (mod ? (mod > 0 ? (d ? '+' : '') : '-') + Math.abs(mod) : ''); };
+  const bumpDie = (sides, by) => { const pl = poolOf(diceExpr); pl.dice[sides] = Math.max(0, Math.min(99, (pl.dice[sides] || 0) + by)); setDiceExpr(exprOf(pl)); };
+  const rollOnce = (expr, reroll) => { // every die shown; a 1 is rerolled once when asked
+    let total = 0; const parts = [];
+    (expr.match(/[+-]?[^+-]+/g) || []).forEach(t => {
+      const sign = t[0] === '-' ? -1 : 1, body = t.replace(/^[+-]/, ''), m = /^(\d+)d(\d+)$/.exec(body);
+      if (!m) { total += sign * +body; parts.push((sign < 0 ? '-' : '') + body); return; }
+      const shown = [];
+      for (let i = 0; i < Math.min(100, +m[1]); i++) { let r = rollD(Math.max(1, +m[2])); if (reroll && r === 1 && +m[2] > 1) { const r2 = rollD(+m[2]); shown.push(`1→${r2}`); r = r2; } else shown.push(String(r)); total += sign * r; }
+      parts.push(`${sign < 0 ? '-' : ''}${m[1]}d${m[2]}=[${shown.join(',')}]`);
+    });
+    return {total, parts};
+  };
   const rollExpr = (exprRaw) => {
-    const expr = String(exprRaw || '').replace(/\s/g, '').toLowerCase().replace(/^d/, '1d').replace(/([+-])d/g, '$11d');
+    const expr = normExpr(exprRaw);
     if (!DMG_RE.test(expr)) return;
-    const r = parseDamage(expr, true);
-    setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(whoAmI())}</strong> rolls ${esc(expr)}<br/><span class="log-result">🎲 ${r.total}</span><div class="log-dice">${r.parts.join(' + ')}</div>`})]);
+    const a = rollOnce(expr, diceOpts.reroll), b = diceOpts.twice ? rollOnce(expr, diceOpts.reroll) : null;
+    const keepB = b && (diceOpts.twice === 'high' ? b.total > a.total : b.total < a.total), kept = keepB ? b : a;
+    const notes = [diceOpts.reroll ? 'Rerolled each 1 once' : '', b ? `Rolled twice, kept the ${diceOpts.twice === 'high' ? 'higher' : 'lower'}: ${a.total} and ${b.total}` : ''].filter(Boolean);
+    setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(whoAmI())}</strong> rolls ${esc(expr)}<br/><span class="log-result">🎲 ${kept.total}</span><div class="log-dice">${kept.parts.join(' + ')}</div>${b ? `<div class="log-dice">Other roll: ${(keepB ? a : b).parts.join(' + ')}</div>` : ''}${notes.length ? `<div class="log-dice">${notes.join('. ')}.</div>` : ''}`})]);
   };
 
   const hpColor = (cur, max) => {
@@ -1955,7 +2050,7 @@ function App() {
   };
 
   // ── LIVE SYNC ───────────────────────────────────────────────────────────────
-  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval});
+  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || ''});
   const setHash = h => { try { (window.parent || window).history.replaceState(null, '', h); } catch (e) {} };
   const enterSession = code => { promptedRef.current = false; setRemoteSigs(null); setSyncMsg(''); setRoom(code); setRoomInput(''); setHash('#room=' + code); };
 
@@ -2027,7 +2122,7 @@ function App() {
         .sort((a, b) => ((a.seq || 0) - (b.seq || 0)) || (a.id < b.id ? -1 : 1));
       const logList = Object.values(v.log || {}).filter(e => e && e.id).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const m = v.meta || {};
-      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval};
+      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : ''};
       const promptList = Object.values(v.prompts || {}).filter(q => q && q.id && q.targetId).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const sigs = {combatants: {}, log: {}, prompts: {}, meta: stable(meta)};
       promptList.forEach(q => { sigs.prompts[q.id] = true; });
@@ -2041,6 +2136,7 @@ function App() {
       setActiveId(meta.activeId);
       setDmId(meta.dm);
       setApproval(meta.approval);
+      setHandsOn(meta.handsOn); setCompMode(meta.compMode);
       setRemoteSigs(sigs);
       setSyncStatus('live');
     };
@@ -2063,7 +2159,7 @@ function App() {
     if (stable(meta) !== remoteSigs.meta) updates['meta'] = meta;
     if (Object.keys(updates).length) updates['touched'] = firebase.database.ServerValue.TIMESTAMP; // last activity, for the 90-day cleanup
     if (Object.keys(updates).length) db.ref('rooms/' + room).update(updates).catch(err => { console.error('Session write failed', err); setSyncStatus('error'); setSyncMsg('Could not save'); });
-  }, [combatants, log, prompts, round, activeId, combatStarted, approval, room, remoteSigs]);
+  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, room, remoteSigs]);
 
   // The DM's computer remembers its sessions and marks them as used whenever the DM opens them.
   useEffect(() => {
@@ -2156,7 +2252,7 @@ function App() {
       chip('AC', effectiveAC(c), srcEff(c, e => +e.ac)),
       chip('Initiative', signed(effectiveInitBonus(c)), srcEff(c, e => +e.init)),
       chip('Speed', speedText(c), [SPEED_ZERO.filter(n => hasCond(c, n)).join(', '), srcEff(c, e => +e.speed || (e.speedMult && +e.speedMult !== 1) || e.move)].filter(Boolean).join(', ')),
-      chip('HP', `${c.currentHP}/${c.maxHP}${+c.tempHP > 0 ? ` +${c.tempHP}` : ''}`, ''),
+      chip('HP', `${c.currentHP} / ${totalHP(c)}${+c.tempHP > 0 ? ` +${c.tempHP} temp` : ''}`, srcEff(c, e => +e.hpMax)),
       chip('Prof', `+${c.pb || 2}`, ''),
     ];
     if (sh.pp != null) out.push(chip('Passive Perception', sh.pp, ''));
@@ -2298,9 +2394,9 @@ function App() {
                   {ctl && <button className="card-remove" title="Remove from combat" onClick={e=>{e.stopPropagation(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id);}}>×</button>}
                 </div>
                 <div className="hp-bar-wrap">
-                  <div className="hp-bar" style={{width:`${Math.max(0,Math.min(100,(c.currentHP/c.maxHP)*100))}%`,background:hpColor(c.currentHP,c.maxHP)}}/>
+                  <div className="hp-bar" style={{width:`${Math.max(0,Math.min(100,(c.currentHP/totalHP(c))*100))}%`,background:hpColor(c.currentHP,totalHP(c))}}/>
                 </div>
-                <div className="hp-text"><span>{c.currentHP}{+c.tempHP > 0 && <span className="temp-hp"> +{c.tempHP} temp</span>}</span><span style={{color:'var(--text-muted)'}}>/ {c.maxHP}</span></div>
+                <div className="hp-text" data-testid={`hp-${c.name}`} title="Current Hit Points out of the total"><span>{c.currentHP} HP{+c.tempHP > 0 && <span className="temp-hp"> +{c.tempHP} temp</span>}</span><span style={{color:'var(--text-muted)'}}>of {totalHP(c)} total</span></div>
                 {(c.conditions.length > 0 || (c.effects||[]).length > 0) && (
                   <div className="conditions">
                     {c.conditions.map(cond=>(
@@ -2325,10 +2421,6 @@ function App() {
                 {/* HP Quick Edit */}
                 {ctl && !c.pending && (
                   <div className="hp-edit" onClick={e=>e.stopPropagation()}>
-                    <button className="btn btn-sm btn-danger" onClick={()=>updateHP(c.id,-1)}>−1</button>
-                    <button className="btn btn-sm btn-danger" onClick={()=>updateHP(c.id,-5)}>−5</button>
-                    <button className="btn btn-sm btn-success" onClick={()=>updateHP(c.id,5,true)}>+5</button>
-                    <button className="btn btn-sm btn-success" onClick={()=>updateHP(c.id,10,true)}>+10</button>
                     <input type="number" min="0" placeholder="amt" aria-label={`HP amount for ${c.name}`} id={'amt-'+c.id}/>
                     <button className="btn btn-sm btn-danger" title="Damage by the typed amount" onClick={()=>{ const el=document.getElementById('amt-'+c.id); const n=Math.abs(+el.value||0); if(n){updateHP(c.id,-n); el.value='';} }}>Dmg</button>
                     <button className="btn btn-sm btn-success" title="Heal by the typed amount" onClick={()=>{ const el=document.getElementById('amt-'+c.id); const n=Math.abs(+el.value||0); if(n){updateHP(c.id,n,true); el.value='';} }}>Heal</button>
@@ -2340,6 +2432,20 @@ function App() {
             <button className="btn btn-ghost btn-full" style={{marginTop:8}} onClick={addMyCharacter}>Add My Character Sheet</button>
             <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={openAdd}>{isDM ? '+ Add Combatant' : '+ Add Companion'}</button>
             {isDM && <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>setShowRoster(true)}>Monster Roster</button>}
+            {isDM && (
+              <div className="manual-roll" data-testid="rules-panel">
+                <span className="label">Table Rules</span>
+                <label className="rule-label" style={{margin:'2px 0'}} title="Each character sheet shows what is in each hand. A weapon has to be in hand to attack with it, and spells check for a free hand."><input type="checkbox" data-testid="rule-hands" checked={handsOn} onChange={e=>setHandsOn(e.target.checked)}/> Track what is in hand</label>
+                <div className="time-row" style={{gridTemplateColumns:'auto 1fr'}}>
+                  <span style={{fontSize:'0.8rem', alignSelf:'center'}}>Spell components</span>
+                  <select aria-label="Spell components rule" value={compMode} onChange={e=>setCompMode(e.target.value)}>
+                    <option value="">Off</option>
+                    <option value="simple">Simplified: a pouch or focus covers everything</option>
+                    <option value="full">Full rules: components with a cost must be owned</option>
+                  </select>
+                </div>
+              </div>
+            )}
             {isDM && (
               <div className="manual-roll" data-testid="time-panel">
                 <span className="label">Pass Time</span>
@@ -2426,7 +2532,7 @@ function App() {
                     onClick={()=>toggleTarget(c.id)}>
                     <span className="t-name">{c.name}</span>
                     <span className="t-ac">AC {effectiveAC(c)}</span>
-                    <span className="t-hp">{c.currentHP}/{c.maxHP} HP</span>
+                    <span className="t-hp">{c.currentHP}/{totalHP(c)} HP</span>
                   </div>
                 ))}
 
@@ -2470,6 +2576,40 @@ function App() {
                 {selAction && selAction.weapon && (selAction.finesse || selAction.ranged) && viewed && (viewed.passives || {}).sneakAttackDice > 0 && (
                   <label className="conc-label" style={{margin:'4px 0'}}><input type="checkbox" checked={sneakOn} onChange={e=>setSneakOn(e.target.checked)}/> Add Sneak Attack ({viewed.passives.sneakAttackDice}d6) if this hits. Needs Advantage or an ally within 5 feet of the target. Once per turn.</label>
                 )}
+                {/* In hand, and the Component Pouch */}
+                {viewed && viewed.sheet && viewed.ownActions && handsOn && (
+                  <div className="slot-row" data-testid="hands-row" style={{alignItems:'center'}}>
+                    <span className="opt-label">In hand</span>
+                    {[0, 1].map(i => (
+                      <select key={i} aria-label={i ? 'Other hand' : 'Main hand'} disabled={!canControl(viewed)} value={handsOf(viewed)[i]} onChange={e=>setHand(viewed.id, i, e.target.value)}
+                        style={{background:'#0F1923', border:'1px solid #3d5166', color:'var(--parchment)', padding:'4px 6px', borderRadius:4, fontSize:'0.8rem', maxWidth:170, opacity: viewed.handsIgnore ? 0.5 : 1}}>
+                        <option value="">Free hand</option>
+                        {Array.from(new Set([...handChoices(viewed), handsOf(viewed)[i]].filter(Boolean))).map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    ))}
+                    {canControl(viewed) && <label className="rule-label" style={{margin:0}} title="Stop checking what this character holds"><input type="checkbox" data-testid="hands-ignore" checked={!!viewed.handsIgnore} onChange={e=>setCombatants(prev => prev.map(c => c.id === viewed.id ? {...c, handsIgnore: e.target.checked} : c))}/> Ignore</label>}
+                  </div>
+                )}
+                {viewed && viewed.sheet && viewed.ownActions && compMode && (viewed.sheetActions || []).some(a => a.spell && (a.comp || '').includes('M')) && (
+                  <div className="slot-row" data-testid="pouch-row" style={{display:'block'}}>
+                    <button className="btn btn-ghost btn-sm" data-testid="pouch-btn" onClick={()=>setShowPouch(v => !v)}>{showPouch ? '▾' : '▸'} Components: {hasPouch(viewed) ? 'Component Pouch' : focusItems(viewed).length ? focusItems(viewed)[0] : 'no pouch or focus'}</button>
+                    {showPouch && (
+                      <div className="buff-note" data-testid="pouch-list" style={{marginTop:6}}>
+                        {compMode === 'simple'
+                          ? <div>Simplified rule: a Component Pouch or a Spellcasting Focus covers every Material component.</div>
+                          : <div>A Component Pouch or Spellcasting Focus covers every Material component that has no cost. A component with a cost has to be among your things: tick the ones you have.</div>}
+                        {viewed.sheetActions.filter(a => a.spell && (a.comp || '').includes('M')).map(a => {
+                          const need = compMode === 'full' && a.matCost, ok = need ? compOwned(viewed, a) : (hasPouch(viewed) || focusItems(viewed).length > 0);
+                          return (
+                            <div key={a.id} style={{display:'flex', gap:8, alignItems:'center', marginTop:4}}>
+                              {need ? <input type="checkbox" aria-label={`Have the component for ${a.name}`} style={{width:'auto'}} disabled={!canControl(viewed)} checked={ok} onChange={e=>setCompOwned(viewed.id, a.name, e.target.checked)}/> : <span style={{width:14, color: ok ? '#4CAF50' : '#ff8a80'}}>{ok ? '✓' : '✗'}</span>}
+                              <span><strong>{a.name}</strong>: {a.mat || 'a material component'}{need ? (a.matConsumed ? ' (has a cost, used up by the spell)' : ' (has a cost)') : ''}</span>
+                            </div>);
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Spell slots */}
                 {viewed && ((viewed.sheet || {}).slotMax || []).some(n => n > 0) && (
                   <div className="slot-row" data-testid="slot-row">
@@ -2500,6 +2640,8 @@ function App() {
                     </div>
                   </div>
                 )}
+                {selAction && blockReason(viewed, selAction) && <div className="buff-note" data-testid="block-reason" style={{marginTop:8, color:'#ff8a80', borderColor:'#a04040'}}>{blockReason(viewed, selAction)}</div>}
+                {selAction && selAction.spell && compMode && selAction.comp && <div className="buff-note" data-testid="comp-line" style={{marginTop:8}}>Components: {[selAction.comp.includes('V') && 'Verbal', selAction.comp.includes('S') && 'Somatic', selAction.comp.includes('M') && `Material (${selAction.mat || 'see the spell'})`].filter(Boolean).join(', ')}</div>}
                 {selAction && selAction.desc && <div className="buff-note" style={{marginTop:8}}>{selAction.desc}</div>}
 
                 {/* Buff passing */}
@@ -2630,7 +2772,8 @@ function App() {
               <button className="next-turn-btn" disabled={!canControl(active)} style={!canControl(active)?{opacity:0.4,cursor:'default'}:{}} onClick={nextTurn}>Next Turn →</button>
               <button
                 className="resolve-btn"
-                disabled={!canAct || !selectedAction || (needsTarget && !target) || (limited(selAction) && usesLeft(viewed, selAction) <= 0) || (selAction && selAction.slot > 0 && castOptions(viewed, selAction).length === 0)}
+                title={blockReason(viewed, selAction)}
+                disabled={!canAct || !selectedAction || !!blockReason(viewed, selAction) || (needsTarget && !target) || (limited(selAction) && usesLeft(viewed, selAction) <= 0) || (selAction && selAction.slot > 0 && castOptions(viewed, selAction).length === 0)}
                 onClick={resolve}>
                 {canAct ? '⚔ Resolve Action' : 'Not your turn'}
               </button>
@@ -2643,11 +2786,22 @@ function App() {
           <div className="panel-header">Dice Roller</div>
           <div className="dice-box">
             <div className="dice-grid">
-              {[4,6,8,10,12,20,100].map(s => <button key={s} className="die-btn" onClick={()=>rollExpr('1d'+s)}>d{s}</button>)}
+              {[4,6,8,10,12,20,100].map(s => { const n = poolOf(diceExpr).dice[s] || 0; return (
+                <button key={s} className={`die-btn ${n ? 'has' : ''}`} aria-label={`d${s}`} data-count={n} title="Click to add one. Right-click to take one away."
+                  onClick={()=>bumpDie(s, 1)} onContextMenu={e=>{ e.preventDefault(); bumpDie(s, -1); }}>{n ? `${n}d${s}` : `d${s}`}</button>); })}
             </div>
             <div className="dice-expr">
-              <input aria-label="Dice to roll" placeholder="2d6+3" value={diceExpr} onChange={e=>setDiceExpr(e.target.value)} onKeyDown={e=>{ if (e.key==='Enter') rollExpr(diceExpr); }}/>
-              <button className="btn btn-primary btn-sm" onClick={()=>rollExpr(diceExpr)}>Roll</button>
+              <input aria-label="Dice to roll" placeholder="Click dice, or type 2d6+3" value={diceExpr} onChange={e=>setDiceExpr(e.target.value)} onKeyDown={e=>{ if (e.key==='Enter') rollExpr(diceExpr); }}/>
+              <button className="btn btn-primary btn-sm" data-testid="dice-roll" disabled={!DMG_RE.test(normExpr(diceExpr))} onClick={()=>rollExpr(diceExpr)}>Roll</button>
+            </div>
+            <div className="dice-opts">
+              <label title="Each die that shows a 1 is rolled again, once"><input type="checkbox" data-testid="dice-reroll" checked={diceOpts.reroll} onChange={e=>setDiceOpts({...diceOpts, reroll: e.target.checked})}/> Reroll 1s</label>
+              <select aria-label="Roll twice" value={diceOpts.twice} onChange={e=>setDiceOpts({...diceOpts, twice: e.target.value})}>
+                <option value="">Roll once</option>
+                <option value="high">Roll twice, keep the higher</option>
+                <option value="low">Roll twice, keep the lower</option>
+              </select>
+              <button className="btn btn-ghost btn-sm" data-testid="dice-clear" onClick={()=>setDiceExpr('')}>Clear</button>
             </div>
           </div>
           <div className="panel-header">Conditions</div>
@@ -2786,7 +2940,7 @@ function App() {
               )}
               <div className="three-col">
                 <div className="form-group">
-                  <label>Max HP</label>
+                  <label>Total HP</label>
                   <input type="number" value={form.maxHP} onChange={e=>setForm({...form,maxHP:e.target.value,currentHP:e.target.value})} />
                 </div>
                 <div className="form-group">

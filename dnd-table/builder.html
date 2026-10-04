@@ -166,8 +166,9 @@ SPELLS AND ITEMS
 ---------------------------------------------------------------------
 
 "spells": [
-  { "name": "Ashen Grasp", "level": 2, "school": "Necromancy", "classes": ["Warden", "Warlock"], "castingTime": "Action", "range": "60 feet", "duration": "1 minute", "concentration": true, "ritual": false, "text": "Full spell text." }
+  { "name": "Ashen Grasp", "level": 2, "school": "Necromancy", "classes": ["Warden", "Warlock"], "castingTime": "Action", "range": "60 feet", "duration": "1 minute", "concentration": true, "ritual": false, "components": "VSM", "material": "a pinch of ash worth 10+ GP, which the spell consumes", "text": "Full spell text." }
 ]
+components is the letters V (Verbal), S (Somatic) and M (Material) the spell needs, such as "V", "VS" or "VSM". material is the Material component exactly as the spell words it, including "worth 50+ GP" and "which the spell consumes" when it says so. The Combat Resolver reads these when the DM turns on spell components: a Verbal spell cannot be cast while Silenced, a Somatic or Material component needs a free hand, a Component Pouch or Spellcasting Focus stands in for any Material component that has no cost, and a component with a cost has to be owned (and is used up if the spell consumes it).
 level 0 is a cantrip. A spell a character casts in a fight also needs an entry in "abilities" (see below) with grantedBy type "spell".
 
 "items": [
@@ -285,6 +286,7 @@ effects: a list of timed bonuses, penalties and riders. Give each a name (usuall
   "immuneTo": "Frightened"                         immune to that condition while it lasts
   "reduceDamageType": "Fire"                       reduces that damage type by 1d4 once per turn
   "tempHPEachTurn": "CHA"                          formula: Temporary Hit Points at the start of each of its turns
+  "hitPointMaximum": 5                             raises the Hit Point maximum by this much while the effect lasts (the Aid spell). Current Hit Points go up by the same amount when it is applied, and come back down to the maximum when it ends. The app shows a character's Hit Point maximum as its Hit Point total
   "resistDamage": ["Bludgeoning", "Piercing"]      Resistance to those damage types while it lasts
   "damageBonus": 2                                 formula: added to the damage of its weapon attacks and Unarmed Strikes
   "damageBonusFor": "Strength"                     only when the attack uses that ability
@@ -452,6 +454,8 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 - Every condition or effect that the text gives a time limit has a duration. Every "repeats the save" has a repeatSave with the right turn.
 - Limited-use features have uses with the right recharge.
 - Every class has armorProf and weaponProf written in the standard words ("Light, Medium, Heavy, Shields" and "Simple, Martial", or "Martial weapons with Finesse or Light property"), because the builder reads them to know what the character is proficient with. A weapon the character is not proficient with gets no Proficiency Bonus on its attack roll.
+- Every spell has its components, and its material written out when it has one.
+- Every "Hit Point maximum increases" is an effect with hitPointMaximum, not healing.
 - Every magic armor, shield and weapon has a type in the exact "Armor (...)" or "Weapon (...)" form, and a "bonus" when it has one.
 - Every feat is an object with a category, and every "choose a cantrip" or "choose a spell" in a feat is a spellChoices entry with the exact level, lists and schools the text allows.
 - Rules text is copied as written, and spell levels read "Level X School".
@@ -1173,7 +1177,7 @@ function compileOutcome(o, ctx) {
     const out = { name: pStr(e.name, 40).trim() };
     const left = durationSeconds(e.duration); if (left) out.left = left;
     if (e.concentration) out.conc = true;
-    [["ac", "ac"], ["speed", "speed"], ["initiative", "init"], ["d20Tests", "d20"], ["tempHPEachTurn", "tempEachTurn"]].forEach(([from, to]) => {
+    [["ac", "ac"], ["speed", "speed"], ["initiative", "init"], ["d20Tests", "d20"], ["tempHPEachTurn", "tempEachTurn"], ["hitPointMaximum", "hpMax"]].forEach(([from, to]) => {
       if (e[from] == null) return;
       const n = evalFormula(e[from], ctx); if (Number.isFinite(n) && n) out[to] = n;
     });
@@ -1400,7 +1404,8 @@ function checkPack(raw) {
   pArr(raw.spells).slice(0, 600).forEach((sp) => {
     const name = pStr(pObj(sp).name, 60).trim(); if (!name) return;
     pack.spells.push({ name, level: Math.max(0, Math.min(9, parseInt(sp.level, 10) || 0)), school: pStr(sp.school, 20), classes: pArr(sp.classes).map((x) => pStr(x, 40)),
-      castingTime: pStr(sp.castingTime, 60), range: pStr(sp.range, 60), duration: pStr(sp.duration, 60), concentration: !!sp.concentration, ritual: !!sp.ritual, text: pStr(sp.text, 3000) });
+      castingTime: pStr(sp.castingTime, 60), range: pStr(sp.range, 60), duration: pStr(sp.duration, 60), concentration: !!sp.concentration, ritual: !!sp.ritual, text: pStr(sp.text, 3000),
+      components: (pStr(sp.components, 10).toUpperCase().match(/[VSM]/g) || []).filter((x, i, a) => a.indexOf(x) === i).join(""), material: pStr(sp.material, 240) });
   });
   pArr(raw.items).slice(0, 600).forEach((it) => {
     const name = pStr(pObj(it).name, 80).trim(); if (!name) return;
@@ -1446,16 +1451,67 @@ function mergePack(pack) {
   Object.keys(pack.feats).forEach((name) => { const def = typeof pack.feats[name] === "string" ? { category: "Any", text: pack.feats[name] } : pack.feats[name]; ORIGIN_FEATS[name] = def.text || ""; FEATS[name] = def; });
   pack.items.forEach((it) => { const k = MAGIC_ITEMS.findIndex((x) => x.name === it.name); if (k >= 0) MAGIC_ITEMS[k] = it; else MAGIC_ITEMS.push(it); });
   pack.spells.forEach((sp) => { const k = PACK_SPELLS.findIndex((x) => x.name === sp.name); if (k >= 0) PACK_SPELLS[k] = sp; else PACK_SPELLS.push(sp); });
-  pack.spells.forEach((sp) => registerSpell({ n: sp.name, l: sp.level, s: sp.school || "", c: sp.classes || [], t: sp.castingTime || "", r: sp.range || "", k: "", d: sp.duration || "", x: sp.text || "", conc: sp.concentration ? 1 : 0, rit: sp.ritual ? 1 : 0, pack: true }));
+  pack.spells.forEach((sp) => registerSpell({ n: sp.name, l: sp.level, s: sp.school || "", c: sp.classes || [], t: sp.castingTime || "", r: sp.range || "", k: sp.components || "", mat: sp.material || "", d: sp.duration || "", x: sp.text || "", conc: sp.concentration ? 1 : 0, rit: sp.ritual ? 1 : 0, pack: true }));
   pack.abilities.forEach((ab) => PACK_ABILITIES.push(ab));
 }
 function storedPacks() { try { const a = JSON.parse(lsGet(PACKS_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+// Every pack belongs to a batch. "Homebrew" is always there. A batch can be switched off without removing it.
+const BATCHES_KEY = "hba-content-batches";
+const batchOf = (p) => pStr(p && p.batch, 40).trim() || "Homebrew";
+function batchSwitches() { try { const o = JSON.parse(lsGet(BATCHES_KEY) || "{}"); return o && typeof o === "object" ? o : {}; } catch (e) { return {}; } }
+const batchOn = (name) => batchSwitches()[name] !== false;
+function batchNames() { return Array.from(new Set(["Homebrew", ...storedPacks().map(batchOf)])); }
 function storePacks(list) { try { window.localStorage.setItem(PACKS_KEY, JSON.stringify(list)); return true; } catch (e) { return false; } }
 const INSTALLED_PACKS = [];
 // Installed packs are merged in at the bottom of this script, once every list they add to exists.
 
+// The Enable / Disable Content button at the top of the page, and the list it opens.
+function ContentSwitch({ colors, fontDisplay }) {
+  const [open, setOpen] = useState(false);
+  const [sw, setSw] = useState(() => batchSwitches());
+  const boxRef = useRef(null), start = useRef(JSON.stringify(batchSwitches()));
+  const names = batchNames();
+  const isOn = (n) => sw[n] !== false;
+  const close = () => { // the list closes when you click anywhere else; changes take effect then
+    setOpen(false);
+    if (JSON.stringify(sw) !== start.current) { try { window.localStorage.setItem(BATCHES_KEY, JSON.stringify(sw)); } catch (e) {} window.location.reload(); }
+  };
+  useEffect(() => {
+    if (!open) return;
+    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) close(); };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  });
+  const all = (v) => { const o = {}; names.forEach(n => { if (!v) o[n] = false; }); setSw(o); };
+  const count = (n) => storedPacks().filter(p => batchOf(p) === n).length;
+  return (
+    <span ref={boxRef} style={{ position: "relative" }}>
+      <button data-testid="content-switch" aria-expanded={open} onClick={() => open ? close() : setOpen(true)} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 12, padding: "2px 12px", fontSize: 12, cursor: "pointer", fontFamily: fontDisplay }}>Enable / Disable Content {open ? "▲" : "▼"}</button>
+      {open && (
+        <div data-testid="content-list" style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50, minWidth: 300, background: colors.inkLight, border: `1px solid ${colors.brass}`, borderRadius: 8, padding: 12, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <button data-testid="content-all-on" onClick={() => all(true)} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "2px 10px", fontSize: 12, cursor: "pointer" }}>All on</button>
+            <button data-testid="content-all-off" onClick={() => all(false)} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "2px 10px", fontSize: 12, cursor: "pointer" }}>All off</button>
+          </div>
+          {names.map(n => (
+            <label key={n} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", fontSize: 14 }}>
+              <input type="checkbox" data-testid={`content-${n}`} checked={isOn(n)} onChange={e => { const o = { ...sw }; if (e.target.checked) delete o[n]; else o[n] = false; setSw(o); }} />
+              <span style={{ flex: 1 }}>{n}</span>
+              <span style={{ fontSize: 12, opacity: 0.7 }}>{count(n)} {count(n) === 1 ? "pack" : "packs"}</span>
+            </label>
+          ))}
+          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 8 }}>Click anywhere else to close. Changes take effect when it closes. Add content on the Content Packs tab.</div>
+        </div>
+      )}
+    </span>
+  );
+}
+
 function ContentPacksTab({ colors, fontDisplay, sheetActions }) {
   const inputRef = useRef(null);
+  const [batchPick, setBatchPick] = useState("Homebrew");
+  const [batchNew, setBatchNew] = useState("");
+  const batch = batchPick === "__new__" ? batchNew.trim().slice(0, 40) : batchPick;
   const [report] = useState(() => { try { const r = JSON.parse(window.sessionStorage.getItem("hba-pack-report") || "null"); window.sessionStorage.removeItem("hba-pack-report"); return r; } catch (e) { return null; } });
   const btn = { background: colors.brass, color: colors.ink, border: "none", borderRadius: 6, padding: "9px 16px", fontFamily: fontDisplay, fontWeight: 700, fontSize: 13, cursor: "pointer" };
   const ghost = { ...btn, background: "transparent", color: colors.brassLight, border: `1px solid ${colors.brass}` };
@@ -1479,8 +1535,9 @@ function ContentPacksTab({ colors, fontDisplay, sheetActions }) {
       const r = checkPack(raw);
       if (!r.pack || !Object.values(r.counts).some(Boolean)) { alert(r.errors.join("\n")); return; }
       const list = storedPacks().filter((p) => !sameName(p && p.name, r.pack.name));
+      r.pack.batch = batch || "Homebrew";
       if (!storePacks([...list, r.pack])) { alert("This pack is too large to keep on this computer. Split it into smaller packs."); return; }
-      try { window.sessionStorage.setItem("hba-pack-report", JSON.stringify({ name: r.pack.name, counts: r.counts, errors: r.errors, warnings: r.warnings })); } catch (err) {}
+      try { window.sessionStorage.setItem("hba-pack-report", JSON.stringify({ name: r.pack.name, batch: r.pack.batch, counts: r.counts, errors: r.errors, warnings: r.warnings })); } catch (err) {}
       reloadHere();
     }).catch(() => alert("Could not read that file."));
   };
@@ -1501,30 +1558,46 @@ function ContentPacksTab({ colors, fontDisplay, sheetActions }) {
             <li>Upload that file here. Its classes, subclasses, species, backgrounds, feats, spells and items appear in the builder, and its activated features go into the Combat Resolver with your character.</li>
           </ol>
         </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontSize: 13 }}>Put the upload in:</span>
+          <select aria-label="Batch to add to" value={batchPick} onChange={e => setBatchPick(e.target.value)} style={{ ...fieldStyle(colors), width: 240 }}>
+            {batchNames().map(n => <option key={n} value={n}>Add to: {n}</option>)}
+            <option value="__new__">A new batch...</option>
+          </select>
+          {batchPick === "__new__" && <input aria-label="New batch name" value={batchNew} onChange={e => setBatchNew(e.target.value)} placeholder="Name the new batch" style={{ ...fieldStyle(colors), width: 240, border: `1px solid ${batch ? colors.brass + "55" : CUSTOM_RED}` }} />}
+          <span style={{ fontSize: 12, opacity: 0.7 }}>A batch is a named group you can switch on and off with Enable / Disable Content.</span>
+        </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button style={btn} onClick={downloadPrompt}>Download AI Prompt</button>
-          <button style={ghost} onClick={() => inputRef.current && inputRef.current.click()}>Upload Content Pack</button>
+          <button style={{ ...ghost, opacity: batch ? 1 : 0.45 }} disabled={!batch} title={batch ? "" : "Name the new batch first"} onClick={() => inputRef.current && inputRef.current.click()}>Upload Content Pack</button>
           <input ref={inputRef} type="file" accept=".json,.txt,application/json,text/plain" style={{ display: "none" }} onChange={onPick} data-testid="pack-input" />
         </div>
       </Section>
       {report && (
-        <Section title={`Added: ${report.name}`} colors={colors} fontDisplay={fontDisplay}>
+        <Section title={`Added: ${report.name}${report.batch ? ` (in ${report.batch})` : ""}`} colors={colors} fontDisplay={fontDisplay}>
           <div style={{ fontSize: 14, marginBottom: 6 }} data-testid="pack-report">Loaded {countText(report.counts)}.</div>
           {report.errors.length > 0 && <div style={{ fontSize: 13, color: "#ff8a80", marginBottom: 6 }}><strong>Skipped:</strong><ul style={{ marginLeft: 20 }}>{report.errors.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
           {report.warnings.length > 0 && <div style={{ fontSize: 13, opacity: 0.85 }}><strong>Worth checking:</strong><ul style={{ marginLeft: 20 }}>{report.warnings.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
         </Section>
       )}
       <Section title="Installed Packs" colors={colors} fontDisplay={fontDisplay}>
-        {INSTALLED_PACKS.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No packs yet. Packs are kept on this computer only.</div>}
-        {INSTALLED_PACKS.map((p) => (
-          <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: `1px solid ${colors.brass}22` }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: fontDisplay, fontWeight: 700, color: colors.brassLight }}>{p.name}{p.author ? ` by ${p.author}` : ""}</div>
-              <div style={{ fontSize: 12, opacity: 0.75 }}>{countText(p.counts)}</div>
-            </div>
-            <button style={{ ...ghost, padding: "5px 12px", fontSize: 12 }} onClick={() => removePack(p.name)}>Remove</button>
-          </div>
-        ))}
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>Packs are kept on this computer only. Switch batches on and off with Enable / Disable Content at the top of the page.</div>
+        {batchNames().map(bn => {
+          const packs = storedPacks().filter(p => batchOf(p) === bn), on = batchOn(bn);
+          return (
+            <div key={bn} data-testid={`batch-${bn}`} style={{ border: `1px solid ${colors.brass}33`, borderRadius: 8, padding: "8px 12px", marginBottom: 8, opacity: on ? 1 : 0.6 }}>
+              <div style={{ fontFamily: fontDisplay, fontWeight: 700, color: colors.brassLight }}>{bn} <span style={{ fontSize: 12, fontWeight: 400, opacity: 0.8 }}>{on ? "on" : "off"} · {packs.length} {packs.length === 1 ? "pack" : "packs"}</span></div>
+              {packs.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>Empty. Upload a pack into it above.</div>}
+              {packs.map((p) => { const inst = INSTALLED_PACKS.find(x => sameName(x.name, p.name)); return (
+                <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderTop: `1px solid ${colors.brass}22` }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14 }}>{p.name}{p.author ? ` by ${p.author}` : ""}</div>
+                    <div style={{ fontSize: 12, opacity: 0.75 }}>{inst ? countText(inst.counts) : "switched off"}</div>
+                  </div>
+                  <button style={{ ...ghost, padding: "5px 12px", fontSize: 12 }} onClick={() => removePack(p.name)}>Remove</button>
+                </div>); })}
+            </div>);
+        })}
       </Section>
       <Section title="This Character's Activated Features" colors={colors} fontDisplay={fontDisplay}>
         <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>
@@ -1772,10 +1845,9 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
   armorChoices.sort((x, y) => ARMOR.findIndex(a => a.name === (x.plain || x.name)) - ARMOR.findIndex(a => a.name === (y.plain || y.name)) || (x.magic ? 1 : 0) - (y.magic ? 1 : 0));
   weaponChoices.sort((x, y) => (x.plain || x.name).localeCompare(y.plain || y.name) || (x.magic ? 1 : 0) - (y.magic ? 1 : 0) || x.name.localeCompare(y.name));
   // Toggles on the pickers: only what you are proficient with, only the weapons whose mastery you have.
-  const [onlyProf, setOnlyProf] = useState(false), [onlyMastery, setOnlyMastery] = useState(false);
+  const [onlyProf, setOnlyProf] = useState(false);
   const prof = inventory.prof;
   const armorShown = onlyProf && prof ? armorChoices.filter(a => a.name === armor || prof.armor.includes(a.cat)) : armorChoices;
-  const weaponsShown = weaponChoices.filter(w => (!onlyProf || !prof || prof.weapon(w)) && (!onlyMastery || masteries.includes(w.plain || w.name)));
   const pill = (on) => ({ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12, border: `1px solid ${colors.brass}`, borderRadius: 14, padding: "3px 10px", background: on ? colors.brass : "transparent", color: on ? colors.ink : colors.parchment });
   const hasShield = has("Shield") || shield || (inventory.items || []).some(i => (magicGearInfo(i) || {}).kind === "shield");
   const used = masteries;
@@ -1793,9 +1865,10 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
           {["Light", "Medium", "Heavy"].filter(cat => armorShown.some(a => a.cat === cat)).map(cat => <optgroup key={cat} label={`${cat} armor`}>{armorShown.filter(a => a.cat === cat).map(a => <option key={a.name} value={a.name}>{a.name} (AC {a.base}{a.dex ? (a.max != null ? ` + Dex, max ${a.max}` : " + Dex") : ""})</option>)}</optgroup>)}
         </select>
         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: hasShield ? "pointer" : "default", opacity: hasShield ? 1 : 0.5 }} title={hasShield ? "" : "Add a Shield to your items first"}><input type="checkbox" checked={shield} disabled={!hasShield} onChange={e => setShield(e.target.checked)} aria-label="Shield" /> {inventory.shieldName || "Shield"} (+{2 + (inventory.shieldBonus || 0)})</label>
+        {prof && prof.any && <label style={pill(onlyProf)} title="List only armor you are proficient with"><input type="checkbox" data-testid="gear-only-prof" checked={onlyProf} onChange={e => setOnlyProf(e.target.checked)} /> Proficient only</label>}
         <span style={{ fontSize: 13, opacity: 0.8 }} data-testid="ac-how">Armor Class {ac.value}: {ac.how}</span>
       </div>
-      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Only armor and weapons among your items are offered here. Add them on the Inventory tab. Magic armor and weapons are listed as the kind you chose for them there{custom ? " (Further Customization is on, so everything is offered)" : ""}. Each weapon you wield becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
+      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Armor is offered from what you carry. Every weapon in your inventory is listed below and becomes an attack in the Combat Resolver, worked out from your scores and features. Add and remove weapons on the Inventory tab. Magic armor and weapons are listed as the kind you chose for them there{custom ? " (Further Customization is on, so all armor is offered)" : ""}.</div>
       {masteryCount > 0 && <div data-testid="mastery-note" data-glow={glow || ""} style={{ fontSize: 13, marginBottom: 8, padding: glow ? "6px 10px" : 0, border: glow ? `2px solid ${glow === "open" ? REST_PURPLE : colors.brassLight}` : "none", borderRadius: 6, color: glow === "open" ? REST_PURPLE : glow === "done" ? colors.brassLight : "inherit" }}>
         <strong>Weapon Mastery:</strong> you can use the mastery property of {masteryCount} kinds of weapons ({used.length} chosen{used.length ? `: ${used.join(", ")}` : ""}). Choose them on the Features tab, or click a weapon's mastery name here. A gold box with black letters means you have it; a gold outline means you do not. You can change one when you finish a Long Rest.</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -1807,19 +1880,11 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
             {w.mastery && <button aria-label={`Mastery for ${n}`} data-have={on ? "yes" : "no"} disabled={!can} onClick={() => toggleMastery(kind)}
               title={`${on ? "You have this mastery property." : can ? "You have not chosen this kind of weapon for Weapon Mastery. Click to choose it." : "Your class has no Weapon Mastery."} ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`}
               style={{ marginLeft: 6, background: on ? colors.brass : colors.ink, color: on ? "#000" : colors.brassLight, border: `1px solid ${colors.brass}`, borderRadius: 10, padding: "0 8px", fontSize: 11, fontWeight: on ? 700 : 400, cursor: can ? "pointer" : "default" }}>{w.mastery}</button>}
-            {" "}<button aria-label={`Remove ${n}`} onClick={() => setWeapons(weapons.filter(x => x !== n))} style={{ background: "transparent", border: "none", color: colors.parchment, cursor: "pointer" }}>×</button>
+
           </span>
         ); })}
       </div>
-      {((prof && prof.any) || masteryCount > 0) && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
-        <span style={{ fontSize: 12, opacity: 0.75 }}>Show only:</span>
-        {prof && prof.any && <label style={pill(onlyProf)}><input type="checkbox" data-testid="gear-only-prof" checked={onlyProf} onChange={e => setOnlyProf(e.target.checked)} /> Proficient</label>}
-        {masteryCount > 0 && <label style={pill(onlyMastery)}><input type="checkbox" data-testid="gear-only-mastery" checked={onlyMastery} onChange={e => setOnlyMastery(e.target.checked)} /> Weapon Mastery</label>}
-      </div>}
-      <select aria-label="Add a weapon" value="" onChange={e => { if (e.target.value && !weapons.includes(e.target.value)) setWeapons([...weapons, e.target.value]); }} style={sel}>
-        <option value="">+ Add a weapon</option>
-        {WEAPON_GROUPS.filter(([cat, fits]) => weaponsShown.some(fits)).map(([cat, fits]) => <optgroup key={cat} label={cat}>{weaponsShown.filter(fits).map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice}{w.bonus ? ` +${w.bonus}` : ""} {w.type})</option>)}</optgroup>)}
-      </select>
+      {weapons.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }} data-testid="no-weapons">No weapons in your inventory yet.</div>}
     </Section>
   );
 }
@@ -1862,7 +1927,7 @@ function CharacterSheet() {
   const [lineage, setLineage] = useState("");          // species lineage, ancestry or legacy
   const [armor, setArmor] = useState("");              // armor worn
   const [shield, setShield] = useState(false);
-  const [weapons, setWeapons] = useState([]);          // weapons carried
+  const setWeapons = () => {};                          // weapons are whatever the inventory holds (see below)
   const [masteries, setMasteries] = useState([]);      // weapons whose mastery property is in use (Weapon Mastery)
   const [hpDelta, setHpDelta] = useState(0);            // Hit Points above or below the average, when the player sets their own total
   const [statAdj, setStatAdj] = useState({});           // Further Customization: additional modifier to ac, initiative, speed, hp
@@ -1886,6 +1951,7 @@ function CharacterSheet() {
   const [equipment, setEquipment] = useState("");
   const [notes, setNotes] = useState("");
   const [journal, setJournal] = useState(() => newJournal());
+  const [components, setComponents] = useState([]);     // spells whose costly Material component the character has
 
   // Magic Items tab state
   const [itemSearch, setItemSearch] = useState("");
@@ -2025,6 +2091,16 @@ function CharacterSheet() {
     return { STR: finalMods.Strength, DEX: finalMods.Dexterity, CON: finalMods.Constitution, INT: finalMods.Intelligence, WIS: finalMods.Wisdom, CHA: finalMods.Charisma,
       PROF: profBonus, LEVEL: level, SPELLMOD: spellMod, SPELLDC: 8 + profBonus + spellMod, SPELLATK: profBonus + spellMod };
   }, [cls, finalMods, profBonus, level, takenFeats]);
+  // Every weapon in the inventory is a weapon the character can attack with. A magic weapon counts once its kind is chosen.
+  const weapons = useMemo(() => {
+    const out = [];
+    characterItems.forEach(i => {
+      if (!i) return;
+      if (i.rarity) { const g = magicGearInfo(i); if (g && g.kind === "weapon" && (g.bases.length === 1 || i.kind)) magicGearLabels(i).forEach(l => out.push(l.label)); }
+      else { const w = WEAPONS.find(x => gearNorm(x.name) === gearNorm(i.name)); if (w) out.push(w.name); }
+    });
+    return Array.from(new Set(out));
+  }, [characterItems]);
   // The shield in use is the best one carried: an ordinary Shield, or a magic one with its bonus.
   const bestShield = useMemo(() => characterItems.map(i => ({ i, g: magicGearInfo(i) })).filter(x => x.g && x.g.kind === "shield").sort((a, b) => b.g.bonus - a.g.bonus)[0] || null, [characterItems]);
   const gear = useMemo(() => ({ armor: armorOf(armor), shield, shieldBonus: bestShield ? bestShield.g.bonus : 0, shieldName: bestShield ? bestShield.i.name : "Shield" }), [armor, shield, bestShield]);
@@ -2251,6 +2327,10 @@ function CharacterSheet() {
       if (!isActivated(e)) return;
       try {
         const a = compileAbility(e, spellCtx);
+        if (pObj(e.grantedBy).type === "spell") { // a pack spell brings its components along
+          const sp = spellOf(e.grantedBy.name); a.spell = true;
+          if (sp && sp.k) { a.comp = sp.k; if (sp.mat) { a.mat = String(sp.mat).slice(0, 240); if (/\d[\d,]*\+? ?(GP|SP|CP)/i.test(sp.mat)) a.matCost = true; if (/consume/i.test(sp.mat)) a.matConsumed = true; } }
+        }
         if (!a.desc) { const g = pObj(e.grantedBy); const t = featureText(g.class || g.name, g.type === "subclass" ? g.name : "", e.feature || e.name, g.level || 1) || traitText(species, lineage, e.feature || e.name); if (t) a.desc = t.slice(0, 1200); }
         out.push(a);
       } catch (err) {}
@@ -2333,6 +2413,10 @@ function CharacterSheet() {
     },
     remove: (it) => { setCharacterItems(prev => prev.filter(p => p.name !== it.name)); setPinnedItems(prev => prev.filter(p => p.name !== it.name)); },
     get: (it) => characterItems.find(sameItem(it)) || null,
+    mastered: (it) => { // true when the character has the mastery property of this weapon
+      if (it.rarity) { const g = magicGearInfo(it); if (!g || g.kind !== "weapon") return false; const k = it.kind || (g.bases.length === 1 ? g.bases[0] : ""); return !!k && masteries.includes(k); }
+      const w = WEAPONS.find(x => gearNorm(x.name) === gearNorm(it.name)); return !!w && masteries.includes(w.name);
+    },
     setKind: (it, kind) => { const put = (prev) => prev.map(p => p.name === it.name ? { ...p, kind } : p); setCharacterItems(put); setPinnedItems(put); },
   };
 
@@ -2379,6 +2463,7 @@ function CharacterSheet() {
       skills: skillMods, skillProfs: allSkillProfs, skillExpertise: skillExpertise.filter(k => allSkillProfs.includes(k)),
       customizations,
       journal: { ...journal, alignment },
+      components: components.filter(n => spellActions.some(a => a.name === n)),
       spellcasting: cls && cls.casterType ? {
         ability: cls.spellAbility,
         slotList: cls.casterType === "pact" ? null : (getSpellSlots(className, level) || []),
@@ -2394,7 +2479,7 @@ function CharacterSheet() {
       items: Array.from(new Set(characterItems.map(i => i && i.name).filter(Boolean))),
       origin: originCustom ? { custom: true, ...originCustom } : null,
       builder: { hpDelta, statAdj, lineage, armor, shield, weapons, masteries, featureChoices, featPicks, extraFeats, originCustom, custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
-        pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, journal, characterItems, pinnedItems, spells }
+        pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, journal, components, characterItems, pinnedItems, spells }
     };
   }
 
@@ -2452,7 +2537,6 @@ function CharacterSheet() {
     setLineage(String(s.lineage || ""));
     setArmor(armorOf(s.armor) ? s.armor : "");
     setShield(!!s.shield);
-    setWeapons(arr(s.weapons).filter(n => weaponOf(n)));
     setMasteries(Array.from(new Set(arr(s.masteries).filter(n => weaponOf(n)).map(weaponKind))));
     setFeatureChoices(s.featureChoices && typeof s.featureChoices === "object" && !Array.isArray(s.featureChoices) ? s.featureChoices : {});
     setFeatPicks(s.featPicks && typeof s.featPicks === "object" && !Array.isArray(s.featPicks) ? s.featPicks : {});
@@ -2479,6 +2563,7 @@ function CharacterSheet() {
     setEquipment(String(s.equipment || ""));
     setNotes(String(s.notes || ""));
     setJournal(cleanJournal(s.journal, s.notes, s.equipment));
+    setComponents(arr(s.components).filter(x => typeof x === "string").slice(0, 80));
     { // the inventory holds everything carried; Important Items are a marked part of it
       const all = []; [...arr(s.characterItems), ...arr(s.pinnedItems)].forEach(i => { if (i && i.name && !all.some(x => x.name === i.name)) all.push(i); });
       setCharacterItems(all); }
@@ -2744,7 +2829,8 @@ function CharacterSheet() {
           <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontFamily: fontDisplay, fontWeight: 700, color: custom ? CUSTOM_RED : colors.brassLight }}>
             <input type="checkbox" checked={custom} onChange={e => setCustom(e.target.checked)} data-testid="custom-toggle" /> Further Customization
           </label>
-          <span style={{ opacity: 0.8 }}>{custom ? "On: you can go past the rules. Anything you add that way gets a red outline, and anything you remove shows in red letters." : "Off: the sheet follows the rules."}</span>
+          <span style={{ opacity: 0.8 }}>{custom ? "On: changes past the rules show in red." : "Off: the sheet follows the rules."}</span>
+          <ContentSwitch colors={colors} fontDisplay={fontDisplay} />
           {customizations.length > 0 && (
             <button onClick={() => setShowCustomList(v => !v)} data-testid="custom-count" style={{ marginLeft: "auto", background: "transparent", border: `1px solid ${CUSTOM_RED}`, color: CUSTOM_RED, borderRadius: 12, padding: "2px 10px", fontSize: 12, cursor: "pointer" }}>
               {customizations.length} {customizations.length === 1 ? "customization" : "customizations"} {showCustomList ? "▲" : "▼"}
@@ -2782,7 +2868,7 @@ function CharacterSheet() {
           <JournalTab {...{ journal, setJournal, alignment, setAlignment, knownTools, colors, fontDisplay }} />
         )}
         {tab === "inventory" && (
-          <InventoryTab {...{ inv, prof, colors, fontDisplay,
+          <InventoryTab {...{ inv, prof, colors, fontDisplay, components, setComponents, spellMats: spellActions.filter(a => a.spell && (a.comp || "").includes("M")),
             magic: { itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem },
             mundane: { mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane } }} />
         )}
@@ -2806,6 +2892,17 @@ function Section({ title, colors, fontDisplay, children }) {
         textTransform: "uppercase", borderBottom: `1px solid ${colors.brass}55`, paddingBottom: 8, marginBottom: 14
       }}>{title}</h3>
       {children}
+    </div>
+  );
+}
+
+const FOLDED = {};
+function FoldSection({ id, title, colors, fontDisplay, children }) {
+  const [shut, setShut] = React.useState(!!FOLDED[id]);
+  return (
+    <div style={{ marginBottom: 24 }} data-testid={`fold-${id}`} data-folded={shut ? "yes" : ""}>
+      <h3 onClick={() => { FOLDED[id] = !shut; setShut(!shut); }} style={{ fontFamily: fontDisplay, color: colors.brassLight, fontSize: 16, letterSpacing: "0.04em", textTransform: "uppercase", borderBottom: `1px solid ${colors.brass}55`, paddingBottom: 8, marginBottom: 14, cursor: "pointer" }}>{shut ? "▸" : "▾"} {title}</h3>
+      {!shut && children}
     </div>
   );
 }
@@ -3483,7 +3580,7 @@ function FeaturesTab({ masteries, setMasteries, masteryCount, className, glowOf,
           ))}
         </Section>
       )}
-      <Section title="Feats" colors={colors} fontDisplay={fontDisplay}>
+      <FoldSection id="feats" title="Feats" colors={colors} fontDisplay={fontDisplay}>
         {slots.map(slot => {
           const pick = featPicks[slot.id] || {};
           const name = slot.fixed != null ? slot.fixed : (pick.name || "");
@@ -3510,9 +3607,9 @@ function FeaturesTab({ masteries, setMasteries, masteryCount, className, glowOf,
           </div>
         ))}
         {custom && <button data-testid="add-extra-feat" onClick={() => setExtraFeats(prev => [...prev, { name: "", choices: {} }])} style={{ background: "transparent", border: `1px dashed ${CUSTOM_RED}`, color: CUSTOM_RED, borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>+ Add an extra feat</button>}
-      </Section>
+      </FoldSection>
 
-      <Section title="Ability Score Improvements & Feats" colors={colors} fontDisplay={fontDisplay}>
+      <FoldSection id="asi" title="Ability Score Improvements & Feats" colors={colors} fontDisplay={fontDisplay}>
         {reachedAsiLevels.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No ASI levels reached yet.</div>}
         {reachedAsiLevels.map(lvl => {
           const choice = asiChoices[lvl] || { type: "asi", abilities: [null, null] };
@@ -3541,7 +3638,7 @@ function FeaturesTab({ masteries, setMasteries, masteryCount, className, glowOf,
             </div>
           );
         })}
-      </Section>
+      </FoldSection>
 
       <Section title="Feature Ledger" colors={colors} fontDisplay={fontDisplay}>
         <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 12 }}>
@@ -3627,6 +3724,10 @@ function spellAction(sp, ctx, opts) {
   const m = sp.m;
   if (!m) return null;
   const out = { name: sp.n, spell: true, slot: sp.l, desc: sp.x.slice(0, 1200) };
+  if (sp.k) { // Verbal, Somatic, Material: the Combat Resolver checks these when the DM turns the rule on
+    out.comp = sp.k;
+    if (sp.mat) { out.mat = String(sp.mat).replace(/^\(/, "").slice(0, 240); if (/\d[\d,]*\+? ?(GP|SP|CP)/i.test(sp.mat)) out.matCost = true; if (/consume/i.test(sp.mat)) out.matConsumed = true; }
+  }
   if (m.act) out.activation = m.act;
   let dice = m.dmg ? m.dmg[0] : null;
   if (dice && m.cu) { // cantrip damage grows at levels 5, 11 and 17
@@ -3642,8 +3743,10 @@ function spellAction(sp, ctx, opts) {
   }
   else if (m.k === "heal") { out.type = "heal"; out.healDice = evalDice(m.mod ? `${m.heal}+SPELLMOD` : m.heal, ctx); }
   else if (m.k === "auto") { out.type = "auto"; out.dmgList = [[dice, m.dmg[1]]]; }
+  else if (m.k === "apply" && m.eff) { out.type = "apply"; out.onUse = { effs: [{ name: sp.n, ...m.eff, ...(m.dur ? { left: m.dur } : {}), ...(sp.conc ? { conc: true } : {}) }] }; }
   else return null;
   if (m.up) out.up = m.up;
+  if (m.upEff) out.upEff = m.upEff;
   if (m.tg) out.targets = m.tg === "slot" ? 1 : m.tg; // "slot": one more target per slot level, set in the Resolver when cast
   if (m.tg === "slot") out.targetsPerSlot = true;
   const o = opts || {};
@@ -4039,7 +4142,8 @@ function inventoryGroup(item) {
   return "Gear";
 }
 let inventoryFolded = false, inventoryOnlyProf = false; // stay as you left them while the page is open
-function InventoryTab({ inv, prof, magic, mundane, colors, fontDisplay }) {
+function InventoryTab({ inv, prof, magic, mundane, components, setComponents, spellMats, colors, fontDisplay }) {
+  const isCaster = (item) => /component pouch|arcane focus|druidic focus|holy symbol/i.test(item.name);
   const [folded, setFoldedState] = React.useState(inventoryFolded);
   const setFolded = (v) => { inventoryFolded = v; setFoldedState(v); };
   const [onlyProf, setOnlyProfState] = React.useState(inventoryOnlyProf);
@@ -4079,6 +4183,7 @@ function InventoryTab({ inv, prof, magic, mundane, colors, fontDisplay }) {
                 <div key={item.name} data-testid={`inv-${item.name}`} style={{ borderTop: `1px solid ${colors.brass}22`, padding: "6px 12px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.rarity ? RARITY_COLORS[item.rarity] : colors.parchment + "99", flexShrink: 0 }} />
+                    <span title={inv.mastered(item) ? "You have this weapon's mastery property" : ""} style={{ width: 14, flexShrink: 0, textAlign: "center", color: colors.brassLight, fontSize: 13 }}>{inv.mastered(item) ? "★" : ""}</span>
                     <span onClick={() => setOpenItem(openItem === item.name ? "" : item.name)} style={{ flex: 1, cursor: "pointer", fontSize: 14, fontFamily: "'Crimson Text','Georgia',serif" }}>{item.name}</span>
                     {magicGearKinds(item).length > 0 && (
                       <select aria-label={`Kind of ${item.name}`} value={item.kind || ""} onChange={e => inv.setKind(item, e.target.value)} style={{ background: colors.ink, color: item.kind ? colors.parchment : CUSTOM_RED, border: `1px solid ${item.kind ? colors.brass + "55" : CUSTOM_RED}`, borderRadius: 4, fontSize: 12, maxWidth: 220, padding: "2px 4px" }}>
@@ -4089,6 +4194,21 @@ function InventoryTab({ inv, prof, magic, mundane, colors, fontDisplay }) {
                     <ItemControls item={item} inv={inv} colors={colors} small />
                   </div>
                   {openItem === item.name && <div style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.85, margin: "6px 0 4px 16px" }}>{item.type ? <em>{item.type}{item.attunement ? ", requires Attunement" : ""}. </em> : null}{item.description || "No description."}</div>}
+                  {openItem === item.name && isCaster(item) && (
+                    <div data-testid="pouch-contents" style={{ fontSize: 13, lineHeight: 1.6, margin: "6px 0 6px 16px", border: `1px solid ${colors.brass}33`, borderRadius: 6, padding: "8px 10px" }}>
+                      <strong style={{ color: colors.brassLight }}>Material components for your spells</strong>
+                      <div style={{ fontSize: 12, opacity: 0.75 }}>This covers every component that has no cost. A component with a cost has to be among your things: tick the ones you have. The Combat Resolver checks this when the DM turns spell components on.</div>
+                      {spellMats.length === 0 && <div style={{ opacity: 0.7 }}>None of your spells has a Material component.</div>}
+                      {spellMats.map(a => (
+                        <div key={a.name} style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                          {a.matCost
+                            ? <input type="checkbox" aria-label={`Have the component for ${a.name}`} checked={components.includes(a.name)} onChange={e => setComponents(e.target.checked ? [...components, a.name] : components.filter(n => n !== a.name))} />
+                            : <span style={{ color: "#4caf50", width: 13 }}>✓</span>}
+                          <span><strong>{a.name}:</strong> {a.mat || "a material component"}{a.matCost ? (a.matConsumed ? " (has a cost, used up by the spell)" : " (has a cost)") : ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -4217,6 +4337,7 @@ function ItemRowHover({ item, inv, onSelect, isSelected, accentColor, colors, ex
       }}
     >
       <span style={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, background: accentColor }} />
+      <span data-testid={`star-${item.name}`} title={inv.mastered(item) ? "You have this weapon's mastery property" : ""} style={{ width: 14, flexShrink: 0, textAlign: "center", color: colors.brassLight, fontSize: 13 }}>{inv.mastered(item) ? "★" : ""}</span>
       <span style={{ color: mine ? colors.parchment : colors.parchment + "cc", fontSize: 14, flex: 1, fontFamily: "'Crimson Text','Georgia',serif", fontWeight: mine ? 600 : 400 }}>
         {item.name}
       </span>
@@ -4510,7 +4631,7 @@ function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, s
 
 
 // Merge installed Content Packs into the lists before the first render.
-storedPacks().forEach((raw) => { const r = checkPack(raw); if (r.pack) { mergePack(r.pack); INSTALLED_PACKS.push({ name: r.pack.name, author: r.pack.author, counts: r.counts }); } });
+storedPacks().filter((raw) => batchOn(batchOf(raw))).forEach((raw) => { const r = checkPack(raw); if (r.pack) { mergePack(r.pack); INSTALLED_PACKS.push({ name: r.pack.name, author: r.pack.author, counts: r.counts }); } });
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<CharacterSheet />);
