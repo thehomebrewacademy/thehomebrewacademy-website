@@ -100,6 +100,7 @@ Rules for classes:
 - hitDie is 6, 8, 10 or 12. saves is exactly two full ability names.
 - Ability names are always written in full: Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma.
 - casterType is "full", "half" or "pact". Leave casterType and spellAbility out for a class with no spellcasting.
+- A class that casts with points instead of spell slots (spell points, mana, a pool with its own name) adds "spellPoints": { "pool": "Acuity", "costs": [2, 3, 5, 6, 7, 9, 10, 11, 13] }. costs is what a spell of Level 1 to Level 9 costs. Keep casterType, because it sets the highest spell level the class can cast at each level. Define the pool itself in "abilities" as a resource with exactly the same name (see RESOURCES), with a max for each level and its recharge. The builder then shows the costs instead of slots, and the Combat Resolver asks which level to cast at, prices each level in points and takes them from the pool.
 - features has one list per level, levels "1" to "20". A level with nothing new can be left out.
 - Write the exact text "Ability Score Improvement" at each level that grants one, and "Epic Boon" at level 19 if the class has it.
 - Write the exact text "Subclass feature" at each level where the subclass grants something. The subclass entry then lists what it grants at that same level.
@@ -439,6 +440,17 @@ A self heal:
 }
 
 ---------------------------------------------------------------------
+WHEN THE CONTENT DOES NOT FIT
+---------------------------------------------------------------------
+New classes often work in ways the built-in ones do not. Do not drop a mechanic because it has no exact field. Build it from the pieces above, in this order of preference:
+1. A pool: anything counted and spent (points, charges, dice, stacks) is a "resource", and whatever spends it has uses with "pool" and "cost". Different features can cost different amounts from the same pool. A feature that gives points back is an ability whose text says so, with a "note" telling the table to add them with the + button on the pool.
+2. Options: a feature with modes, stances or forms is "options", one choice per mode, each with its own statics and effects.
+3. Effects with a duration: a state the character enters (a trance, a form, a mark on a target) is an effect with the bonuses it gives and its duration.
+4. Scaling: anything that grows with level is a list of 20 values or a formula with LEVEL.
+5. Text: what is left goes in "text" and in an effect's "note". It is never lost: every feature appears on the character sheet's Features & Traits tab with its name, level and text, every spell appears on the Spells tab and can be cast (it spends its slot or points and posts its text for the table to resolve), and any feature can be shown to the table from the sheet.
+Say in "warnings" (a list of plain sentences at the top level of the file) what you could not automate and how you approximated it, so the person knows what to rule by hand.
+
+---------------------------------------------------------------------
 CHECK YOUR WORK BEFORE YOU ANSWER
 ---------------------------------------------------------------------
 
@@ -454,6 +466,7 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 - Every condition or effect that the text gives a time limit has a duration. Every "repeats the save" has a repeatSave with the right turn.
 - Limited-use features have uses with the right recharge.
 - Every class has armorProf and weaponProf written in the standard words ("Light, Medium, Heavy, Shields" and "Simple, Martial", or "Martial weapons with Finesse or Light property"), because the builder reads them to know what the character is proficient with. A weapon the character is not proficient with gets no Proficiency Bonus on its attack roll.
+- A class that casts with points has spellPoints, and a resource whose name matches its pool exactly.
 - Every spell has its components, and its material written out when it has one.
 - Every "Hit Point maximum increases" is an effect with hitPointMaximum, not healing.
 - Every magic armor, shield and weapon has a type in the exact "Armor (...)" or "Weapon (...)" form, and a "bonus" when it has one.
@@ -1315,6 +1328,7 @@ function checkPack(raw) {
   if (!raw || typeof raw !== "object" || raw.format !== "homebrew-academy-content") {
     return { pack: null, errors: ['This is not a Content Pack file. A pack starts with "format": "homebrew-academy-content".'], warnings, counts: {} };
   }
+  pArr(raw.warnings).slice(0, 30).forEach((w) => { const t = pStr(w, 400).trim(); if (t) warnings.push(`Note from whoever made the pack: ${t}`); }); // what its author could not automate
   const pack = { format: "homebrew-academy-content", version: 1, name: pStr(raw.name, 60).trim() || "Unnamed pack", author: pStr(raw.author, 60),
     classes: {}, subclasses: {}, species: {}, backgrounds: {}, feats: {}, spells: [], items: [], abilities: [] };
   const levels = (o, where) => {
@@ -1347,6 +1361,8 @@ function checkPack(raw) {
       skillChoices: Math.max(0, Math.min(18, parseInt(c.skillChoices, 10) || 2)), skillList: pArr(c.skillList).map((x) => pStr(x, 30)),
       subclassLevel: Math.max(1, Math.min(20, parseInt(c.subclassLevel, 10) || 3)), subclassName: pStr(c.subclassName, 40) || "Subclass", features, subclasses };
     if (casterType) { entry.casterType = casterType; entry.spellAbility = c.spellAbility; }
+    const sp = pObj(c.spellPoints), costs = pArr(sp.costs).slice(0, 9).map((n) => Math.max(0, Math.min(999, parseInt(n, 10) || 0)));
+    if (casterType && pStr(sp.pool, 40).trim() && costs.some(Boolean)) { while (costs.length < 9) costs.push(0); entry.spellPoints = { pool: pStr(sp.pool, 40).trim(), costs }; } // casts with points from a pool instead of spell slots
     const table20 = (v) => (Array.isArray(v) && v.length === 20 && v.every((n) => Number.isFinite(+n)) ? v.map((n) => Math.max(0, Math.round(+n))) : null);
     if (table20(c.preparedSpells)) entry.preparedSpells = table20(c.preparedSpells);
     if (table20(c.cantripsKnown)) entry.cantripsKnown = table20(c.cantripsKnown);
@@ -2307,7 +2323,8 @@ function CharacterSheet() {
       seen.add(sp.n);
       try { const a = spellAction(sp, spellCtx, opts); if (a) out.push(a); } catch (e) {}
     };
-    const tune = { cantripDamage: derived.cantripDamage, schoolDamage: derived.schoolDamage, potentCantrip: !!derived.passives.potentCantrip };
+    const tune = { cantripDamage: derived.cantripDamage, schoolDamage: derived.schoolDamage, potentCantrip: !!derived.passives.potentCantrip,
+      points: cls && cls.spellPoints ? { ...cls.spellPoints, maxLevel: spellInfo.maxLevel } : null };
     spellInfo.list.forEach(e => push(e.sp, tune));
     derived.spells.forEach(g => push(spellOf(g.name), { ...tune, once: !(cls && cls.casterType) }));
     takenFeats.forEach(f => {
@@ -2331,6 +2348,10 @@ function CharacterSheet() {
         const a = compileAbility(e, spellCtx);
         if (pObj(e.grantedBy).type === "spell") { // a pack spell brings its components along
           const sp = spellOf(e.grantedBy.name); a.spell = true;
+          if (sp && sp.l > 0 && !a.pool && !a.usesMax) { // casting it costs a slot of its level, or points for a class that casts with points
+            a.slot = sp.l;
+            if (cls && cls.spellPoints) { a.pool = cls.spellPoints.pool; a.pointCosts = cls.spellPoints.costs; a.cost = cls.spellPoints.costs[sp.l - 1] || 1; a.maxLvl = spellInfo.maxLevel || sp.l; }
+          }
           if (sp && sp.k) { a.comp = sp.k; if (sp.mat) { a.mat = String(sp.mat).slice(0, 240); if (/\d[\d,]*\+? ?(GP|SP|CP)/i.test(sp.mat)) a.matCost = true; if (/consume/i.test(sp.mat)) a.matConsumed = true; } }
         }
         if (!a.desc) { const g = pObj(e.grantedBy); const t = featureText(g.class || g.name, g.type === "subclass" ? g.name : "", e.feature || e.name, g.level || 1) || traitText(species, lineage, e.feature || e.name); if (t) a.desc = t.slice(0, 1200); }
@@ -2338,7 +2359,7 @@ function CharacterSheet() {
       } catch (err) {}
     });
     return out;
-  }, [mech, spellCtx, derived, weapons, masteries, takenFeats, species, lineage, prof]);
+  }, [mech, spellCtx, derived, weapons, masteries, takenFeats, species, lineage, prof, cls, spellInfo]);
   // Pools of uses shared by several features (Rage, Focus Points, Channel Divinity...).
   const pools = useMemo(() => {
     const out = {};
@@ -2466,13 +2487,15 @@ function CharacterSheet() {
       journal: { ...journal, alignment },
       components: components.filter(n => spellActions.some(a => a.name === n)),
       // for the character sheet in the Combat Resolver
+      featureList: featureLedger.map(f => { const cut = f.detail ? -1 : String(f.text).indexOf(": "); return { lv: f.level, src: f.source, n: cut > 0 ? f.text.slice(0, cut) : f.text, d: String(f.detail || (cut > 0 ? f.text.slice(cut + 2) : "")).slice(0, 2500) }; }).slice(0, 120),
       saveProfs: ABILITIES.filter(a => saveInfo[a] === "class" || saveInfo[a] === "added"),
       spellList: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name)].map(x => spellOf(x)).filter(Boolean))).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n)).slice(0, 120).map(sheetSpell),
       languages: journal.languages, tools: Array.from(new Set([...knownTools.map(t => t.name), ...journal.tools])),
       importantItems: pinnedItems.map(i => i && i.name).filter(Boolean),
       spellcasting: cls && cls.casterType ? {
         ability: cls.spellAbility,
-        slotList: cls.casterType === "pact" ? null : (getSpellSlots(className, level) || []),
+        slotList: cls.casterType === "pact" || cls.spellPoints ? null : (getSpellSlots(className, level) || []),
+        points: cls.spellPoints || null,
         pact: cls.casterType === "pact" ? { slots: PACT_SLOTS[level].slots, level: PACT_SLOTS[level].level } : null,
         dc: 8 + profBonus + finalMods[cls.spellAbility],
         attack: profBonus + finalMods[cls.spellAbility],
@@ -3747,8 +3770,8 @@ function sheetSpell(sp) {
     sum: first.length > 118 ? first.slice(0, 115).replace(/\s+\S*$/, "") + "..." : first, up: String(sp.h || "").slice(0, 130) };
 }
 function spellAction(sp, ctx, opts) {
-  const m = sp.m;
-  if (!m) return null;
+  // A spell the app has no mechanics for is still cast: it spends its slot and posts its text for the table to resolve.
+  const m = sp.m || { k: "info", act: /^bonus/i.test(sp.t || "") ? "bonus" : /^reaction/i.test(sp.t || "") ? "reaction" : /^action/i.test(sp.t || "") ? "action" : "" };
   const out = { name: sp.n, spell: true, slot: sp.l, desc: sp.x.slice(0, 1200) };
   if (sp.k) { // Verbal, Somatic, Material: the Combat Resolver checks these when the DM turns the rule on
     out.comp = sp.k;
@@ -3769,6 +3792,7 @@ function spellAction(sp, ctx, opts) {
   }
   else if (m.k === "heal") { out.type = "heal"; out.healDice = evalDice(m.mod ? `${m.heal}+SPELLMOD` : m.heal, ctx); }
   else if (m.k === "auto") { out.type = "auto"; out.dmgList = [[dice, m.dmg[1]]]; }
+  else if (m.k === "info") { out.type = "info"; }
   else if (m.k === "apply" && m.eff) { out.type = "apply"; out.onUse = { effs: [{ name: sp.n, ...m.eff, ...(m.dur ? { left: m.dur } : {}), ...(sp.conc ? { conc: true } : {}) }] }; }
   else return null;
   if (m.up) out.up = m.up;
@@ -3780,6 +3804,7 @@ function spellAction(sp, ctx, opts) {
   if (extra && out.dmgList) out.dmgList = [[evalDice(`${out.dmgList[0][0]}+${extra}`, ctx), out.dmgList[0][1]]];
   if (o.potentCantrip && sp.l === 0 && out.dmgList) { if (out.type === "save") out.halfOnSave = true; if (out.type === "attack") out.missHalf = true; }
   if (opts && opts.once) { out.slot = 0; out.usesMax = 1; out.recharge = "long"; } // a feat's free casting
+  else if (o.points && sp.l > 0) { out.pool = o.points.pool; out.pointCosts = o.points.costs; out.cost = o.points.costs[sp.l - 1] || 1; out.maxLvl = o.points.maxLevel || sp.l; } // a class that spends points, not slots
   return out;
 }
 
@@ -3874,7 +3899,9 @@ function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, prof
             {stat("Highest Spell Level", maxLevel || "none yet")}
           </div>
         </Section>
-        <Section title={cls.casterType === "pact" ? "Pact Magic Slots" : "Spell Slots"} colors={colors} fontDisplay={fontDisplay}>{slotsDisplay}</Section>
+        {cls.spellPoints
+          ? <Section title={`Casting with ${cls.spellPoints.pool}`} colors={colors} fontDisplay={fontDisplay}><div style={{ fontSize: 14 }} data-testid="points-note">This class spends {cls.spellPoints.pool} to cast, not spell slots. A spell costs {cls.spellPoints.costs.slice(0, Math.max(1, maxLevel)).map((n, i) => `${n} at Level ${i + 1}`).join(", ")}.</div></Section>
+          : <Section title={cls.casterType === "pact" ? "Pact Magic Slots" : "Spell Slots"} colors={colors} fontDisplay={fontDisplay}>{slotsDisplay}</Section>}
       </>) : (
         <Section title="Spellcasting" colors={colors} fontDisplay={fontDisplay}>
           <div style={{ fontSize: 14, opacity: 0.8 }}>{className} has no Spellcasting feature. {custom ? "Further Customization is on, so you can still add spells below. They will show in red." : "Turn on Further Customization to add spells anyway."}</div>

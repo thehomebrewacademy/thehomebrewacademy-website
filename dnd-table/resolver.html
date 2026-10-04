@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>D&D Combat Resolver</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Oswald:wght@500;700&family=Michroma&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
   <style>
     :root {
       --ink: #1B2430;
@@ -170,113 +170,111 @@
     .tag-heal { background: #1a2f3a; color: #80d8ff; border: 1px solid #0288d1; }
     .tag-utility { background: #2a2a1f; color: #fff176; border: 1px solid #f9a825; }
 
-    /* ── THE CHARACTER SHEET (laid out like a printed sheet: black on white) ── */
-    .paper { --ink: #000; color: #000; font-family: 'Open Sans', 'Segoe UI', Arial, sans-serif; font-size: 13px; margin: 10px 0 16px; }
-    .pp-pagebox { background: #fff; border-radius: 4px; padding: 18px 20px 22px; margin-bottom: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
-    .pp-banner { position: relative; border: 2px solid #000; border-left: none; margin: 8px 44px 16px 0; padding: 10px 70px 10px 34px; background: #fff;
-      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 22px 50%); border-left: 2px solid #000; }
-    .pp-title { font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; font-size: 30px; line-height: 1.1; text-align: center; letter-spacing: 0.5px; }
-    .pp-the { font-size: 24px; }
-    .pp-page { font-size: 18px; font-weight: 400; }
-    .pp-level { position: absolute; right: 22px; margin-top: -78px; margin-right: -22px; }
-    .pp-pagebox { position: relative; }
-    .pp-pagebox > .pp-banner + * { margin-top: 0; }
-    .pp-banner .pp-level { position: absolute; right: 8px; top: 50%; transform: translate(50%, -50%); margin: 0; }
-    .pp-banner { overflow: visible; clip-path: none; }
-    .pp-banner::before, .pp-banner::after { content: ''; position: absolute; top: -2px; bottom: -2px; clip-path: polygon(0 0, 100% 50%, 0 100%); }
-    .pp-banner::before { left: -2px; width: 24px; background: #000; }
-    .pp-banner::after { left: -5px; width: 24px; background: #fff; }
-    .pp-level { width: 78px; height: 78px; border: 2px solid #000; border-radius: 50%; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Oswald', sans-serif; }
-    .pp-level span { font-size: 15px; font-weight: 700; line-height: 1; }
-    .pp-level strong { font-size: 30px; line-height: 1; }
+    /* ── THE CHARACTER SHEET: the app's own look by default. Main color, border and text can be changed by the player. ── */
+    .paper { --pp-main: #1a2535; --pp-border: #B8860B; --pp-text: #EDE4D3;
+      --pp-card: color-mix(in srgb, var(--pp-main) 86%, var(--pp-text)); --pp-line: color-mix(in srgb, var(--pp-border) 40%, transparent);
+      --pp-muted: color-mix(in srgb, var(--pp-text) 62%, var(--pp-main)); --pp-pick: color-mix(in srgb, var(--pp-border) 32%, var(--pp-main));
+      background: var(--pp-main); color: var(--pp-text); border: 1px solid var(--pp-border); border-radius: 10px; padding: 14px 16px 18px; margin: 10px 0 16px;
+      font-family: 'Crimson Text', Georgia, serif; font-size: 15px; }
+    .paper strong { font-weight: 700; }
+    .pp-muted { color: var(--pp-muted); }
+    .pp-banner { display: flex; align-items: center; gap: 12px; border: 2px solid var(--pp-border); border-radius: 10px; padding: 8px 10px 8px 18px; background: var(--pp-card); }
+    .pp-title { flex: 1; font-family: 'Cinzel', serif; font-weight: 700; font-size: 26px; line-height: 1.15; text-align: center; letter-spacing: 0.5px; }
+    .pp-the { font-size: 17px; font-weight: 400; }
+    .pp-level { width: 64px; height: 64px; border: 2px solid var(--pp-border); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Cinzel', serif; background: var(--pp-main); flex-shrink: 0; }
+    .pp-level span { font-size: 10px; font-weight: 700; line-height: 1; text-transform: uppercase; letter-spacing: 1px; }
+    .pp-level strong { font-size: 26px; line-height: 1.05; }
+    .pp-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; border-bottom: 2px solid var(--pp-border); }
+    .pp-tab { background: transparent; border: 1px solid var(--pp-line); border-bottom: none; border-radius: 8px 8px 0 0; color: var(--pp-text); font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; padding: 6px 14px; cursor: pointer; }
+    .pp-tab.on { background: var(--pp-border); color: var(--pp-main); border-color: var(--pp-border); }
+    .pp-colors { margin-left: auto; font-weight: 400; font-size: 12px; }
+    .pp-theme { border: 1px solid var(--pp-line); border-radius: 8px; padding: 10px; margin-bottom: 12px; background: var(--pp-card); }
+    .pp-swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+    .pp-swatch { border: 2px solid; border-radius: 8px; padding: 7px 4px; font-family: 'Cinzel', serif; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .pp-swatch.on { box-shadow: 0 0 0 2px var(--pp-text); }
+    .pp-pickers { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+    .pp-pickers label { display: inline-flex; align-items: center; gap: 6px; }
+    .pp-pickers input[type=color] { width: 38px; height: 28px; padding: 0; border: 1px solid var(--pp-border); border-radius: 6px; background: transparent; cursor: pointer; }
+    .pp-pickers .pp-tab { border: 1px solid var(--pp-border); border-radius: 8px; }
     .pp-top { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; margin-bottom: 14px; }
-    .pp-abil { position: relative; width: 64px; border: 2px solid #000; border-radius: 12px 12px 4px 4px; text-align: center; padding: 20px 0 24px; background: #fff; }
-    .pp-save, .pp-mod { position: absolute; left: 50%; transform: translateX(-50%); background: #fff; border: 2px solid #000; color: #000; font-size: 14px; cursor: pointer; padding: 0 10px; line-height: 1.4; font-family: inherit; }
-    .pp-save { top: -2px; left: 0; transform: none; border-radius: 12px 0 10px 0; border-top: none; border-left: none; font-size: 13px; padding: 0 9px; }
-    .pp-mod { bottom: -10px; border-radius: 12px; min-width: 50px; }
-    .pp-save:hover:not(:disabled), .pp-mod:hover:not(:disabled) { background: #f3e2a6; }
-    .pp-save:disabled, .pp-mod:disabled { cursor: default; color: #000; }
-    .pp-dot { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border: 2px solid #000; border-radius: 50%; background: #fff; }
-    .pp-dot.full { background: #9a9a9a; box-shadow: inset 0 0 0 3px #fff; }
-    .pp-abname { font-size: 13px; text-align: left; padding-left: 6px; }
-    .pp-score { font-size: 30px; line-height: 1.05; }
-    .pp-hit { border: 2px solid #000; padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; align-self: center; font-size: 15px; min-width: 62px; }
-    .pp-hit strong { font-weight: 400; font-size: 18px; }
-    .pp-hp { flex: 1; min-width: 210px; display: flex; align-items: center; background: #d9d9d9; border-radius: 0 40px 40px 0; margin-left: 46px; padding: 6px 22px 6px 0; align-self: center; height: 74px; position: relative; }
-    .pp-heart { position: relative; width: 92px; height: 86px; margin-left: -50px; flex-shrink: 0; }
-    .pp-heart svg { width: 100%; height: 100%; }
-    .pp-heartval { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 12px; }
-    .pp-heartval strong { font-size: 26px; font-weight: 400; line-height: 1; }
-    .pp-heartval span { font-size: 12px; }
-    .pp-hpcur { flex: 1; text-align: center; display: flex; flex-direction: column; }
-    .pp-hpcur strong { font-size: 24px; font-weight: 400; line-height: 1.1; }
-    .pp-hpcur span { font-size: 13px; }
-    .pp-hpslash { font-size: 26px; }
-    .pp-body { display: grid; grid-template-columns: 210px 1fr; gap: 16px; }
-    .pp-skills { position: relative; border: 2px solid #000; padding: 6px 8px; }
-    .pp-insp { position: absolute; left: -22px; top: 6px; width: 14px; height: 14px; border: 2px solid #000; border-radius: 50%; cursor: pointer; background: #fff; }
-    .pp-insp.full { background: #000; }
-    .pp-skill { display: grid; grid-template-columns: 14px 30px 1fr 34px; align-items: center; gap: 4px; padding: 2px 0; cursor: pointer; font-size: 14px; }
-    .pp-skill:hover { background: #f3e2a6; }
-    .pp-o { width: 11px; height: 11px; border: 1.5px solid #000; border-radius: 50%; }
-    .pp-o.full { background: #000; }
-    .pp-o.ex { background: #000; box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #000; }
-    .pp-sv { border-bottom: 1.5px solid #000; text-align: center; }
-    .pp-sa, .pp-grey { color: #8a8a8a; }
-    .pp-sa { text-align: right; font-size: 13px; }
-    .pp-carry { margin: 12px 0 6px; font-size: 14px; }
-    .pp-h3 { font-weight: 700; font-size: 14px; text-align: center; margin: 12px 0 4px; }
-    .pp-center { text-align: center; font-size: 13px; line-height: 1.6; }
-    .pp-stats { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
-    .pp-ac { position: relative; width: 62px; height: 70px; flex-shrink: 0; }
-    .pp-ac svg { width: 100%; height: 100%; }
-    .pp-ac div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 8px; }
-    .pp-ac strong { font-size: 22px; font-weight: 400; line-height: 1; }
-    .pp-ac span { font-size: 12px; }
-    .pp-stat { display: flex; flex-direction: column; align-items: center; font-size: 13px; }
-    .pp-box { border: 2px solid #000; min-width: 52px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
-    .pp-star { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; margin-top: -6px;
-      background: #000; clip-path: polygon(50% 0, 62% 18%, 84% 12%, 82% 34%, 100% 50%, 82% 66%, 84% 88%, 62% 82%, 50% 100%, 38% 82%, 16% 88%, 18% 66%, 0 50%, 18% 34%, 16% 12%, 38% 18%); }
-    .pp-star strong { background: #fff; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 400;
-      clip-path: polygon(50% 0, 62% 18%, 84% 12%, 82% 34%, 100% 50%, 82% 66%, 84% 88%, 62% 82%, 50% 100%, 38% 82%, 16% 88%, 18% 66%, 0 50%, 18% 34%, 16% 12%, 38% 18%); }
-    .pp-box strong { font-size: 22px; font-weight: 400; }
-    .pp-cond { flex: 1; min-width: 150px; border: 2px solid #000; border-radius: 26px; padding: 6px 14px; min-height: 78px; text-align: center; font-size: 13px; }
-    .pp-line { display: flex; gap: 24px; flex-wrap: wrap; margin: 10px 0 4px; font-size: 13px; }
-    .pp-line strong { font-weight: 400; }
-    .pp-h2 { font-family: 'Michroma', 'Arial Black', sans-serif; font-size: 16px; letter-spacing: 0.5px; }
-    .pp-mid { text-align: center; margin: 12px 0 6px; }
-    .paper .action-btn { background: transparent; border: none; border-radius: 3px; padding: 2px 4px; color: #000; }
-    .paper .action-btn:hover { background: #f3e2a6; border: none; }
-    .paper .action-btn.selected { background: #f0c94a; border: none; outline: 2px solid #000; }
-    .paper .action-btn .a-name { font-family: inherit; font-size: inherit; color: #000; }
-    .paper .action-btn .a-detail { color: #444; font-size: 12px; margin: 0; }
+    .pp-abil { flex: 1 1 84px; min-width: 84px; border: 2px solid var(--pp-border); border-radius: 10px; text-align: center; padding: 6px 4px 6px; background: var(--pp-card); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .pp-abname { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+    .pp-score { font-family: 'Cinzel', serif; font-size: 38px; font-weight: 700; line-height: 1; }
+    .pp-mod, .pp-save { background: var(--pp-main); border: 1px solid var(--pp-border); color: var(--pp-text); border-radius: 12px; cursor: pointer; font-family: 'Cinzel', serif; }
+    .pp-mod { font-size: 17px; font-weight: 700; min-width: 54px; padding: 1px 8px; }
+    .pp-save { font-size: 11.5px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px; border-color: var(--pp-line); }
+    .pp-save.prof { border-color: var(--pp-border); font-weight: 700; }
+    .pp-mod:hover:not(:disabled), .pp-save:hover:not(:disabled), .pp-skill:hover, .pp-stdbtn:hover:not(:disabled) { background: var(--pp-pick); }
+    .pp-mod:disabled, .pp-save:disabled { cursor: default; }
+    .pp-hp { flex: 0 1 230px; min-width: 190px; border: 1px solid var(--pp-line); border-radius: 10px; padding: 6px 10px; background: var(--pp-card); display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+    .pp-hprow { display: flex; align-items: flex-end; justify-content: space-around; gap: 8px; }
+    .pp-hprow > div { display: flex; flex-direction: column; align-items: center; }
+    .pp-hprow strong { font-family: 'Cinzel', serif; font-size: 20px; line-height: 1.1; }
+    .pp-hprow span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--pp-muted); }
+    .pp-of { font-size: 12px; color: var(--pp-muted); padding-bottom: 14px; }
+    .pp-hit { text-align: center; font-size: 12.5px; color: var(--pp-muted); border-top: 1px solid var(--pp-line); padding-top: 3px; }
+    .pp-body { display: grid; grid-template-columns: 200px 1fr; gap: 16px; }
+    .pp-card { border: 1px solid var(--pp-line); border-radius: 10px; background: var(--pp-card); }
+    .pp-skills { padding: 6px 8px; }
+    .pp-skill { display: grid; grid-template-columns: 12px 26px 1fr 30px; align-items: center; gap: 5px; padding: 2px 3px; cursor: pointer; font-size: 13.5px; border-bottom: 1px solid color-mix(in srgb, var(--pp-line) 45%, transparent); border-radius: 4px; }
+    .pp-skill:last-child { border-bottom: none; }
+    .pp-skill.prof .pp-sn, .pp-skill.prof .pp-sv { font-weight: 700; }
+    .pp-o { width: 9px; height: 9px; border: 1.5px solid var(--pp-border); border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .pp-o.full { background: var(--pp-border); }
+    .pp-o.ex { background: var(--pp-border); box-shadow: 0 0 0 2px var(--pp-card), 0 0 0 3.5px var(--pp-border); }
+    .pp-sv { text-align: center; }
+    .pp-sa { text-align: right; font-size: 11px; color: var(--pp-muted); }
+    .pp-carry { margin: 10px 2px 4px; font-size: 13.5px; }
+    .pp-h3 { font-family: 'Cinzel', serif; font-weight: 700; font-size: 13.5px; text-align: center; margin: 12px 0 4px; letter-spacing: 0.5px; }
+    .pp-center { text-align: center; font-size: 14px; line-height: 1.5; }
+    .pp-stats { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+    .pp-stat { border: 2px solid var(--pp-border); border-radius: 10px; background: var(--pp-card); min-width: 64px; padding: 4px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .pp-stat strong { font-family: 'Cinzel', serif; font-size: 24px; line-height: 1.1; }
+    .pp-stat span { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .pp-cond { flex: 1; min-width: 160px; padding: 6px 12px; text-align: center; font-size: 14px; }
+    .pp-line { display: flex; gap: 22px; flex-wrap: wrap; margin: 10px 2px 2px; font-size: 14px; }
+    .pp-h2 { font-family: 'Cinzel', serif; font-weight: 700; font-size: 17px; letter-spacing: 1px; text-transform: uppercase; margin: 16px 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--pp-border); color: var(--pp-border); }
+    .paper .action-btn { background: transparent; border: none; border-bottom: 1px solid color-mix(in srgb, var(--pp-line) 55%, transparent); border-radius: 6px; padding: 4px 6px; color: var(--pp-text); }
+    .paper .action-btn:hover { background: var(--pp-pick); border-color: transparent; }
+    .paper .action-btn.selected { background: var(--pp-pick); outline: 2px solid var(--pp-border); border-color: transparent; }
+    .paper .action-btn .a-name { font-family: 'Crimson Text', Georgia, serif; font-size: 16px; font-weight: 700; color: var(--pp-text); }
+    .paper .action-btn .a-detail { color: var(--pp-muted); font-size: 13.5px; margin: 0; font-weight: 400; }
     .pp-attack { display: grid; grid-template-columns: 2fr 1.1fr 0.7fr 1.6fr; gap: 6px; align-items: baseline; }
-    .pp-attack.action-btn .a-name, .pp-attack.action-btn span { font-family: 'Michroma', sans-serif; font-size: 11.5px; }
-    .pp-head { font-weight: 700; font-size: 14px; padding: 2px 4px; }
-    .pp-head span:not(:first-child) { text-align: center; }
-    .pp-attack span:not(:first-child) { text-align: center; }
-    .pp-std { font-size: 13.5px; padding: 0 4px 4px; }
-    .pp-action { display: grid; grid-template-columns: 1fr 34px; gap: 6px; font-size: 13.5px; }
-    .pp-type { font-weight: 700; text-align: center; }
-    .pp-note { font-size: 12px; color: #555; padding: 2px 4px; }
-    .pp-spellhead { display: flex; gap: 26px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; font-size: 14px; }
-    .pp-spellhead .pp-h2 { font-size: 22px; }
-    .pp-lvl { font-weight: 700; font-size: 16px; margin: 6px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .pp-lvl .pp-grey { font-weight: 400; font-size: 13px; }
+    .pp-head { font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 6px; color: var(--pp-muted); }
+    .pp-head span:not(:first-child), .pp-attack span:not(:first-child) { text-align: center; }
+    .pp-filter { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; font-size: 13px; }
+    .pp-chip { background: transparent; border: 1px solid var(--pp-border); color: var(--pp-text); border-radius: 14px; padding: 2px 12px; font-size: 12.5px; cursor: pointer; font-family: 'Cinzel', serif; opacity: 0.55; }
+    .pp-chip.on { background: var(--pp-border); color: var(--pp-main); font-weight: 700; opacity: 1; }
+    .pp-std { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; margin-bottom: 8px; }
+    .pp-stdbtn { display: flex; justify-content: space-between; align-items: center; gap: 6px; background: var(--pp-card); border: 1px solid var(--pp-line); border-radius: 8px; color: var(--pp-text); padding: 5px 9px; cursor: pointer; font-family: 'Crimson Text', Georgia, serif; font-size: 15px; }
+    .pp-stdbtn:disabled { cursor: default; opacity: 0.7; }
+    .pp-action { display: grid; grid-template-columns: 1fr 30px; gap: 6px; }
+    .pp-type { font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; text-align: center; color: var(--pp-border); }
+    .pp-note { font-size: 13px; color: var(--pp-muted); padding: 3px 6px; }
+    .pp-spellhead { display: flex; gap: 24px; align-items: baseline; flex-wrap: wrap; margin-bottom: 4px; font-size: 15px; border-bottom: 1px solid var(--pp-border); padding-bottom: 4px; }
+    .pp-lvl { font-family: 'Cinzel', serif; font-weight: 700; font-size: 16px; margin: 14px 0 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .pp-lvl .pp-muted { font-family: 'Crimson Text', serif; font-weight: 400; font-size: 13.5px; }
     .pp-circles { display: inline-flex; gap: 6px; }
-    .pp-circle { width: 13px; height: 13px; border: 2px solid #000; border-radius: 50%; cursor: pointer; background: #fff; }
-    .pp-circle.full { background: #000; }
-    .pp-spell { display: block; margin-bottom: 6px; }
-    .pp-spell.pp-text { padding: 2px 4px; }
+    .pp-circle { width: 13px; height: 13px; border: 2px solid var(--pp-border); border-radius: 50%; cursor: pointer; }
+    .pp-circle.full { background: var(--pp-border); }
+    .pp-spell { display: block; margin-bottom: 4px; }
+    .pp-spell.pp-text { padding: 4px 6px; border-bottom: 1px solid color-mix(in srgb, var(--pp-line) 55%, transparent); }
+    .pp-spell.pp-text .a-name { font-weight: 700; font-size: 16px; }
     .pp-spellrow { display: grid; gap: 6px; align-items: baseline; }
-    .pp-spellrow span:not(:first-child) { text-align: center; }
-    .pp-spellrow .a-name { font-weight: 700; }
-    .pp-spell.pp-text .a-name { font-weight: 700; }
-    .pp-sum { font-size: 13px; line-height: 1.35; }
-    .pp-key { font-size: 11px; color: #666; margin-top: 8px; }
-    .pp-p { font-size: 13px; line-height: 1.45; margin: 0 0 6px; }
-    @media (max-width: 700px) { .pp-body { grid-template-columns: 1fr; } .pp-hp { margin-left: 50px; } }
+    .pp-spellrow span:not(:first-child) { text-align: center; font-size: 14px; }
+    .pp-sum { font-size: 14px; line-height: 1.35; color: var(--pp-muted); }
+    .pp-key { font-size: 12px; color: var(--pp-muted); margin-top: 10px; }
+    .pp-entry { padding: 10px 4px; border-bottom: 1px solid var(--pp-line); }
+    .pp-entry:last-child { border-bottom: none; }
+    .pp-ename { font-family: 'Cinzel', serif; font-weight: 700; font-size: 15px; margin-bottom: 3px; }
+    .pp-tag { font-family: 'Crimson Text', serif; font-weight: 400; font-size: 12.5px; color: var(--pp-main); background: var(--pp-border); border-radius: 10px; padding: 1px 9px; margin-left: 10px; vertical-align: middle; }
+    .pp-use { float: right; display: inline-flex; gap: 6px; flex-wrap: wrap; }
+    .pp-use .pp-chip { opacity: 1; font-size: 11.5px; }
+    .pp-etext { font-size: 14.5px; line-height: 1.5; white-space: pre-wrap; }
+    @media (max-width: 700px) { .pp-body { grid-template-columns: 1fr; } }
 
+    .do-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+    .do-why { font-size: 0.85rem; color: #ff8a80; flex: 1; }
     .pick-box { position: sticky; top: -16px; z-index: 5; background: #161f2b; padding: 4px 0 8px; border-bottom: 1px solid #2C3E50; margin-bottom: 8px; max-height: 46vh; overflow-y: auto; }
     /* ── RESOLVE BUTTON ── */
     .resolve-bar {
@@ -944,6 +942,7 @@ function cleanAction(a, i) {
   if (+a.slot >= 1 && +a.slot <= 9) { out.slot = Math.round(+a.slot); bits.unshift(`Level ${out.slot} spell`); }
   else if (a.spell) bits.unshift('Cantrip');
   if (/^\d+d\d+$/.test(String(a.up || ''))) out.up = a.up;
+  if (a.spell && Array.isArray(a.pointCosts) && a.pool) { out.pointCosts = a.pointCosts.slice(0, 9).map(n => Math.max(0, Math.min(999, Math.round(+n) || 0))); out.maxLvl = Math.max(1, Math.min(9, Math.round(+a.maxLvl) || 1)); }
   if (a.upEff && +a.upEff.hpMax > 0) out.upEff = {hpMax: Math.min(50, Math.round(+a.upEff.hpMax))};
   // Spell components, for the tables that track them
   if (a.spell && /^[VSM]{1,3}$/.test(String(a.comp || ''))) { out.comp = a.comp; if (a.mat) out.mat = String(a.mat).slice(0, 240); if (a.matCost) out.matCost = true; if (a.matConsumed) out.matConsumed = true; }
@@ -979,6 +978,32 @@ async function sweepOldSessions(me, skip) {
 }
 
 const EFFECT_KEYS = ['atk','save','ac','speed','speedMult','init','sense','move','note','saveAdv','saveAbil','saveAbilMod','advAgainst','noInvisible','bonusDmg','bonusType','protect','check','immune','hpMax'];
+// The actions every creature can take. Clicking one on the sheet asks what is needed and then does it.
+const STD_ACTIONS = [
+  {n:'Attack', d:'Attack with a weapon or an Unarmed Strike.'},
+  {n:'Dash', d:'For the rest of the turn, you gain extra movement equal to your Speed.'},
+  {n:'Disengage', d:"Your movement doesn't provoke Opportunity Attacks for the rest of the turn."},
+  {n:'Dodge', d:"Until the start of your next turn, attack rolls against you have Disadvantage if you can see the attacker, and you make Dexterity saving throws with Advantage. You lose this benefit if you have the Incapacitated condition or if your Speed is 0."},
+  {n:'Help', d:"Help another creature's ability check or attack roll, or administer first aid."},
+  {n:'Hide', d:'Make a DC 15 Dexterity (Stealth) check while Heavily Obscured or behind cover and out of sight. On a success you have the Invisible condition, and your total is the DC for a creature to find you.'},
+  {n:'Influence', d:"Make a Charisma (Deception, Intimidation, Performance, or Persuasion) or Wisdom (Animal Handling) check to alter a creature's attitude."},
+  {n:'Magic', d:'Cast a spell, use a magic item, or use a magical feature.'},
+  {n:'Ready', d:'Prepare to take an action in response to a trigger you define. It takes your Reaction when the trigger happens.'},
+  {n:'Search', d:'Make a Wisdom (Insight, Medicine, Perception, or Survival) check.'},
+  {n:'Study', d:'Make an Intelligence (Arcana, History, Investigation, Nature, or Religion) check.'},
+  {n:'Utilize', d:'Use a nonmagical object.'},
+];
+// Color schemes for the character sheet. The first is the app's own look.
+const SHEET_SCHEMES = [
+  {name:'Default', main:'#1a2535', border:'#b8860b', text:'#ede4d3'},
+  {name:'Parchment', main:'#f1e7d0', border:'#6b4423', text:'#2a1d12'},
+  {name:'Crimson', main:'#3a1216', border:'#d4a017', text:'#f6e9d7'},
+  {name:'Forest', main:'#142a1f', border:'#b08d57', text:'#e6ecd9'},
+  {name:'Arcane', main:'#241a3a', border:'#b9a7e6', text:'#ece6fa'},
+  {name:'Frost', main:'#1c2f3f', border:'#8fd3f4', text:'#f2f8fc'},
+  {name:'Ember', main:'#221c1a', border:'#e8742a', text:'#f8eadf'},
+  {name:'Ink', main:'#ffffff', border:'#000000', text:'#000000'},
+];
 // A creature's Hit Point total: its own, plus anything an effect such as Aid adds while it lasts.
 function totalHP(c) { return Math.max(1, (+c.maxHP || 1) + ((c && c.effects) || []).reduce((s, e) => s + (+e.hpMax || 0), 0)); }
 // Spellcasting Focuses and the Component Pouch, found by name among a character's items.
@@ -1146,6 +1171,7 @@ function sheetToFields(data) {
     skills, skillProfs: list(data.skillProfs, 30, 30), skillExpertise: list(data.skillExpertise, 30, 30),
     hitDie: num(data.hitDie, 0), equipment: str(data.equipment, 2000), items: list(data.items, 60, 80),
     shield: !!data.shield, feats: list(data.feats, 40, 60), components: list(data.components, 80, 60),
+    featureList: (Array.isArray(data.featureList) ? data.featureList : []).slice(0, 120).filter(f => f && typeof f === 'object' && f.n).map(f => ({n: str(f.n, 80), lv: Math.max(0, Math.min(20, num(f.lv, 0))), src: str(f.src, 24), d: str(f.d, 2500)})),
     saveProfs: list(data.saveProfs, 6, 20), languages: list(data.languages, 40, 40), tools: list(data.tools, 40, 60), importantItems: list(data.importantItems, 40, 80),
     spellList: (Array.isArray(data.spellList) ? data.spellList : []).slice(0, 120).filter(s => s && typeof s === 'object' && s.n).map(s => ({n: str(s.n, 60), l: Math.max(0, Math.min(9, num(s.l, 0))), s: str(s.s, 6), k: str(s.k, 8), r: str(s.r, 24), sv: str(s.sv, 5), d: str(s.d, 22), t: str(s.t, 22), sum: str(s.sum, 130), up: str(s.up, 140)})),
   };
@@ -1371,6 +1397,11 @@ function App() {
   const [handsOn, setHandsOn] = useState(false);   // table rule: track what each character holds
   const [compMode, setCompMode] = useState('');    // table rule: spell components. '' off, 'simple', 'full'
   const [showPouch, setShowPouch] = useState(false);
+  const [sheetTab, setSheetTab] = useState('main');        // Main | Spells | Character | Features & Traits
+  const [actFilter, setActFilter] = useState({});          // which kinds of action the sheet lists; a kind set to false is hidden
+  const [stdAct, setStdAct] = useState(null);              // the standard action being asked about
+  const [showTheme, setShowTheme] = useState(false);
+  const [sheetTheme, setSheetTheme] = useState(() => { try { const t = JSON.parse(window.localStorage.getItem('hba-sheet-theme') || 'null'); const hex = v => /^#[0-9a-f]{6}$/i.test(String(v || '')); if (t && t.custom && hex(t.custom.main) && hex(t.custom.border) && hex(t.custom.text)) return {custom: t.custom}; if (t && typeof t.scheme === 'string') return {scheme: t.scheme}; } catch (e) {} return {scheme: 'Default'}; });
 
   useEffect(() => { logEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [log]);
 
@@ -1715,7 +1746,10 @@ function App() {
   };
   // Spell slots: what a creature has left at each level, and the levels a spell can be cast with.
   const slotsLeft = (c, lvl) => Math.max(0, ((((c.sheet || {}).slotMax) || [])[lvl - 1] || 0) - (+((c.slotsUsed || {})[lvl]) || 0));
-  const castOptions = (c, a) => a && a.slot ? [1,2,3,4,5,6,7,8,9].filter(l => l >= a.slot && slotsLeft(c, l) > 0) : [];
+  // A class that casts with points (a pool such as Acuity) instead of slots: each level has a cost in points.
+  const castOptions = (c, a) => !(a && a.slot) ? [] : a.pointCosts
+    ? [1,2,3,4,5,6,7,8,9].filter(l => l >= a.slot && l <= (a.maxLvl || a.slot) && a.pointCosts[l - 1] > 0 && poolLeft(c, a.pool) >= a.pointCosts[l - 1])
+    : [1,2,3,4,5,6,7,8,9].filter(l => l >= a.slot && slotsLeft(c, l) > 0);
   // A spell cast with a higher slot: its damage or healing grows by "up" for each level above its own.
   const upcast = (a, lvl) => {
     const extra = lvl - a.slot;
@@ -1748,7 +1782,8 @@ function App() {
   const maxTargets = (a, lvl) => !a ? 1 : a.self ? 1 : a.targets === 'any' ? 99 : (a.targets || 1) + (a.targetsPerSlot && lvl > a.slot ? lvl - a.slot : 0);
 
   const resolve = () => {
-    if (!selectedAction || !canAct) return;
+    const active = actorNow; // out of combat, or with a Reaction, the sheet's own creature acts
+    if (!selectedAction || !active) return;
     let action = actions.find(a=>a.id===selectedAction);
     if (!action) return;
     if (limited(action) && usesLeft(active, action) <= 0) return;
@@ -1763,8 +1798,11 @@ function App() {
       const lvl = opts.includes(castLevel) ? castLevel : opts[0];
       if (!lvl) return;
       castLvl = lvl;
+      if (action.pointCosts) action = {...upcast(action, lvl), cost: action.pointCosts[lvl - 1]}; // the points are taken just below, with the pool
+      else {
       setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, slotsUsed: {...(c.slotsUsed || {}), [lvl]: (+((c.slotsUsed || {})[lvl]) || 0) + 1}}));
       action = upcast(action, lvl);
+      }
       setCastLevel(0);
     }
     if (action.pool) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, poolUsed: {...(c.poolUsed || {}), [action.pool]: (+((c.poolUsed || {})[action.pool]) || 0) + (action.cost || 1)}}));
@@ -1939,13 +1977,14 @@ function App() {
       : (skill && c.sheet && c.sheet.skills && Number.isFinite(+c.sheet.skills[skill])) ? +c.sheet.skills[skill] : mod(score);
     const t = d20Test(c, kind, {ability, skill});
     const label = kind === 'save' ? `${ability} saving throw` : skill ? `${ability} (${skill}) check` : `${ability} check`;
-    let body;
+    let body, total = null;
     if (t.autoFail) body = `<strong style="color:var(--danger)">Fails automatically (${esc(t.autoFail)})</strong>`;
     else {
-      const roll = roll20(testMode(t));
+      const roll = roll20(testMode(t)); total = roll.total + base + t.bonus;
       body = `<span class="log-result">🎲 ${roll.total + base + t.bonus}</span><div class="log-dice">${roll.rolls.join('/')} ${signed(base)}${t.bonusText ? ` (${t.bonusText})` : ''}</div>${modeText(t) ? `<div class="log-detail">${modeText(t)}</div>` : ''}`;
     }
     setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> · ${esc(label)}<br/>${body}`})]);
+    return total;
   };
 
   const updateHP = (id, delta, isHeal=false) => {
@@ -2368,16 +2407,94 @@ function App() {
     if (c.type !== 'player' || !sh.species) return typeLine(c);
     return `Level ${c.level} ${sh.species} ${c.charClass}${sh.subclass ? ` (${sh.subclass})` : ''}${sh.background ? ` · ${sh.background}` : ''}`;
   };
-  // ── THE CHARACTER SHEET, laid out like a printed sheet. Everything on it can be clicked. ──
+  // ── THE CHARACTER SHEET: tabs for Main, Spells, Character, Features & Traits. Everything on it can be clicked. ──
   const SKILL_SHORT = {'Animal Handling':'A. Handling', Intimidation:'Intimidate', Investigation:'Investigate', Performance:'Perform', Persuasion:'Persuade', 'Sleight of Hand':'Slight Hand'};
   const DMG_SHORT = {Bludgeoning:'Bl', Piercing:'Pc', Slashing:'Sl'};
-  const ACT_SHORT = {action:'A', bonus:'BA', reaction:'R', free:'Free'};
+  const ACT_SHORT = {action:'A', bonus:'BA', reaction:'R'};
+  const themeNow = sheetTheme.custom ? sheetTheme.custom : (SHEET_SCHEMES.find(s => s.name === sheetTheme.scheme) || SHEET_SCHEMES[0]);
+  const saveTheme = (t) => { setSheetTheme(t); try { window.localStorage.setItem('hba-sheet-theme', JSON.stringify(t)); } catch (e) {} };
+  // One of the actions everyone has. Each does its own thing.
+  const selfEffect = (c, eff, text) => {
+    const e = {...eff, id: newId(), by: myId, byName: c.name};
+    setCombatants(prev => reorder(prev.map(x => x.id !== c.id ? x : {...x, effects: [...(x.effects || []).filter(y => y.name !== e.name), e]})));
+    setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(c.name)}</strong> takes the <span class="log-result">${esc(eff.name)}</span> action<div class="log-detail">${esc(text)}</div>`})]);
+  };
+  const noteLog = (c, title, text) => setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> · <span class="log-result">${esc(title)}</span>${text ? `<div class="log-detail">${esc(text)}</div>` : ''}`})]);
+  const doStd = (c, name, opt) => {
+    if (name === 'Dash') selfEffect(c, {name:'Dash', speedMult: 2, left: ROUND_SECONDS}, 'Extra movement equal to its Speed for the rest of this turn.');
+    else if (name === 'Disengage') selfEffect(c, {name:'Disengage', note:"Movement doesn't provoke Opportunity Attacks for the rest of this turn.", left: ROUND_SECONDS}, "Its movement doesn't provoke Opportunity Attacks for the rest of this turn.");
+    else if (name === 'Dodge') selfEffect(c, {name:'Dodge', disAgainst: true, saveAdv: 'Dexterity', note:'Ends early if Incapacitated or if Speed is 0.', left: ROUND_SECONDS}, 'Until the start of its next turn, attack rolls against it have Disadvantage if it can see the attacker, and it has Advantage on Dexterity saving throws.');
+    else if (name === 'Hide') {
+      const total = rollTest(c, 'check', 'Dexterity', 'Stealth');
+      if (total != null && total >= 15) { addCondition(c.id, 'Invisible', {src: 'Hide'}); noteLog(c, 'Hidden', `Has the Invisible condition while hidden. A creature finds it with a DC ${total} Wisdom (Perception) check.`); }
+      else if (total != null) noteLog(c, 'Not hidden', 'The Dexterity (Stealth) check needed 15 or higher.');
+    }
+    else if (name === 'Help' && opt && opt.target) {
+      const tgt = inPlay.find(x => x.id === opt.target); if (!tgt) return;
+      const e = {name: 'Helped against', advAgainst: true, left: ROUND_SECONDS, note: `The next attack roll by an ally of ${c.name} against it has Advantage.`, id: newId(), by: myId, byName: c.name};
+      setCombatants(prev => reorder(prev.map(x => x.id !== tgt.id ? x : {...x, effects: [...(x.effects || []).filter(y => y.name !== e.name), e]})));
+      noteLog(c, 'Help', `Distracts ${tgt.name}: the next attack roll by an ally against it has Advantage, before the start of ${c.name}'s next turn.`);
+    }
+    else if (name === 'Help' && opt && opt.skill) noteLog(c, 'Help', `Helps with a ${opt.skill} check: the ally has Advantage on the next one, before the start of ${c.name}'s next turn.`);
+    else if ((name === 'Influence' || name === 'Search' || name === 'Study') && opt && opt.skill) {
+      rollTest(c, 'check', SKILL_ABILITY[opt.skill], opt.skill);
+      if (name === 'Influence') noteLog(c, 'Influence', "The DC is 15 or the creature's Intelligence score, whichever is higher.");
+    }
+    else if (name === 'Ready') { const t = String((opt && opt.text) || '').trim().slice(0, 200); selfEffect(c, {name:'Readied action', note: t || 'Waiting for a trigger', left: ROUND_SECONDS}, t ? `Readied: ${t}. It uses its Reaction when the trigger happens.` : 'It uses its Reaction when the trigger happens.'); }
+    else if (name === 'Utilize') noteLog(c, 'Utilize', String((opt && opt.text) || '').trim().slice(0, 200) || 'Uses an object.');
+    setStdAct(null);
+  };
+  const renderStd = () => {
+    if (!stdAct || !viewed) return null;
+    const c = viewed, n = stdAct.name, info = STD_ACTIONS.find(x => x.n === n) || {};
+    const skills = {Influence: ['Deception', 'Intimidation', 'Performance', 'Persuasion', 'Animal Handling'], Search: ['Insight', 'Medicine', 'Perception', 'Survival'], Study: ['Arcana', 'History', 'Investigation', 'Nature', 'Religion']}[n];
+    const bonus = sk => { const v = ((c.sheet || {}).skills || {})[sk]; return signed(Number.isFinite(+v) ? +v : mod((c.scores || {})[SKILL_ABILITY[sk]] ?? 10)); };
+    return (
+      <div className="modal-overlay" onClick={() => setStdAct(null)}>
+        <div className="modal" data-testid="std-modal" onClick={e => e.stopPropagation()} style={{maxWidth: 480}}>
+          <div className="modal-header"><h2>{n}</h2><button className="modal-close" onClick={() => setStdAct(null)}>×</button></div>
+          <div className="modal-body">
+            <div className="buff-note" style={{marginTop: 0}}>{info.d}</div>
+            {n === 'Attack' && <>
+              <div className="section-title">Which attack?</div>
+              {actions.filter(a => a.weapon || a.unarmed).map(a => <button key={a.id} className="btn btn-ghost btn-full" style={{marginBottom: 6}} onClick={() => { setSelectedAction(a.id); setStdAct(null); }}>{a.name} · {signed(a.atk)} to hit</button>)}
+              <div className="buff-note">Then pick a target and press Resolve Action.</div>
+            </>}
+            {['Dash', 'Disengage', 'Dodge'].includes(n) && <button className="btn btn-primary btn-full" data-testid="std-go" onClick={() => doStd(c, n)}>{n}</button>}
+            {n === 'Hide' && <button className="btn btn-primary btn-full" data-testid="std-go" onClick={() => doStd(c, n)}>Roll Dexterity (Stealth) {bonus('Stealth')}</button>}
+            {skills && <>
+              <div className="section-title">Which check?</div>
+              {skills.map(sk => <button key={sk} className="btn btn-ghost btn-full" style={{marginBottom: 6}} data-testid={`std-skill-${sk}`} onClick={() => doStd(c, n, {skill: sk})}>{SKILL_ABILITY[sk]} ({sk}) {bonus(sk)}</button>)}
+            </>}
+            {n === 'Help' && <>
+              <div className="section-title">Help an ally attack</div>
+              {targets.length === 0 && <div className="empty-state">No one to attack</div>}
+              {targets.map(t => <button key={t.id} className="btn btn-ghost btn-full" style={{marginBottom: 6}} data-testid={`std-help-${t.name}`} onClick={() => doStd(c, n, {target: t.id})}>Distract {t.name}</button>)}
+              <div className="section-title">Help with a check</div>
+              <select aria-label="Skill to help with" defaultValue="" onChange={e => { if (e.target.value) doStd(c, n, {skill: e.target.value}); }} style={{width: '100%'}}>
+                <option value="">Choose the skill or tool you are proficient with...</option>
+                {((c.sheet || {}).skillProfs || Object.keys(SKILL_ABILITY)).slice().sort().map(sk => <option key={sk} value={sk}>{sk}</option>)}
+                {(((c.sheet || {}).tools) || []).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </>}
+            {n === 'Magic' && <button className="btn btn-primary btn-full" data-testid="std-go" onClick={() => { setSheetTab('spells'); setStdAct(null); }}>Open your spells</button>}
+            {(n === 'Ready' || n === 'Utilize') && <>
+              <input aria-label={n === 'Ready' ? 'Trigger and what you will do' : 'What you use'} placeholder={n === 'Ready' ? 'When the door opens, I shoot whoever comes through' : 'What you use, such as a lever or a potion'} value={stdAct.text || ''} onChange={e => setStdAct({...stdAct, text: e.target.value})} style={{width: '100%', marginBottom: 8}}/>
+              <button className="btn btn-primary btn-full" data-testid="std-go" onClick={() => doStd(c, n, {text: stdAct.text})}>{n}</button>
+            </>}
+          </div>
+        </div>
+      </div>
+    );
+  };
   const renderPaper = (c) => {
     const sh = c.sheet || {}, ctl = canControl(c);
     const sel = (a) => setSelectedAction(a.id === selectedAction ? null : a.id);
     const rowCls = (a, extra) => `action-btn ${extra || ''} ${selectedAction === a.id ? 'selected' : ''}`;
     const dim = (a) => limited(a) && usesLeft(c, a) <= 0 ? {opacity: 0.45} : {};
     const leftText = (a) => a.pool ? ` (${poolLeft(c, a.pool)} ${a.pool} left)` : a.usesMax ? ` (${usesLeft(c, a)}/${a.usesMax} left)` : '';
+    const kindOf = (a) => ['action', 'bonus', 'reaction'].includes(a.activation) ? a.activation : 'other';
+    const shown = (a) => actFilter[kindOf(a)] !== false;
     const attacks = actions.filter(a => a.weapon || a.unarmed);
     const spellActs = actions.filter(a => a.spell);
     const list = sh.spellList || [];
@@ -2385,20 +2502,8 @@ function App() {
     const actOf = (n) => spellActs.find(a => a.name === n);
     const cantrips = list.filter(s => s.l === 0), levels = [1,2,3,4,5,6,7,8,9].filter(l => list.some(s => s.l === l));
     const str = (c.scores || {}).Strength ?? 10;
-    const title = (page) => (
-      <div className="pp-banner">
-        <div className="pp-title">{c.name} <span className="pp-the">the</span> {[sh.species, c.charClass].filter(Boolean).join(' ')}{page ? <span className="pp-page"> · {page}</span> : null}</div>
-        <div className="pp-level"><span>Level</span><strong>{c.level}</strong></div>
-      </div>
-    );
     const hitLeft = Math.max(0, c.level - (+c.hitDiceUsed || 0));
     const res = [c.res && `Resistant: ${c.res}`, c.ci && `Immune: ${c.ci}`].filter(Boolean);
-    const spellHead = (
-      <div className="pp-spellhead">
-        <span className="pp-h2">Spells</span>
-        {sh.spell && <><span>Attack: {signed(sh.spell.attack)}</span><span>Modifier: {signed(mod((c.scores || {})[sh.spell.ability] ?? 10))}</span><span>Save DC: {sh.spell.dc}</span></>}
-      </div>
-    );
     const slotCircles = (lvl) => { const max = ((sh.slotMax || [])[lvl - 1]) || 0, left = slotsLeft(c, lvl); return max ? (
       <span className="pp-circles" title={ctl ? 'Click a filled circle to spend a slot, an empty one to give it back' : ''}>
         {Array.from({length: max}).map((_, i) => <span key={i} className={`pp-circle ${i < left ? 'full' : ''}`} onClick={() => ctl && adjustSlot(c.id, lvl, i < left ? -1 : 1)} />)}
@@ -2409,59 +2514,77 @@ function App() {
           <span className="a-name">{s.n}{a ? leftText(a) : ''}</span><span>{s.s}</span><span>{s.k || '-'}</span><span>{s.r}</span><span>{s.sv}</span>{cols.split(' ').length > 6 ? <span>{s.d}</span> : null}<span>{s.t}</span>
         </div>
         {s.sum && <div className="pp-sum">{s.sum}</div>}
-        {s.up && s.l > 0 && <div className="pp-sum"><strong className="pp-grey">Upcast.</strong> {s.up}</div>}
+        {s.up && s.l > 0 && <div className="pp-sum"><strong className="pp-muted">Upcast.</strong> {s.up}</div>}
       </div>); };
+    const tabBtn = (k, t) => <button key={k} data-testid={`sheet-tab-${k}`} className={`pp-tab ${sheetTab === k ? 'on' : ''}`} onClick={() => setSheetTab(k)}>{t}</button>;
+    const jr = sh.journal || {};
+    const feats = sh.featureList && sh.featureList.length ? sh.featureList : ((c.info || []).find(x => x.h === 'Features and Traits') || {items: []}).items.map(it => { const m = /^([^:.]{2,60})[:.]\s*(.*)$/s.exec(it[1] || ''); return {n: m ? m[1] : it[1], d: m ? m[2] : '', lv: 0, src: ''}; });
     return (
-      <div className="paper" data-testid="paper">
-        <div className="pp-pagebox" data-testid="paper-main">
-          {title('')}
+      <div className="paper" data-testid="paper" style={{'--pp-main': themeNow.main, '--pp-border': themeNow.border, '--pp-text': themeNow.text}}>
+        <div className="pp-banner">
+          <div className="pp-title">{c.name} <span className="pp-the">the</span> {[sh.species, c.charClass].filter(Boolean).join(' ')}</div>
+          <div className="pp-level"><span>Level</span><strong>{c.level}</strong></div>
+        </div>
+        <div className="pp-tabs">
+          {tabBtn('main', 'Main')}{(list.length > 0 || sh.spell) && tabBtn('spells', 'Spells')}{tabBtn('character', 'Character')}{tabBtn('features', 'Features & Traits')}
+          <button className="pp-tab pp-colors" data-testid="sheet-colors" onClick={() => setShowTheme(v => !v)} title="Choose the colors of your sheet">Colors {showTheme ? '▲' : '▼'}</button>
+        </div>
+        {showTheme && (
+          <div className="pp-theme" data-testid="theme-panel">
+            <div className="pp-swatches">
+              {SHEET_SCHEMES.map(s => <button key={s.name} data-testid={`scheme-${s.name}`} className={`pp-swatch ${!sheetTheme.custom && themeNow.name === s.name ? 'on' : ''}`} style={{background: s.main, borderColor: s.border, color: s.text}} onClick={() => saveTheme({scheme: s.name})}>{s.name}</button>)}
+            </div>
+            <div className="pp-pickers">
+              {[['main', 'Main color'], ['border', 'Border'], ['text', 'Text']].map(([k, t]) => <label key={k}>{t} <input type="color" aria-label={t} value={themeNow[k]} onChange={e => saveTheme({custom: {main: themeNow.main, border: themeNow.border, text: themeNow.text, [k]: e.target.value}})}/></label>)}
+              <button className="pp-tab" data-testid="scheme-reset" onClick={() => saveTheme({scheme: 'Default'})}>Back to default</button>
+            </div>
+          </div>
+        )}
+
+        {sheetTab === 'main' && (
+        <div data-testid="paper-main">
           <div className="pp-top">
             {ABILITY_KEYS.map(([k, ab]) => { const score = (c.scores || {})[ab] ?? 10, sv = (c.saves || {})[ab] ?? mod(score), prof = (sh.saveProfs || []).includes(ab) || sv > mod(score); return (
               <div className="pp-abil" key={ab} data-testid={`pp-${k}`}>
-                <button className="pp-save" disabled={!ctl} title={`Roll a ${ab} saving throw`} onClick={() => rollTest(c, 'save', ab)}>{signed(sv)}</button>
-                <span className={`pp-dot ${prof ? 'full' : ''}`} title={prof ? 'Proficient in this saving throw' : ''} />
                 <div className="pp-abname">{k.toUpperCase()}</div>
                 <div className="pp-score">{score}</div>
                 <button className="pp-mod" disabled={!ctl} title={`Roll a ${ab} check`} onClick={() => rollTest(c, 'check', ab)}>{modStr(score)}</button>
+                <button className={`pp-save ${prof ? 'prof' : ''}`} disabled={!ctl} title={`Roll a ${ab} saving throw${prof ? ' (proficient)' : ''}`} onClick={() => rollTest(c, 'save', ab)}><span className={`pp-o ${prof ? 'full' : ''}`}/> Save {signed(sv)}</button>
               </div>); })}
-            <div className="pp-hit" title="Hit Point Dice left"><span>HIT</span><strong>{hitLeft}/{c.level}</strong></div>
             <div className="pp-hp" data-testid="pp-hp">
-              <div className="pp-heart"><svg viewBox="0 0 100 92" aria-hidden="true"><path d="M50 88 C20 62 4 46 4 27 C4 13 15 4 27 4 C37 4 45 9 50 18 C55 9 63 4 73 4 C85 4 96 13 96 27 C96 46 80 62 50 88 Z" fill="#fff" stroke="#000" strokeWidth="3"/></svg>
-                <div className="pp-heartval"><strong>{totalHP(c)}</strong><span>TOTAL</span></div></div>
-              <div className="pp-hpcur"><strong>{c.currentHP}</strong><span>HP</span></div>
-              <div className="pp-hpslash">/</div>
-              <div className="pp-hpcur"><strong>{+c.tempHP || 0}</strong><span>TEMP</span></div>
+              <div className="pp-hprow"><div><strong>{c.currentHP}</strong><span>HP</span></div><div className="pp-of">of</div><div><strong>{totalHP(c)}</strong><span>Total</span></div><div><strong>{+c.tempHP || 0}</strong><span>Temp</span></div></div>
+              <div className="pp-hit" title="Hit Point Dice left">Hit Dice {hitLeft}/{c.level}</div>
             </div>
           </div>
           <div className="pp-body">
             <div className="pp-left">
-              <div className="pp-skills">
-                <span className={`pp-insp ${c.inspiration ? 'full' : ''}`} title="Heroic Inspiration. Click to mark it." onClick={() => ctl && setCombatants(prev => prev.map(x => x.id === c.id ? {...x, inspiration: !x.inspiration} : x))} />
+              <div className="pp-card pp-skills">
                 {Object.keys(SKILL_ABILITY).sort().map(sk => { const ex = (sh.skillExpertise || []).includes(sk), pr = (sh.skillProfs || []).includes(sk), v = (sh.skills || {})[sk]; return (
-                  <div key={sk} className="pp-skill" onClick={() => ctl && rollTest(c, 'check', SKILL_ABILITY[sk], sk)} title={`Roll ${sk}`}>
+                  <div key={sk} className={`pp-skill ${pr || ex ? 'prof' : ''}`} onClick={() => ctl && rollTest(c, 'check', SKILL_ABILITY[sk], sk)} title={`Roll ${sk}`}>
                     <span className={`pp-o ${ex ? 'ex' : pr ? 'full' : ''}`} /><span className="pp-sv">{signed(Number.isFinite(+v) ? +v : mod((c.scores || {})[SKILL_ABILITY[sk]] ?? 10))}</span>
                     <span className="pp-sn">{SKILL_SHORT[sk] || sk}</span><span className="pp-sa">{SKILL_ABILITY[sk].slice(0, 3).toUpperCase()}</span>
                   </div>); })}
               </div>
-              <div className="pp-carry"><strong>Carry</strong>: {str * 15} &nbsp; <strong>Jump</strong>: {str}&gt; &nbsp;{3 + mod(str)}^</div>
+              <div className="pp-carry"><strong>Carry</strong> {str * 15} lb. &nbsp; <strong>Jump</strong> {str} ft. long, {Math.max(0, 3 + mod(str))} ft. high</div>
               <div className="pp-h3">Important Items</div>
-              {(sh.importantItems || []).length ? sh.importantItems.map(n => <div key={n} className="pp-center">{n}</div>) : <div className="pp-center pp-grey">Mark items with the diamond in the builder's Inventory</div>}
+              {(sh.importantItems || []).length ? sh.importantItems.map(n => <div key={n} className="pp-center">{n}</div>) : <div className="pp-center pp-muted">Mark items with the diamond in the builder's Inventory</div>}
               <div className="pp-h3">Languages</div>
-              <div className="pp-center">{(sh.languages || []).join('   ') || 'Common'}</div>
+              <div className="pp-center">{(sh.languages || []).join(', ') || 'Common'}</div>
               <div className="pp-h3">Tool Proficiencies</div>
               <div className="pp-center">{(sh.tools || []).join(', ') || 'None'}</div>
             </div>
             <div className="pp-right">
               <div className="pp-stats">
-                <div className="pp-ac"><svg viewBox="0 0 100 112" aria-hidden="true"><path d="M50 4 C64 12 80 14 94 14 C94 60 84 88 50 108 C16 88 6 60 6 14 C20 14 36 12 50 4 Z" fill="#fff" stroke="#000" strokeWidth="3"/></svg><div><strong>{effectiveAC(c)}</strong><span>AC</span></div></div>
-                <div className="pp-stat"><div className="pp-star"><strong>{c.pb || 2}</strong></div><span>PROF</span></div>
-                <div className="pp-stat"><div className="pp-box"><strong>{effectiveSpeed(c)}</strong></div><span>Speed</span></div>
-                <div className="pp-stat"><div className="pp-box"><strong>{signed(effectiveInitBonus(c))}</strong></div><span>INIT</span></div>
-                <div className="pp-cond"><u>Conditions/Resistances</u>
-                  <div>{[...(c.conditions || []), ...(c.effects || []).map(e => e.name), ...res].join(' · ') || ' '}</div></div>
+                <div className="pp-stat"><strong>{effectiveAC(c)}</strong><span>AC</span></div>
+                <div className="pp-stat"><strong>+{c.pb || 2}</strong><span>Prof</span></div>
+                <div className="pp-stat"><strong>{effectiveSpeed(c)}</strong><span>Speed</span></div>
+                <div className="pp-stat"><strong>{signed(effectiveInitBonus(c))}</strong><span>Init</span></div>
+                <div className="pp-card pp-cond"><div className="pp-h3" style={{margin: 0}}>Conditions &amp; Resistances</div>
+                  <div>{[...(c.conditions || []), ...(c.effects || []).map(e => e.name), ...res].join(' · ') || <span className="pp-muted">None</span>}</div></div>
               </div>
-              <div className="pp-line"><span><strong>Senses:</strong> {effectiveSenses(c).join(', ') || 'None'}{sh.pp != null ? ` · Passive Perception ${sh.pp}` : ''}</span><span><strong>Speeds:</strong> {speedText(c)}</span></div>
-              <div className="pp-h2 pp-mid">Attacks</div>
+              <div className="pp-line"><span><strong>Senses</strong> {effectiveSenses(c).join(', ') || 'None'}{sh.pp != null ? ` · Passive Perception ${sh.pp}` : ''}</span><span><strong>Speeds</strong> {speedText(c)}</span></div>
+
+              <div className="pp-h2">Attacks</div>
               <div className="pp-attack pp-head"><span>Name</span><span>Range/Reach</span><span>To Hit</span><span>Damage</span></div>
               {attacks.map(a => (
                 <div key={a.id} className={rowCls(a, 'pp-attack')} style={dim(a)} onClick={() => ctl && sel(a)}>
@@ -2471,49 +2594,75 @@ function App() {
                   <span>{(a.dmgList || []).map(d => `${d[0]} ${DMG_SHORT[d[1]] || String(d[1] || '').slice(0, 3)}`).join(' + ')}</span>
                 </div>))}
               {handsOn && <div className="pp-note">In hand: {handsOf(c).map(x => x || 'free hand').join(' and ')}{c.handsIgnore ? ' (not checked)' : ''}</div>}
-              <div className="pp-h2 pp-mid">Actions</div>
-              <div className="pp-std">Attack. Dash. Disengage. Dodge. Help. Hide. Influence. Magic. Ready. Search. Study. Utilize.</div>
-              {others.map(a => (
+
+              <div className="pp-h2">Actions</div>
+              <div className="pp-filter" data-testid="act-filter">
+                <span className="pp-muted">Show:</span>
+                {[['action', 'Action'], ['bonus', 'Bonus Action'], ['reaction', 'Reaction'], ['other', 'Other']].map(([k, t]) => <button key={k} data-testid={`filter-${k}`} aria-pressed={actFilter[k] !== false} className={`pp-chip ${actFilter[k] !== false ? 'on' : ''}`} onClick={() => setActFilter({...actFilter, [k]: actFilter[k] === false})}>{t}</button>)}
+              </div>
+              {actFilter.action !== false && (
+                <div className="pp-std" data-testid="std-actions">
+                  {STD_ACTIONS.map(s => <button key={s.n} className="pp-stdbtn" disabled={!ctl} title={s.d} data-testid={`std-${s.n}`} onClick={() => setStdAct({name: s.n})}><strong>{s.n}</strong><span className="pp-type">A</span></button>)}
+                </div>)}
+              {others.filter(shown).map(a => (
                 <div key={a.id} className={rowCls(a, 'pp-action')} style={dim(a)} onClick={() => ctl && sel(a)}>
                   <span><strong className="a-name">{a.name}{leftText(a)}</strong>{a.detail ? <span className="a-detail"> {a.detail}</span> : null}</span>
-                  <span className="pp-type">{ACT_SHORT[a.activation] || ''}</span>
+                  <span className="pp-type">{ACT_SHORT[a.activation] || '–'}</span>
                 </div>))}
               {Object.keys(sh.pools || {}).length > 0 && <div className="pp-note">{Object.entries(sh.pools).map(([n, q]) => `${n} ${poolLeft(c, n)}/${q.max}`).join(' · ')}</div>}
-              <div className="pp-h2 pp-mid">Feats</div>
+
+              <div className="pp-h2">Feats</div>
               <div className="pp-center">{(sh.feats || []).join(' · ') || 'None'}</div>
               {cantrips.length > 0 && <>
-                <div className="pp-h2 pp-mid">Cantrips</div>
+                <div className="pp-h2">Cantrips</div>
                 <div className="pp-spellrow pp-head" style={{gridTemplateColumns: '2.2fr 0.8fr 0.9fr 0.9fr 0.8fr 0.8fr'}}><span>Name</span><span>School</span><span>Comps</span><span>Range</span><span>Save</span><span>Action</span></div>
-                {cantrips.map(s => spellRow(s, '2.2fr 0.8fr 0.9fr 0.9fr 0.8fr 0.8fr'))}
+                {cantrips.filter(s => { const a = actOf(s.n); return !a || shown(a); }).map(s => spellRow(s, '2.2fr 0.8fr 0.9fr 0.9fr 0.8fr 0.8fr'))}
               </>}
             </div>
           </div>
-        </div>
-        {levels.map(l => (
-          <div className="pp-pagebox" key={l} data-testid={`paper-spells-${l}`}>
-            {title('')}
-            {spellHead}
-            <div className="pp-lvl">Level {l} {slotCircles(l)}<span className="pp-grey"> {((sh.slotMax || [])[l - 1]) ? `(${slotsLeft(c, l)} of ${sh.slotMax[l - 1]} slots left)` : ''}</span></div>
-            <div className="pp-spellrow pp-head" style={{gridTemplateColumns: '2.4fr 0.7fr 0.9fr 1fr 0.7fr 1fr 0.9fr'}}><span>Name</span><span>School</span><span>Comps</span><span>Range</span><span>Save</span><span>Duration</span><span>C Time</span></div>
-            {list.filter(s => s.l === l).map(s => spellRow(s, '2.4fr 0.7fr 0.9fr 1fr 0.7fr 1fr 0.9fr'))}
-            <div className="pp-key">&lt;*&gt; Concentration &nbsp; (R*) can be cast as a Ritual</div>
-          </div>))}
-        <div className="pp-pagebox" data-testid="paper-features">
-          {title('')}
-          <div className="pp-h2">Features &amp; Traits</div>
-          {((c.info || []).find(x => x.h === 'Features and Traits') || {items: []}).items.map((it, i) => <p key={i} className="pp-p">{it[1]}</p>)}
-          <div className="pp-h2" style={{marginTop: 14}}>Inventory</div>
-          <p className="pp-p">{(sh.items || []).join(', ') || 'Nothing carried.'}</p>
-        </div>
-        {sh.journal && (
-          <div className="pp-pagebox" data-testid="paper-journal">
-            {title('')}
-            <div className="pp-h2">Journal</div>
-            {[['Alignment', sh.journal.alignment], ['Faith', sh.journal.deity], ['Personality Traits', sh.journal.traits], ['Ideals', sh.journal.ideals], ['Bonds', sh.journal.bonds], ['Flaws', sh.journal.flaws], ['Appearance', sh.journal.appearance], ['Backstory', sh.journal.backstory],
-              ['Allies & Organizations', sh.journal.allies], ['Enemies & Rivals', sh.journal.enemies], ['Quests & Goals', sh.journal.quests]].filter(x => x[1]).map(([h, t]) => <p key={h} className="pp-p" style={{whiteSpace: 'pre-wrap'}}><strong>{h}.</strong> {t}</p>)}
-            {(sh.journal.notes || []).map((n, i) => <p key={'n' + i} className="pp-p" style={{whiteSpace: 'pre-wrap'}}><strong>{n[0]}.</strong> {n[1]}</p>)}
-            {(sh.journal.sessions || []).map((n, i) => <p key={'s' + i} className="pp-p" style={{whiteSpace: 'pre-wrap'}}><strong>{n[0]}.</strong> {n[1]}</p>)}
-          </div>)}
+        </div>)}
+
+        {sheetTab === 'spells' && (
+        <div data-testid="paper-spells">
+          <div className="pp-spellhead">
+            <span className="pp-h2" style={{margin: 0, border: 'none'}}>Spells</span>
+            {sh.spell && <><span><strong>Attack</strong> {signed(sh.spell.attack)}</span><span><strong>Modifier</strong> {signed(mod((c.scores || {})[sh.spell.ability] ?? 10))}</span><span><strong>Save DC</strong> {sh.spell.dc}</span></>}
+          </div>
+          {(() => { const pa = spellActs.find(a => a.pointCosts); return pa ? <div className="pp-note" data-testid="points-line"><strong>{pa.pool}</strong> {poolLeft(c, pa.pool)}/{((sh.pools || {})[pa.pool] || {}).max || 0} · a spell costs {pa.pointCosts.slice(0, pa.maxLvl || 1).map((n, i) => `${n} at Level ${i + 1}`).join(', ')}</div> : null; })()}
+          {levels.length === 0 && <div className="pp-center pp-muted">No spells above cantrips yet.</div>}
+          {levels.map(l => (
+            <div key={l} data-testid={`paper-spells-${l}`}>
+              <div className="pp-lvl">Level {l} {slotCircles(l)}<span className="pp-muted"> {((sh.slotMax || [])[l - 1]) ? `${slotsLeft(c, l)} of ${sh.slotMax[l - 1]} slots left` : ''}</span></div>
+              <div className="pp-spellrow pp-head" style={{gridTemplateColumns: '2.4fr 0.7fr 0.9fr 1fr 0.7fr 1fr 0.9fr'}}><span>Name</span><span>School</span><span>Comps</span><span>Range</span><span>Save</span><span>Duration</span><span>C Time</span></div>
+              {list.filter(s => s.l === l).map(s => spellRow(s, '2.4fr 0.7fr 0.9fr 1fr 0.7fr 1fr 0.9fr'))}
+            </div>))}
+          <div className="pp-key">&lt;*&gt; Concentration &nbsp; (R*) can be cast as a Ritual</div>
+        </div>)}
+
+        {sheetTab === 'character' && (
+        <div data-testid="paper-journal">
+          {[['Alignment', jr.alignment], ['Faith', jr.deity], ['Personality Traits', jr.traits], ['Ideals', jr.ideals], ['Bonds', jr.bonds], ['Flaws', jr.flaws], ['Appearance', jr.appearance], ['Backstory', jr.backstory],
+            ['Allies & Organizations', jr.allies], ['Enemies & Rivals', jr.enemies], ['Quests & Goals', jr.quests],
+            ['Languages', (sh.languages || []).join(', ')], ['Tool Proficiencies', (sh.tools || []).join(', ')], ['Inventory', (sh.items || []).join(', ')]].filter(x => x[1]).map(([hd, t]) => (
+              <div key={hd} className="pp-entry"><div className="pp-ename">{hd}</div><div className="pp-etext">{t}</div></div>))}
+          {(jr.notes || []).map((n, i) => <div key={'n' + i} className="pp-entry"><div className="pp-ename">{n[0]}</div><div className="pp-etext">{n[1]}</div></div>)}
+          {(jr.sessions || []).map((n, i) => <div key={'s' + i} className="pp-entry"><div className="pp-ename">{n[0]}</div><div className="pp-etext">{n[1]}</div></div>)}
+          {!sh.journal && <div className="pp-center pp-muted">Fill in the Journal tab in the Character Builder and it shows here.</div>}
+        </div>)}
+
+        {sheetTab === 'features' && (
+        <div data-testid="paper-features">
+          {feats.length === 0 && <div className="pp-center pp-muted">No features listed.</div>}
+          {feats.map((f, i) => (
+            <div key={i} className="pp-entry" data-testid="feature-entry">
+              <div className="pp-ename">{f.n}{(f.lv || f.src) ? <span className="pp-tag">{[f.lv ? `Level ${f.lv}` : '', f.src].filter(Boolean).join(' · ')}</span> : null}
+                {ctl && <span className="pp-use">
+                  {actions.filter(a => !a.spell && (a.name === f.n || a.name.startsWith(f.n + ' ') || a.name.startsWith(f.n + ':') || a.name.startsWith(f.n + ' ('))).map(a => <button key={a.id} className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} data-testid="feature-use" onClick={() => sel(a)}>{a.name === f.n ? 'Use' : `Use ${a.name}`}{leftText(a)}</button>)}
+                  <button className="pp-chip" data-testid="feature-show" title="Post this feature's text to the log for the table" onClick={() => noteLog(c, f.n, f.d)}>Show to table</button>
+                </span>}</div>
+              {f.d && <div className="pp-etext">{f.d}</div>}
+            </div>))}
+        </div>)}
       </div>
     );
   };
@@ -2533,6 +2682,12 @@ function App() {
   };
   const sheetPreview = form.sheetData ? sheetToFields(form.sheetData) : null;
   const selAction = actions.find(a => a.id === selectedAction);
+  const needsTargetNow = selAction && !['selfheal','info'].includes(selAction.type) && !selAction.self;
+  const actorNow = viewed && canControl(viewed) && (!combatStarted || (active && viewed.id === active.id) || (selAction && selAction.activation === 'reaction')) ? viewed : null;
+  // Why the chosen action cannot be done right now, in words, or '' when it can.
+  const cannotWhy = !selAction ? 'Nothing chosen' : !actorNow ? 'Not your turn (a Reaction can be used at any time)' : blockReason(viewed, selAction) ? blockReason(viewed, selAction)
+    : (needsTargetNow && !inPlay.find(c => c.id === targetId)) ? 'Pick a target' : (limited(selAction) && usesLeft(viewed, selAction) <= 0) ? 'No uses left'
+    : (selAction.slot > 0 && castOptions(viewed, selAction).length === 0) ? (selAction.pointCosts ? `Not enough ${selAction.pool}` : 'No spell slot left') : '';
   const paper = !!(viewed && viewed.sheet && viewed.ownActions); // a sheet from the builder is shown as the printed-style character sheet
   // A rest taken in the Character Builder resets this player's own character here too.
   restRef.current = (msg) => {
@@ -2813,6 +2968,13 @@ function App() {
                 ))}
 
                 {/* What the chosen action needs */}
+                {selAction && canControl(viewed) && (
+                  <div className="do-row" data-testid="do-row">
+                    <button className="btn btn-primary" data-testid="do-action" disabled={!!cannotWhy} onClick={resolve}>{selAction.spell ? 'Cast' : selAction.type === 'attack' ? 'Attack with' : 'Use'} {selAction.name}</button>
+                    {cannotWhy && <span className="do-why" data-testid="do-why">{cannotWhy}</span>}
+                    <button className="btn btn-ghost btn-sm" onClick={()=>setSelectedAction(null)}>Cancel</button>
+                  </div>
+                )}
                 {selAction && selAction.weapon && (selAction.finesse || selAction.ranged) && viewed && (viewed.passives || {}).sneakAttackDice > 0 && (
                   <label className="conc-label" style={{margin:'4px 0'}}><input type="checkbox" checked={sneakOn} onChange={e=>setSneakOn(e.target.checked)}/> Add Sneak Attack ({viewed.passives.sneakAttackDice}d6) if this hits. Needs Advantage or an ally within 5 feet of the target. Once per turn.</label>
                 )}
@@ -2820,10 +2982,10 @@ function App() {
                   <div className="manual-roll">
                     <span className="label">Cast with</span>
                     {castOptions(viewed, selAction).length === 0
-                      ? <div className="buff-note" style={{margin:0, color:'#ff8a80'}}>No spell slot of Level {selAction.slot} or higher is left.</div>
+                      ? <div className="buff-note" style={{margin:0, color:'#ff8a80'}}>{selAction.pointCosts ? `Not enough ${selAction.pool} for a Level ${selAction.slot} spell.` : `No spell slot of Level ${selAction.slot} or higher is left.`}</div>
                       : <select aria-label="Spell slot level" value={castOptions(viewed, selAction).includes(castLevel) ? castLevel : castOptions(viewed, selAction)[0]} onChange={e=>setCastLevel(+e.target.value)}
                           style={{width:'100%', background:'#0F1923', border:'1px solid #3d5166', color:'var(--parchment)', padding:'6px 8px', borderRadius:4, fontFamily:"'Crimson Text', serif", fontSize:'0.9rem'}}>
-                          {castOptions(viewed, selAction).map(l => <option key={l} value={l}>Level {l} slot ({slotsLeft(viewed, l)} left){l > selAction.slot && selAction.up ? `: +${selAction.up.split('d')[0] * (l - selAction.slot)}d${selAction.up.split('d')[1]}` : ''}</option>)}
+                          {castOptions(viewed, selAction).map(l => <option key={l} value={l}>{selAction.pointCosts ? `Level ${l}: ${selAction.pointCosts[l - 1]} ${selAction.pool} (${poolLeft(viewed, selAction.pool)} left)` : `Level ${l} slot (${slotsLeft(viewed, l)} left)`}{l > selAction.slot && selAction.up ? `: +${selAction.up.split('d')[0] * (l - selAction.slot)}d${selAction.up.split('d')[1]}` : ''}</option>)}
                         </select>}
                   </div>
                 )}
@@ -3048,15 +3210,15 @@ function App() {
           </div>
 
           {/* Resolve Bar */}
-          {combatStarted && (
+          {showSheet && (
             <div className="resolve-bar">
-              <button className="next-turn-btn" disabled={!canControl(active)} style={!canControl(active)?{opacity:0.4,cursor:'default'}:{}} onClick={nextTurn}>Next Turn →</button>
+              {combatStarted && <button className="next-turn-btn" disabled={!canControl(active)} style={!canControl(active)?{opacity:0.4,cursor:'default'}:{}} onClick={nextTurn}>Next Turn →</button>}
               <button
-                className="resolve-btn"
-                title={blockReason(viewed, selAction)}
-                disabled={!canAct || !selectedAction || !!blockReason(viewed, selAction) || (needsTarget && !target) || (limited(selAction) && usesLeft(viewed, selAction) <= 0) || (selAction && selAction.slot > 0 && castOptions(viewed, selAction).length === 0)}
+                className="resolve-btn" data-testid="resolve-btn"
+                title={blockReason(viewed, selAction) || cannotWhy}
+                disabled={!!cannotWhy}
                 onClick={resolve}>
-                {canAct ? '⚔ Resolve Action' : 'Not your turn'}
+                {!selAction ? (actorNow || !combatStarted ? 'Click an attack, action or spell' : 'Not your turn') : cannotWhy && cannotWhy !== 'Pick a target' && !actorNow ? 'Not your turn' : `${selAction.spell ? '✨ Cast' : selAction.type === 'attack' ? '⚔ Attack with' : '⚡ Use'} ${selAction.name}`}
               </button>
             </div>
           )}
@@ -3118,6 +3280,7 @@ function App() {
         </div>
       </div>
 
+      {renderStd()}
       {/* ── MONSTER ROSTER ── */}
       {showRoster && (
         <div className="modal-overlay" onClick={()=>setShowRoster(false)}>
