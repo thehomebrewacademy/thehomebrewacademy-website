@@ -1764,6 +1764,9 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
   const worn = armorOf(armor);
   const armorChoices = ARMOR.filter(a => has(a.name) || a.name === armor).concat(magicArmor).concat(worn && worn.magic && !magicArmor.some(a => a.name === worn.name) ? [worn] : []);
   const weaponChoices = WEAPONS.filter(w => has(w.name) && !weapons.includes(w.name)).concat(magicWeapons);
+  // Same order everywhere: armor by Armor Class inside Light, Medium, Heavy; weapons by name inside Simple, Martial.
+  armorChoices.sort((x, y) => ARMOR.findIndex(a => a.name === (x.plain || x.name)) - ARMOR.findIndex(a => a.name === (y.plain || y.name)) || (x.magic ? 1 : 0) - (y.magic ? 1 : 0));
+  weaponChoices.sort((x, y) => (x.plain || x.name).localeCompare(y.plain || y.name) || (x.magic ? 1 : 0) - (y.magic ? 1 : 0) || x.name.localeCompare(y.name));
   const hasShield = has("Shield") || shield || (inventory.items || []).some(i => (magicGearInfo(i) || {}).kind === "shield");
   const used = masteries.filter(n => weapons.includes(n));
   const toggleMastery = (n) => {
@@ -1781,7 +1784,7 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: hasShield ? "pointer" : "default", opacity: hasShield ? 1 : 0.5 }} title={hasShield ? "" : "Add a Shield to your items first"}><input type="checkbox" checked={shield} disabled={!hasShield} onChange={e => setShield(e.target.checked)} aria-label="Shield" /> {inventory.shieldName || "Shield"} (+{2 + (inventory.shieldBonus || 0)})</label>
         <span style={{ fontSize: 13, opacity: 0.8 }} data-testid="ac-how">Armor Class {ac.value}: {ac.how}</span>
       </div>
-      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Only armor and weapons among your items are offered here. Add them to your inventory on the Mundane Items or Magic Items tab, or type them in the Equipment box on the Notes tab. Magic armor and weapons are listed as the kind you chose for them on the Magic Items tab{custom ? " (Further Customization is on, so everything is offered)" : ""}. Each weapon you wield becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
+      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Only armor and weapons among your items are offered here. Add them on the Inventory tab. Magic armor and weapons are listed as the kind you chose for them there{custom ? " (Further Customization is on, so everything is offered)" : ""}. Each weapon you wield becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
       {masteryCount > 0 && <div data-testid="mastery-note" data-glow={glow || ""} style={{ fontSize: 13, marginBottom: 8, padding: glow ? "6px 10px" : 0, border: glow ? `2px solid ${glow === "open" ? REST_PURPLE : colors.brassLight}` : "none", borderRadius: 6, color: glow === "open" ? REST_PURPLE : glow === "done" ? colors.brassLight : "inherit" }}>
         <strong>Weapon Mastery:</strong> you can use the mastery property of {masteryCount} kinds of weapons ({used.length} chosen). Click a weapon's mastery name to choose it. You can change these when you finish a Long Rest.</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -1865,6 +1868,7 @@ function CharacterSheet() {
   // Equipment / notes
   const [equipment, setEquipment] = useState("");
   const [notes, setNotes] = useState("");
+  const [journal, setJournal] = useState(() => newJournal());
 
   // Magic Items tab state
   const [itemSearch, setItemSearch] = useState("");
@@ -2293,6 +2297,7 @@ function CharacterSheet() {
     setCurrentHp(Math.min(effectiveMaxHp, displayHp + gain));
   }
 
+  const knownTools = [bgEff && bgEff.tool ? { name: bgEff.tool, source: "Background" } : null, ...featSkills.tools.map(t => ({ name: t.tool, source: t.source }))].filter(Boolean);
   // Inventory: everything the character carries. Important Items: the ones marked to show on the Identity tab.
   const sameItem = (it) => (p) => p.name === it.name;
   const inv = {
@@ -2301,7 +2306,6 @@ function CharacterSheet() {
     important: (it) => pinnedItems.some(sameItem(it)),
     add: (it, important) => {
       setCharacterItems(prev => prev.some(sameItem(it)) ? prev : [...prev, it]);
-      if (important) setPinnedItems(prev => prev.some(sameItem(it)) ? prev : [...prev, it]);
     },
     setImportant: (it, on) => {
       if (on) { inv.add(it, true); return; }
@@ -2355,6 +2359,7 @@ function CharacterSheet() {
       senses: ((SPECIES[species] || {}).traits || []).map(t => { const m = /^(Darkvision|Blindsight|Tremorsense|Truesight) \((\d+) ft\.\)/.exec(t); return null; }).filter(Boolean).concat(derived.senses),
       skills: skillMods, skillProfs: allSkillProfs, skillExpertise: skillExpertise.filter(k => allSkillProfs.includes(k)),
       customizations,
+      journal: { ...journal, alignment },
       spellcasting: cls && cls.casterType ? {
         ability: cls.spellAbility,
         slotList: cls.casterType === "pact" ? null : (getSpellSlots(className, level) || []),
@@ -2368,10 +2373,9 @@ function CharacterSheet() {
       hitDie: cls ? cls.hitDie : null, hitDiceUsed,
       equipment,
       items: Array.from(new Set(characterItems.map(i => i && i.name).filter(Boolean))),
-      importantItems: pinnedItems.map(i => i && i.name).filter(Boolean),
       origin: originCustom ? { custom: true, ...originCustom } : null,
       builder: { hpDelta, statAdj, lineage, armor, shield, weapons, masteries, featureChoices, featPicks, extraFeats, originCustom, custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
-        pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, characterItems, pinnedItems, spells }
+        pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, journal, characterItems, pinnedItems, spells }
     };
   }
 
@@ -2455,6 +2459,7 @@ function CharacterSheet() {
     setHitDiceUsed(parseInt(s.hitDiceUsed) || 0);
     setEquipment(String(s.equipment || ""));
     setNotes(String(s.notes || ""));
+    setJournal(cleanJournal(s.journal, s.notes, s.equipment));
     { // the inventory holds everything carried; Important Items are a marked part of it
       const all = []; [...arr(s.characterItems), ...arr(s.pinnedItems)].forEach(i => { if (i && i.name && !all.some(x => x.name === i.name)) all.push(i); });
       setCharacterItems(all); }
@@ -2656,9 +2661,8 @@ function CharacterSheet() {
           ["combat", "Combat"],
           ["features", "Features"],
           ["spells", "Spellcasting"],
-          ["notes", "Equipment & Notes"],
-          ["magic", "✦ Magic Items"],
-          ["mundane", "⚔ Mundane Items"],
+          ["inventory", "Inventory"],
+          ["journal", "Journal"],
           ["packs", "Content Packs"],
         ].map(([key, label]) => (
           <button
@@ -2747,7 +2751,7 @@ function CharacterSheet() {
           <SkillsTab {...{ expertiseMax, expertiseList, expertiseCustom, cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }} />
         )}
         {tab === "combat" && (
-          <CombatTab {...{ possibleMaxHp, averageHp: maxHp, setHpTotal, statAdj, setStatAdj, inventory: Object.assign(characterItems.map(i => i && i.name).filter(Boolean), { typed: equipment, items: characterItems, shieldBonus: gear.shieldBonus, shieldName: gear.shieldName }), masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
+          <CombatTab {...{ possibleMaxHp, averageHp: maxHp, setHpTotal, statAdj, setStatAdj, inventory: Object.assign(characterItems.map(i => i && i.name).filter(Boolean), { typed: "", items: characterItems, shieldBonus: gear.shieldBonus, shieldName: gear.shieldName }), masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
         )}
         {tab === "features" && (
           <FeaturesTab {...{ glowOf, optionSlots: mech.optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay, slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }} />
@@ -2755,20 +2759,19 @@ function CharacterSheet() {
         {tab === "spells" && (
           <SpellsTab {...{ glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }} />
         )}
-        {tab === "notes" && (
-          <NotesTab {...{ inv, equipment, setEquipment, notes, setNotes, colors, fontDisplay }} />
+        {tab === "journal" && (
+          <JournalTab {...{ journal, setJournal, alignment, setAlignment, knownTools, colors, fontDisplay }} />
         )}
-        {tab === "magic" && (
-          <MagicItemsTab {...{ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, inv, colors, fontDisplay }} />
+        {tab === "inventory" && (
+          <InventoryTab {...{ inv, colors, fontDisplay,
+            magic: { itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem },
+            mundane: { mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane } }} />
         )}
         {tab === "packs" && (
           <ContentPacksTab {...{ colors, fontDisplay, sheetActions }} />
         )}
         <datalist id="hba-spell-list">{ALL_SPELLS.map(sp => <option key={sp.n} value={sp.n} />)}</datalist>
         <datalist id="hba-feat-list">{Array.from(new Set([...Object.keys(FEATS).filter(f => FEATS[f].category === "Origin" || FEATS[f].category === "Any"), ...Object.keys(ORIGIN_FEATS)])).map(f => <option key={f} value={f} />)}</datalist>
-        {tab === "mundane" && (
-          <MundaneItemsTab {...{ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, inv, colors, fontDisplay }} />
-        )}
       </div>
     </div>
   );
@@ -2942,27 +2945,6 @@ function IdentityTab({ className, setClassName, subclassName, setSubclassName, l
         </div>
       </Section>
 
-      <Section title="Alignment" colors={colors} fontDisplay={fontDisplay}>
-        <input value={alignment} onChange={e => setAlignment(e.target.value)} placeholder="e.g. Neutral Good" style={{ ...fieldStyle(colors), maxWidth: 260 }} />
-      </Section>
-
-      <Section title="Important Items" colors={colors} fontDisplay={fontDisplay}>
-        {pinnedItems.length === 0 ? (
-          <div style={{ color: colors.parchment + "55", fontSize: 14, fontFamily: "'Crimson Text','Georgia',serif", fontStyle: "italic" }}>
-            No important items yet. Mark them with the star on the Magic Items or Mundane Items tabs.
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {pinnedItems.map(item => {
-              const isMagic = item.rarity !== undefined;
-              const dotColor = isMagic ? RARITY_COLORS[item.rarity] : colors.parchment + "99";
-              return (
-                <PinnedItemRow key={item.name} item={item} isMagic={isMagic} dotColor={dotColor} onRemove={() => inv.setImportant(item, false)} colors={colors} fontDisplay={fontDisplay} />
-              );
-            })}
-          </div>
-        )}
-      </Section>
     </div>
   );
 }
@@ -3802,52 +3784,321 @@ function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, prof
   );
 }
 
-function NotesTab({ inv, equipment, setEquipment, notes, setNotes, colors, fontDisplay }) {
+/* ============ JOURNAL ============ */
+const JOURNAL_SECTIONS = [
+  ["personality", "Personality"], ["faith", "Faith & Alignment"], ["appearance", "Appearance"], ["backstory", "Backstory"],
+  ["languages", "Languages & Tools"], ["allies", "Allies & Organizations"], ["enemies", "Enemies & Rivals"],
+  ["quests", "Quests & Goals"], ["notes", "Notes"], ["sessions", "Session Notes"],
+];
+const journalId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function newJournal() {
+  return { order: JOURNAL_SECTIONS.map(s => s[0]), collapsed: [], personality: { traits: "", ideals: "", bonds: "", flaws: "" }, deity: "",
+    appearance: { age: "", height: "", weight: "", eyes: "", hair: "", skin: "", description: "" }, backstory: "", languages: ["Common"], tools: [],
+    allies: [], enemies: [], quests: [], notes: [{ id: "n1", title: "Notes", text: "" }], sessions: [] };
+}
+// Reads a saved journal safely. Older sheets had one Notes box and one Equipment box: both become note pages.
+function cleanJournal(raw, oldNotes, oldEquipment) {
+  const j = newJournal(), r = pObj(raw), keys = JOURNAL_SECTIONS.map(s => s[0]);
+  const str = (v, n) => pStr(v, n || 20000);
+  const order = pArr(r.order).filter(k => keys.includes(k));
+  j.order = Array.from(new Set([...order, ...keys]));
+  j.collapsed = pArr(r.collapsed).filter(k => keys.includes(k));
+  Object.keys(j.personality).forEach(k => { j.personality[k] = str(pObj(r.personality)[k]); });
+  Object.keys(j.appearance).forEach(k => { j.appearance[k] = str(pObj(r.appearance)[k], k === "description" ? 20000 : 60); });
+  j.deity = str(r.deity, 80); j.backstory = str(r.backstory);
+  if (Array.isArray(r.languages)) j.languages = r.languages.map(x => str(x, 40)).filter(Boolean).slice(0, 40);
+  j.tools = pArr(r.tools).map(x => str(x, 60)).filter(Boolean).slice(0, 40);
+  const people = (list) => pArr(list).slice(0, 100).map(x => ({ id: str(pObj(x).id, 20) || journalId(), name: str(pObj(x).name, 80), note: str(pObj(x).note, 2000) }));
+  j.allies = people(r.allies); j.enemies = people(r.enemies);
+  j.quests = pArr(r.quests).slice(0, 200).map(x => ({ id: str(pObj(x).id, 20) || journalId(), text: str(pObj(x).text, 300), done: !!pObj(x).done }));
+  const pages = pArr(r.notes).slice(0, 30).map(x => ({ id: str(pObj(x).id, 20) || journalId(), title: str(pObj(x).title, 40) || "Notes", text: str(pObj(x).text) }));
+  if (pages.length) j.notes = pages;
+  j.sessions = pArr(r.sessions).slice(0, 500).map(x => ({ id: str(pObj(x).id, 20) || journalId(), title: str(pObj(x).title, 80), date: str(pObj(x).date, 20), text: str(pObj(x).text) }));
+  if (!raw) {
+    if (String(oldNotes || "").trim()) j.notes[0].text = String(oldNotes);
+    if (String(oldEquipment || "").trim()) j.notes.push({ id: "n2", title: "Equipment", text: String(oldEquipment) });
+  }
+  return j;
+}
+
+function JournalTab({ journal, setJournal, alignment, setAlignment, knownTools, colors, fontDisplay }) {
+  const [page, setPage] = React.useState(0);          // which notes page is showing
+  const [openSession, setOpenSession] = React.useState({}); // session id -> expanded
+  const [editing, setEditing] = React.useState("");   // session id being edited
+  const [draft, setDraft] = React.useState({ languages: "", tools: "" });
+  const set = (patch) => setJournal(prev => ({ ...prev, ...patch }));
+  const field = fieldStyle(colors);
+  const area = { ...field, resize: "vertical", lineHeight: 1.6 };
+  const small = { background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" };
+  const xBtn = { background: "transparent", border: "none", color: colors.blood, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "0 4px" };
+  const label = { fontSize: 11, textTransform: "uppercase", opacity: 0.8, marginBottom: 4 };
+  const move = (key, by) => { const o = journal.order.slice(), i = o.indexOf(key), k = i + by; if (k < 0 || k >= o.length) return; [o[i], o[k]] = [o[k], o[i]]; set({ order: o }); };
+  const toggle = (key) => set({ collapsed: journal.collapsed.includes(key) ? journal.collapsed.filter(k => k !== key) : [...journal.collapsed, key] });
+  const today = () => { const d = new Date(), z = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
+
+  const people = (key, addText, namePh) => (
+    <div>
+      {journal[key].map((p, i) => (
+        <div key={p.id} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "flex-start" }}>
+          <input aria-label={`${key} name ${i + 1}`} value={p.name} onChange={e => set({ [key]: journal[key].map(x => x.id === p.id ? { ...x, name: e.target.value } : x) })} placeholder={namePh} style={{ ...field, width: 220, flexShrink: 0 }} />
+          <input aria-label={`${key} note ${i + 1}`} value={p.note} onChange={e => set({ [key]: journal[key].map(x => x.id === p.id ? { ...x, note: e.target.value } : x) })} placeholder="Who they are to you" style={field} />
+          <button aria-label={`Remove ${key} ${i + 1}`} onClick={() => set({ [key]: journal[key].filter(x => x.id !== p.id) })} style={xBtn}>×</button>
+        </div>
+      ))}
+      <button data-testid={`add-${key}`} onClick={() => set({ [key]: [...journal[key], { id: journalId(), name: "", note: "" }] })} style={small}>+ {addText}</button>
+    </div>
+  );
+  const chips = (key, auto, ph) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={label}>{key === "languages" ? "Languages" : "Tool proficiencies"}</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        {auto.map((t, i) => <span key={"a" + i} style={{ border: `1px solid ${colors.brass}`, borderRadius: 14, padding: "3px 10px", fontSize: 13 }}>{t.name}<SourceTag text={t.source} colors={colors} /></span>)}
+        {journal[key].map((t, i) => <span key={i} data-testid={`${key}-chip`} style={{ border: `1px solid ${colors.brass}`, borderRadius: 14, padding: "3px 6px 3px 10px", fontSize: 13 }}>{t} <button aria-label={`Remove ${t}`} onClick={() => set({ [key]: journal[key].filter((_, k) => k !== i) })} style={{ ...xBtn, fontSize: 14, color: colors.parchment }}>×</button></span>)}
+        <input aria-label={`Add ${key}`} value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value })} placeholder={ph}
+          onKeyDown={e => { const v = draft[key].trim().slice(0, 40); if (e.key === "Enter" && v && !journal[key].includes(v)) { set({ [key]: [...journal[key], v] }); setDraft({ ...draft, [key]: "" }); } }}
+          style={{ ...field, width: 190 }} />
+      </div>
+    </div>
+  );
+
+  const body = {
+    personality: () => (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+        {[["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(([k, t]) => (
+          <div key={k}><div style={label}>{t}</div>
+            <textarea aria-label={t} value={journal.personality[k]} onChange={e => set({ personality: { ...journal.personality, [k]: e.target.value } })} rows={3} style={area} /></div>
+        ))}
+      </div>
+    ),
+    faith: () => (
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div><div style={label}>Alignment</div><input aria-label="Alignment" value={alignment} onChange={e => setAlignment(e.target.value)} placeholder="Such as Neutral Good" style={{ ...field, width: 240 }} /></div>
+        <div><div style={label}>Faith or deity</div><input aria-label="Faith or deity" value={journal.deity} onChange={e => set({ deity: e.target.value })} placeholder="A god, a philosophy, or none" style={{ ...field, width: 300 }} /></div>
+      </div>
+    ),
+    appearance: () => (
+      <div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 10 }}>
+          {["age", "height", "weight", "eyes", "hair", "skin"].map(k => (
+            <div key={k}><div style={label}>{k}</div><input aria-label={`Appearance ${k}`} value={journal.appearance[k]} onChange={e => set({ appearance: { ...journal.appearance, [k]: e.target.value } })} style={field} /></div>
+          ))}
+        </div>
+        <div style={label}>Description</div>
+        <textarea aria-label="Appearance description" value={journal.appearance.description} onChange={e => set({ appearance: { ...journal.appearance, description: e.target.value } })} rows={3} style={area} />
+      </div>
+    ),
+    backstory: () => <textarea aria-label="Backstory" value={journal.backstory} onChange={e => set({ backstory: e.target.value })} rows={8} placeholder="Where your character comes from" style={area} />,
+    languages: () => (
+      <div>
+        {chips("languages", [], "Add a language, then Enter")}
+        {chips("tools", knownTools, "Add a tool, then Enter")}
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Tools from your background and feats are listed for you. Add any others here.</div>
+      </div>
+    ),
+    allies: () => people("allies", "Add an ally or organization", "Name"),
+    enemies: () => people("enemies", "Add an enemy or rival", "Name"),
+    quests: () => (
+      <div>
+        {journal.quests.map((q, i) => (
+          <div key={q.id} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
+            <input type="checkbox" aria-label={`Quest ${i + 1} done`} checked={q.done} onChange={e => set({ quests: journal.quests.map(x => x.id === q.id ? { ...x, done: e.target.checked } : x) })} />
+            <input aria-label={`Quest ${i + 1}`} value={q.text} onChange={e => set({ quests: journal.quests.map(x => x.id === q.id ? { ...x, text: e.target.value } : x) })} placeholder="A quest or goal" style={{ ...field, textDecoration: q.done ? "line-through" : "none", opacity: q.done ? 0.6 : 1 }} />
+            <button aria-label={`Remove quest ${i + 1}`} onClick={() => set({ quests: journal.quests.filter(x => x.id !== q.id) })} style={xBtn}>×</button>
+          </div>
+        ))}
+        <button data-testid="add-quest" onClick={() => set({ quests: [...journal.quests, { id: journalId(), text: "", done: false }] })} style={small}>+ Add a quest or goal</button>
+      </div>
+    ),
+    notes: () => {
+      const at = Math.min(page, journal.notes.length - 1), cur = journal.notes[at];
+      const put = (patch) => set({ notes: journal.notes.map((n, i) => i === at ? { ...n, ...patch } : n) });
+      return (
+        <div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }} role="tablist" aria-label="Notes pages">
+            {journal.notes.map((n, i) => (
+              <button key={n.id} role="tab" aria-selected={i === at} data-testid="notes-page" onClick={() => setPage(i)}
+                style={{ background: i === at ? colors.brass : "transparent", color: i === at ? colors.ink : colors.parchment, border: `1px solid ${colors.brass}`, borderRadius: "6px 6px 0 0", padding: "5px 14px", fontSize: 13, fontWeight: i === at ? 700 : 400, cursor: "pointer" }}>{n.title || "Untitled"}</button>
+            ))}
+            <button data-testid="add-notes-page" onClick={() => { set({ notes: [...journal.notes, { id: journalId(), title: `Notes ${journal.notes.length + 1}`, text: "" }] }); setPage(journal.notes.length); }} style={small}>+ Add a page</button>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>Page name:</span>
+            <input aria-label="Notes page name" value={cur.title} onChange={e => put({ title: e.target.value.slice(0, 40) })} style={{ ...field, width: 240 }} />
+            {journal.notes.length > 1 && <button aria-label="Delete this notes page" onClick={() => { if (!cur.text.trim() || window.confirm(`Delete the page "${cur.title}" and what is written on it?`)) { set({ notes: journal.notes.filter((_, i) => i !== at) }); setPage(Math.max(0, at - 1)); } }} style={{ ...small, borderColor: colors.blood, color: colors.blood }}>Delete page</button>}
+          </div>
+          <textarea aria-label="Notes" value={cur.text} onChange={e => put({ text: e.target.value })} rows={10} style={area} />
+        </div>
+      );
+    },
+    sessions: () => (
+      <div>
+        <button data-testid="add-session" onClick={() => { const id = journalId(); set({ sessions: [{ id, title: `Session ${journal.sessions.length + 1}`, date: today(), text: "" }, ...journal.sessions] }); setOpenSession({ ...openSession, [id]: true }); setEditing(id); }} style={{ ...small, marginBottom: 10 }}>+ New session entry</button>
+        {journal.sessions.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No entries yet. Add one for each session you play.</div>}
+        {journal.sessions.map(s => {
+          const open = !!openSession[s.id], edit = editing === s.id;
+          const put = (patch) => set({ sessions: journal.sessions.map(x => x.id === s.id ? { ...x, ...patch } : x) });
+          return (
+            <div key={s.id} data-testid="session-entry" data-open={open ? "yes" : ""} style={{ border: `1px solid ${colors.brass}44`, borderRadius: 8, marginBottom: 8, background: colors.inkLight }}>
+              <div onClick={() => setOpenSession({ ...openSession, [s.id]: !open })} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 12px", cursor: "pointer" }}>
+                <span style={{ color: colors.brassLight, width: 12 }}>{open ? "▾" : "▸"}</span>
+                <strong style={{ fontFamily: fontDisplay, flex: 1 }}>{s.title || "Untitled session"}</strong>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>{s.date}</span>
+              </div>
+              {open && (
+                <div style={{ padding: "0 12px 12px" }}>
+                  {edit ? (<>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                      <input aria-label="Session title" value={s.title} onChange={e => put({ title: e.target.value.slice(0, 80) })} placeholder="Title" style={{ ...field, width: 280 }} />
+                      <input aria-label="Session date" type="date" value={s.date} onChange={e => put({ date: e.target.value })} style={{ ...field, width: 170 }} />
+                    </div>
+                    <textarea aria-label="Session notes" value={s.text} onChange={e => put({ text: e.target.value })} rows={8} placeholder="What happened this session" style={area} />
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <button data-testid="save-session" onClick={() => setEditing("")} style={{ ...small, background: colors.brass, color: colors.ink, fontWeight: 700 }}>Save</button>
+                      <button onClick={() => { if (!s.text.trim() || window.confirm(`Delete "${s.title}"?`)) { set({ sessions: journal.sessions.filter(x => x.id !== s.id) }); setEditing(""); } }} style={{ ...small, borderColor: colors.blood, color: colors.blood }}>Delete</button>
+                    </div>
+                  </>) : (<>
+                    <div data-testid="session-text" style={{ whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.6, marginBottom: 8 }}>{s.text || <span style={{ opacity: 0.6 }}>Nothing written yet.</span>}</div>
+                    <button data-testid="edit-session" onClick={() => setEditing(s.id)} style={small}>Edit</button>
+                  </>)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    ),
+  };
+  const arrow = { background: "transparent", border: `1px solid ${colors.brass}66`, color: colors.brassLight, borderRadius: 4, width: 26, height: 24, cursor: "pointer", fontSize: 12 };
   return (
     <div>
-      <Section title="Inventory" colors={colors} fontDisplay={fontDisplay}>
-        {inv.items.length === 0
-          ? <div style={{ fontSize: 13, opacity: 0.7 }}>Nothing yet. Add items on the Magic Items and Mundane Items tabs.</div>
-          : <InventoryList items={inv.items} inv={inv} colors={colors} />}
+      <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 14 }}>Everything here saves by itself. Use the arrows to move a section up or down, and click a section's name to fold it away.</div>
+      {journal.order.map((key, i) => {
+        const title = (JOURNAL_SECTIONS.find(s => s[0] === key) || [])[1]; if (!title) return null;
+        const shut = journal.collapsed.includes(key);
+        return (
+          <div key={key} data-testid={`journal-${key}`} data-collapsed={shut ? "yes" : ""} style={{ marginBottom: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: `1px solid ${colors.brass}55`, paddingBottom: 8, marginBottom: 14 }}>
+              <h3 onClick={() => toggle(key)} style={{ fontFamily: fontDisplay, color: colors.brassLight, fontSize: 16, letterSpacing: "0.04em", textTransform: "uppercase", margin: 0, flex: 1, cursor: "pointer" }}>{shut ? "▸" : "▾"} {title}</h3>
+              <button aria-label={`Move ${title} up`} disabled={i === 0} onClick={() => move(key, -1)} style={{ ...arrow, opacity: i === 0 ? 0.3 : 1 }}>▲</button>
+              <button aria-label={`Move ${title} down`} disabled={i === journal.order.length - 1} onClick={() => move(key, 1)} style={{ ...arrow, opacity: i === journal.order.length - 1 ? 0.3 : 1 }}>▼</button>
+            </div>
+            {!shut && body[key]()}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ============ INVENTORY: what you carry, and the lists to add from ============ */
+function inventoryGroup(item) {
+  const g = magicGearInfo(item), cat = String(item.category || "");
+  if (g) return g.kind === "weapon" ? "Weapons" : "Armor & Shields";
+  if (/Weapon/.test(cat)) return "Weapons";
+  if (/Armor|Shield/.test(cat)) return "Armor & Shields";
+  if (item.rarity) return "Magic Items";
+  if (cat === "Your own item") return "Your Own Items";
+  return "Gear";
+}
+function InventoryTab({ inv, magic, mundane, colors, fontDisplay }) {
+  const [source, setSource] = React.useState("mundane");
+  const [shut, setShut] = React.useState({});      // group name -> folded
+  const [openItem, setOpenItem] = React.useState("");
+  const [ownName, setOwnName] = React.useState("");
+  const [ownCost, setOwnCost] = React.useState("");
+  const ownTaken = inv.items.some(i => i.name.toLowerCase() === ownName.trim().toLowerCase());
+  const addOwn = () => {
+    const name = ownName.trim().slice(0, 60); if (!name || ownTaken) return;
+    inv.add({ name, cost: ownCost.trim().slice(0, 20), category: "Your own item", weight: "", description: "An item you added yourself." });
+    setOwnName(""); setOwnCost("");
+  };
+  const groups = ["Weapons", "Armor & Shields", "Magic Items", "Gear", "Your Own Items"].map(g => [g, inv.items.filter(i => inventoryGroup(i) === g)]).filter(x => x[1].length);
+  const sw = (key, text) => (
+    <button data-testid={`source-${key}`} aria-pressed={source === key} onClick={() => setSource(key)}
+      style={{ background: source === key ? colors.brass : "transparent", color: source === key ? colors.ink : colors.parchment, border: `1px solid ${colors.brass}`, padding: "7px 18px", fontFamily: fontDisplay, fontSize: 13, fontWeight: source === key ? 700 : 400, cursor: "pointer", borderRadius: key === "mundane" ? "6px 0 0 6px" : "0 6px 6px 0" }}>{text}</button>
+  );
+  return (
+    <div>
+      <Section title={`Your Inventory (${inv.items.length})`} colors={colors} fontDisplay={fontDisplay}>
+        {inv.items.length === 0 && <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 10 }}>Nothing yet. Add items from the lists below.</div>}
+        <div data-testid="inventory-list">
+          {groups.map(([g, items]) => (
+            <div key={g} data-testid={`inv-group-${g}`} style={{ border: `1px solid ${colors.brass}33`, borderRadius: 8, marginBottom: 8, background: colors.inkLight }}>
+              <div onClick={() => setShut({ ...shut, [g]: !shut[g] })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", cursor: "pointer" }}>
+                <span style={{ color: colors.brassLight, width: 12 }}>{shut[g] ? "▸" : "▾"}</span>
+                <strong style={{ fontFamily: fontDisplay, fontSize: 13, letterSpacing: 0.5, textTransform: "uppercase", color: colors.brassLight, flex: 1 }}>{g}</strong>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>{items.length}</span>
+              </div>
+              {!shut[g] && items.map(item => (
+                <div key={item.name} data-testid={`inv-${item.name}`} style={{ borderTop: `1px solid ${colors.brass}22`, padding: "6px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.rarity ? RARITY_COLORS[item.rarity] : colors.parchment + "99", flexShrink: 0 }} />
+                    <span onClick={() => setOpenItem(openItem === item.name ? "" : item.name)} style={{ flex: 1, cursor: "pointer", fontSize: 14, fontFamily: "'Crimson Text','Georgia',serif" }}>{item.name}</span>
+                    {magicGearKinds(item).length > 0 && (
+                      <select aria-label={`Kind of ${item.name}`} value={item.kind || ""} onChange={e => inv.setKind(item, e.target.value)} style={{ background: colors.ink, color: item.kind ? colors.parchment : CUSTOM_RED, border: `1px solid ${item.kind ? colors.brass + "55" : CUSTOM_RED}`, borderRadius: 4, fontSize: 12, maxWidth: 220, padding: "2px 4px" }}>
+                        <option value="">Choose kind...</option>
+                        <KindOptions item={item} />
+                      </select>)}
+                    <span style={{ fontSize: 11, color: colors.parchment + "88", minWidth: 60, textAlign: "right" }}>{item.rarity || item.cost || ""}</span>
+                    <ItemControls item={item} inv={inv} colors={colors} small />
+                  </div>
+                  {openItem === item.name && <div style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.85, margin: "6px 0 4px 16px" }}>{item.type ? <em>{item.type}{item.attunement ? ", requires Attunement" : ""}. </em> : null}{item.description || "No description."}</div>}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 12, fontSize: 12, opacity: 0.8 }}>Add an item that is not in the lists:</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
+          <input aria-label="Your own item name" value={ownName} onChange={e => setOwnName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addOwn(); }} placeholder="Item name" style={{ ...fieldStyle(colors), width: 240 }} />
+          <input aria-label="Your own item price" value={ownCost} onChange={e => setOwnCost(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addOwn(); }} placeholder="Price, such as 5 gp" style={{ ...fieldStyle(colors), width: 150 }} />
+          <button data-testid="add-own-item" onClick={addOwn} disabled={!ownName.trim() || ownTaken} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "7px 14px", cursor: "pointer", opacity: !ownName.trim() || ownTaken ? 0.45 : 1 }}>Add to Inventory</button>
+          {ownTaken && <span style={{ fontSize: 12, color: CUSTOM_RED }}>Already in your inventory.</span>}
+        </div>
       </Section>
-      <Section title="Equipment" colors={colors} fontDisplay={fontDisplay}>
-        <textarea value={equipment} onChange={e => setEquipment(e.target.value)} rows={8}
-          placeholder="Weapons, armor, adventuring gear, tools, coin..."
-          style={{ ...fieldStyle(colors), resize: "vertical", lineHeight: 1.6 }} />
-      </Section>
-      <Section title="Notes & Backstory" colors={colors} fontDisplay={fontDisplay}>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={10}
-          placeholder="Personality traits, ideals, bonds, flaws, backstory..."
-          style={{ ...fieldStyle(colors), resize: "vertical", lineHeight: 1.6 }} />
+      <Section title="Add Items" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ marginBottom: 14 }}>{sw("mundane", "Mundane Items")}{sw("magic", "Magic Items")}</div>
+        {source === "mundane"
+          ? <MundaneItemsTab {...mundane} inv={inv} colors={colors} fontDisplay={fontDisplay} />
+          : <MagicItemsTab {...magic} inv={inv} colors={colors} fontDisplay={fontDisplay} />}
       </Section>
     </div>
   );
 }
 
+// The kinds a magic item can be, in the same groups and order as the Armor and Weapon pickers:
+// armor by Light, Medium, Heavy and then Armor Class; weapons by Simple, Martial and then name.
+function KindOptions({ item }) {
+  const kinds = magicGearKinds(item), info = magicGearInfo(item) || {};
+  if (info.kind === "armor") return ["Light", "Medium", "Heavy"].map(cat => {
+    const list = ARMOR.filter(a => a.cat === cat && kinds.includes(a.name));
+    return list.length ? <optgroup key={cat} label={`${cat} armor`}>{list.map(a => <option key={a.name} value={a.name}>{a.name} (AC {a.base}{a.dex ? (a.max != null ? ` + Dex, max ${a.max}` : " + Dex") : ""})</option>)}</optgroup> : null;
+  });
+  return ["Simple", "Martial"].map(cat => {
+    const list = WEAPONS.filter(w => w.cat === cat && kinds.includes(w.name));
+    return list.length ? <optgroup key={cat} label={`${cat} weapons`}>{list.map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice} {w.type})</option>)}</optgroup> : null;
+  });
+}
 // The controls for one item: add it to the inventory, mark it important, or remove it.
 function ItemControls({ item, inv, colors, small, onChoose }) {
   const b = (bg, fg) => ({ minWidth: 22, height: 22, borderRadius: 4, border: "none", cursor: "pointer", background: bg, color: fg, fontSize: small ? 13 : 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 1, padding: "0 4px" });
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
   if (!inv.has(item) && onChoose && magicGearKinds(item).length) return <button onClick={stop(onChoose)} title="Choose what kind it is, then add it" aria-label={`Choose the kind of ${item.name}`} style={b("#4caf50", "#fff")}>+</button>;
-  if (!inv.has(item)) return <button onClick={stop(() => inv.add(item, !!item.rarity))} title={item.rarity ? "Add to Inventory and Important Items" : "Add to Inventory"} aria-label={`Add ${item.name} to Inventory`} style={b("#4caf50", "#fff")}>+</button>;
-  const star = inv.important(item);
-  return (<>
-    <button onClick={stop(() => inv.setImportant(item, !star))} title={star ? "Take off Important Items (it stays in your inventory)" : "Mark as Important"} aria-label={`${star ? "Unmark" : "Mark"} ${item.name} as Important`} aria-pressed={star} style={b(star ? colors.brass : "transparent", star ? colors.ink : colors.brassLight)}>{star ? "★" : "☆"}</button>
-    <button onClick={stop(() => inv.remove(item))} title="Remove from Inventory" aria-label={`Remove ${item.name} from Inventory`} style={b(colors.blood, "#fff")}>×</button>
-  </>);
+  if (!inv.has(item)) return <button onClick={stop(() => inv.add(item, !!item.rarity))} title="Add to Inventory" aria-label={`Add ${item.name} to Inventory`} style={b("#4caf50", "#fff")}>+</button>;
+  return <button onClick={stop(() => inv.remove(item))} title="Remove from Inventory" aria-label={`Remove ${item.name} from Inventory`} style={b(colors.blood, "#fff")}>×</button>;
 }
 // A list of carried items with their controls (Notes tab and the side panels).
 function InventoryList({ items, inv, colors }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 260, overflowY: "auto" }} data-testid="inventory-list">
       {items.map(item => (
-        <div key={item.name} data-testid={`inv-${item.name}`} data-important={inv.important(item) ? "yes" : ""} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div key={item.name} data-testid={`inv-${item.name}`} style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.rarity ? RARITY_COLORS[item.rarity] : colors.parchment + "99", flexShrink: 0 }} />
           <span style={{ color: colors.parchment, fontSize: 13, flex: 1, fontFamily: "'Crimson Text','Georgia',serif" }}>{item.name}</span>
           {magicGearKinds(item).length > 0 && (
             <select aria-label={`Kind of ${item.name}`} value={item.kind || ""} onChange={e => inv.setKind(item, e.target.value)} style={{ background: colors.ink, color: item.kind ? colors.parchment : CUSTOM_RED, border: `1px solid ${colors.brass}55`, borderRadius: 4, fontSize: 11, maxWidth: 130 }}>
               <option value="">Choose kind...</option>
-              {magicGearKinds(item).map(k => <option key={k} value={k}>{k}</option>)}
+              <KindOptions item={item} />
             </select>)}
           <span style={{ fontSize: 11, color: colors.parchment + "55" }}>{item.rarity || item.cost || ""}</span>
           <ItemControls item={item} inv={inv} colors={colors} small />
@@ -3858,7 +4109,7 @@ function InventoryList({ items, inv, colors }) {
 }
 function ItemRowHover({ item, inv, onSelect, isSelected, accentColor, colors, extraBadge }) {
   const [hovered, setHovered] = React.useState(false);
-  const mine = inv.has(item), star = inv.important(item);
+  const mine = inv.has(item);
   return (
     <div
       onMouseEnter={() => setHovered(true)}
@@ -3879,7 +4130,7 @@ function ItemRowHover({ item, inv, onSelect, isSelected, accentColor, colors, ex
       </span>
       {extraBadge}
       {hovered && <ItemControls item={item} inv={inv} colors={colors} onChoose={() => { if (!isSelected) onSelect(); }} />}
-      {!hovered && mine && <span style={{ fontSize: 12, color: star ? colors.brassLight : "#4caf50", flexShrink: 0 }}>{star ? "★" : "✓"}</span>}
+      {!hovered && mine && <span style={{ fontSize: 12, color: "#4caf50", flexShrink: 0 }}>✓</span>}
     </div>
   );
 }
@@ -4015,16 +4266,14 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
                     <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>What kind is it?</div>
                     <select aria-label="Kind of item" value={val} onChange={e => mine ? inv.setKind(selectedItem, e.target.value) : setKindPick({ ...kindPick, [selectedItem.name]: e.target.value })} style={{ ...inputStyle, cursor: "pointer", border: `1px solid ${val ? colors.brass + "44" : CUSTOM_RED}` }}>
                       <option value="">Choose a kind...</option>
-                      {magicGearKinds(selectedItem).map(k => <option key={k} value={k}>{k}</option>)}
+                      <KindOptions item={selectedItem} />
                     </select>
                   </div>);
               })()}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }} data-testid="item-buttons">
                 {!inv.has(selectedItem) ? (<>
-                  <button disabled={magicGearKinds(selectedItem).length > 0 && !kindPick[selectedItem.name]} onClick={() => inv.add(kindPick[selectedItem.name] ? { ...selectedItem, kind: kindPick[selectedItem.name] } : selectedItem, !!selectedItem.rarity)} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none", background: colors.brass, color: colors.ink, opacity: magicGearKinds(selectedItem).length > 0 && !kindPick[selectedItem.name] ? 0.45 : 1 }}>{magicGearKinds(selectedItem).length > 0 && !kindPick[selectedItem.name] ? "Choose a kind to add it" : selectedItem.rarity ? "+ Add to Inventory and Important Items" : "+ Add to Inventory"}</button>
-                  {!selectedItem.rarity && <button onClick={() => inv.add(selectedItem, true)} style={{ width: "100%", padding: "8px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 12, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.brassLight }}>★ Add to Inventory and Important Items</button>}
+                  <button disabled={magicGearKinds(selectedItem).length > 0 && !kindPick[selectedItem.name]} onClick={() => inv.add(kindPick[selectedItem.name] ? { ...selectedItem, kind: kindPick[selectedItem.name] } : selectedItem, !!selectedItem.rarity)} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none", background: colors.brass, color: colors.ink, opacity: magicGearKinds(selectedItem).length > 0 && !kindPick[selectedItem.name] ? 0.45 : 1 }}>{magicGearKinds(selectedItem).length > 0 && !kindPick[selectedItem.name] ? "Choose a kind to add it" : "+ Add to Inventory"}</button>
                 </>) : (<>
-                  <button onClick={() => inv.setImportant(selectedItem, !inv.important(selectedItem))} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: `1px solid ${colors.brass}`, background: inv.important(selectedItem) ? "transparent" : colors.brass, color: inv.important(selectedItem) ? colors.brassLight : colors.ink }}>{inv.important(selectedItem) ? "☆ Take off Important Items (keep in inventory)" : "★ Mark as Important"}</button>
                   <button onClick={() => inv.remove(selectedItem)} style={{ width: "100%", padding: "8px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 12, border: "none", background: colors.blood, color: colors.parchment }}>− Remove from Inventory</button>
                 </>)}
               </div>
@@ -4036,12 +4285,6 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
           )}
         </div>
 
-        {inv.items.filter(p => p.rarity).length > 0 && (
-          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}33`, borderRadius: 10, padding: 16 }}>
-            <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase" }}>Your Magic Items ({inv.items.filter(p => p.rarity).length})</div>
-            <InventoryList items={inv.items.filter(p => p.rarity)} inv={inv} colors={colors} />
-          </div>
-        )}
       </div>
     </div>
   );
@@ -4155,10 +4398,8 @@ function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, s
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }} data-testid="item-buttons">
                 {!inv.has(selectedMundane) ? (<>
-                  <button onClick={() => inv.add(selectedMundane, !!selectedMundane.rarity)} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none", background: colors.brass, color: colors.ink }}>{selectedMundane.rarity ? "+ Add to Inventory and Important Items" : "+ Add to Inventory"}</button>
-                  {!selectedMundane.rarity && <button onClick={() => inv.add(selectedMundane, true)} style={{ width: "100%", padding: "8px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 12, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.brassLight }}>★ Add to Inventory and Important Items</button>}
+                  <button onClick={() => inv.add(selectedMundane, !!selectedMundane.rarity)} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none", background: colors.brass, color: colors.ink }}>+ Add to Inventory</button>
                 </>) : (<>
-                  <button onClick={() => inv.setImportant(selectedMundane, !inv.important(selectedMundane))} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: `1px solid ${colors.brass}`, background: inv.important(selectedMundane) ? "transparent" : colors.brass, color: inv.important(selectedMundane) ? colors.brassLight : colors.ink }}>{inv.important(selectedMundane) ? "☆ Take off Important Items (keep in inventory)" : "★ Mark as Important"}</button>
                   <button onClick={() => inv.remove(selectedMundane)} style={{ width: "100%", padding: "8px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 12, border: "none", background: colors.blood, color: colors.parchment }}>− Remove from Inventory</button>
                 </>)}
               </div>
@@ -4170,12 +4411,6 @@ function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, s
           )}
         </div>
 
-        {inv.items.filter(p => !p.rarity).length > 0 && (
-          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}33`, borderRadius: 10, padding: 16 }}>
-            <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase" }}>Your Mundane Items ({inv.items.filter(p => !p.rarity).length})</div>
-            <InventoryList items={inv.items.filter(p => !p.rarity)} inv={inv} colors={colors} />
-          </div>
-        )}
       </div>
     </div>
   );
