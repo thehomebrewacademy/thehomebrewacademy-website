@@ -135,8 +135,31 @@ If the species has a lineage, ancestry or legacy to choose from, add "lineage": 
 abilityScores is exactly three abilities, skills is exactly two skills, feat is an Origin Feat (add it under "feats" if it is new).
 
 "feats": {
-  "Stone's Patience": "Full text of the feat."
+  "Stone's Patience": {
+    "category": "General",
+    "prerequisite": "Level 4+, Constitution 13+",
+    "needs": { "level": 4, "score": { "abilities": ["Constitution"], "min": 13 } },
+    "repeatable": false,
+    "grants": {
+      "ability": { "from": ["Constitution", "Wisdom"], "max": 20 },
+      "skills": { "count": 1, "from": ["Insight", "Survival"], "tools": false },
+      "spellChoices": [
+        { "label": "Choose one Druid cantrip", "level": 0, "lists": ["Druid"], "count": 1 },
+        { "label": "Choose one Level 1 Abjuration or Divination spell", "level": 1, "schools": ["Abjuration", "Divination"], "count": 1 }
+      ]
+    },
+    "text": "Full text of the feat."
+  }
 }
+Write every feat this way so the builder can place it and ask for its choices with dropdowns. A feat written as plain text ("Name": "Full text.") still loads, but it has no category, so it is offered in every feat slot and asks for nothing.
+- category is "Origin", "General", "Fighting Style" or "Epic Boon". It decides where the feat is offered: Origin feats in the background's Origin Feat picker (and any trait that grants an Origin feat), General feats in the level 4, 8, 12, 16 and 19 slots, Fighting Style feats where a class grants a Fighting Style, Epic Boons at level 19. Origin feats are NOT listed in the level slots.
+- prerequisite is the line shown to the player. needs is the same thing in a form the builder can check: "level" (the minimum character level), "score" (at least one of the listed abilities must be "min" or higher), "spellcasting": true (the character must be able to cast spells). Leave out what the feat does not require.
+- repeatable is true only when the feat says it can be taken more than once.
+- grants holds the choices the player makes when taking the feat. Leave out the parts the feat does not have.
+  ability: the feat raises one ability score by 1. "from" lists the abilities the player may pick (leave it empty for any ability) and "max" is the highest the score can go (20, or 30 for an Epic Boon).
+  skills: the player picks "count" proficiencies. "from" lists the skills allowed (leave it empty for any skill). "tools": true lets a pick be a tool instead.
+  spellChoices: one entry for each "choose a spell" sentence in the feat. "level" is the exact spell level allowed, with 0 for a cantrip. "lists" are the class spell lists allowed (leave it out for any list). "schools" are the schools of magic allowed (leave it out for any school). "count" is how many to pick. The dropdown offers ONLY spells that match all of these, so copy the restriction exactly as the feat words it: "one cantrip" is level 0, "one level 1 spell" is level 1, never a range. If the feat lets the player pick from two different levels, write two entries. The spells picked are added to the sheet.
+- Everything else the feat does (a bonus to a number, a use per rest, something to activate, a roll) goes in "abilities" with "grantedBy": { "type": "feat", "name": "Stone's Patience" }, exactly like a class feature.
 
 ---------------------------------------------------------------------
 SPELLS AND ITEMS
@@ -420,8 +443,9 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 - Every number that depends on the character is a formula, not a fixed number.
 - Every condition or effect that the text gives a time limit has a duration. Every "repeats the save" has a repeatSave with the right turn.
 - Limited-use features have uses with the right recharge.
+- Every feat is an object with a category, and every "choose a cantrip" or "choose a spell" in a feat is a spellChoices entry with the exact level, lists and schools the text allows.
 - Rules text is copied as written, and spell levels read "Level X School".
-  </script>
+</script>
   <script type="text/babel">
 const { useState, useMemo, useRef, useEffect } = React;
 
@@ -774,6 +798,8 @@ const MUNDANE_ITEMS = [
   {name:"Hand Crossbow",category:"Martial Ranged Weapon",cost:"75 gp",weight:"3 lb",description:"1d6 piercing. Ammunition (30/120), Light, Loading."},
   {name:"Heavy Crossbow",category:"Martial Ranged Weapon",cost:"50 gp",weight:"18 lb",description:"1d10 piercing. Ammunition (100/400), Heavy, Loading, Two-Handed."},
   {name:"Longbow",category:"Martial Ranged Weapon",cost:"50 gp",weight:"2 lb",description:"1d8 piercing. Ammunition (150/600), Heavy, Two-Handed."},
+  {name:"Musket",category:"Martial Ranged Weapon",cost:"500 gp",weight:"10 lb",description:"1d12 piercing. Ammunition (40/120), Loading, Two-Handed."},
+  {name:"Pistol",category:"Martial Ranged Weapon",cost:"250 gp",weight:"3 lb",description:"1d10 piercing. Ammunition (30/90), Loading."},
   {name:"Net",category:"Martial Ranged Weapon",cost:"1 gp",weight:"3 lb",description:"Large or smaller creature is Restrained (escape DC 10). Can't attack if more than 5 ft away. Special, Thrown (5/15)."},
   // Armor — Light
   {name:"Padded Armor",category:"Light Armor",cost:"5 gp",weight:"8 lb",description:"AC 11 + Dex modifier. Disadvantage on Stealth."},
@@ -1340,7 +1366,27 @@ function checkPack(raw) {
     if (skills.length !== 2) warnings.push(`Background ${name}: skills should be exactly two skill names.`);
     pack.backgrounds[name] = { abilityScores, feat: pStr(b.feat, 60), skills, tool: pStr(b.tool, 60) };
   });
-  Object.keys(pObj(raw.feats)).slice(0, 300).forEach((key) => { const name = pStr(key, 60).trim(); if (name) pack.feats[name] = pStr(raw.feats[key], 2000); });
+  Object.keys(pObj(raw.feats)).slice(0, 300).forEach((key) => { // a feat is its text, or an object with category, prerequisite and what it asks for
+    const name = pStr(key, 60).trim(); if (!name) return;
+    const v = raw.feats[key];
+    if (!v || typeof v !== "object") { pack.feats[name] = { category: "Any", text: pStr(v, 2000) }; return; }
+    const def = { category: FEAT_CATEGORIES.includes(v.category) ? v.category : "Any", text: pStr(v.text, 3000) };
+    if (v.prerequisite) def.prereq = pStr(v.prerequisite, 120);
+    if (v.repeatable) def.repeatable = true;
+    const nd = pObj(v.needs), needs = {};
+    if (parseInt(nd.level, 10) > 0) needs.level = Math.min(20, parseInt(nd.level, 10));
+    const sc = pObj(nd.score), sa = pArr(sc.abilities).filter((a) => ABILITIES.includes(a));
+    if (sa.length && parseInt(sc.min, 10) > 0) needs.score = { abilities: sa, min: parseInt(sc.min, 10) };
+    if (nd.spellcasting) needs.spellcasting = true;
+    if (Object.keys(needs).length) def.needs = needs;
+    const g = pObj(v.grants), grants = {};
+    if (g.ability) grants.ability = { from: pArr(pObj(g.ability).from).filter((a) => ABILITIES.includes(a)), max: parseInt(pObj(g.ability).max, 10) || 20 };
+    if (parseInt(pObj(g.skills).count, 10) > 0) grants.skills = { count: Math.min(6, parseInt(g.skills.count, 10)), tools: !!g.skills.tools, from: pArr(g.skills.from).filter((k) => ALL_SKILLS.includes(k)) };
+    const choices = pArr(g.spellChoices).slice(0, 6).map((x) => ({ label: pStr(pObj(x).label, 80), level: Math.max(0, Math.min(9, parseInt(pObj(x).level, 10) || 0)), lists: pArr(pObj(x).lists).map((l) => pStr(l, 40)), schools: pArr(pObj(x).schools).map((l) => pStr(l, 20)), count: Math.max(1, Math.min(6, parseInt(pObj(x).count, 10) || 1)) }));
+    if (choices.length) grants.spellChoices = choices;
+    if (Object.keys(grants).length) def.grants = grants;
+    pack.feats[name] = def;
+  });
   pArr(raw.spells).slice(0, 600).forEach((sp) => {
     const name = pStr(pObj(sp).name, 60).trim(); if (!name) return;
     pack.spells.push({ name, level: Math.max(0, Math.min(9, parseInt(sp.level, 10) || 0)), school: pStr(sp.school, 20), classes: pArr(sp.classes).map((x) => pStr(x, 40)),
@@ -1387,8 +1433,7 @@ function mergePack(pack) {
   Object.keys(pack.subclasses).forEach((cn) => { if (CLASSES[cn]) Object.assign(CLASSES[cn].subclasses, pack.subclasses[cn]); });
   Object.assign(SPECIES, pack.species);
   Object.assign(BACKGROUNDS, pack.backgrounds);
-  Object.assign(ORIGIN_FEATS, pack.feats);
-  Object.keys(pack.feats).forEach((name) => { if (!FEATS[name]) FEATS[name] = { category: "Any", text: pack.feats[name] }; });
+  Object.keys(pack.feats).forEach((name) => { const def = typeof pack.feats[name] === "string" ? { category: "Any", text: pack.feats[name] } : pack.feats[name]; ORIGIN_FEATS[name] = def.text || ""; FEATS[name] = def; });
   pack.items.forEach((it) => { const k = MAGIC_ITEMS.findIndex((x) => x.name === it.name); if (k >= 0) MAGIC_ITEMS[k] = it; else MAGIC_ITEMS.push(it); });
   pack.spells.forEach((sp) => { const k = PACK_SPELLS.findIndex((x) => x.name === sp.name); if (k >= 0) PACK_SPELLS[k] = sp; else PACK_SPELLS.push(sp); });
   pack.spells.forEach((sp) => registerSpell({ n: sp.name, l: sp.level, s: sp.school || "", c: sp.classes || [], t: sp.castingTime || "", r: sp.range || "", k: "", d: sp.duration || "", x: sp.text || "", conc: sp.concentration ? 1 : 0, rit: sp.ritual ? 1 : 0, pack: true }));
@@ -1633,8 +1678,18 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered) { // mastered: 
   return out;
 }
 
-function GearSection({ armor, setArmor, shield, setShield, weapons, setWeapons, ac, colors, fontDisplay, masteries, setMasteries, masteryCount, custom, glow }) {
+function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, setWeapons, ac, colors, fontDisplay, masteries, setMasteries, masteryCount, custom, glow }) {
   const sel = { ...fieldStyle(colors), width: 260 };
+  // Only what the character carries is offered: items added to Important Items from the Mundane Items tab.
+  // Further Customization lifts that and offers everything.
+  const norm = (n) => String(n || "").toLowerCase().replace(/[^a-z]/g, "");
+  const carried = new Set(inventory.map(norm));
+  // Gear typed into the Equipment box on the Notes tab counts as carried too.
+  const typed = " " + String(inventory.typed || "").toLowerCase().replace(/[^a-z]+/g, " ") + " ";
+  const has = (n) => custom || carried.has(norm(n)) || typed.includes(" " + String(n).toLowerCase().replace(/[^a-z]+/g, " ").trim() + " ");
+  const armorChoices = ARMOR.filter(a => has(a.name) || a.name === armor);
+  const weaponChoices = WEAPONS.filter(w => has(w.name) && !weapons.includes(w.name));
+  const hasShield = has("Shield") || shield;
   const used = masteries.filter(n => weapons.includes(n));
   const toggleMastery = (n) => {
     if (used.includes(n)) { setMasteries(masteries.filter(x => x !== n)); return; }
@@ -1646,12 +1701,12 @@ function GearSection({ armor, setArmor, shield, setShield, weapons, setWeapons, 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
         <select aria-label="Armor" value={armor} onChange={e => setArmor(e.target.value)} style={sel}>
           <option value="">No armor</option>
-          {["Light", "Medium", "Heavy"].map(cat => <optgroup key={cat} label={`${cat} armor`}>{ARMOR.filter(a => a.cat === cat).map(a => <option key={a.name} value={a.name}>{a.name} (AC {a.base}{a.dex ? (a.max != null ? ` + Dex, max ${a.max}` : " + Dex") : ""})</option>)}</optgroup>)}
+          {["Light", "Medium", "Heavy"].filter(cat => armorChoices.some(a => a.cat === cat)).map(cat => <optgroup key={cat} label={`${cat} armor`}>{armorChoices.filter(a => a.cat === cat).map(a => <option key={a.name} value={a.name}>{a.name} (AC {a.base}{a.dex ? (a.max != null ? ` + Dex, max ${a.max}` : " + Dex") : ""})</option>)}</optgroup>)}
         </select>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><input type="checkbox" checked={shield} onChange={e => setShield(e.target.checked)} aria-label="Shield" /> Shield (+2)</label>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: hasShield ? "pointer" : "default", opacity: hasShield ? 1 : 0.5 }} title={hasShield ? "" : "Add a Shield to your items first"}><input type="checkbox" checked={shield} disabled={!hasShield} onChange={e => setShield(e.target.checked)} aria-label="Shield" /> Shield (+2)</label>
         <span style={{ fontSize: 13, opacity: 0.8 }} data-testid="ac-how">Armor Class {ac.value}: {ac.how}</span>
       </div>
-      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }}>Weapons you carry. Each one becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
+      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Only armor and weapons among your items are offered here. Add them on the Mundane Items tab with "Add to Important Items", or type them in the Equipment box on the Notes tab{custom ? " (Further Customization is on, so everything is offered)" : ""}. Each weapon you wield becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
       {masteryCount > 0 && <div data-testid="mastery-note" data-glow={glow || ""} style={{ fontSize: 13, marginBottom: 8, padding: glow ? "6px 10px" : 0, border: glow ? `2px solid ${glow === "open" ? REST_PURPLE : colors.brassLight}` : "none", borderRadius: 6, color: glow === "open" ? REST_PURPLE : glow === "done" ? colors.brassLight : "inherit" }}>
         <strong>Weapon Mastery:</strong> you can use the mastery property of {masteryCount} kinds of weapons ({used.length} chosen). Click a weapon's mastery name to choose it. You can change these when you finish a Long Rest.</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -1668,7 +1723,7 @@ function GearSection({ armor, setArmor, shield, setShield, weapons, setWeapons, 
       </div>
       <select aria-label="Add a weapon" value="" onChange={e => { if (e.target.value && !weapons.includes(e.target.value)) setWeapons([...weapons, e.target.value]); }} style={sel}>
         <option value="">+ Add a weapon</option>
-        {["Simple", "Martial"].map(cat => <optgroup key={cat} label={`${cat} weapons`}>{WEAPONS.filter(w => w.cat === cat && !weapons.includes(w.name)).map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice} {w.type})</option>)}</optgroup>)}
+        {["Simple", "Martial"].filter(cat => weaponChoices.some(w => w.cat === cat)).map(cat => <optgroup key={cat} label={`${cat} weapons`}>{weaponChoices.filter(w => w.cat === cat).map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice} {w.type})</option>)}</optgroup>)}
       </select>
     </Section>
   );
@@ -1714,6 +1769,7 @@ function CharacterSheet() {
   const [shield, setShield] = useState(false);
   const [weapons, setWeapons] = useState([]);          // weapons carried
   const [masteries, setMasteries] = useState([]);      // weapons whose mastery property is in use (Weapon Mastery)
+  const [statAdj, setStatAdj] = useState({});           // Further Customization: additional modifier to ac, initiative, speed, hp
   const [rest, setRest] = useState(null);              // a rest just taken: {kind, phase: "summary" or "changes", snap, summary}
   const [featureChoices, setFeatureChoices] = useState({}); // options chosen inside features (Divine Order, Hunter's Prey...)
   const [featPicks, setFeatPicks] = useState({});   // feats chosen in each slot, and the choices each one asks for
@@ -1834,7 +1890,10 @@ function CharacterSheet() {
   }, [takenFeats]);
   const featSpells = useMemo(() => {
     const out = [];
-    takenFeats.forEach(f => { if (f.def && f.def.grants && f.def.grants.magic) ["cantrip1", "cantrip2", "spell"].forEach(k => { if (f.choices[k] && f.choices[k].trim()) out.push(f.choices[k].trim()); }); });
+    takenFeats.forEach(f => {
+      if (f.def && f.def.grants && f.def.grants.magic) ["cantrip1", "cantrip2", "spell"].forEach(k => { if (f.choices[k] && f.choices[k].trim()) out.push(f.choices[k].trim()); });
+      if (f.def && f.def.grants && f.def.grants.spellChoices) Object.values(f.choices.spellPicks || {}).forEach(list => pArr(list).forEach(n => { if (n) out.push(n); }));
+    });
     return out;
   }, [takenFeats]);
 
@@ -1977,17 +2036,18 @@ function CharacterSheet() {
     expertiseCustom.forEach(k => out.push(`Added Expertise in ${k}`));
     takenFeats.forEach(f => { if (f.problem) out.push(`Feat ${f.name}: ${f.problem}`); });
     spellInfo.list.forEach(e => { if (e.sp && e.problem) out.push(`Spell ${e.sp.n}: ${e.problem}`); });
+    [["ac", "Armor Class"], ["initiative", "Initiative"], ["speed", "Speed"], ["hp", "Hit Point maximum"]].forEach(([k, l]) => { if (statAdj[k]) out.push(`${l}: additional modifier ${fmt(statAdj[k])}`); });
     masteries.filter(n => weapons.includes(n)).slice(derived.masteryCount).forEach(n => out.push(`Weapon Mastery with ${n}: more than your class allows`));
     return out;
-  }, [abilityMode, customScores, abilityAdj, saveInfo, skillInfo, takenFeats, skillExpertise, expertiseMax, spellInfo, masteries, weapons, derived]);
+  }, [abilityMode, customScores, abilityAdj, saveInfo, skillInfo, takenFeats, skillExpertise, expertiseMax, spellInfo, masteries, weapons, derived, statAdj]);
 
-  const initiative = finalMods.Dexterity + (takenFeats.some(f => f.def && f.def.initiativeProf) ? profBonus : 0) + derived.initiative; // Alert adds the Proficiency Bonus
+  const initiative = finalMods.Dexterity + (takenFeats.some(f => f.def && f.def.initiativeProf) ? profBonus : 0) + derived.initiative + (statAdj.initiative || 0); // Alert adds the Proficiency Bonus
   const ac = armorClassOf(derived, gear, finalMods.Dexterity);
-  const armorClass = ac.value + (takenFeats.some(f => f.base === "Defense") && gear.armor ? 1 : 0); // Defense: +1 while wearing armor
+  const armorClass = ac.value + (takenFeats.some(f => f.base === "Defense") && gear.armor ? 1 : 0) + (statAdj.ac || 0); // Defense: +1 while wearing armor
   const passivePerception = 10 + skillMods.Perception;
-  const speed = (derived.speedBase || (SPECIES[species] ? SPECIES[species].speed : 30)) + derived.speedBonus;
+  const speed = (derived.speedBase || (SPECIES[species] ? SPECIES[species].speed : 30)) + derived.speedBonus + (statAdj.speed || 0);
 
-  const effectiveMaxHp = maxHp;
+  const effectiveMaxHp = Math.max(1, maxHp + (statAdj.hp || 0));
   const displayHp = currentHp === null ? effectiveMaxHp : currentHp;
 
   function updatePointBuy(ability, newVal) {
@@ -2206,7 +2266,7 @@ function CharacterSheet() {
       equipment,
       items: Array.from(new Set([...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean))),
       origin: originCustom ? { custom: true, ...originCustom } : null,
-      builder: { lineage, armor, shield, weapons, masteries, featureChoices, featPicks, extraFeats, originCustom, custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
+      builder: { statAdj, lineage, armor, shield, weapons, masteries, featureChoices, featPicks, extraFeats, originCustom, custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
         pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, characterItems, pinnedItems, spells }
     };
   }
@@ -2259,6 +2319,8 @@ function CharacterSheet() {
     setBgBonusChoices(arr(s.bgBonusChoices).filter(a => ABILITIES.includes(a)));
     setSkillProfs(arr(s.skillProfs).filter(k => ALL_SKILLS.includes(k)));
     setSkillExpertise(arr(s.skillExpertise).filter(k => ALL_SKILLS.includes(k)));
+    const sa = {}; ["ac", "initiative", "speed", "hp"].forEach(k => { const n = parseInt((s.statAdj || {})[k]); if (n && n >= -200 && n <= 200) sa[k] = n; });
+    setStatAdj(sa);
     setLineage(String(s.lineage || ""));
     setArmor(ARMOR.some(a => a.name === s.armor) ? s.armor : "");
     setShield(!!s.shield);
@@ -2578,7 +2640,7 @@ function CharacterSheet() {
           <SkillsTab {...{ expertiseMax, expertiseList, expertiseCustom, cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }} />
         )}
         {tab === "combat" && (
-          <CombatTab {...{ masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
+          <CombatTab {...{ statAdj, setStatAdj, inventory: Object.assign([...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean), { typed: equipment }), masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
         )}
         {tab === "features" && (
           <FeaturesTab {...{ glowOf, optionSlots: mech.optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay, slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }} />
@@ -3008,15 +3070,26 @@ function SkillsTab({ expertiseMax, expertiseList, expertiseCustom, cls, skillInf
   );
 }
 
-function CombatTab({ masteries, setMasteries, custom, masteryGlow, armor, setArmor, shield, setShield, weapons, setWeapons, ac, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }) {
+function CombatTab({ statAdj, setStatAdj, inventory, masteries, setMasteries, custom, masteryGlow, armor, setArmor, shield, setShield, weapons, setWeapons, ac, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }) {
   const displayHp = currentHp === null ? effectiveMaxHp : currentHp;
+  // Further Customization: an additional modifier on a stat, shown in red
+  const adjust = (k, step) => (custom || statAdj[k]) ? (
+    <div data-testid={`adj-${k}`} style={{ marginTop: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12 }}>
+      {custom && <button aria-label={`Lower ${k}`} onClick={() => setStatAdj(prev => { const n = (prev[k] || 0) - step; const o = { ...prev }; if (n) o[k] = n; else delete o[k]; return o; })} style={{ width: 22, height: 22, borderRadius: 11, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.parchment, cursor: "pointer" }}>−</button>}
+      <span style={{ color: statAdj[k] ? CUSTOM_RED : colors.parchment, minWidth: 60 }}>{statAdj[k] ? `${fmt(statAdj[k])} Custom` : "modifier"}</span>
+      {custom && <button aria-label={`Raise ${k}`} onClick={() => setStatAdj(prev => { const n = (prev[k] || 0) + step; const o = { ...prev }; if (n) o[k] = n; else delete o[k]; return o; })} style={{ width: 22, height: 22, borderRadius: 11, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.parchment, cursor: "pointer" }}>+</button>}
+    </div>
+  ) : null;
+  const redIf = (k) => (statAdj[k] ? `2px solid ${CUSTOM_RED}` : `1px solid ${colors.brass}55`);
   return (
     <div>
       <Section title="Hit Points" colors={colors} fontDisplay={fontDisplay}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+          <div style={{ background: colors.inkLight, border: redIf("hp"), borderRadius: 8, padding: 12, textAlign: "center" }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Max HP</div>
             <div style={{ fontFamily: fontDisplay, fontSize: 26, fontWeight: 700, color: colors.brassLight }}>{effectiveMaxHp}</div>
+            <div style={{ fontSize: 10, opacity: 0.6 }}>Level 1: the whole die. After that: half the die plus 1. Constitution modifier each level.</div>
+            {adjust("hp", 1)}
           </div>
           <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Current HP</div>
@@ -3039,17 +3112,18 @@ function CombatTab({ masteries, setMasteries, custom, masteryGlow, armor, setArm
 
       <Section title="Defenses & Movement" colors={colors} fontDisplay={fontDisplay}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-          {[["Armor Class", armorClass, ac.how], ["Initiative", fmt(initiative), ""], ["Speed", `${speed} ft`, ""]].map(([label, val, note]) => (
-            <div key={label} style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+          {[["Armor Class", armorClass, ac.how, "ac", 1], ["Initiative", fmt(initiative), "", "initiative", 1], ["Speed", `${speed} ft`, "", "speed", 5]].map(([label, val, note, k, step]) => (
+            <div key={label} style={{ background: colors.inkLight, border: redIf(k), borderRadius: 8, padding: 12, textAlign: "center" }}>
               <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>{label}</div>
               <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, color: colors.brassLight }}>{val}</div>
               {note && <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4 }}>{note}</div>}
+              {adjust(k, step)}
             </div>
           ))}
         </div>
       </Section>
 
-      <GearSection {...{ armor, setArmor, shield, setShield, weapons, setWeapons, ac, colors, fontDisplay, masteries, setMasteries, masteryCount: derived.masteryCount, custom, glow: masteryGlow }} />
+      <GearSection {...{ inventory, armor, setArmor, shield, setShield, weapons, setWeapons, ac, colors, fontDisplay, masteries, setMasteries, masteryCount: derived.masteryCount, custom, glow: masteryGlow }} />
       {(derived.resist.length > 0 || derived.condImmune.length > 0 || derived.saveAdv.length > 0 || derived.condAdv.length > 0 || derived.senses.length > 0) && (
         <Section title="Defenses From Features" colors={colors} fontDisplay={fontDisplay}>
           <div style={{ fontSize: 14, lineHeight: 1.7 }} data-testid="defenses">
@@ -3208,20 +3282,46 @@ function FeatChoices({ name, choices, onChange, colors }) {
         </div>
         <div style={label}>Two cantrips and one level 1 spell from that list</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {[["cantrip1", "Cantrip"], ["cantrip2", "Cantrip"], ["spell", "Level 1 spell"]].map(([k, ph]) => (
-            <input key={k} aria-label={`Magic Initiate ${k}`} list="hba-spell-list" value={c[k] || ""} onChange={e => set({ [k]: e.target.value.slice(0, 60) })} placeholder={ph} style={{ ...fieldStyle(colors), width: 190 }} />
-          ))}
+          {[["cantrip1", "Cantrip...", 0], ["cantrip2", "Cantrip...", 0], ["spell", "Level 1 spell...", 1]].map(([k, ph, lvl]) => {
+            const list = c.list || featPreset(name);
+            const other = k === "cantrip1" ? c.cantrip2 : k === "cantrip2" ? c.cantrip1 : "";
+            return (
+              <select key={k} aria-label={`Magic Initiate ${k}`} value={c[k] || ""} disabled={!list} onChange={e => set({ [k]: e.target.value })} style={{ ...sel, opacity: list ? 1 : 0.5 }}>
+                <option value="">{list ? ph : "Choose the spell list first"}</option>
+                {c[k] && !spellOf(c[k]) && <option value={c[k]}>{c[k]}</option>}
+                {ALL_SPELLS.filter(sp => sp.l === lvl && sp.c.includes(list) && sp.n !== other).map(sp => <option key={sp.n} value={sp.n}>{sp.n}</option>)}
+              </select>
+            );
+          })}
         </div>
       </>)}
+      {pArr(g.spellChoices).map((sc, i) => { // a feat that says "choose a cantrip" or "choose a level 2 Druid spell": only those are offered
+        const lvl = Math.max(0, Math.min(9, parseInt(sc.level, 10) || 0)), lists = pArr(sc.lists), schools = pArr(sc.schools).map(x => String(x).toLowerCase()), count = Math.max(1, Math.min(6, parseInt(sc.count, 10) || 1));
+        const picks = pArr((c.spellPicks || {})[i]);
+        return (
+          <React.Fragment key={i}>
+            <div style={label}>{sc.label || `Choose ${count} ${lvl ? `Level ${lvl} spell${count > 1 ? "s" : ""}` : `cantrip${count > 1 ? "s" : ""}`}${schools.length ? ` of the ${pArr(sc.schools).join(" or ")} school` : ""}${lists.length ? ` from the ${lists.join(" or ")} list` : ""}`}</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {Array.from({ length: count }).map((_, k) => (
+                <select key={k} aria-label={`${featBase(name)} spell choice ${i + 1}.${k + 1}`} value={picks[k] || ""} onChange={e => { const next = [...picks]; while (next.length < count) next.push(""); next[k] = e.target.value; set({ spellPicks: { ...(c.spellPicks || {}), [i]: next } }); }} style={sel}>
+                  <option value="">{lvl ? `Level ${lvl} spell...` : "Cantrip..."}</option>
+                  {ALL_SPELLS.filter(sp => sp.l === lvl && (!lists.length || lists.some(x => sp.c.includes(x))) && (!schools.length || schools.includes(String(sp.s).toLowerCase())) && (!picks.includes(sp.n) || picks[k] === sp.n)).map(sp => <option key={sp.n} value={sp.n}>{sp.n}</option>)}
+                </select>
+              ))}
+            </div>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }
 
 // A dropdown of feats. allowed: names the rules allow in this slot. With Further Customization on, the rest are listed too.
-function FeatPicker({ value, onPick, cats, taken, custom, colors, label }) {
+function FeatPicker({ value, onPick, cats, taken, custom, colors, label, hide }) { // hide: categories the rules allow here but that are only listed with Further Customization on
   const names = Object.keys(FEATS).filter(n => n !== "Ability Score Improvement");
   const free = (n) => FEATS[n].repeatable || n === value || !taken.includes(n);
-  const legal = names.filter(n => (FEATS[n].category === "Any" || cats.includes(FEATS[n].category)) && free(n));
+  const show = cats.filter(c => custom || !(hide || []).includes(c));
+  const legal = names.filter(n => (FEATS[n].category === "Any" || show.includes(FEATS[n].category) || n === value) && free(n));
   const others = custom ? names.filter(n => !legal.includes(n)) : [];
   const unknown = value && !FEATS[value];
   return (
@@ -3311,7 +3411,7 @@ function FeaturesTab({ glowOf, optionSlots, featureChoices, setFeatureChoices, f
                   ))}
                 </div>
               ) : (<>
-                <FeatPicker label={`Feat for level ${lvl}`} value={choice.name || ""} cats={["General", "Origin"].concat(lvl >= 19 ? ["Epic Boon"] : [])} taken={taken} custom={custom} colors={colors} onPick={n => setFeatName(lvl, n)} />
+                <FeatPicker label={`Feat for level ${lvl}`} value={choice.name || ""} cats={["General", "Origin"].concat(lvl >= 19 ? ["Epic Boon"] : [])} hide={["Origin"]} taken={taken} custom={custom} colors={colors} onPick={n => setFeatName(lvl, n)} />
                 {choice.name && <FeatChoices name={choice.name} choices={choice.choices} onChange={ch => setAsiFeatChoices(lvl, ch)} colors={colors} />}
                 {warn(p)}
               </>)}
