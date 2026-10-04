@@ -1733,7 +1733,7 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered) { // mastered: 
       let dice = die;
       if (monk && d.unarmedDie) { const m = /^1d(\d+)$/.exec(die); if (m && +m[1] < d.unarmedDie) dice = `1d${d.unarmedDie}`; }
       const a = { name: label, type: "attack", activation: "action", atk: ctx.PROF + mod + plus, weapon: true, abil, dmgList: [[evalDice(`${dice}+${mod + plus}`, ctx), w.type], ...rider(!w.ranged)], desc: w.magic ? `${info}. ${String(w.magic.description || "").slice(0, 600)}` : info };
-      if (w.mastery && (mastered || []).includes(w.name)) { // the Combat Resolver applies the mastery property on a hit (or a miss, for Graze)
+      if (w.mastery && (mastered || []).includes(w.plain || w.name)) { // the Combat Resolver applies the mastery property on a hit (or a miss, for Graze)
         a.mastery = w.mastery; a.masteryMod = mod; a.masteryDc = 8 + mod + ctx.PROF;
         a.desc = `${info}. ${w.mastery}: ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`;
       }
@@ -1768,12 +1768,13 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
   armorChoices.sort((x, y) => ARMOR.findIndex(a => a.name === (x.plain || x.name)) - ARMOR.findIndex(a => a.name === (y.plain || y.name)) || (x.magic ? 1 : 0) - (y.magic ? 1 : 0));
   weaponChoices.sort((x, y) => (x.plain || x.name).localeCompare(y.plain || y.name) || (x.magic ? 1 : 0) - (y.magic ? 1 : 0) || x.name.localeCompare(y.name));
   const hasShield = has("Shield") || shield || (inventory.items || []).some(i => (magicGearInfo(i) || {}).kind === "shield");
-  const used = masteries.filter(n => weapons.includes(n));
-  const toggleMastery = (n) => {
-    if (used.includes(n)) { setMasteries(masteries.filter(x => x !== n)); return; }
-    if (used.length >= masteryCount && !(custom && window.confirm(`Use the mastery property of ${n}? Your class allows ${masteryCount}, so this one will show in red.`))) return;
-    setMasteries([...used, n]);
+  const used = masteries;
+  const toggleMastery = (kind) => {
+    if (used.includes(kind)) { setMasteries(masteries.filter(x => x !== kind)); return; }
+    if (used.length >= masteryCount && !(custom && window.confirm(`Use the mastery property of the ${kind}? Your class allows ${masteryCount}, so this one will show in red.`))) return;
+    setMasteries([...used, kind]);
   };
+  const MASTERY_GREY = "#8a8f98"; // a mastery property the character has not chosen: grey and dashed. Gold with a star: chosen.
   return (
     <Section title="Armor & Weapons" colors={colors} fontDisplay={fontDisplay}>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
@@ -1786,22 +1787,23 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
       </div>
       <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Only armor and weapons among your items are offered here. Add them on the Inventory tab. Magic armor and weapons are listed as the kind you chose for them there{custom ? " (Further Customization is on, so everything is offered)" : ""}. Each weapon you wield becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
       {masteryCount > 0 && <div data-testid="mastery-note" data-glow={glow || ""} style={{ fontSize: 13, marginBottom: 8, padding: glow ? "6px 10px" : 0, border: glow ? `2px solid ${glow === "open" ? REST_PURPLE : colors.brassLight}` : "none", borderRadius: 6, color: glow === "open" ? REST_PURPLE : glow === "done" ? colors.brassLight : "inherit" }}>
-        <strong>Weapon Mastery:</strong> you can use the mastery property of {masteryCount} kinds of weapons ({used.length} chosen). Click a weapon's mastery name to choose it. You can change these when you finish a Long Rest.</div>}
+        <strong>Weapon Mastery:</strong> you can use the mastery property of {masteryCount} kinds of weapons ({used.length} chosen{used.length ? `: ${used.join(", ")}` : ""}). Choose them on the Features tab, or click a weapon's mastery name here. Gold with a star means you have it; grey means you do not. You can change one when you finish a Long Rest.</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
         {weapons.map(n => {
-          const w = weaponOf(n) || {}; const on = used.includes(n); const over = on && used.indexOf(n) >= masteryCount;
+          const w = weaponOf(n) || {}; const kind = weaponKind(n); const on = used.includes(kind); const over = on && used.indexOf(kind) >= masteryCount; const can = masteryCount > 0 || custom || on;
           return (
           <span key={n} data-testid={`weapon-${n}`} data-mastery={over ? "custom" : on ? "yes" : ""} style={{ border: `${over ? 2 : 1}px solid ${over ? CUSTOM_RED : colors.brass}`, borderRadius: 14, padding: "3px 10px", fontSize: 13 }}>
             {n}
-            {w.mastery && (masteryCount > 0 || custom || on) && <button aria-label={`Mastery for ${n}`} onClick={() => toggleMastery(n)} title={(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}
-              style={{ marginLeft: 6, background: on ? colors.brass : "transparent", color: on ? colors.ink : colors.brassLight, border: `1px solid ${colors.brass}`, borderRadius: 10, padding: "0 8px", fontSize: 11, cursor: "pointer" }}>{on ? "★ " : ""}{w.mastery}</button>}
+            {w.mastery && <button aria-label={`Mastery for ${n}`} data-have={on ? "yes" : "no"} disabled={!can} onClick={() => toggleMastery(kind)}
+              title={`${on ? "You have this mastery property." : can ? "You have not chosen this kind of weapon for Weapon Mastery. Click to choose it." : "Your class has no Weapon Mastery."} ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`}
+              style={{ marginLeft: 6, background: on ? colors.brass : "transparent", color: on ? colors.ink : MASTERY_GREY, border: on ? `1px solid ${colors.brass}` : `1px dashed ${MASTERY_GREY}`, borderRadius: 10, padding: "0 8px", fontSize: 11, cursor: can ? "pointer" : "default" }}>{on ? "★ " : ""}{w.mastery}</button>}
             {" "}<button aria-label={`Remove ${n}`} onClick={() => setWeapons(weapons.filter(x => x !== n))} style={{ background: "transparent", border: "none", color: colors.parchment, cursor: "pointer" }}>×</button>
           </span>
         ); })}
       </div>
       <select aria-label="Add a weapon" value="" onChange={e => { if (e.target.value && !weapons.includes(e.target.value)) setWeapons([...weapons, e.target.value]); }} style={sel}>
         <option value="">+ Add a weapon</option>
-        {["Simple", "Martial"].filter(cat => weaponChoices.some(w => w.cat === cat)).map(cat => <optgroup key={cat} label={`${cat} weapons`}>{weaponChoices.filter(w => w.cat === cat).map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice}{w.bonus ? ` +${w.bonus}` : ""} {w.type})</option>)}</optgroup>)}
+        {WEAPON_GROUPS.filter(([cat, fits]) => weaponChoices.some(fits)).map(([cat, fits]) => <optgroup key={cat} label={cat}>{weaponChoices.filter(fits).map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice}{w.bonus ? ` +${w.bonus}` : ""} {w.type})</option>)}</optgroup>)}
       </select>
     </Section>
   );
@@ -2122,7 +2124,7 @@ function CharacterSheet() {
     spellInfo.list.forEach(e => { if (e.sp && e.problem) out.push(`Spell ${e.sp.n}: ${e.problem}`); });
     if (maxHp + hpDelta > possibleMaxHp) out.push(`Hit Points: ${maxHp + hpDelta}, above the highest possible ${possibleMaxHp}`);
     [["ac", "Armor Class"], ["initiative", "Initiative"], ["speed", "Speed"]].forEach(([k, l]) => { if (statAdj[k]) out.push(`${l}: additional modifier ${fmt(statAdj[k])}`); });
-    masteries.filter(n => weapons.includes(n)).slice(derived.masteryCount).forEach(n => out.push(`Weapon Mastery with ${n}: more than your class allows`));
+    masteries.slice(derived.masteryCount).forEach(n => out.push(`Weapon Mastery with ${n}: more than your class allows`));
     return out;
   }, [abilityMode, customScores, abilityAdj, saveInfo, skillInfo, takenFeats, skillExpertise, expertiseMax, spellInfo, masteries, weapons, derived, statAdj, maxHp, hpDelta, possibleMaxHp]);
 
@@ -2255,7 +2257,7 @@ function CharacterSheet() {
       const out = [];
       const fits = (c) => c === "short" || (c === "long" && kind === "long"); // "short" means a Short or Long Rest
       mech.optionSlots.forEach(o => { if (o.changeOn && fits(o.changeOn)) out.push({ key: o.key, tab: "features", text: `${o.feature}${o.label !== o.feature ? ` (${o.label})` : ""}: ${o.picked || "not chosen yet"}` }); });
-      if (kind === "long" && derived.masteryCount > 0) out.push({ key: "mastery", tab: "combat", text: `Weapon Mastery: one of your ${derived.masteryCount} weapon choices` });
+      if (kind === "long" && derived.masteryCount > 0) out.push({ key: "mastery", tab: "features", text: `Weapon Mastery: one of your ${derived.masteryCount} weapon choices` });
       if (kind === "long" && ["Cleric", "Druid", "Wizard"].includes(className)) out.push({ key: "spells", tab: "spells", text: "Prepared spells: you can change your list" });
       if (kind === "long" && ["Paladin", "Ranger"].includes(className)) out.push({ key: "spells", tab: "spells", text: "Prepared spells: you can replace one spell" });
       if (kind === "short" && className === "Wizard" && level >= 5) out.push({ key: "spells", tab: "spells", text: "Memorize Spell: you can replace one prepared spell with another from your spellbook" });
@@ -2338,7 +2340,7 @@ function CharacterSheet() {
       pools,
       resist: Array.from(new Set(derived.resist)),
       conditionImmune: Array.from(new Set(derived.condImmune)),
-      lineage, armor, shield, weapons, masteries: masteries.filter(n => weapons.includes(n)),
+      lineage, armor, shield, weapons, masteries,
       passives: (() => {
         const has = n => takenFeats.some(f => f.base === n);
         const out = {};
@@ -2434,7 +2436,7 @@ function CharacterSheet() {
     setArmor(armorOf(s.armor) ? s.armor : "");
     setShield(!!s.shield);
     setWeapons(arr(s.weapons).filter(n => weaponOf(n)));
-    setMasteries(arr(s.masteries).filter(n => weaponOf(n)));
+    setMasteries(Array.from(new Set(arr(s.masteries).filter(n => weaponOf(n)).map(weaponKind))));
     setFeatureChoices(s.featureChoices && typeof s.featureChoices === "object" && !Array.isArray(s.featureChoices) ? s.featureChoices : {});
     setFeatPicks(s.featPicks && typeof s.featPicks === "object" && !Array.isArray(s.featPicks) ? s.featPicks : {});
     setExtraFeats(arr(s.extraFeats).filter(f => f && typeof f === "object").map(f => ({ name: String(f.name || ""), choices: f.choices && typeof f.choices === "object" ? f.choices : {} })));
@@ -2754,7 +2756,7 @@ function CharacterSheet() {
           <CombatTab {...{ possibleMaxHp, averageHp: maxHp, setHpTotal, statAdj, setStatAdj, inventory: Object.assign(characterItems.map(i => i && i.name).filter(Boolean), { typed: "", items: characterItems, shieldBonus: gear.shieldBonus, shieldName: gear.shieldName }), masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
         )}
         {tab === "features" && (
-          <FeaturesTab {...{ glowOf, optionSlots: mech.optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay, slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }} />
+          <FeaturesTab {...{ masteries, setMasteries, masteryCount: derived.masteryCount, className, glowOf, optionSlots: mech.optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay, slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }} />
         )}
         {tab === "spells" && (
           <SpellsTab {...{ glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }} />
@@ -3422,7 +3424,7 @@ function FeatPicker({ value, onPick, cats, taken, custom, colors, label, hide })
   );
 }
 
-function FeaturesTab({ glowOf, optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay,
+function FeaturesTab({ masteries, setMasteries, masteryCount, className, glowOf, optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay,
   slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }) {
   const taken = takenFeats.map(f => f.base);
   const problemOf = (key) => { const f = takenFeats.find(x => x.key === key); return f ? f.problem : ""; };
@@ -3431,8 +3433,27 @@ function FeaturesTab({ glowOf, optionSlots, featureChoices, setFeatureChoices, f
   const warn = (p) => p ? <div style={{ fontSize: 12, color: CUSTOM_RED, marginTop: 6 }}>Beyond the rules: {p}.</div> : null;
   return (
     <div>
-      {optionSlots.length > 0 && (
+      {(optionSlots.length > 0 || masteryCount > 0) && (
         <Section title="Feature Choices" colors={colors} fontDisplay={fontDisplay}>
+          {masteryCount > 0 && (() => {
+            const glow = glowOf("mastery"), edge = glow ? `2px solid ${glow === "open" ? REST_PURPLE : colors.brassLight}` : fieldStyle(colors).border;
+            const setAt = (i, v) => { const next = masteries.slice(0, Math.max(masteryCount, masteries.length)); while (next.length <= i) next.push(""); next[i] = v; setMasteries(next.filter(Boolean).filter((x, k, arr) => arr.indexOf(x) === k)); };
+            return (
+              <div data-testid="mastery-choices" data-glow={glow} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: fontDisplay, color: colors.brassLight, minWidth: 220 }}>Weapon Mastery: {masteryCount} kinds of weapons</span>
+                {Array.from({ length: masteryCount }).map((_, i) => (
+                  <select key={i} aria-label={`Weapon Mastery ${i + 1}`} value={masteries[i] || ""} onChange={e => setAt(i, e.target.value)} style={{ ...fieldStyle(colors), width: 230, border: edge, color: glow === "open" ? REST_PURPLE : fieldStyle(colors).color }}>
+                    <option value="">Choose a weapon...</option>
+                    {WEAPON_GROUPS.map(([cat, fits]) => {
+                      const list = WEAPONS.filter(w => fits(w) && (custom || masteryEligible(className, w) || w.name === masteries[i]) && (!masteries.includes(w.name) || masteries[i] === w.name));
+                      return list.length ? <optgroup key={cat} label={cat}>{list.map(w => <option key={w.name} value={w.name}>{w.name} ({w.mastery})</option>)}</optgroup> : null;
+                    })}
+                  </select>
+                ))}
+                <span style={{ fontSize: 12, opacity: 0.7 }}>can change one on a Long Rest</span>
+                {masteries.length > masteryCount && <span style={{ fontSize: 12, color: CUSTOM_RED }}>Also, beyond the rules: {masteries.slice(masteryCount).join(", ")}</span>}
+              </div>);
+          })()}
           {optionSlots.map(o => (
             <div key={o.key} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
               <span style={{ fontFamily: fontDisplay, color: colors.brassLight, minWidth: 220 }}>{o.feature}{o.label !== o.feature ? `: ${o.label}` : ""}</span>
@@ -4068,15 +4089,26 @@ function InventoryTab({ inv, magic, mundane, colors, fontDisplay }) {
 
 // The kinds a magic item can be, in the same groups and order as the Armor and Weapon pickers:
 // armor by Light, Medium, Heavy and then Armor Class; weapons by Simple, Martial and then name.
+// The kind of weapon something is: a magic longsword is a Longsword. Weapon Mastery is chosen per kind.
+const weaponKind = (n) => { const w = weaponOf(n); return w ? (w.plain || w.name) : String(n || ""); };
+// Which kinds a class may choose for Weapon Mastery.
+function masteryEligible(className, w) {
+  if (!w.mastery) return false;
+  if (className === "Barbarian") return !w.ranged;                                                   // Simple and Martial Melee weapons
+  if (className === "Rogue") return w.cat === "Simple" || w.props.includes("Finesse") || w.props.includes("Light"); // the weapons a Rogue is proficient with
+  return true;
+}
+// The four weapon groups of the weapon tables, in order.
+const WEAPON_GROUPS = [["Simple Melee weapons", w => w.cat === "Simple" && !w.ranged], ["Simple Ranged weapons", w => w.cat === "Simple" && w.ranged], ["Martial Melee weapons", w => w.cat === "Martial" && !w.ranged], ["Martial Ranged weapons", w => w.cat === "Martial" && w.ranged]];
 function KindOptions({ item }) {
   const kinds = magicGearKinds(item), info = magicGearInfo(item) || {};
   if (info.kind === "armor") return ["Light", "Medium", "Heavy"].map(cat => {
     const list = ARMOR.filter(a => a.cat === cat && kinds.includes(a.name));
     return list.length ? <optgroup key={cat} label={`${cat} armor`}>{list.map(a => <option key={a.name} value={a.name}>{a.name} (AC {a.base}{a.dex ? (a.max != null ? ` + Dex, max ${a.max}` : " + Dex") : ""})</option>)}</optgroup> : null;
   });
-  return ["Simple", "Martial"].map(cat => {
-    const list = WEAPONS.filter(w => w.cat === cat && kinds.includes(w.name));
-    return list.length ? <optgroup key={cat} label={`${cat} weapons`}>{list.map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice} {w.type})</option>)}</optgroup> : null;
+  return WEAPON_GROUPS.map(([cat, fits]) => {
+    const list = WEAPONS.filter(w => fits(w) && kinds.includes(w.name));
+    return list.length ? <optgroup key={cat} label={cat}>{list.map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice} {w.type})</option>)}</optgroup> : null;
   });
 }
 // The controls for one item: add it to the inventory, mark it important, or remove it.
