@@ -1591,10 +1591,13 @@ function magicGearInfo(item) {
   else bases = WEAPONS.filter(w => gearNorm(w.name) === gearNorm(spec));
   return bases.length ? { kind: "weapon", bases: bases.map(w => w.name), bonus } : null;
 }
+// The kinds a magic item can be, when the player has to pick one ("any sword", "medium or heavy").
+function magicGearKinds(item) { const info = magicGearInfo(item); return info && info.kind !== "shield" && info.bases.length > 1 ? info.bases : []; }
 // The names offered in the pickers for one magic item: its own name, or "Item (Base)" when it can be several kinds.
 function magicGearLabels(item) {
   const info = magicGearInfo(item); if (!info || info.kind === "shield") return [];
-  return info.bases.map(b => ({ label: info.bases.length === 1 ? item.name : `${item.name} (${b})`, base: b, bonus: info.bonus, kind: info.kind, item }));
+  const bases = item.kind && info.bases.includes(item.kind) ? [item.kind] : info.bases; // the kind chosen on the Magic Items tab
+  return bases.map(b => ({ label: info.bases.length === 1 ? item.name : `${item.name} (${b})`, base: b, bonus: info.bonus, kind: info.kind, item }));
 }
 function magicGearFind(name, kind) {
   const n = String(name || ""); if (!n) return null;
@@ -1778,7 +1781,7 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: hasShield ? "pointer" : "default", opacity: hasShield ? 1 : 0.5 }} title={hasShield ? "" : "Add a Shield to your items first"}><input type="checkbox" checked={shield} disabled={!hasShield} onChange={e => setShield(e.target.checked)} aria-label="Shield" /> {inventory.shieldName || "Shield"} (+{2 + (inventory.shieldBonus || 0)})</label>
         <span style={{ fontSize: 13, opacity: 0.8 }} data-testid="ac-how">Armor Class {ac.value}: {ac.how}</span>
       </div>
-      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Only armor and weapons among your items are offered here. Add them to your inventory on the Mundane Items or Magic Items tab, or type them in the Equipment box on the Notes tab. Magic armor and weapons are listed as the ordinary kind they are{custom ? " (Further Customization is on, so everything is offered)" : ""}. Each weapon you wield becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
+      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Only armor and weapons among your items are offered here. Add them to your inventory on the Mundane Items or Magic Items tab, or type them in the Equipment box on the Notes tab. Magic armor and weapons are listed as the kind you chose for them on the Magic Items tab{custom ? " (Further Customization is on, so everything is offered)" : ""}. Each weapon you wield becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
       {masteryCount > 0 && <div data-testid="mastery-note" data-glow={glow || ""} style={{ fontSize: 13, marginBottom: 8, padding: glow ? "6px 10px" : 0, border: glow ? `2px solid ${glow === "open" ? REST_PURPLE : colors.brassLight}` : "none", borderRadius: 6, color: glow === "open" ? REST_PURPLE : glow === "done" ? colors.brassLight : "inherit" }}>
         <strong>Weapon Mastery:</strong> you can use the mastery property of {masteryCount} kinds of weapons ({used.length} chosen). Click a weapon's mastery name to choose it. You can change these when you finish a Long Rest.</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -2306,6 +2309,8 @@ function CharacterSheet() {
       setPinnedItems(prev => prev.filter(p => p.name !== it.name));
     },
     remove: (it) => { setCharacterItems(prev => prev.filter(p => p.name !== it.name)); setPinnedItems(prev => prev.filter(p => p.name !== it.name)); },
+    get: (it) => characterItems.find(sameItem(it)) || null,
+    setKind: (it, kind) => { const put = (prev) => prev.map(p => p.name === it.name ? { ...p, kind } : p); setCharacterItems(put); setPinnedItems(put); },
   };
 
   /* ============ CHARACTER FILE (save / load / send to Combat Resolver) ============ */
@@ -3820,9 +3825,10 @@ function NotesTab({ inv, equipment, setEquipment, notes, setNotes, colors, fontD
 }
 
 // The controls for one item: add it to the inventory, mark it important, or remove it.
-function ItemControls({ item, inv, colors, small }) {
+function ItemControls({ item, inv, colors, small, onChoose }) {
   const b = (bg, fg) => ({ minWidth: 22, height: 22, borderRadius: 4, border: "none", cursor: "pointer", background: bg, color: fg, fontSize: small ? 13 : 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 1, padding: "0 4px" });
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+  if (!inv.has(item) && onChoose && magicGearKinds(item).length) return <button onClick={stop(onChoose)} title="Choose what kind it is, then add it" aria-label={`Choose the kind of ${item.name}`} style={b("#4caf50", "#fff")}>+</button>;
   if (!inv.has(item)) return <button onClick={stop(() => inv.add(item, !!item.rarity))} title={item.rarity ? "Add to Inventory and Important Items" : "Add to Inventory"} aria-label={`Add ${item.name} to Inventory`} style={b("#4caf50", "#fff")}>+</button>;
   const star = inv.important(item);
   return (<>
@@ -3838,6 +3844,11 @@ function InventoryList({ items, inv, colors }) {
         <div key={item.name} data-testid={`inv-${item.name}`} data-important={inv.important(item) ? "yes" : ""} style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.rarity ? RARITY_COLORS[item.rarity] : colors.parchment + "99", flexShrink: 0 }} />
           <span style={{ color: colors.parchment, fontSize: 13, flex: 1, fontFamily: "'Crimson Text','Georgia',serif" }}>{item.name}</span>
+          {magicGearKinds(item).length > 0 && (
+            <select aria-label={`Kind of ${item.name}`} value={item.kind || ""} onChange={e => inv.setKind(item, e.target.value)} style={{ background: colors.ink, color: item.kind ? colors.parchment : CUSTOM_RED, border: `1px solid ${colors.brass}55`, borderRadius: 4, fontSize: 11, maxWidth: 130 }}>
+              <option value="">Choose kind...</option>
+              {magicGearKinds(item).map(k => <option key={k} value={k}>{k}</option>)}
+            </select>)}
           <span style={{ fontSize: 11, color: colors.parchment + "55" }}>{item.rarity || item.cost || ""}</span>
           <ItemControls item={item} inv={inv} colors={colors} small />
         </div>
@@ -3867,30 +3878,35 @@ function ItemRowHover({ item, inv, onSelect, isSelected, accentColor, colors, ex
         {item.name}
       </span>
       {extraBadge}
-      {hovered && <ItemControls item={item} inv={inv} colors={colors} />}
+      {hovered && <ItemControls item={item} inv={inv} colors={colors} onChoose={() => { if (!isSelected) onSelect(); }} />}
       {!hovered && mine && <span style={{ fontSize: 12, color: star ? colors.brassLight : "#4caf50", flexShrink: 0 }}>{star ? "★" : "✓"}</span>}
     </div>
   );
 }
 
 function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, inv, colors, fontDisplay }) {
+  const [expanded, setExpanded] = React.useState(false);  // false: Armor, Ring, Weapon... true: every exact kind, such as Armor (plate)
+  const [raritiesOff, setRaritiesOff] = React.useState([]);
+  const [kindPick, setKindPick] = React.useState({});     // item name -> the kind picked before adding it
+  const simpleType = (t) => String(t || "").replace(/\s*\(.*$/, "");
   const allTypes = React.useMemo(() => {
-    const types = new Set(MAGIC_ITEMS.map(i => i.type));
+    const types = new Set(MAGIC_ITEMS.map(i => expanded ? i.type : simpleType(i.type)));
     return ["All", ...Array.from(types).sort()];
-  }, []);
+  }, [expanded]);
+  const allRaritiesOn = raritiesOff.length === 0;
 
   const filtered = React.useMemo(() => {
     return MAGIC_ITEMS.filter(item => {
       const matchSearch = item.name.toLowerCase().includes(itemSearch.toLowerCase()) ||
         item.description.toLowerCase().includes(itemSearch.toLowerCase());
-      const matchRarity = itemRarityFilter === "All" || item.rarity === itemRarityFilter;
-      const matchType = itemTypeFilter === "All" || item.type === itemTypeFilter;
+      const matchRarity = !raritiesOff.includes(item.rarity);
+      const matchType = itemTypeFilter === "All" || (expanded ? item.type : simpleType(item.type)) === itemTypeFilter;
       const matchAtt = itemAttunementFilter === "All" ||
         (itemAttunementFilter === "Yes" && item.attunement) ||
         (itemAttunementFilter === "No" && !item.attunement);
       return matchSearch && matchRarity && matchType && matchAtt;
     });
-  }, [itemSearch, itemRarityFilter, itemTypeFilter, itemAttunementFilter]);
+  }, [itemSearch, raritiesOff, expanded, itemTypeFilter, itemAttunementFilter]);
 
   const grouped = React.useMemo(() => {
     const g = {};
@@ -3914,13 +3930,18 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
           <input value={itemSearch} onChange={e => setItemSearch(e.target.value)}
             placeholder="Search by name or description..." style={{ ...inputStyle, marginBottom: 10 }} />
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <select value={itemRarityFilter} onChange={e => setItemRarityFilter(e.target.value)} style={selectStyle}>
-              <option value="All">All Rarities</option>
-              {RARITY_ORDER.map(r => <option key={r} value={r}>{r}</option>)}
+            <div role="group" aria-label="Rarities shown" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", flexBasis: "100%" }}>
+              <span style={{ fontSize: 12, opacity: 0.75 }}>Rarity:</span>
+              {[["All", allRaritiesOn, () => setRaritiesOff(allRaritiesOn ? RARITY_ORDER.slice() : []), colors.brass]].concat(RARITY_ORDER.map(r => [r, !raritiesOff.includes(r), () => setRaritiesOff(raritiesOff.includes(r) ? raritiesOff.filter(x => x !== r) : [...raritiesOff, r]), RARITY_COLORS[r]])).map(([r, on, click, col]) => (
+                <button key={r} data-testid={`rarity-chip-${r}`} aria-pressed={on} onClick={click}
+                  style={{ background: on ? col : "transparent", color: on ? colors.ink : colors.parchment, border: `1px solid ${col}`, borderRadius: 14, padding: "3px 12px", fontSize: 12, fontWeight: on ? 700 : 400, cursor: "pointer", opacity: on ? 1 : 0.6 }}>{r}</button>
+              ))}
+            </div>
+            <select aria-label="Item category" value={itemTypeFilter} onChange={e => setItemTypeFilter(e.target.value)} style={selectStyle}>
+              {allTypes.map(t => <option key={t} value={t}>{t === "All" ? (expanded ? "All Kinds" : "All Categories") : t}</option>)}
             </select>
-            <select value={itemTypeFilter} onChange={e => setItemTypeFilter(e.target.value)} style={selectStyle}>
-              {allTypes.map(t => <option key={t} value={t}>{t === "All" ? "All Types" : t}</option>)}
-            </select>
+            <button data-testid="expand-categories" aria-pressed={expanded} onClick={() => { setExpanded(!expanded); setItemTypeFilter("All"); }}
+              style={{ background: expanded ? colors.brass : "transparent", color: expanded ? colors.ink : colors.brassLight, border: `1px solid ${colors.brass}`, borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}>{expanded ? "Expanded categories: on" : "Expanded categories"}</button>
             <select value={itemAttunementFilter} onChange={e => setItemAttunementFilter(e.target.value)} style={selectStyle}>
               <option value="All">Any Attunement</option>
               <option value="Yes">Requires Attunement</option>
@@ -3987,9 +4008,20 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
                 </div>
               </div>
               <p style={{ color: colors.parchment + "cc", fontSize: 14, lineHeight: 1.7, fontFamily: "'Crimson Text','Georgia',serif", margin: "0 0 16px" }}>{selectedItem.description}</p>
+              {magicGearKinds(selectedItem).length > 0 && (() => {
+                const mine = inv.get(selectedItem), val = mine ? (mine.kind || "") : (kindPick[selectedItem.name] || "");
+                return (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>What kind is it?</div>
+                    <select aria-label="Kind of item" value={val} onChange={e => mine ? inv.setKind(selectedItem, e.target.value) : setKindPick({ ...kindPick, [selectedItem.name]: e.target.value })} style={{ ...inputStyle, cursor: "pointer", border: `1px solid ${val ? colors.brass + "44" : CUSTOM_RED}` }}>
+                      <option value="">Choose a kind...</option>
+                      {magicGearKinds(selectedItem).map(k => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                  </div>);
+              })()}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }} data-testid="item-buttons">
                 {!inv.has(selectedItem) ? (<>
-                  <button onClick={() => inv.add(selectedItem, !!selectedItem.rarity)} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none", background: colors.brass, color: colors.ink }}>{selectedItem.rarity ? "+ Add to Inventory and Important Items" : "+ Add to Inventory"}</button>
+                  <button disabled={magicGearKinds(selectedItem).length > 0 && !kindPick[selectedItem.name]} onClick={() => inv.add(kindPick[selectedItem.name] ? { ...selectedItem, kind: kindPick[selectedItem.name] } : selectedItem, !!selectedItem.rarity)} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none", background: colors.brass, color: colors.ink, opacity: magicGearKinds(selectedItem).length > 0 && !kindPick[selectedItem.name] ? 0.45 : 1 }}>{magicGearKinds(selectedItem).length > 0 && !kindPick[selectedItem.name] ? "Choose a kind to add it" : selectedItem.rarity ? "+ Add to Inventory and Important Items" : "+ Add to Inventory"}</button>
                   {!selectedItem.rarity && <button onClick={() => inv.add(selectedItem, true)} style={{ width: "100%", padding: "8px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 12, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.brassLight }}>★ Add to Inventory and Important Items</button>}
                 </>) : (<>
                   <button onClick={() => inv.setImportant(selectedItem, !inv.important(selectedItem))} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: `1px solid ${colors.brass}`, background: inv.important(selectedItem) ? "transparent" : colors.brass, color: inv.important(selectedItem) ? colors.brassLight : colors.ink }}>{inv.important(selectedItem) ? "☆ Take off Important Items (keep in inventory)" : "★ Mark as Important"}</button>
