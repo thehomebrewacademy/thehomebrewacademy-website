@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>D&D Combat Resolver</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Oswald:wght@500;700&family=Michroma&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       --ink: #1B2430;
@@ -170,6 +170,114 @@
     .tag-heal { background: #1a2f3a; color: #80d8ff; border: 1px solid #0288d1; }
     .tag-utility { background: #2a2a1f; color: #fff176; border: 1px solid #f9a825; }
 
+    /* ── THE CHARACTER SHEET (laid out like a printed sheet: black on white) ── */
+    .paper { --ink: #000; color: #000; font-family: 'Open Sans', 'Segoe UI', Arial, sans-serif; font-size: 13px; margin: 10px 0 16px; }
+    .pp-pagebox { background: #fff; border-radius: 4px; padding: 18px 20px 22px; margin-bottom: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+    .pp-banner { position: relative; border: 2px solid #000; border-left: none; margin: 8px 44px 16px 0; padding: 10px 70px 10px 34px; background: #fff;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 22px 50%); border-left: 2px solid #000; }
+    .pp-title { font-family: 'Oswald', 'Arial Narrow', Impact, sans-serif; font-weight: 700; font-size: 30px; line-height: 1.1; text-align: center; letter-spacing: 0.5px; }
+    .pp-the { font-size: 24px; }
+    .pp-page { font-size: 18px; font-weight: 400; }
+    .pp-level { position: absolute; right: 22px; margin-top: -78px; margin-right: -22px; }
+    .pp-pagebox { position: relative; }
+    .pp-pagebox > .pp-banner + * { margin-top: 0; }
+    .pp-banner .pp-level { position: absolute; right: 8px; top: 50%; transform: translate(50%, -50%); margin: 0; }
+    .pp-banner { overflow: visible; clip-path: none; }
+    .pp-banner::before, .pp-banner::after { content: ''; position: absolute; top: -2px; bottom: -2px; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+    .pp-banner::before { left: -2px; width: 24px; background: #000; }
+    .pp-banner::after { left: -5px; width: 24px; background: #fff; }
+    .pp-level { width: 78px; height: 78px; border: 2px solid #000; border-radius: 50%; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Oswald', sans-serif; }
+    .pp-level span { font-size: 15px; font-weight: 700; line-height: 1; }
+    .pp-level strong { font-size: 30px; line-height: 1; }
+    .pp-top { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; margin-bottom: 14px; }
+    .pp-abil { position: relative; width: 64px; border: 2px solid #000; border-radius: 12px 12px 4px 4px; text-align: center; padding: 20px 0 24px; background: #fff; }
+    .pp-save, .pp-mod { position: absolute; left: 50%; transform: translateX(-50%); background: #fff; border: 2px solid #000; color: #000; font-size: 14px; cursor: pointer; padding: 0 10px; line-height: 1.4; font-family: inherit; }
+    .pp-save { top: -2px; left: 0; transform: none; border-radius: 12px 0 10px 0; border-top: none; border-left: none; font-size: 13px; padding: 0 9px; }
+    .pp-mod { bottom: -10px; border-radius: 12px; min-width: 50px; }
+    .pp-save:hover:not(:disabled), .pp-mod:hover:not(:disabled) { background: #f3e2a6; }
+    .pp-save:disabled, .pp-mod:disabled { cursor: default; color: #000; }
+    .pp-dot { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border: 2px solid #000; border-radius: 50%; background: #fff; }
+    .pp-dot.full { background: #9a9a9a; box-shadow: inset 0 0 0 3px #fff; }
+    .pp-abname { font-size: 13px; text-align: left; padding-left: 6px; }
+    .pp-score { font-size: 30px; line-height: 1.05; }
+    .pp-hit { border: 2px solid #000; padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; align-self: center; font-size: 15px; min-width: 62px; }
+    .pp-hit strong { font-weight: 400; font-size: 18px; }
+    .pp-hp { flex: 1; min-width: 210px; display: flex; align-items: center; background: #d9d9d9; border-radius: 0 40px 40px 0; margin-left: 46px; padding: 6px 22px 6px 0; align-self: center; height: 74px; position: relative; }
+    .pp-heart { position: relative; width: 92px; height: 86px; margin-left: -50px; flex-shrink: 0; }
+    .pp-heart svg { width: 100%; height: 100%; }
+    .pp-heartval { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 12px; }
+    .pp-heartval strong { font-size: 26px; font-weight: 400; line-height: 1; }
+    .pp-heartval span { font-size: 12px; }
+    .pp-hpcur { flex: 1; text-align: center; display: flex; flex-direction: column; }
+    .pp-hpcur strong { font-size: 24px; font-weight: 400; line-height: 1.1; }
+    .pp-hpcur span { font-size: 13px; }
+    .pp-hpslash { font-size: 26px; }
+    .pp-body { display: grid; grid-template-columns: 210px 1fr; gap: 16px; }
+    .pp-skills { position: relative; border: 2px solid #000; padding: 6px 8px; }
+    .pp-insp { position: absolute; left: -22px; top: 6px; width: 14px; height: 14px; border: 2px solid #000; border-radius: 50%; cursor: pointer; background: #fff; }
+    .pp-insp.full { background: #000; }
+    .pp-skill { display: grid; grid-template-columns: 14px 30px 1fr 34px; align-items: center; gap: 4px; padding: 2px 0; cursor: pointer; font-size: 14px; }
+    .pp-skill:hover { background: #f3e2a6; }
+    .pp-o { width: 11px; height: 11px; border: 1.5px solid #000; border-radius: 50%; }
+    .pp-o.full { background: #000; }
+    .pp-o.ex { background: #000; box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #000; }
+    .pp-sv { border-bottom: 1.5px solid #000; text-align: center; }
+    .pp-sa, .pp-grey { color: #8a8a8a; }
+    .pp-sa { text-align: right; font-size: 13px; }
+    .pp-carry { margin: 12px 0 6px; font-size: 14px; }
+    .pp-h3 { font-weight: 700; font-size: 14px; text-align: center; margin: 12px 0 4px; }
+    .pp-center { text-align: center; font-size: 13px; line-height: 1.6; }
+    .pp-stats { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+    .pp-ac { position: relative; width: 62px; height: 70px; flex-shrink: 0; }
+    .pp-ac svg { width: 100%; height: 100%; }
+    .pp-ac div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 8px; }
+    .pp-ac strong { font-size: 22px; font-weight: 400; line-height: 1; }
+    .pp-ac span { font-size: 12px; }
+    .pp-stat { display: flex; flex-direction: column; align-items: center; font-size: 13px; }
+    .pp-box { border: 2px solid #000; min-width: 52px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
+    .pp-star { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; margin-top: -6px;
+      background: #000; clip-path: polygon(50% 0, 62% 18%, 84% 12%, 82% 34%, 100% 50%, 82% 66%, 84% 88%, 62% 82%, 50% 100%, 38% 82%, 16% 88%, 18% 66%, 0 50%, 18% 34%, 16% 12%, 38% 18%); }
+    .pp-star strong { background: #fff; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 400;
+      clip-path: polygon(50% 0, 62% 18%, 84% 12%, 82% 34%, 100% 50%, 82% 66%, 84% 88%, 62% 82%, 50% 100%, 38% 82%, 16% 88%, 18% 66%, 0 50%, 18% 34%, 16% 12%, 38% 18%); }
+    .pp-box strong { font-size: 22px; font-weight: 400; }
+    .pp-cond { flex: 1; min-width: 150px; border: 2px solid #000; border-radius: 26px; padding: 6px 14px; min-height: 78px; text-align: center; font-size: 13px; }
+    .pp-line { display: flex; gap: 24px; flex-wrap: wrap; margin: 10px 0 4px; font-size: 13px; }
+    .pp-line strong { font-weight: 400; }
+    .pp-h2 { font-family: 'Michroma', 'Arial Black', sans-serif; font-size: 16px; letter-spacing: 0.5px; }
+    .pp-mid { text-align: center; margin: 12px 0 6px; }
+    .paper .action-btn { background: transparent; border: none; border-radius: 3px; padding: 2px 4px; color: #000; }
+    .paper .action-btn:hover { background: #f3e2a6; border: none; }
+    .paper .action-btn.selected { background: #f0c94a; border: none; outline: 2px solid #000; }
+    .paper .action-btn .a-name { font-family: inherit; font-size: inherit; color: #000; }
+    .paper .action-btn .a-detail { color: #444; font-size: 12px; margin: 0; }
+    .pp-attack { display: grid; grid-template-columns: 2fr 1.1fr 0.7fr 1.6fr; gap: 6px; align-items: baseline; }
+    .pp-attack.action-btn .a-name, .pp-attack.action-btn span { font-family: 'Michroma', sans-serif; font-size: 11.5px; }
+    .pp-head { font-weight: 700; font-size: 14px; padding: 2px 4px; }
+    .pp-head span:not(:first-child) { text-align: center; }
+    .pp-attack span:not(:first-child) { text-align: center; }
+    .pp-std { font-size: 13.5px; padding: 0 4px 4px; }
+    .pp-action { display: grid; grid-template-columns: 1fr 34px; gap: 6px; font-size: 13.5px; }
+    .pp-type { font-weight: 700; text-align: center; }
+    .pp-note { font-size: 12px; color: #555; padding: 2px 4px; }
+    .pp-spellhead { display: flex; gap: 26px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; font-size: 14px; }
+    .pp-spellhead .pp-h2 { font-size: 22px; }
+    .pp-lvl { font-weight: 700; font-size: 16px; margin: 6px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .pp-lvl .pp-grey { font-weight: 400; font-size: 13px; }
+    .pp-circles { display: inline-flex; gap: 6px; }
+    .pp-circle { width: 13px; height: 13px; border: 2px solid #000; border-radius: 50%; cursor: pointer; background: #fff; }
+    .pp-circle.full { background: #000; }
+    .pp-spell { display: block; margin-bottom: 6px; }
+    .pp-spell.pp-text { padding: 2px 4px; }
+    .pp-spellrow { display: grid; gap: 6px; align-items: baseline; }
+    .pp-spellrow span:not(:first-child) { text-align: center; }
+    .pp-spellrow .a-name { font-weight: 700; }
+    .pp-spell.pp-text .a-name { font-weight: 700; }
+    .pp-sum { font-size: 13px; line-height: 1.35; }
+    .pp-key { font-size: 11px; color: #666; margin-top: 8px; }
+    .pp-p { font-size: 13px; line-height: 1.45; margin: 0 0 6px; }
+    @media (max-width: 700px) { .pp-body { grid-template-columns: 1fr; } .pp-hp { margin-left: 50px; } }
+
+    .pick-box { position: sticky; top: -16px; z-index: 5; background: #161f2b; padding: 4px 0 8px; border-bottom: 1px solid #2C3E50; margin-bottom: 8px; max-height: 46vh; overflow-y: auto; }
     /* ── RESOLVE BUTTON ── */
     .resolve-bar {
       background: #0F1923; border-top: 1px solid #2C3E50; padding: 10px 16px;
@@ -807,6 +915,8 @@ function cleanAction(a, i) {
     if (a.twoHanded) out.twoHanded = true;
     if (a.finesse) out.finesse = true;
     if (a.unarmed) out.unarmed = true;
+    if (/^\d{1,3}$/.test(String(a.reach || ''))) out.reach = String(a.reach);
+    if (/^\d{1,4}(\/\d{1,4})?$/.test(String(a.rng || ''))) out.rng = String(a.rng);
     if (a.missHalf) out.missHalf = true;
     if (ABILITIES.includes(a.abil)) out.abil = a.abil;
     if (MASTERIES.includes(a.mastery)) { out.mastery = a.mastery; out.masteryMod = Math.max(-5, Math.min(15, parseInt(a.masteryMod, 10) || 0)); out.masteryDc = Math.max(1, Math.min(40, parseInt(a.masteryDc, 10) || 10)); bits.push(`${a.mastery} mastery`); }
@@ -1036,7 +1146,20 @@ function sheetToFields(data) {
     skills, skillProfs: list(data.skillProfs, 30, 30), skillExpertise: list(data.skillExpertise, 30, 30),
     hitDie: num(data.hitDie, 0), equipment: str(data.equipment, 2000), items: list(data.items, 60, 80),
     shield: !!data.shield, feats: list(data.feats, 40, 60), components: list(data.components, 80, 60),
+    saveProfs: list(data.saveProfs, 6, 20), languages: list(data.languages, 40, 40), tools: list(data.tools, 40, 60), importantItems: list(data.importantItems, 40, 80),
+    spellList: (Array.isArray(data.spellList) ? data.spellList : []).slice(0, 120).filter(s => s && typeof s === 'object' && s.n).map(s => ({n: str(s.n, 60), l: Math.max(0, Math.min(9, num(s.l, 0))), s: str(s.s, 6), k: str(s.k, 8), r: str(s.r, 24), sv: str(s.sv, 5), d: str(s.d, 22), t: str(s.t, 22), sum: str(s.sum, 130), up: str(s.up, 140)})),
   };
+  const jr = data.journal && typeof data.journal === 'object' ? data.journal : null;
+  if (jr) { // the Journal, as plain text for the last page of the sheet
+    const pe = jr.personality || {}, ap = jr.appearance || {};
+    const people = v => (Array.isArray(v) ? v : []).filter(x => x && x.name).slice(0, 40).map(x => str(x.name, 80) + (x.note ? ` (${str(x.note, 200)})` : '')).join('; ');
+    const pages = v => (Array.isArray(v) ? v : []).filter(x => x && String(x.text || '').trim()).slice(0, 30).map(x => [str(x.title, 80) + (x.date ? ` · ${str(x.date, 20)}` : ''), str(x.text, 4000)]);
+    sheet.journal = {alignment: str(jr.alignment, 40), deity: str(jr.deity, 80), traits: str(pe.traits, 2000), ideals: str(pe.ideals, 2000), bonds: str(pe.bonds, 2000), flaws: str(pe.flaws, 2000),
+      appearance: [['Age', ap.age], ['Height', ap.height], ['Weight', ap.weight], ['Eyes', ap.eyes], ['Hair', ap.hair], ['Skin', ap.skin]].filter(x => x[1]).map(x => `${x[0]} ${str(x[1], 40)}`).concat(ap.description ? [str(ap.description, 2000)] : []).join('. '),
+      backstory: str(jr.backstory, 6000), allies: people(jr.allies), enemies: people(jr.enemies),
+      quests: (Array.isArray(jr.quests) ? jr.quests : []).filter(q => q && q.text).slice(0, 60).map(q => `${q.done ? '[done] ' : ''}${str(q.text, 200)}`).join('; '),
+      notes: pages(jr.notes), sessions: pages(jr.sessions)};
+  }
   if (sp) sheet.spell = {ability: str(sp.ability, 20), dc: num(sp.dc, 8), attack: num(sp.attack, 0), slots: str(sp.slots, 120)};
   // Spell slots by level (index 0 = Level 1). Pact Magic slots are all one level and come back on a Short Rest.
   if (sp && Array.isArray(sp.slotList)) sheet.slotMax = sp.slotList.slice(0, 9).map(n => Math.max(0, Math.min(9, parseInt(n, 10) || 0)));
@@ -1051,7 +1174,7 @@ function sheetToFields(data) {
   return {
     name: str(data.name, 60) || 'Unnamed Hero', type: 'player',
     charClass: str(data.className, 40).trim() || 'Fighter', // any class name, so homebrew classes keep theirs
-    level, maxHP, currentHP: Math.max(0, Math.min(maxHP, num(data.currentHP, maxHP))),
+    level, maxHP, currentHP: Math.max(0, Math.min(maxHP, num(data.currentHP, maxHP))), hitDiceUsed: Math.max(0, Math.min(level, num(data.hitDiceUsed, 0))),
     tempHP: Math.max(0, num(data.tempHP, 0)), ac: num(data.ac, 10), speed: num(data.speed, 30), initBonus: num(data.initiativeBonus, mod(scores.Dexterity)),
     senses: list(data.senses, 10, 40), scores, saves, pb: num(data.profBonus, profBonus(level)), sheet, info,
     passives: cleanPassives(data.passives),
@@ -2245,6 +2368,155 @@ function App() {
     if (c.type !== 'player' || !sh.species) return typeLine(c);
     return `Level ${c.level} ${sh.species} ${c.charClass}${sh.subclass ? ` (${sh.subclass})` : ''}${sh.background ? ` · ${sh.background}` : ''}`;
   };
+  // ── THE CHARACTER SHEET, laid out like a printed sheet. Everything on it can be clicked. ──
+  const SKILL_SHORT = {'Animal Handling':'A. Handling', Intimidation:'Intimidate', Investigation:'Investigate', Performance:'Perform', Persuasion:'Persuade', 'Sleight of Hand':'Slight Hand'};
+  const DMG_SHORT = {Bludgeoning:'Bl', Piercing:'Pc', Slashing:'Sl'};
+  const ACT_SHORT = {action:'A', bonus:'BA', reaction:'R', free:'Free'};
+  const renderPaper = (c) => {
+    const sh = c.sheet || {}, ctl = canControl(c);
+    const sel = (a) => setSelectedAction(a.id === selectedAction ? null : a.id);
+    const rowCls = (a, extra) => `action-btn ${extra || ''} ${selectedAction === a.id ? 'selected' : ''}`;
+    const dim = (a) => limited(a) && usesLeft(c, a) <= 0 ? {opacity: 0.45} : {};
+    const leftText = (a) => a.pool ? ` (${poolLeft(c, a.pool)} ${a.pool} left)` : a.usesMax ? ` (${usesLeft(c, a)}/${a.usesMax} left)` : '';
+    const attacks = actions.filter(a => a.weapon || a.unarmed);
+    const spellActs = actions.filter(a => a.spell);
+    const list = sh.spellList || [];
+    const others = actions.filter(a => !a.weapon && !a.unarmed && !(a.spell && list.some(s => s.n === a.name)));
+    const actOf = (n) => spellActs.find(a => a.name === n);
+    const cantrips = list.filter(s => s.l === 0), levels = [1,2,3,4,5,6,7,8,9].filter(l => list.some(s => s.l === l));
+    const str = (c.scores || {}).Strength ?? 10;
+    const title = (page) => (
+      <div className="pp-banner">
+        <div className="pp-title">{c.name} <span className="pp-the">the</span> {[sh.species, c.charClass].filter(Boolean).join(' ')}{page ? <span className="pp-page"> · {page}</span> : null}</div>
+        <div className="pp-level"><span>Level</span><strong>{c.level}</strong></div>
+      </div>
+    );
+    const hitLeft = Math.max(0, c.level - (+c.hitDiceUsed || 0));
+    const res = [c.res && `Resistant: ${c.res}`, c.ci && `Immune: ${c.ci}`].filter(Boolean);
+    const spellHead = (
+      <div className="pp-spellhead">
+        <span className="pp-h2">Spells</span>
+        {sh.spell && <><span>Attack: {signed(sh.spell.attack)}</span><span>Modifier: {signed(mod((c.scores || {})[sh.spell.ability] ?? 10))}</span><span>Save DC: {sh.spell.dc}</span></>}
+      </div>
+    );
+    const slotCircles = (lvl) => { const max = ((sh.slotMax || [])[lvl - 1]) || 0, left = slotsLeft(c, lvl); return max ? (
+      <span className="pp-circles" title={ctl ? 'Click a filled circle to spend a slot, an empty one to give it back' : ''}>
+        {Array.from({length: max}).map((_, i) => <span key={i} className={`pp-circle ${i < left ? 'full' : ''}`} onClick={() => ctl && adjustSlot(c.id, lvl, i < left ? -1 : 1)} />)}
+      </span>) : null; };
+    const spellRow = (s, cols) => { const a = actOf(s.n); return (
+      <div key={s.n} className={a ? rowCls(a, 'pp-spell') : 'pp-spell pp-text'} style={a ? dim(a) : {}} onClick={() => a && ctl && sel(a)} title={a ? '' : 'This spell is on your sheet as text. The table resolves it.'}>
+        <div className="pp-spellrow" style={{gridTemplateColumns: cols}}>
+          <span className="a-name">{s.n}{a ? leftText(a) : ''}</span><span>{s.s}</span><span>{s.k || '-'}</span><span>{s.r}</span><span>{s.sv}</span>{cols.split(' ').length > 6 ? <span>{s.d}</span> : null}<span>{s.t}</span>
+        </div>
+        {s.sum && <div className="pp-sum">{s.sum}</div>}
+        {s.up && s.l > 0 && <div className="pp-sum"><strong className="pp-grey">Upcast.</strong> {s.up}</div>}
+      </div>); };
+    return (
+      <div className="paper" data-testid="paper">
+        <div className="pp-pagebox" data-testid="paper-main">
+          {title('')}
+          <div className="pp-top">
+            {ABILITY_KEYS.map(([k, ab]) => { const score = (c.scores || {})[ab] ?? 10, sv = (c.saves || {})[ab] ?? mod(score), prof = (sh.saveProfs || []).includes(ab) || sv > mod(score); return (
+              <div className="pp-abil" key={ab} data-testid={`pp-${k}`}>
+                <button className="pp-save" disabled={!ctl} title={`Roll a ${ab} saving throw`} onClick={() => rollTest(c, 'save', ab)}>{signed(sv)}</button>
+                <span className={`pp-dot ${prof ? 'full' : ''}`} title={prof ? 'Proficient in this saving throw' : ''} />
+                <div className="pp-abname">{k.toUpperCase()}</div>
+                <div className="pp-score">{score}</div>
+                <button className="pp-mod" disabled={!ctl} title={`Roll a ${ab} check`} onClick={() => rollTest(c, 'check', ab)}>{modStr(score)}</button>
+              </div>); })}
+            <div className="pp-hit" title="Hit Point Dice left"><span>HIT</span><strong>{hitLeft}/{c.level}</strong></div>
+            <div className="pp-hp" data-testid="pp-hp">
+              <div className="pp-heart"><svg viewBox="0 0 100 92" aria-hidden="true"><path d="M50 88 C20 62 4 46 4 27 C4 13 15 4 27 4 C37 4 45 9 50 18 C55 9 63 4 73 4 C85 4 96 13 96 27 C96 46 80 62 50 88 Z" fill="#fff" stroke="#000" strokeWidth="3"/></svg>
+                <div className="pp-heartval"><strong>{totalHP(c)}</strong><span>TOTAL</span></div></div>
+              <div className="pp-hpcur"><strong>{c.currentHP}</strong><span>HP</span></div>
+              <div className="pp-hpslash">/</div>
+              <div className="pp-hpcur"><strong>{+c.tempHP || 0}</strong><span>TEMP</span></div>
+            </div>
+          </div>
+          <div className="pp-body">
+            <div className="pp-left">
+              <div className="pp-skills">
+                <span className={`pp-insp ${c.inspiration ? 'full' : ''}`} title="Heroic Inspiration. Click to mark it." onClick={() => ctl && setCombatants(prev => prev.map(x => x.id === c.id ? {...x, inspiration: !x.inspiration} : x))} />
+                {Object.keys(SKILL_ABILITY).sort().map(sk => { const ex = (sh.skillExpertise || []).includes(sk), pr = (sh.skillProfs || []).includes(sk), v = (sh.skills || {})[sk]; return (
+                  <div key={sk} className="pp-skill" onClick={() => ctl && rollTest(c, 'check', SKILL_ABILITY[sk], sk)} title={`Roll ${sk}`}>
+                    <span className={`pp-o ${ex ? 'ex' : pr ? 'full' : ''}`} /><span className="pp-sv">{signed(Number.isFinite(+v) ? +v : mod((c.scores || {})[SKILL_ABILITY[sk]] ?? 10))}</span>
+                    <span className="pp-sn">{SKILL_SHORT[sk] || sk}</span><span className="pp-sa">{SKILL_ABILITY[sk].slice(0, 3).toUpperCase()}</span>
+                  </div>); })}
+              </div>
+              <div className="pp-carry"><strong>Carry</strong>: {str * 15} &nbsp; <strong>Jump</strong>: {str}&gt; &nbsp;{3 + mod(str)}^</div>
+              <div className="pp-h3">Important Items</div>
+              {(sh.importantItems || []).length ? sh.importantItems.map(n => <div key={n} className="pp-center">{n}</div>) : <div className="pp-center pp-grey">Mark items with the diamond in the builder's Inventory</div>}
+              <div className="pp-h3">Languages</div>
+              <div className="pp-center">{(sh.languages || []).join('   ') || 'Common'}</div>
+              <div className="pp-h3">Tool Proficiencies</div>
+              <div className="pp-center">{(sh.tools || []).join(', ') || 'None'}</div>
+            </div>
+            <div className="pp-right">
+              <div className="pp-stats">
+                <div className="pp-ac"><svg viewBox="0 0 100 112" aria-hidden="true"><path d="M50 4 C64 12 80 14 94 14 C94 60 84 88 50 108 C16 88 6 60 6 14 C20 14 36 12 50 4 Z" fill="#fff" stroke="#000" strokeWidth="3"/></svg><div><strong>{effectiveAC(c)}</strong><span>AC</span></div></div>
+                <div className="pp-stat"><div className="pp-star"><strong>{c.pb || 2}</strong></div><span>PROF</span></div>
+                <div className="pp-stat"><div className="pp-box"><strong>{effectiveSpeed(c)}</strong></div><span>Speed</span></div>
+                <div className="pp-stat"><div className="pp-box"><strong>{signed(effectiveInitBonus(c))}</strong></div><span>INIT</span></div>
+                <div className="pp-cond"><u>Conditions/Resistances</u>
+                  <div>{[...(c.conditions || []), ...(c.effects || []).map(e => e.name), ...res].join(' · ') || ' '}</div></div>
+              </div>
+              <div className="pp-line"><span><strong>Senses:</strong> {effectiveSenses(c).join(', ') || 'None'}{sh.pp != null ? ` · Passive Perception ${sh.pp}` : ''}</span><span><strong>Speeds:</strong> {speedText(c)}</span></div>
+              <div className="pp-h2 pp-mid">Attacks</div>
+              <div className="pp-attack pp-head"><span>Name</span><span>Range/Reach</span><span>To Hit</span><span>Damage</span></div>
+              {attacks.map(a => (
+                <div key={a.id} className={rowCls(a, 'pp-attack')} style={dim(a)} onClick={() => ctl && sel(a)}>
+                  <span className="a-name">{a.name}{leftText(a)}{a.mastery ? ` · ${a.mastery}` : ''}</span>
+                  <span>{a.rng ? `${a.rng} - ${a.reach || 0}` : `0 - ${a.reach || 5}`}</span>
+                  <span>{signed(a.atk)}</span>
+                  <span>{(a.dmgList || []).map(d => `${d[0]} ${DMG_SHORT[d[1]] || String(d[1] || '').slice(0, 3)}`).join(' + ')}</span>
+                </div>))}
+              {handsOn && <div className="pp-note">In hand: {handsOf(c).map(x => x || 'free hand').join(' and ')}{c.handsIgnore ? ' (not checked)' : ''}</div>}
+              <div className="pp-h2 pp-mid">Actions</div>
+              <div className="pp-std">Attack. Dash. Disengage. Dodge. Help. Hide. Influence. Magic. Ready. Search. Study. Utilize.</div>
+              {others.map(a => (
+                <div key={a.id} className={rowCls(a, 'pp-action')} style={dim(a)} onClick={() => ctl && sel(a)}>
+                  <span><strong className="a-name">{a.name}{leftText(a)}</strong>{a.detail ? <span className="a-detail"> {a.detail}</span> : null}</span>
+                  <span className="pp-type">{ACT_SHORT[a.activation] || ''}</span>
+                </div>))}
+              {Object.keys(sh.pools || {}).length > 0 && <div className="pp-note">{Object.entries(sh.pools).map(([n, q]) => `${n} ${poolLeft(c, n)}/${q.max}`).join(' · ')}</div>}
+              <div className="pp-h2 pp-mid">Feats</div>
+              <div className="pp-center">{(sh.feats || []).join(' · ') || 'None'}</div>
+              {cantrips.length > 0 && <>
+                <div className="pp-h2 pp-mid">Cantrips</div>
+                <div className="pp-spellrow pp-head" style={{gridTemplateColumns: '2.2fr 0.8fr 0.9fr 0.9fr 0.8fr 0.8fr'}}><span>Name</span><span>School</span><span>Comps</span><span>Range</span><span>Save</span><span>Action</span></div>
+                {cantrips.map(s => spellRow(s, '2.2fr 0.8fr 0.9fr 0.9fr 0.8fr 0.8fr'))}
+              </>}
+            </div>
+          </div>
+        </div>
+        {levels.map(l => (
+          <div className="pp-pagebox" key={l} data-testid={`paper-spells-${l}`}>
+            {title('')}
+            {spellHead}
+            <div className="pp-lvl">Level {l} {slotCircles(l)}<span className="pp-grey"> {((sh.slotMax || [])[l - 1]) ? `(${slotsLeft(c, l)} of ${sh.slotMax[l - 1]} slots left)` : ''}</span></div>
+            <div className="pp-spellrow pp-head" style={{gridTemplateColumns: '2.4fr 0.7fr 0.9fr 1fr 0.7fr 1fr 0.9fr'}}><span>Name</span><span>School</span><span>Comps</span><span>Range</span><span>Save</span><span>Duration</span><span>C Time</span></div>
+            {list.filter(s => s.l === l).map(s => spellRow(s, '2.4fr 0.7fr 0.9fr 1fr 0.7fr 1fr 0.9fr'))}
+            <div className="pp-key">&lt;*&gt; Concentration &nbsp; (R*) can be cast as a Ritual</div>
+          </div>))}
+        <div className="pp-pagebox" data-testid="paper-features">
+          {title('')}
+          <div className="pp-h2">Features &amp; Traits</div>
+          {((c.info || []).find(x => x.h === 'Features and Traits') || {items: []}).items.map((it, i) => <p key={i} className="pp-p">{it[1]}</p>)}
+          <div className="pp-h2" style={{marginTop: 14}}>Inventory</div>
+          <p className="pp-p">{(sh.items || []).join(', ') || 'Nothing carried.'}</p>
+        </div>
+        {sh.journal && (
+          <div className="pp-pagebox" data-testid="paper-journal">
+            {title('')}
+            <div className="pp-h2">Journal</div>
+            {[['Alignment', sh.journal.alignment], ['Faith', sh.journal.deity], ['Personality Traits', sh.journal.traits], ['Ideals', sh.journal.ideals], ['Bonds', sh.journal.bonds], ['Flaws', sh.journal.flaws], ['Appearance', sh.journal.appearance], ['Backstory', sh.journal.backstory],
+              ['Allies & Organizations', sh.journal.allies], ['Enemies & Rivals', sh.journal.enemies], ['Quests & Goals', sh.journal.quests]].filter(x => x[1]).map(([h, t]) => <p key={h} className="pp-p" style={{whiteSpace: 'pre-wrap'}}><strong>{h}.</strong> {t}</p>)}
+            {(sh.journal.notes || []).map((n, i) => <p key={'n' + i} className="pp-p" style={{whiteSpace: 'pre-wrap'}}><strong>{n[0]}.</strong> {n[1]}</p>)}
+            {(sh.journal.sessions || []).map((n, i) => <p key={'s' + i} className="pp-p" style={{whiteSpace: 'pre-wrap'}}><strong>{n[0]}.</strong> {n[1]}</p>)}
+          </div>)}
+      </div>
+    );
+  };
   const statChips = c => {
     const sh = c.sheet || {};
     const chip = (lbl, val, src) => ({lbl, val, src});
@@ -2261,6 +2533,7 @@ function App() {
   };
   const sheetPreview = form.sheetData ? sheetToFields(form.sheetData) : null;
   const selAction = actions.find(a => a.id === selectedAction);
+  const paper = !!(viewed && viewed.sheet && viewed.ownActions); // a sheet from the builder is shown as the printed-style character sheet
   // A rest taken in the Character Builder resets this player's own character here too.
   restRef.current = (msg) => {
     if (!msg || cleanCode(msg.code) !== playerCode || (msg.kind !== 'short' && msg.kind !== 'long')) return;
@@ -2491,6 +2764,7 @@ function App() {
                 <div className="turn-banner">
                   <div className="who">🎲 {viewed.name}{canAct ? "'s Turn" : ''}</div>
                   <div className="combatant-type">{sheetLine(viewed)}</div>
+                  {!paper && <>
                   <div className="stats-row">
                     {statChips(viewed).map(ch => (
                       <div className={`stat-chip ${ch.src ? 'changed' : ''}`} key={ch.lbl} title={ch.src ? `Changed by ${ch.src}` : ''}>
@@ -2516,11 +2790,13 @@ function App() {
                     })}
                   </div>
                   <div className="senses-line"><strong>Senses</strong> {effectiveSenses(viewed).join(', ') || 'None listed'}</div>
+                  </>}
                   {combatStarted && !canAct && active && <div className="turn-note">Waiting: it is {active.name}'s turn</div>}
                   {combatStarted && canAct && !isDM && <div className="turn-note yours">It is your turn</div>}
                   {viewed.main && viewed.owner === myId && <button className="link-btn" style={{marginTop:6,fontSize:'0.8rem'}} onClick={()=>updateFromSheet(viewed.id)}>Update from my sheet</button>}
                 </div>
 
+                <div className="pick-box" data-testid="pick-box">
                 {/* Target */}
                 <div className="section-title">🎯 {selMax > 1 ? `Targets (${Math.min(targetIds.length, selMax)} of ${selMax >= 99 ? 'any number' : 'up to ' + selMax})` : 'Target'}</div>
                 {selMax > 1 && <div className="buff-note">This can affect more than one creature. Pick each target; one use covers them all.</div>}
@@ -2536,9 +2812,41 @@ function App() {
                   </div>
                 ))}
 
+                {/* What the chosen action needs */}
+                {selAction && selAction.weapon && (selAction.finesse || selAction.ranged) && viewed && (viewed.passives || {}).sneakAttackDice > 0 && (
+                  <label className="conc-label" style={{margin:'4px 0'}}><input type="checkbox" checked={sneakOn} onChange={e=>setSneakOn(e.target.checked)}/> Add Sneak Attack ({viewed.passives.sneakAttackDice}d6) if this hits. Needs Advantage or an ally within 5 feet of the target. Once per turn.</label>
+                )}
+                {selAction && selAction.slot > 0 && (
+                  <div className="manual-roll">
+                    <span className="label">Cast with</span>
+                    {castOptions(viewed, selAction).length === 0
+                      ? <div className="buff-note" style={{margin:0, color:'#ff8a80'}}>No spell slot of Level {selAction.slot} or higher is left.</div>
+                      : <select aria-label="Spell slot level" value={castOptions(viewed, selAction).includes(castLevel) ? castLevel : castOptions(viewed, selAction)[0]} onChange={e=>setCastLevel(+e.target.value)}
+                          style={{width:'100%', background:'#0F1923', border:'1px solid #3d5166', color:'var(--parchment)', padding:'6px 8px', borderRadius:4, fontFamily:"'Crimson Text', serif", fontSize:'0.9rem'}}>
+                          {castOptions(viewed, selAction).map(l => <option key={l} value={l}>Level {l} slot ({slotsLeft(viewed, l)} left){l > selAction.slot && selAction.up ? `: +${selAction.up.split('d')[0] * (l - selAction.slot)}d${selAction.up.split('d')[1]}` : ''}</option>)}
+                        </select>}
+                  </div>
+                )}
+                {/* Advantage */}
+                {selAction && selAction.type==='attack' && (
+                  <div className="manual-roll">
+                    <span className="label">Roll modifier</span>
+                    <div className="advantage-row">
+                      <div className={`adv-btn ${advantage===1?'active-adv':''}`} onClick={()=>setAdvantage(advantage===1?0:1)}>Advantage</div>
+                      <div className="adv-btn" onClick={()=>setAdvantage(0)} style={{border:advantage===0?'1px solid var(--brass)':'',color:advantage===0?'var(--parchment)':''}}>Normal</div>
+                      <div className={`adv-btn ${advantage===-1?'active-dis':''}`} onClick={()=>setAdvantage(advantage===-1?0:-1)}>Disadvantage</div>
+                    </div>
+                  </div>
+                )}
+                {selAction && blockReason(viewed, selAction) && <div className="buff-note" data-testid="block-reason" style={{marginTop:8, color:'#ff8a80', borderColor:'#a04040'}}>{blockReason(viewed, selAction)}</div>}
+                {selAction && selAction.spell && compMode && selAction.comp && <div className="buff-note" data-testid="comp-line" style={{marginTop:8}}>Components: {[selAction.comp.includes('V') && 'Verbal', selAction.comp.includes('S') && 'Somatic', selAction.comp.includes('M') && `Material (${selAction.mat || 'see the spell'})`].filter(Boolean).join(', ')}</div>}
+                {selAction && selAction.desc && <div className="buff-note" style={{marginTop:8}}>{selAction.desc}</div>}
+
+                </div>
                 {/* Actions */}
                 {canControl(viewed) && <>
                 <div className="section-title">⚡ Actions</div>
+                {paper ? renderPaper(viewed) : (<>
                 {actions.length === 0 && <div className="empty-state">No actions set up for this stat block. Use the dice roller.</div>}
                 <div className="action-grid">
                   {actions.map(a=>(
@@ -2551,6 +2859,7 @@ function App() {
                     </div>
                   ))}
                 </div>
+                </>)}
 
                 {/* A player rests their own character */}
                 {viewed && viewed.type === 'player' && canControl(viewed) && (viewed.owner === myId || isDM) && (
@@ -2572,9 +2881,6 @@ function App() {
                     {[viewed.passives.attacks && `${viewed.passives.attacks} attacks with the Attack action`, viewed.passives.criticalOn && `Critical Hit on ${viewed.passives.criticalOn}-20`,
                       viewed.passives.sneakAttackDice && `Sneak Attack ${viewed.passives.sneakAttackDice}d6`, viewed.passives.initiativeAdvantage && 'Advantage on Initiative'].filter(Boolean).join(' · ')}
                   </div>
-                )}
-                {selAction && selAction.weapon && (selAction.finesse || selAction.ranged) && viewed && (viewed.passives || {}).sneakAttackDice > 0 && (
-                  <label className="conc-label" style={{margin:'4px 0'}}><input type="checkbox" checked={sneakOn} onChange={e=>setSneakOn(e.target.checked)}/> Add Sneak Attack ({viewed.passives.sneakAttackDice}d6) if this hits. Needs Advantage or an ally within 5 feet of the target. Once per turn.</label>
                 )}
                 {/* In hand, and the Component Pouch */}
                 {viewed && viewed.sheet && viewed.ownActions && handsOn && (
@@ -2618,31 +2924,6 @@ function App() {
                       {canControl(viewed) && <> <button className="chip-btn" aria-label={`Spend a Level ${i + 1} slot`} title="Spend one" onClick={()=>adjustSlot(viewed.id, i + 1, -1)}>−</button><button className="chip-btn" aria-label={`Give back a Level ${i + 1} slot`} title="Give one back (a slot that was not spent)" onClick={()=>adjustSlot(viewed.id, i + 1, 1)}>+</button></>}</span> : null)}
                   </div>
                 )}
-                {selAction && selAction.slot > 0 && (
-                  <div className="manual-roll">
-                    <span className="label">Cast with</span>
-                    {castOptions(viewed, selAction).length === 0
-                      ? <div className="buff-note" style={{margin:0, color:'#ff8a80'}}>No spell slot of Level {selAction.slot} or higher is left.</div>
-                      : <select aria-label="Spell slot level" value={castOptions(viewed, selAction).includes(castLevel) ? castLevel : castOptions(viewed, selAction)[0]} onChange={e=>setCastLevel(+e.target.value)}
-                          style={{width:'100%', background:'#0F1923', border:'1px solid #3d5166', color:'var(--parchment)', padding:'6px 8px', borderRadius:4, fontFamily:"'Crimson Text', serif", fontSize:'0.9rem'}}>
-                          {castOptions(viewed, selAction).map(l => <option key={l} value={l}>Level {l} slot ({slotsLeft(viewed, l)} left){l > selAction.slot && selAction.up ? `: +${selAction.up.split('d')[0] * (l - selAction.slot)}d${selAction.up.split('d')[1]}` : ''}</option>)}
-                        </select>}
-                  </div>
-                )}
-                {/* Advantage */}
-                {selAction && selAction.type==='attack' && (
-                  <div className="manual-roll">
-                    <span className="label">Roll modifier</span>
-                    <div className="advantage-row">
-                      <div className={`adv-btn ${advantage===1?'active-adv':''}`} onClick={()=>setAdvantage(advantage===1?0:1)}>Advantage</div>
-                      <div className="adv-btn" onClick={()=>setAdvantage(0)} style={{border:advantage===0?'1px solid var(--brass)':'',color:advantage===0?'var(--parchment)':''}}>Normal</div>
-                      <div className={`adv-btn ${advantage===-1?'active-dis':''}`} onClick={()=>setAdvantage(advantage===-1?0:-1)}>Disadvantage</div>
-                    </div>
-                  </div>
-                )}
-                {selAction && blockReason(viewed, selAction) && <div className="buff-note" data-testid="block-reason" style={{marginTop:8, color:'#ff8a80', borderColor:'#a04040'}}>{blockReason(viewed, selAction)}</div>}
-                {selAction && selAction.spell && compMode && selAction.comp && <div className="buff-note" data-testid="comp-line" style={{marginTop:8}}>Components: {[selAction.comp.includes('V') && 'Verbal', selAction.comp.includes('S') && 'Somatic', selAction.comp.includes('M') && `Material (${selAction.mat || 'see the spell'})`].filter(Boolean).join(', ')}</div>}
-                {selAction && selAction.desc && <div className="buff-note" style={{marginTop:8}}>{selAction.desc}</div>}
 
                 {/* Buff passing */}
                 <div className="section-title">✨ Pass a Buff or Effect</div>
@@ -2729,7 +3010,7 @@ function App() {
                 )}
 
                 {/* Sheet details */}
-                {viewed.sheet && viewed.sheet.skills && Object.keys(viewed.sheet.skills).length > 0 && (
+                {!paper && viewed.sheet && viewed.sheet.skills && Object.keys(viewed.sheet.skills).length > 0 && (
                   <details className="block">
                     <summary>Skills</summary>
                     <div className="skill-grid">
@@ -2742,20 +3023,20 @@ function App() {
                     </div>
                   </details>
                 )}
-                {viewed.sheet && viewed.sheet.spell && (
+                {!paper && viewed.sheet && viewed.sheet.spell && (
                   <details className="block">
                     <summary>Spellcasting</summary>
                     <p><strong>Ability.</strong> {viewed.sheet.spell.ability} · <strong>Spell save DC</strong> {viewed.sheet.spell.dc} · <strong>Spell attack</strong> {signed(viewed.sheet.spell.attack)}</p>
                     {viewed.sheet.spell.slots && <p><strong>Spell slots.</strong> {viewed.sheet.spell.slots}</p>}
                   </details>
                 )}
-                {(viewed.info||[]).map((sec, i) => (
+                {!paper && (viewed.info||[]).map((sec, i) => (
                   <details className="block" key={i}>
                     <summary>{sec.h}</summary>
                     {(sec.items||[]).map((it, j) => <p key={j}>{it[0] && <strong>{it[0]}. </strong>}{it[1]}</p>)}
                   </details>
                 ))}
-                {viewed.sheet && (viewed.sheet.equipment || (viewed.sheet.items||[]).length > 0) && (
+                {!paper && viewed.sheet && (viewed.sheet.equipment || (viewed.sheet.items||[]).length > 0) && (
                   <details className="block">
                     <summary>Equipment and Items</summary>
                     {(viewed.sheet.items||[]).length > 0 && <p><strong>Items.</strong> {viewed.sheet.items.join(', ')}</p>}

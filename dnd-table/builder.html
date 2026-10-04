@@ -1814,6 +1814,8 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { /
         a.mastery = w.mastery; a.masteryMod = mod; a.masteryDc = 8 + mod + ctx.PROF;
         a.desc = `${info}. ${w.mastery}: ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`;
       }
+      a.reach = w.ranged ? "0" : w.props.includes("Reach") ? "10" : "5";
+      if (w.range || w.thrown) a.rng = String(w.range || w.thrown);
       if (w.ranged) a.ranged = true;
       if (finesse) a.finesse = true;
       if (two || w.props.includes("Two-Handed")) a.twoHanded = true;
@@ -2407,8 +2409,7 @@ function CharacterSheet() {
       setCharacterItems(prev => prev.some(sameItem(it)) ? prev : [...prev, it]);
     },
     setImportant: (it, on) => {
-      if (on) { inv.add(it, true); return; }
-      if (it.rarity && !window.confirm(`Take ${it.name} off Important Items? It stays in your inventory.`)) return;
+      if (on) { setPinnedItems(prev => prev.some(sameItem(it)) ? prev : [...prev, it]); return; }
       setPinnedItems(prev => prev.filter(p => p.name !== it.name));
     },
     remove: (it) => { setCharacterItems(prev => prev.filter(p => p.name !== it.name)); setPinnedItems(prev => prev.filter(p => p.name !== it.name)); },
@@ -2464,6 +2465,11 @@ function CharacterSheet() {
       customizations,
       journal: { ...journal, alignment },
       components: components.filter(n => spellActions.some(a => a.name === n)),
+      // for the character sheet in the Combat Resolver
+      saveProfs: ABILITIES.filter(a => saveInfo[a] === "class" || saveInfo[a] === "added"),
+      spellList: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name)].map(x => spellOf(x)).filter(Boolean))).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n)).slice(0, 120).map(sheetSpell),
+      languages: journal.languages, tools: Array.from(new Set([...knownTools.map(t => t.name), ...journal.tools])),
+      importantItems: pinnedItems.map(i => i && i.name).filter(Boolean),
       spellcasting: cls && cls.casterType ? {
         ability: cls.spellAbility,
         slotList: cls.casterType === "pact" ? null : (getSpellSlots(className, level) || []),
@@ -3720,6 +3726,26 @@ function sortSpells(cls, className, level, names, cantripBonus) {
   return { list, caster, maxLevel, cantripMax, prepMax, cantrips, prepared };
 }
 // How a spell resolves in the Combat Resolver, worked out from this character's numbers. Returns null for a spell with no roll.
+// One line of a spell for the character sheet: short school, components, range, save, duration and casting time.
+const SCHOOL_SHORT = { Abjuration: "Abj", Conjuration: "Con", Divination: "Div", Enchantment: "Enc", Evocation: "Evo", Illusion: "Illu", Necromancy: "Nec", Transmutation: "Tra" };
+function shortTime(t) {
+  const s = String(t || "").replace(/^Concentration,?\s*/i, "").replace(/^up to /i, "").trim();
+  if (/^instantaneous/i.test(s)) return "Now";
+  if (/^bonus action/i.test(s)) return "BA";
+  if (/^reaction/i.test(s)) return "R";
+  if (/^action/i.test(s)) return "A";
+  const m = /^(\d+) (round|minute|hour|day)s?$/i.exec(s);
+  if (m) return m[1] + { round: "Rd", minute: "Min", hour: "Hr", day: +m[1] > 1 ? "Days" : "Day" }[m[2].toLowerCase()];
+  return s.slice(0, 18);
+}
+function sheetSpell(sp) {
+  const m = sp.m || {}, first = String(sp.x || "").split(/(?<=[.!?])\s/)[0] || "";
+  return { n: sp.n, l: sp.l, s: SCHOOL_SHORT[sp.s] || String(sp.s || "").slice(0, 4), k: String(sp.k || "").split("").join("/"),
+    r: String(sp.r || "").replace(/ Component.*$/, "").replace(/ feet| foot/g, "ft").replace(/ miles?/, "mi"),
+    sv: m.k === "save" && m.ab ? m.ab.slice(0, 3).toUpperCase() : m.k === "attack" ? "Atk" : "-",
+    d: shortTime(sp.d) + (sp.conc ? "<*>" : ""), t: shortTime(sp.t) + (sp.rit ? " (R*)" : ""),
+    sum: first.length > 118 ? first.slice(0, 115).replace(/\s+\S*$/, "") + "..." : first, up: String(sp.h || "").slice(0, 130) };
+}
 function spellAction(sp, ctx, opts) {
   const m = sp.m;
   if (!m) return null;
@@ -4191,6 +4217,8 @@ function InventoryTab({ inv, prof, magic, mundane, components, setComponents, sp
                         <KindOptions item={item} />
                       </select>)}
                     <span style={{ fontSize: 11, color: colors.parchment + "88", minWidth: 60, textAlign: "right" }}>{item.rarity || item.cost || ""}</span>
+                    <button aria-label={`${inv.important(item) ? "Unmark" : "Mark"} ${item.name} as important`} aria-pressed={inv.important(item)} title={inv.important(item) ? "Shown under Important Items on your character sheet. Click to take it off." : "Show under Important Items on your character sheet"}
+                      onClick={() => inv.setImportant(item, !inv.important(item))} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 15, color: inv.important(item) ? colors.brassLight : colors.parchment + "55", padding: "0 2px" }}>{inv.important(item) ? "◆" : "◇"}</button>
                     <ItemControls item={item} inv={inv} colors={colors} small />
                   </div>
                   {openItem === item.name && <div style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.85, margin: "6px 0 4px 16px" }}>{item.type ? <em>{item.type}{item.attunement ? ", requires Attunement" : ""}. </em> : null}{item.description || "No description."}</div>}
