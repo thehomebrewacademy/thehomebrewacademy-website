@@ -174,6 +174,13 @@ level 0 is a cantrip. A spell a character casts in a fight also needs an entry i
   { "name": "Lantern of the Deep", "rarity": "Rare", "type": "Wondrous Item", "attunement": true, "description": "Full item text." }
 ]
 rarity is Common, Uncommon, Rare, Very Rare, Legendary or Artifact.
+type decides where the item shows up, so write it exactly in one of these forms:
+- Magic armor: "Armor (plate)", "Armor (chain shirt)", "Armor (studded leather)" for one kind of armor; "Armor (light)", "Armor (medium)", "Armor (heavy)", "Armor (medium or heavy)", "Armor (medium or heavy, not hide)" or "Armor (light, medium, or heavy)" when the player picks the kind; "Armor (shield)" for a shield.
+- Magic weapons: "Weapon (longsword)" for one kind of weapon; "Weapon (any sword)", "Weapon (any axe)", "Weapon (any axe or sword)", "Weapon (any sword that deals slashing damage)", "Weapon (any melee)", "Weapon (any ranged)" or "Weapon (any)" when the player picks the kind.
+- Anything else: "Wondrous Item", "Ring", "Rod", "Staff", "Wand", "Potion", "Scroll".
+An armor or weapon item written this way is offered in the builder's Armor and Weapon pickers when the character carries it, as the ordinary armor or weapon it is (same Armor Class formula, damage die, properties and mastery property). An item that fits several kinds is offered once for each kind, for example "Adamantine Armor (Plate Armor)".
+If the item gives a flat bonus, add "bonus": 1 (or 2, 3). For armor and shields it is added to Armor Class. For weapons it is added to attack rolls and damage rolls. Example: { "name": "Wardstone Plate", "rarity": "Rare", "type": "Armor (plate)", "attunement": false, "bonus": 1, "description": "Full item text." }
+Anything else the item does (extra damage, a use per day, a save it forces) goes in "abilities" with "grantedBy": { "type": "item", "name": "Wardstone Plate" }.
 
 ---------------------------------------------------------------------
 ABILITIES: EVERYTHING A CHARACTER ACTIVATES
@@ -443,6 +450,7 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 - Every number that depends on the character is a formula, not a fixed number.
 - Every condition or effect that the text gives a time limit has a duration. Every "repeats the save" has a repeatSave with the right turn.
 - Limited-use features have uses with the right recharge.
+- Every magic armor, shield and weapon has a type in the exact "Armor (...)" or "Weapon (...)" form, and a "bonus" when it has one.
 - Every feat is an object with a category, and every "choose a cantrip" or "choose a spell" in a feat is a spellChoices entry with the exact level, lists and schools the text allows.
 - Rules text is copied as written, and spell levels read "Level X School".
 </script>
@@ -1396,7 +1404,7 @@ function checkPack(raw) {
     const name = pStr(pObj(it).name, 80).trim(); if (!name) return;
     let rarity = pStr(it.rarity, 20);
     if (!RARITY_ORDER.includes(rarity)) { warnings.push(`Item ${name}: rarity "${rarity}" is not one of ${RARITY_ORDER.join(", ")}. It was set to Common.`); rarity = "Common"; }
-    pack.items.push({ name, rarity, type: pStr(it.type, 60) || "Wondrous Item", attunement: !!it.attunement, description: pStr(it.description, 3000) });
+    pack.items.push({ name, rarity, type: pStr(it.type, 60) || "Wondrous Item", attunement: !!it.attunement, description: pStr(it.description, 3000), ...(parseInt(it.bonus, 10) > 0 ? { bonus: Math.min(5, parseInt(it.bonus, 10)) } : {}) });
   });
   // Abilities are test-run at level 1 and level 20 with ordinary numbers, so a bad formula is caught now.
   const probe = (LEVEL) => ({ STR: 3, DEX: 3, CON: 3, INT: 3, WIS: 3, CHA: 3, PROF: LEVEL >= 17 ? 6 : 2, LEVEL, SPELLMOD: 3, SPELLDC: 13, SPELLATK: 5 });
@@ -1552,6 +1560,63 @@ if (RULES) { // the System Reference Document's class tables, features, species 
 }
 const ARMOR = RULES ? RULES.armor.filter(a => a.cat !== "Shield").sort((a, b) => ["Light", "Medium", "Heavy"].indexOf(a.cat) - ["Light", "Medium", "Heavy"].indexOf(b.cat) || a.base - b.base) : [];
 const WEAPONS = RULES ? RULES.weapons.slice().sort((a, b) => a.name.localeCompare(b.name)) : [];
+// Magic armor and weapons are worn or wielded as an ordinary kind of armor or weapon. An item's type says which:
+// "Armor (plate)", "Armor (medium or heavy, not hide)", "Weapon (longsword)", "Weapon (any sword)", "Armor (shield)".
+const gearNorm = (n) => String(n || "").toLowerCase().replace(/[^a-z]/g, "");
+function magicGearInfo(item) {
+  const m = /^(Armor|Weapon) \((.+)\)$/.exec(String((item && item.type) || "")); if (!m) return null;
+  const spec = m[2].toLowerCase().trim(), desc = String(item.description || "");
+  const given = parseInt(item.bonus, 10);
+  if (m[1] === "Armor") {
+    const bonus = given > 0 ? given : +((/\+(\d) bonus to AC/.exec(desc) || [])[1] || 0);
+    if (spec === "shield") return { kind: "shield", bases: [], bonus };
+    let bases;
+    if (spec.startsWith("light, medium") || spec === "any") bases = ARMOR;
+    else if (spec.startsWith("medium or heavy")) bases = ARMOR.filter(a => a.cat !== "Light" && !(spec.includes("not hide") && a.name === "Hide Armor"));
+    else if (["light", "medium", "heavy"].includes(spec)) bases = ARMOR.filter(a => a.cat.toLowerCase() === spec);
+    else bases = ARMOR.filter(a => gearNorm(a.name) === gearNorm(spec) || gearNorm(a.name) === gearNorm(spec + " armor"));
+    return bases.length ? { kind: "armor", bases: bases.map(a => a.name), bonus } : null;
+  }
+  if (spec.includes("ammunition")) return null;
+  const bonus = given > 0 ? given : +((/\+(\d) bonus to attack and damage rolls/.exec(desc) || /\+(\d) (?:[a-z]+ )?(?:weapon|sword|battleaxe|longsword)/i.exec(desc) || [])[1] || 0);
+  const sword = (w) => /sword/i.test(w.name) || ["Scimitar", "Rapier"].includes(w.name), axe = (w) => /axe/i.test(w.name);
+  let bases;
+  if (spec === "any") bases = WEAPONS;
+  else if (spec === "any sword that deals slashing damage") bases = WEAPONS.filter(w => sword(w) && w.type === "Slashing");
+  else if (spec === "any axe or sword") bases = WEAPONS.filter(w => sword(w) || axe(w));
+  else if (spec === "any sword") bases = WEAPONS.filter(sword);
+  else if (spec === "any axe") bases = WEAPONS.filter(axe);
+  else if (spec === "any melee") bases = WEAPONS.filter(w => !w.ranged);
+  else if (spec === "any ranged") bases = WEAPONS.filter(w => w.ranged);
+  else bases = WEAPONS.filter(w => gearNorm(w.name) === gearNorm(spec));
+  return bases.length ? { kind: "weapon", bases: bases.map(w => w.name), bonus } : null;
+}
+// The names offered in the pickers for one magic item: its own name, or "Item (Base)" when it can be several kinds.
+function magicGearLabels(item) {
+  const info = magicGearInfo(item); if (!info || info.kind === "shield") return [];
+  return info.bases.map(b => ({ label: info.bases.length === 1 ? item.name : `${item.name} (${b})`, base: b, bonus: info.bonus, kind: info.kind, item }));
+}
+function magicGearFind(name, kind) {
+  const n = String(name || ""); if (!n) return null;
+  const whole = MAGIC_ITEMS.find(x => x.name === n);
+  if (whole) { const l = magicGearLabels(whole); return l.length === 1 && l[0].kind === kind ? l[0] : null; }
+  const m = /^(.+) \(([^()]+)\)$/.exec(n); if (!m) return null;
+  const it = MAGIC_ITEMS.find(x => x.name === m[1]); if (!it) return null;
+  return magicGearLabels(it).find(l => l.label === n && l.kind === kind) || null;
+}
+// What is worn or wielded, from the name on the sheet. Magic gear keeps its own name and adds its bonus.
+function armorOf(name) {
+  const plain = ARMOR.find(a => a.name === name); if (plain) return plain;
+  const g = magicGearFind(name, "armor"); if (!g) return null;
+  const base = ARMOR.find(a => a.name === g.base);
+  return { ...base, name: g.label, base: base.base + g.bonus, plain: base.name, bonus: g.bonus, magic: g.item };
+}
+function weaponOf(name) {
+  const plain = WEAPONS.find(w => w.name === name); if (plain) return plain;
+  const g = magicGearFind(name, "weapon"); if (!g) return null;
+  const base = WEAPONS.find(w => w.name === g.base);
+  return { ...base, name: g.label, plain: base.name, bonus: g.bonus, magic: g.item };
+}
 function featureText(className, subName, name, level) {
   if (!RULES) return "";
   const exact = RULES.text[`${className}|${subName || ""}|${name}|${level}`];
@@ -1642,7 +1707,8 @@ function armorClassOf(d, gear, dexMod) {
     base = 10 + dexMod; how = "Unarmored";
     d.acBases.forEach(b => { if ((b.shield || !gear.shield) && b.value > base) { base = b.value; how = b.source; } });
   }
-  return { value: base + (gear.shield ? 2 : 0) + d.acBonus, how: how + (gear.shield ? " + Shield" : "") };
+  const sb = gear.shield ? 2 + (gear.shieldBonus || 0) : 0;
+  return { value: base + sb + d.acBonus, how: how + (gear.shield ? ` + ${gear.shieldName || "Shield"}` : "") };
 }
 // Attacks the character can always make: Unarmed Strike and each weapon on the sheet.
 function weaponActions(weaponNames, ctx, d, featNames, mastered) { // mastered: weapons whose mastery property this character can use
@@ -1654,15 +1720,16 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered) { // mastered: 
     dmgList: [[evalDice(d.unarmedDie ? `1d${d.unarmedDie}+${uMod}` : `1+${ctx.STR}`, ctx), "Bludgeoning"], ...rider(true)],
     desc: d.unarmedDie ? "Martial Arts: you roll your Martial Arts die for the damage and can use Dexterity." : "Instead of using a weapon to make a melee attack, you can use a punch, kick, head-butt, or similar forceful blow." });
   weaponNames.forEach(n => {
-    const w = WEAPONS.find(x => x.name === n); if (!w) return;
+    const w = weaponOf(n); if (!w) return;
+    const plus = w.bonus || 0; // a magic weapon's bonus to attack and damage rolls
     const finesse = w.props.includes("Finesse"), monk = d.monkWeapons && !w.ranged && (w.cat === "Simple" || w.props.includes("Light"));
     const mod = w.ranged ? ctx.DEX : (finesse || monk) ? best : ctx.STR;
     const abil = w.ranged ? "Dexterity" : (finesse || monk) && ctx.DEX > ctx.STR ? "Dexterity" : "Strength";
-    const info = [w.props.join(", "), w.range ? `Range ${w.range} ft.` : "", w.thrown ? `Thrown ${w.thrown} ft.` : "", w.mastery ? `Mastery: ${w.mastery}` : ""].filter(Boolean).join(". ");
+    const info = [w.magic ? `Magic ${w.plain}${plus ? ` +${plus}` : ""}` : "", w.props.join(", "), w.range ? `Range ${w.range} ft.` : "", w.thrown ? `Thrown ${w.thrown} ft.` : "", w.mastery ? `Mastery: ${w.mastery}` : ""].filter(Boolean).join(". ");
     const make = (label, die, two) => {
       let dice = die;
       if (monk && d.unarmedDie) { const m = /^1d(\d+)$/.exec(die); if (m && +m[1] < d.unarmedDie) dice = `1d${d.unarmedDie}`; }
-      const a = { name: label, type: "attack", activation: "action", atk: ctx.PROF + mod, weapon: true, abil, dmgList: [[evalDice(`${dice}+${mod}`, ctx), w.type], ...rider(!w.ranged)], desc: info };
+      const a = { name: label, type: "attack", activation: "action", atk: ctx.PROF + mod + plus, weapon: true, abil, dmgList: [[evalDice(`${dice}+${mod + plus}`, ctx), w.type], ...rider(!w.ranged)], desc: w.magic ? `${info}. ${String(w.magic.description || "").slice(0, 600)}` : info };
       if (w.mastery && (mastered || []).includes(w.name)) { // the Combat Resolver applies the mastery property on a hit (or a miss, for Graze)
         a.mastery = w.mastery; a.masteryMod = mod; a.masteryDc = 8 + mod + ctx.PROF;
         a.desc = `${info}. ${w.mastery}: ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`;
@@ -1687,9 +1754,14 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
   // Gear typed into the Equipment box on the Notes tab counts as carried too.
   const typed = " " + String(inventory.typed || "").toLowerCase().replace(/[^a-z]+/g, " ") + " ";
   const has = (n) => custom || carried.has(norm(n)) || typed.includes(" " + String(n).toLowerCase().replace(/[^a-z]+/g, " ").trim() + " ");
-  const armorChoices = ARMOR.filter(a => has(a.name) || a.name === armor);
-  const weaponChoices = WEAPONS.filter(w => has(w.name) && !weapons.includes(w.name));
-  const hasShield = has("Shield") || shield;
+  // Magic armor and weapons that are carried show up here too, as the ordinary kind they are.
+  const magic = (inventory.items || []).filter(i => i && i.rarity).flatMap(magicGearLabels);
+  const magicArmor = magic.filter(g => g.kind === "armor").map(g => armorOf(g.label)).filter(Boolean);
+  const magicWeapons = magic.filter(g => g.kind === "weapon").map(g => weaponOf(g.label)).filter(w => w && !weapons.includes(w.name));
+  const worn = armorOf(armor);
+  const armorChoices = ARMOR.filter(a => has(a.name) || a.name === armor).concat(magicArmor).concat(worn && worn.magic && !magicArmor.some(a => a.name === worn.name) ? [worn] : []);
+  const weaponChoices = WEAPONS.filter(w => has(w.name) && !weapons.includes(w.name)).concat(magicWeapons);
+  const hasShield = has("Shield") || shield || (inventory.items || []).some(i => (magicGearInfo(i) || {}).kind === "shield");
   const used = masteries.filter(n => weapons.includes(n));
   const toggleMastery = (n) => {
     if (used.includes(n)) { setMasteries(masteries.filter(x => x !== n)); return; }
@@ -1703,15 +1775,15 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
           <option value="">No armor</option>
           {["Light", "Medium", "Heavy"].filter(cat => armorChoices.some(a => a.cat === cat)).map(cat => <optgroup key={cat} label={`${cat} armor`}>{armorChoices.filter(a => a.cat === cat).map(a => <option key={a.name} value={a.name}>{a.name} (AC {a.base}{a.dex ? (a.max != null ? ` + Dex, max ${a.max}` : " + Dex") : ""})</option>)}</optgroup>)}
         </select>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: hasShield ? "pointer" : "default", opacity: hasShield ? 1 : 0.5 }} title={hasShield ? "" : "Add a Shield to your items first"}><input type="checkbox" checked={shield} disabled={!hasShield} onChange={e => setShield(e.target.checked)} aria-label="Shield" /> Shield (+2)</label>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: hasShield ? "pointer" : "default", opacity: hasShield ? 1 : 0.5 }} title={hasShield ? "" : "Add a Shield to your items first"}><input type="checkbox" checked={shield} disabled={!hasShield} onChange={e => setShield(e.target.checked)} aria-label="Shield" /> {inventory.shieldName || "Shield"} (+{2 + (inventory.shieldBonus || 0)})</label>
         <span style={{ fontSize: 13, opacity: 0.8 }} data-testid="ac-how">Armor Class {ac.value}: {ac.how}</span>
       </div>
-      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Only armor and weapons among your items are offered here. Add them on the Mundane Items tab with "Add to Important Items", or type them in the Equipment box on the Notes tab{custom ? " (Further Customization is on, so everything is offered)" : ""}. Each weapon you wield becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
+      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }} data-testid="gear-note">Only armor and weapons among your items are offered here. Add them to your inventory on the Mundane Items or Magic Items tab, or type them in the Equipment box on the Notes tab. Magic armor and weapons are listed as the ordinary kind they are{custom ? " (Further Customization is on, so everything is offered)" : ""}. Each weapon you wield becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
       {masteryCount > 0 && <div data-testid="mastery-note" data-glow={glow || ""} style={{ fontSize: 13, marginBottom: 8, padding: glow ? "6px 10px" : 0, border: glow ? `2px solid ${glow === "open" ? REST_PURPLE : colors.brassLight}` : "none", borderRadius: 6, color: glow === "open" ? REST_PURPLE : glow === "done" ? colors.brassLight : "inherit" }}>
         <strong>Weapon Mastery:</strong> you can use the mastery property of {masteryCount} kinds of weapons ({used.length} chosen). Click a weapon's mastery name to choose it. You can change these when you finish a Long Rest.</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
         {weapons.map(n => {
-          const w = WEAPONS.find(x => x.name === n) || {}; const on = used.includes(n); const over = on && used.indexOf(n) >= masteryCount;
+          const w = weaponOf(n) || {}; const on = used.includes(n); const over = on && used.indexOf(n) >= masteryCount;
           return (
           <span key={n} data-testid={`weapon-${n}`} data-mastery={over ? "custom" : on ? "yes" : ""} style={{ border: `${over ? 2 : 1}px solid ${over ? CUSTOM_RED : colors.brass}`, borderRadius: 14, padding: "3px 10px", fontSize: 13 }}>
             {n}
@@ -1723,7 +1795,7 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
       </div>
       <select aria-label="Add a weapon" value="" onChange={e => { if (e.target.value && !weapons.includes(e.target.value)) setWeapons([...weapons, e.target.value]); }} style={sel}>
         <option value="">+ Add a weapon</option>
-        {["Simple", "Martial"].filter(cat => weaponChoices.some(w => w.cat === cat)).map(cat => <optgroup key={cat} label={`${cat} weapons`}>{weaponChoices.filter(w => w.cat === cat).map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice} {w.type})</option>)}</optgroup>)}
+        {["Simple", "Martial"].filter(cat => weaponChoices.some(w => w.cat === cat)).map(cat => <optgroup key={cat} label={`${cat} weapons`}>{weaponChoices.filter(w => w.cat === cat).map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice}{w.bonus ? ` +${w.bonus}` : ""} {w.type})</option>)}</optgroup>)}
       </select>
     </Section>
   );
@@ -1769,6 +1841,7 @@ function CharacterSheet() {
   const [shield, setShield] = useState(false);
   const [weapons, setWeapons] = useState([]);          // weapons carried
   const [masteries, setMasteries] = useState([]);      // weapons whose mastery property is in use (Weapon Mastery)
+  const [hpDelta, setHpDelta] = useState(0);            // Hit Points above or below the average, when the player sets their own total
   const [statAdj, setStatAdj] = useState({});           // Further Customization: additional modifier to ac, initiative, speed, hp
   const [rest, setRest] = useState(null);              // a rest just taken: {kind, phase: "summary" or "changes", snap, summary}
   const [featureChoices, setFeatureChoices] = useState({}); // options chosen inside features (Divine Order, Hunter's Prey...)
@@ -1900,7 +1973,7 @@ function CharacterSheet() {
   // Every feature, trait and pack ability this character has, with level changes and choices applied.
   const mech = useMemo(() => activeMechanics({ className, subclassName, level, species, lineage, background, featureChoices,
     spells: [...spells.filter(Boolean), ...featSpells], feats: Array.from(new Set(takenFeats.flatMap(f => [f.name, f.base]))),
-    items: [...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean) }),
+    items: characterItems.map(i => i && i.name).filter(Boolean) }),
     [className, subclassName, level, species, lineage, background, featureChoices, spells, featSpells, takenFeats, pinnedItems, characterItems]);
   const featureScores = useMemo(() => {
     const out = {};
@@ -1928,7 +2001,9 @@ function CharacterSheet() {
     return { STR: finalMods.Strength, DEX: finalMods.Dexterity, CON: finalMods.Constitution, INT: finalMods.Intelligence, WIS: finalMods.Wisdom, CHA: finalMods.Charisma,
       PROF: profBonus, LEVEL: level, SPELLMOD: spellMod, SPELLDC: 8 + profBonus + spellMod, SPELLATK: profBonus + spellMod };
   }, [cls, finalMods, profBonus, level, takenFeats]);
-  const gear = useMemo(() => ({ armor: ARMOR.find(a => a.name === armor) || null, shield }), [armor, shield]);
+  // The shield in use is the best one carried: an ordinary Shield, or a magic one with its bonus.
+  const bestShield = useMemo(() => characterItems.map(i => ({ i, g: magicGearInfo(i) })).filter(x => x.g && x.g.kind === "shield").sort((a, b) => b.g.bonus - a.g.bonus)[0] || null, [characterItems]);
+  const gear = useMemo(() => ({ armor: armorOf(armor), shield, shieldBonus: bestShield ? bestShield.g.bonus : 0, shieldName: bestShield ? bestShield.i.name : "Shield" }), [armor, shield, bestShield]);
   // What the character's features change on the sheet: Armor Class, Speed, Hit Points, saves, senses and so on.
   const derived = useMemo(() => {
     const d = gatherStatics(mech.entries, spellCtx, gear, level);
@@ -1949,6 +2024,8 @@ function CharacterSheet() {
     }
     return Math.max(hp, level) + derived.hp; // minimum 1 per level, plus features such as Dwarven Toughness
   }, [cls, level, finalMods.Constitution, derived]);
+  // The most this character could have: the highest number on the die at every level, plus Constitution and features.
+  const possibleMaxHp = useMemo(() => cls ? Math.max(level * (cls.hitDie + finalMods.Constitution), level) + derived.hp : 0, [cls, level, finalMods.Constitution, derived]);
 
 
   const featureLedger = useMemo(() => {
@@ -2036,10 +2113,11 @@ function CharacterSheet() {
     expertiseCustom.forEach(k => out.push(`Added Expertise in ${k}`));
     takenFeats.forEach(f => { if (f.problem) out.push(`Feat ${f.name}: ${f.problem}`); });
     spellInfo.list.forEach(e => { if (e.sp && e.problem) out.push(`Spell ${e.sp.n}: ${e.problem}`); });
-    [["ac", "Armor Class"], ["initiative", "Initiative"], ["speed", "Speed"], ["hp", "Hit Point maximum"]].forEach(([k, l]) => { if (statAdj[k]) out.push(`${l}: additional modifier ${fmt(statAdj[k])}`); });
+    if (maxHp + hpDelta > possibleMaxHp) out.push(`Hit Points: ${maxHp + hpDelta}, above the highest possible ${possibleMaxHp}`);
+    [["ac", "Armor Class"], ["initiative", "Initiative"], ["speed", "Speed"]].forEach(([k, l]) => { if (statAdj[k]) out.push(`${l}: additional modifier ${fmt(statAdj[k])}`); });
     masteries.filter(n => weapons.includes(n)).slice(derived.masteryCount).forEach(n => out.push(`Weapon Mastery with ${n}: more than your class allows`));
     return out;
-  }, [abilityMode, customScores, abilityAdj, saveInfo, skillInfo, takenFeats, skillExpertise, expertiseMax, spellInfo, masteries, weapons, derived, statAdj]);
+  }, [abilityMode, customScores, abilityAdj, saveInfo, skillInfo, takenFeats, skillExpertise, expertiseMax, spellInfo, masteries, weapons, derived, statAdj, maxHp, hpDelta, possibleMaxHp]);
 
   const initiative = finalMods.Dexterity + (takenFeats.some(f => f.def && f.def.initiativeProf) ? profBonus : 0) + derived.initiative + (statAdj.initiative || 0); // Alert adds the Proficiency Bonus
   const ac = armorClassOf(derived, gear, finalMods.Dexterity);
@@ -2047,8 +2125,10 @@ function CharacterSheet() {
   const passivePerception = 10 + skillMods.Perception;
   const speed = (derived.speedBase || (SPECIES[species] ? SPECIES[species].speed : 30)) + derived.speedBonus + (statAdj.speed || 0);
 
-  const effectiveMaxHp = Math.max(1, maxHp + (statAdj.hp || 0));
-  const displayHp = currentHp === null ? effectiveMaxHp : currentHp;
+  const effectiveMaxHp = Math.max(1, maxHp + hpDelta); // the Hit Point total: the average unless the player set their own
+  const displayHp = currentHp === null ? effectiveMaxHp : Math.min(currentHp, effectiveMaxHp);
+  // Typing a total: nothing above the highest possible unless Further Customization is on.
+  const setHpTotal = (n) => { const v = Math.max(1, custom ? n : Math.min(n, Math.max(possibleMaxHp, maxHp))); setHpDelta(v - maxHp); };
 
   function updatePointBuy(ability, newVal) {
     const cost = POINT_BUY_COSTS[newVal];
@@ -2210,6 +2290,24 @@ function CharacterSheet() {
     setCurrentHp(Math.min(effectiveMaxHp, displayHp + gain));
   }
 
+  // Inventory: everything the character carries. Important Items: the ones marked to show on the Identity tab.
+  const sameItem = (it) => (p) => p.name === it.name;
+  const inv = {
+    items: characterItems,
+    has: (it) => characterItems.some(sameItem(it)),
+    important: (it) => pinnedItems.some(sameItem(it)),
+    add: (it, important) => {
+      setCharacterItems(prev => prev.some(sameItem(it)) ? prev : [...prev, it]);
+      if (important) setPinnedItems(prev => prev.some(sameItem(it)) ? prev : [...prev, it]);
+    },
+    setImportant: (it, on) => {
+      if (on) { inv.add(it, true); return; }
+      if (it.rarity && !window.confirm(`Take ${it.name} off Important Items? It stays in your inventory.`)) return;
+      setPinnedItems(prev => prev.filter(p => p.name !== it.name));
+    },
+    remove: (it) => { setCharacterItems(prev => prev.filter(p => p.name !== it.name)); setPinnedItems(prev => prev.filter(p => p.name !== it.name)); },
+  };
+
   /* ============ CHARACTER FILE (save / load / send to Combat Resolver) ============ */
   const fileInputRef = useRef(null);
   const inSuite = window.parent !== window;
@@ -2264,9 +2362,10 @@ function CharacterSheet() {
       } : null,
       hitDie: cls ? cls.hitDie : null, hitDiceUsed,
       equipment,
-      items: Array.from(new Set([...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean))),
+      items: Array.from(new Set(characterItems.map(i => i && i.name).filter(Boolean))),
+      importantItems: pinnedItems.map(i => i && i.name).filter(Boolean),
       origin: originCustom ? { custom: true, ...originCustom } : null,
-      builder: { statAdj, lineage, armor, shield, weapons, masteries, featureChoices, featPicks, extraFeats, originCustom, custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
+      builder: { hpDelta, statAdj, lineage, armor, shield, weapons, masteries, featureChoices, featPicks, extraFeats, originCustom, custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
         pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, characterItems, pinnedItems, spells }
     };
   }
@@ -2319,13 +2418,14 @@ function CharacterSheet() {
     setBgBonusChoices(arr(s.bgBonusChoices).filter(a => ABILITIES.includes(a)));
     setSkillProfs(arr(s.skillProfs).filter(k => ALL_SKILLS.includes(k)));
     setSkillExpertise(arr(s.skillExpertise).filter(k => ALL_SKILLS.includes(k)));
-    const sa = {}; ["ac", "initiative", "speed", "hp"].forEach(k => { const n = parseInt((s.statAdj || {})[k]); if (n && n >= -200 && n <= 200) sa[k] = n; });
+    setHpDelta(Math.max(-2000, Math.min(2000, parseInt(s.hpDelta, 10) || 0)));
+    const sa = {}; ["ac", "initiative", "speed"].forEach(k => { const n = parseInt((s.statAdj || {})[k]); if (n && n >= -200 && n <= 200) sa[k] = n; });
     setStatAdj(sa);
     setLineage(String(s.lineage || ""));
-    setArmor(ARMOR.some(a => a.name === s.armor) ? s.armor : "");
+    setArmor(armorOf(s.armor) ? s.armor : "");
     setShield(!!s.shield);
-    setWeapons(arr(s.weapons).filter(n => WEAPONS.some(w => w.name === n)));
-    setMasteries(arr(s.masteries).filter(n => WEAPONS.some(w => w.name === n)));
+    setWeapons(arr(s.weapons).filter(n => weaponOf(n)));
+    setMasteries(arr(s.masteries).filter(n => weaponOf(n)));
     setFeatureChoices(s.featureChoices && typeof s.featureChoices === "object" && !Array.isArray(s.featureChoices) ? s.featureChoices : {});
     setFeatPicks(s.featPicks && typeof s.featPicks === "object" && !Array.isArray(s.featPicks) ? s.featPicks : {});
     setExtraFeats(arr(s.extraFeats).filter(f => f && typeof f === "object").map(f => ({ name: String(f.name || ""), choices: f.choices && typeof f.choices === "object" ? f.choices : {} })));
@@ -2350,7 +2450,9 @@ function CharacterSheet() {
     setHitDiceUsed(parseInt(s.hitDiceUsed) || 0);
     setEquipment(String(s.equipment || ""));
     setNotes(String(s.notes || ""));
-    setCharacterItems(arr(s.characterItems));
+    { // the inventory holds everything carried; Important Items are a marked part of it
+      const all = []; [...arr(s.characterItems), ...arr(s.pinnedItems)].forEach(i => { if (i && i.name && !all.some(x => x.name === i.name)) all.push(i); });
+      setCharacterItems(all); }
     setPinnedItems(arr(s.pinnedItems).filter(p => p && p.name));
     const sp = arr(s.spells).map(x => String(x));
     setSpells(sp.length ? sp : [""]);
@@ -2523,7 +2625,7 @@ function CharacterSheet() {
           ["AC", armorClass],
           ["Initiative", fmt(initiative)],
           ["Speed", `${speed} ft`],
-          ["HP", `${displayHp}/${effectiveMaxHp}`],
+          ["HP", effectiveMaxHp],
           ["Prof Bonus", fmt(profBonus)],
           ["Passive Perception", passivePerception],
         ].map(([label, val]) => (
@@ -2631,7 +2733,7 @@ function CharacterSheet() {
       {/* CONTENT */}
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px 16px 60px" }}>
         {tab === "identity" && (
-          <IdentityTab {...{ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
+          <IdentityTab {...{ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
         )}
         {tab === "abilities" && (
           <AbilitiesTab {...{ featBonuses, pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay, custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }} />
@@ -2640,7 +2742,7 @@ function CharacterSheet() {
           <SkillsTab {...{ expertiseMax, expertiseList, expertiseCustom, cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }} />
         )}
         {tab === "combat" && (
-          <CombatTab {...{ statAdj, setStatAdj, inventory: Object.assign([...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean), { typed: equipment }), masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
+          <CombatTab {...{ possibleMaxHp, averageHp: maxHp, setHpTotal, statAdj, setStatAdj, inventory: Object.assign(characterItems.map(i => i && i.name).filter(Boolean), { typed: equipment, items: characterItems, shieldBonus: gear.shieldBonus, shieldName: gear.shieldName }), masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
         )}
         {tab === "features" && (
           <FeaturesTab {...{ glowOf, optionSlots: mech.optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay, slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }} />
@@ -2649,10 +2751,10 @@ function CharacterSheet() {
           <SpellsTab {...{ glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }} />
         )}
         {tab === "notes" && (
-          <NotesTab {...{ equipment, setEquipment, notes, setNotes, colors, fontDisplay }} />
+          <NotesTab {...{ inv, equipment, setEquipment, notes, setNotes, colors, fontDisplay }} />
         )}
         {tab === "magic" && (
-          <MagicItemsTab {...{ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, characterItems, setCharacterItems, pinnedItems, setPinnedItems, colors, fontDisplay }} />
+          <MagicItemsTab {...{ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, inv, colors, fontDisplay }} />
         )}
         {tab === "packs" && (
           <ContentPacksTab {...{ colors, fontDisplay, sheetActions }} />
@@ -2660,7 +2762,7 @@ function CharacterSheet() {
         <datalist id="hba-spell-list">{ALL_SPELLS.map(sp => <option key={sp.n} value={sp.n} />)}</datalist>
         <datalist id="hba-feat-list">{Array.from(new Set([...Object.keys(FEATS).filter(f => FEATS[f].category === "Origin" || FEATS[f].category === "Any"), ...Object.keys(ORIGIN_FEATS)])).map(f => <option key={f} value={f} />)}</datalist>
         {tab === "mundane" && (
-          <MundaneItemsTab {...{ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, pinnedItems, setPinnedItems, colors, fontDisplay }} />
+          <MundaneItemsTab {...{ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, inv, colors, fontDisplay }} />
         )}
       </div>
     </div>
@@ -2688,7 +2790,7 @@ function fieldStyle(colors) {
   };
 }
 
-function IdentityTab({ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, bgEff, originCustom, setOriginCustom, lineage, setLineage }) {
+function IdentityTab({ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }) {
   const bg = bgEff;
   const [originOpen, setOriginOpen] = useState(false);
   const baseBg = BACKGROUNDS[background] || bgEff;
@@ -2842,7 +2944,7 @@ function IdentityTab({ className, setClassName, subclassName, setSubclassName, l
       <Section title="Important Items" colors={colors} fontDisplay={fontDisplay}>
         {pinnedItems.length === 0 ? (
           <div style={{ color: colors.parchment + "55", fontSize: 14, fontFamily: "'Crimson Text','Georgia',serif", fontStyle: "italic" }}>
-            No important items yet — add them from the Magic Items or Mundane Items tabs.
+            No important items yet. Mark them with the star on the Magic Items or Mundane Items tabs.
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -2850,7 +2952,7 @@ function IdentityTab({ className, setClassName, subclassName, setSubclassName, l
               const isMagic = item.rarity !== undefined;
               const dotColor = isMagic ? RARITY_COLORS[item.rarity] : colors.parchment + "99";
               return (
-                <PinnedItemRow key={item.name} item={item} isMagic={isMagic} dotColor={dotColor} onRemove={() => setPinnedItems(prev => prev.filter(p => p.name !== item.name))} colors={colors} fontDisplay={fontDisplay} />
+                <PinnedItemRow key={item.name} item={item} isMagic={isMagic} dotColor={dotColor} onRemove={() => inv.setImportant(item, false)} colors={colors} fontDisplay={fontDisplay} />
               );
             })}
           </div>
@@ -2888,7 +2990,7 @@ function PinnedItemRow({ item, isMagic, dotColor, onRemove, colors }) {
       )}
       {hovered && (
         <button
-          onClick={onRemove}
+          onClick={onRemove} title="Take off Important Items (it stays in your inventory)"
           style={{
             background: colors.blood, border: "none", color: colors.parchment,
             borderRadius: 4, width: 22, height: 22, display: "flex", alignItems: "center",
@@ -3070,7 +3172,7 @@ function SkillsTab({ expertiseMax, expertiseList, expertiseCustom, cls, skillInf
   );
 }
 
-function CombatTab({ statAdj, setStatAdj, inventory, masteries, setMasteries, custom, masteryGlow, armor, setArmor, shield, setShield, weapons, setWeapons, ac, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }) {
+function CombatTab({ possibleMaxHp, averageHp, setHpTotal, statAdj, setStatAdj, inventory, masteries, setMasteries, custom, masteryGlow, armor, setArmor, shield, setShield, weapons, setWeapons, ac, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }) {
   const displayHp = currentHp === null ? effectiveMaxHp : currentHp;
   // Further Customization: an additional modifier on a stat, shown in red
   const adjust = (k, step) => (custom || statAdj[k]) ? (
@@ -3085,21 +3187,17 @@ function CombatTab({ statAdj, setStatAdj, inventory, masteries, setMasteries, cu
     <div>
       <Section title="Hit Points" colors={colors} fontDisplay={fontDisplay}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-          <div style={{ background: colors.inkLight, border: redIf("hp"), borderRadius: 8, padding: 12, textAlign: "center" }}>
+          <div data-testid="hp-max" style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Max HP</div>
-            <div style={{ fontFamily: fontDisplay, fontSize: 26, fontWeight: 700, color: colors.brassLight }}>{effectiveMaxHp}</div>
-            <div style={{ fontSize: 10, opacity: 0.6 }}>Level 1: the whole die. After that: half the die plus 1. Constitution modifier each level.</div>
-            {adjust("hp", 1)}
+            <div style={{ fontFamily: fontDisplay, fontSize: 26, fontWeight: 700, color: colors.brassLight }}>{possibleMaxHp}</div>
+            <div style={{ fontSize: 10, opacity: 0.6 }}>The highest possible: the top number on the die at every level, plus your Constitution modifier each level and your features.</div>
           </div>
-          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Current HP</div>
-            <input type="number" value={displayHp} onChange={e => setCurrentHp(parseInt(e.target.value) || 0)}
-              style={{ width: "100%", textAlign: "center", fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, background: "transparent", border: "none", color: colors.parchment }} />
-          </div>
-          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Temp HP</div>
-            <input type="number" value={tempHp} onChange={e => setTempHp(parseInt(e.target.value) || 0)}
-              style={{ width: "100%", textAlign: "center", fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, background: "transparent", border: "none", color: colors.parchment }} />
+          <div data-testid="hp-total" data-over={effectiveMaxHp > possibleMaxHp ? "yes" : ""} style={{ background: colors.inkLight, border: effectiveMaxHp > possibleMaxHp ? `2px solid ${CUSTOM_RED}` : `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Total HP</div>
+            <input type="number" aria-label="Total Hit Points" min={1} value={effectiveMaxHp} onChange={e => setHpTotal(parseInt(e.target.value) || 1)}
+              style={{ width: "100%", textAlign: "center", fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, background: "transparent", border: "none", color: effectiveMaxHp > possibleMaxHp ? CUSTOM_RED : colors.parchment }} />
+            <div style={{ fontSize: 10, opacity: 0.6 }}>What your character has. It starts at the average ({averageHp}): the whole die at level 1, then half the die plus 1, plus your Constitution modifier each level. {custom ? "Further Customization is on, so it can go above Max HP." : "It can go up to Max HP."}</div>
+            {effectiveMaxHp !== averageHp && <button aria-label="Use the average" onClick={() => setHpTotal(averageHp)} style={{ marginTop: 6, background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "2px 10px", fontSize: 11, cursor: "pointer" }}>Use the average ({averageHp})</button>}
           </div>
         </div>
         <div style={{ marginTop: 14, fontSize: 13 }}>
@@ -3557,7 +3655,8 @@ function SpellRow({ entry, onRemove, colors, fontDisplay, summary }) {
 }
 
 function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
-  const [filterLevel, setFilterLevel] = useState("all");
+  const [levelsOff, setLevelsOff] = useState([]);     // spell levels switched off in the Add Spells list (none: every level shows)
+  const [sortBy, setSortBy] = useState("level");      // "level" (alphabetical inside each level) or "name"
   const [search, setSearch] = useState("");
   const [anyList, setAnyList] = useState(false);     // customization: spells from every class list
   const [allLevels, setAllLevels] = useState(false); // customization: spells above the level you can cast
@@ -3570,8 +3669,13 @@ function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, prof
   const q = search.trim().toLowerCase();
   const pool = ALL_SPELLS.filter(sp =>
     !chosen.has(sp.n) && (wideList || (caster && sp.c.includes(className))) && (sp.l === 0 || sp.l <= topLevel)
-    && (filterLevel === "all" || sp.l === +filterLevel) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
-    .sort((a, b) => a.l - b.l || a.n.localeCompare(b.n));
+    && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
+    .sort((a, b) => (sortBy === "level" ? a.l - b.l : 0) || a.n.localeCompare(b.n));
+  const levelChoices = Array.from({ length: topLevel + 1 }).map((_, i) => i); // 0 is cantrips; only the levels this character can reach
+  const shownLevels = levelChoices.filter(l => !levelsOff.includes(l));
+  const allOn = shownLevels.length === levelChoices.length;
+  const toggleLevel = (l) => setLevelsOff(levelsOff.includes(l) ? levelsOff.filter(x => x !== l) : [...levelsOff, l]);
+  const levelName = (l) => (l === 0 ? "Cantrips" : `Level ${l}`);
   const room = (sp) => (sp.l === 0 ? spellInfo.cantrips < cantripMax : prepMax == null || spellInfo.prepared < prepMax);
   const legal = (sp) => caster && sp.c.includes(className) && sp.l <= maxLevel && room(sp);
   const add = (name) => setSpells([...spells.filter(Boolean), name]);
@@ -3644,24 +3748,32 @@ function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, prof
       {(caster || custom) && (
         <Section title="Add Spells" colors={colors} fontDisplay={fontDisplay}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-            <select aria-label="Spell level filter" value={filterLevel} onChange={e => setFilterLevel(e.target.value)} style={{ ...fieldStyle(colors), width: 150 }}>
-              <option value="all">All levels</option>
-              <option value="0">Cantrips</option>
-              {Array.from({ length: topLevel }).map((_, i) => <option key={i + 1} value={i + 1}>Level {i + 1}</option>)}
+            <div role="group" aria-label="Spell levels shown" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", flexBasis: "100%" }}>
+              <span style={{ fontSize: 12, opacity: 0.75 }}>Show:</span>
+              {[["all", "All", allOn, () => setLevelsOff(allOn ? levelChoices : [])]].concat(levelChoices.map(l => [l, levelName(l), !levelsOff.includes(l), () => toggleLevel(l)])).map(([k, text, on, click]) => (
+                <button key={k} data-testid={`level-chip-${k}`} aria-pressed={on} onClick={click}
+                  style={{ background: on ? colors.brass : "transparent", color: on ? colors.ink : colors.parchment, border: `1px solid ${colors.brass}`, borderRadius: 14, padding: "3px 12px", fontSize: 12, fontWeight: on ? 700 : 400, cursor: "pointer", opacity: on ? 1 : 0.6 }}>{text}</button>
+              ))}
+            </div>
+            <select aria-label="Sort spells" value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ ...fieldStyle(colors), width: 170 }}>
+              <option value="level">Sort by level</option>
+              <option value="name">Sort A to Z</option>
             </select>
             <input aria-label="Search spells" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or school" style={{ ...fieldStyle(colors), width: 240 }} />
             {custom && <label style={check}><input type="checkbox" checked={anyList} onChange={e => setAnyList(e.target.checked)} data-testid="any-list" /> Any spell list</label>}
             {custom && <label style={check}><input type="checkbox" checked={allLevels} onChange={e => setAllLevels(e.target.checked)} data-testid="all-levels" /> All spell levels</label>}
           </div>
           <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 8 }} data-testid="spell-pool-note">
-            Showing {pool.length} {wideList ? "spells from every list" : `${className} spells`}{wideLevel ? ", all levels" : maxLevel ? `, up to Level ${maxLevel}` : ", cantrips only"}.
+            Showing {pool.length} {wideList ? "spells from every list" : `${className} spells`}{allOn ? (wideLevel ? ", all levels" : maxLevel ? `, up to Level ${maxLevel}` : ", cantrips only") : shownLevels.length ? `: ${shownLevels.map(levelName).join(", ")}` : ", no levels switched on"}.
             {custom ? " Spells past your limits can still be added and will show in red." : ""}
           </div>
           <div style={{ maxHeight: 420, overflowY: "auto", border: `1px solid ${colors.brass}30`, borderRadius: 6 }}>
-            {pool.map(sp => {
+            {pool.map((sp, i) => {
               const ok = legal(sp);
-              return (
-                <div key={sp.n} data-testid={`pool-${sp.n}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderBottom: `1px solid ${colors.brass}18` }}>
+              const head = sortBy === "level" && (i === 0 || pool[i - 1].l !== sp.l);
+              return (<React.Fragment key={sp.n}>
+                {head && <div data-testid="pool-heading" style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, textTransform: "uppercase", padding: "8px 10px 4px", background: colors.inkLight }}>{levelName(sp.l)}</div>}
+                <div data-testid={`pool-${sp.n}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderBottom: `1px solid ${colors.brass}18` }}>
                   <div style={{ flex: 1 }}>
                     <strong style={{ fontSize: 14 }}>{sp.n}</strong>
                     <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 8 }}>{spellLine(sp)}{sp.conc ? " · Concentration" : ""}{sp.rit ? " · Ritual" : ""} · {sp.c.join(", ")}</span>
@@ -3669,7 +3781,7 @@ function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, prof
                   <button disabled={!ok && !custom} onClick={() => add(sp.n)} title={ok ? "" : custom ? "Past your limits: it will show in red" : "Past your limits"}
                     style={{ background: "transparent", border: `1px solid ${ok ? colors.brass : CUSTOM_RED}`, color: ok ? colors.brassLight : CUSTOM_RED, borderRadius: 6, padding: "3px 12px", fontSize: 12, cursor: ok || custom ? "pointer" : "default", opacity: ok || custom ? 1 : 0.35 }}>Add</button>
                 </div>
-              );
+              </React.Fragment>);
             })}
             {pool.length === 0 && <div style={{ padding: 12, fontSize: 13, opacity: 0.7 }}>No spells match.</div>}
           </div>
@@ -3685,9 +3797,14 @@ function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, prof
   );
 }
 
-function NotesTab({ equipment, setEquipment, notes, setNotes, colors, fontDisplay }) {
+function NotesTab({ inv, equipment, setEquipment, notes, setNotes, colors, fontDisplay }) {
   return (
     <div>
+      <Section title="Inventory" colors={colors} fontDisplay={fontDisplay}>
+        {inv.items.length === 0
+          ? <div style={{ fontSize: 13, opacity: 0.7 }}>Nothing yet. Add items on the Magic Items and Mundane Items tabs.</div>
+          : <InventoryList items={inv.items} inv={inv} colors={colors} />}
+      </Section>
       <Section title="Equipment" colors={colors} fontDisplay={fontDisplay}>
         <textarea value={equipment} onChange={e => setEquipment(e.target.value)} rows={8}
           placeholder="Weapons, armor, adventuring gear, tools, coin..."
@@ -3702,55 +3819,61 @@ function NotesTab({ equipment, setEquipment, notes, setNotes, colors, fontDispla
   );
 }
 
-function ItemRowHover({ item, isPinned, onPin, onUnpin, onSelect, isSelected, accentColor, colors, extraBadge }) {
+// The controls for one item: add it to the inventory, mark it important, or remove it.
+function ItemControls({ item, inv, colors, small }) {
+  const b = (bg, fg) => ({ minWidth: 22, height: 22, borderRadius: 4, border: "none", cursor: "pointer", background: bg, color: fg, fontSize: small ? 13 : 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, lineHeight: 1, padding: "0 4px" });
+  const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+  if (!inv.has(item)) return <button onClick={stop(() => inv.add(item, !!item.rarity))} title={item.rarity ? "Add to Inventory and Important Items" : "Add to Inventory"} aria-label={`Add ${item.name} to Inventory`} style={b("#4caf50", "#fff")}>+</button>;
+  const star = inv.important(item);
+  return (<>
+    <button onClick={stop(() => inv.setImportant(item, !star))} title={star ? "Take off Important Items (it stays in your inventory)" : "Mark as Important"} aria-label={`${star ? "Unmark" : "Mark"} ${item.name} as Important`} aria-pressed={star} style={b(star ? colors.brass : "transparent", star ? colors.ink : colors.brassLight)}>{star ? "★" : "☆"}</button>
+    <button onClick={stop(() => inv.remove(item))} title="Remove from Inventory" aria-label={`Remove ${item.name} from Inventory`} style={b(colors.blood, "#fff")}>×</button>
+  </>);
+}
+// A list of carried items with their controls (Notes tab and the side panels).
+function InventoryList({ items, inv, colors }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 260, overflowY: "auto" }} data-testid="inventory-list">
+      {items.map(item => (
+        <div key={item.name} data-testid={`inv-${item.name}`} data-important={inv.important(item) ? "yes" : ""} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: item.rarity ? RARITY_COLORS[item.rarity] : colors.parchment + "99", flexShrink: 0 }} />
+          <span style={{ color: colors.parchment, fontSize: 13, flex: 1, fontFamily: "'Crimson Text','Georgia',serif" }}>{item.name}</span>
+          <span style={{ fontSize: 11, color: colors.parchment + "55" }}>{item.rarity || item.cost || ""}</span>
+          <ItemControls item={item} inv={inv} colors={colors} small />
+        </div>
+      ))}
+    </div>
+  );
+}
+function ItemRowHover({ item, inv, onSelect, isSelected, accentColor, colors, extraBadge }) {
   const [hovered, setHovered] = React.useState(false);
+  const mine = inv.has(item), star = inv.important(item);
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => onSelect()}
+      data-testid={`item-${item.name}`}
       style={{
         display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 6,
         cursor: "pointer", position: "relative",
-        background: isSelected ? `${accentColor}22` : (isPinned ? `${accentColor}11` : "transparent"),
-        border: `1px solid ${isSelected ? accentColor + "66" : (isPinned ? accentColor + "33" : "transparent")}`,
+        background: isSelected ? `${accentColor}22` : (mine ? `${accentColor}11` : "transparent"),
+        border: `1px solid ${isSelected ? accentColor + "66" : (mine ? accentColor + "33" : "transparent")}`,
         transition: "background 0.12s"
       }}
     >
       <span style={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, background: accentColor }} />
-      <span style={{
-        color: isPinned ? colors.parchment : colors.parchment + "cc",
-        fontSize: 14, flex: 1,
-        fontFamily: "'Crimson Text','Georgia',serif",
-        fontWeight: isPinned ? 600 : 400
-      }}>
+      <span style={{ color: mine ? colors.parchment : colors.parchment + "cc", fontSize: 14, flex: 1, fontFamily: "'Crimson Text','Georgia',serif", fontWeight: mine ? 600 : 400 }}>
         {item.name}
       </span>
       {extraBadge}
-      {/* Hover action: show ✓ to add or × to remove */}
-      {hovered && (
-        <button
-          onClick={e => { e.stopPropagation(); isPinned ? onUnpin() : onPin(); }}
-          title={isPinned ? "Remove from Important Items" : "Add to Important Items"}
-          style={{
-            width: 22, height: 22, borderRadius: 4, border: "none", cursor: "pointer",
-            background: isPinned ? colors.blood : "#4caf50",
-            color: "#fff", fontSize: 14, fontWeight: 700,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0, lineHeight: 1
-          }}
-        >
-          {isPinned ? "×" : "✓"}
-        </button>
-      )}
-      {!hovered && isPinned && (
-        <span style={{ fontSize: 12, color: "#4caf50", flexShrink: 0 }}>✓</span>
-      )}
+      {hovered && <ItemControls item={item} inv={inv} colors={colors} />}
+      {!hovered && mine && <span style={{ fontSize: 12, color: star ? colors.brassLight : "#4caf50", flexShrink: 0 }}>{star ? "★" : "✓"}</span>}
     </div>
   );
 }
 
-function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, characterItems, setCharacterItems, pinnedItems, setPinnedItems, colors, fontDisplay }) {
+function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem, inv, colors, fontDisplay }) {
   const allTypes = React.useMemo(() => {
     const types = new Set(MAGIC_ITEMS.map(i => i.type));
     return ["All", ...Array.from(types).sort()];
@@ -3776,9 +3899,6 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
     return g;
   }, [filtered]);
 
-  const isPinned = (item) => pinnedItems.some(p => p.name === item.name);
-  const pinItem = (item) => { if (!isPinned(item)) setPinnedItems(prev => [...prev, item]); };
-  const unpinItem = (item) => setPinnedItems(prev => prev.filter(p => p.name !== item.name));
 
   const inputStyle = {
     background: colors.inkLight, border: `1px solid ${colors.brass}44`, color: colors.parchment,
@@ -3830,9 +3950,7 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
                     <ItemRowHover
                       key={item.name}
                       item={item}
-                      isPinned={isPinned(item)}
-                      onPin={() => pinItem(item)}
-                      onUnpin={() => unpinItem(item)}
+                      inv={inv}
                       onSelect={() => setSelectedItem(selectedItem && selectedItem.name === item.name ? null : item)}
                       isSelected={selectedItem && selectedItem.name === item.name}
                       accentColor={RARITY_COLORS[rarity]}
@@ -3869,17 +3987,15 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
                 </div>
               </div>
               <p style={{ color: colors.parchment + "cc", fontSize: 14, lineHeight: 1.7, fontFamily: "'Crimson Text','Georgia',serif", margin: "0 0 16px" }}>{selectedItem.description}</p>
-              <button
-                onClick={() => isPinned(selectedItem) ? unpinItem(selectedItem) : pinItem(selectedItem)}
-                style={{
-                  width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer",
-                  fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none",
-                  background: isPinned(selectedItem) ? colors.blood : colors.brass,
-                  color: isPinned(selectedItem) ? colors.parchment : colors.ink
-                }}
-              >
-                {isPinned(selectedItem) ? "− Remove from Important Items" : "✓ Add to Important Items"}
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }} data-testid="item-buttons">
+                {!inv.has(selectedItem) ? (<>
+                  <button onClick={() => inv.add(selectedItem, !!selectedItem.rarity)} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none", background: colors.brass, color: colors.ink }}>{selectedItem.rarity ? "+ Add to Inventory and Important Items" : "+ Add to Inventory"}</button>
+                  {!selectedItem.rarity && <button onClick={() => inv.add(selectedItem, true)} style={{ width: "100%", padding: "8px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 12, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.brassLight }}>★ Add to Inventory and Important Items</button>}
+                </>) : (<>
+                  <button onClick={() => inv.setImportant(selectedItem, !inv.important(selectedItem))} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: `1px solid ${colors.brass}`, background: inv.important(selectedItem) ? "transparent" : colors.brass, color: inv.important(selectedItem) ? colors.brassLight : colors.ink }}>{inv.important(selectedItem) ? "☆ Take off Important Items (keep in inventory)" : "★ Mark as Important"}</button>
+                  <button onClick={() => inv.remove(selectedItem)} style={{ width: "100%", padding: "8px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 12, border: "none", background: colors.blood, color: colors.parchment }}>− Remove from Inventory</button>
+                </>)}
+              </div>
             </>
           ) : (
             <div style={{ color: colors.parchment + "44", fontFamily: "'Crimson Text','Georgia',serif", fontSize: 15, textAlign: "center", paddingTop: 60 }}>
@@ -3888,20 +4004,10 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
           )}
         </div>
 
-        {pinnedItems.filter(p => p.rarity).length > 0 && (
+        {inv.items.filter(p => p.rarity).length > 0 && (
           <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}33`, borderRadius: 10, padding: 16 }}>
-            <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase" }}>
-              Pinned Magic Items ({pinnedItems.filter(p => p.rarity).length})
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
-              {pinnedItems.filter(p => p.rarity).map(item => (
-                <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: RARITY_COLORS[item.rarity], flexShrink: 0 }} />
-                  <span style={{ color: colors.parchment, fontSize: 13, flex: 1, fontFamily: "'Crimson Text','Georgia',serif" }}>{item.name}</span>
-                  <button onClick={() => unpinItem(item)} style={{ background: "none", border: "none", color: colors.blood, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>
-                </div>
-              ))}
-            </div>
+            <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase" }}>Your Magic Items ({inv.items.filter(p => p.rarity).length})</div>
+            <InventoryList items={inv.items.filter(p => p.rarity)} inv={inv} colors={colors} />
           </div>
         )}
       </div>
@@ -3909,7 +4015,7 @@ function MagicItemsTab({ itemSearch, setItemSearch, itemRarityFilter, setItemRar
   );
 }
 
-function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, pinnedItems, setPinnedItems, colors, fontDisplay }) {
+function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, inv, colors, fontDisplay }) {
   const allCategories = React.useMemo(() => {
     const cats = new Set(MUNDANE_ITEMS.map(i => i.category));
     return ["All", ...Array.from(cats).sort()];
@@ -3931,9 +4037,6 @@ function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, s
     return g;
   }, [filtered, allCategories]);
 
-  const isPinned = (item) => pinnedItems.some(p => p.name === item.name);
-  const pinItem = (item) => { if (!isPinned(item)) setPinnedItems(prev => [...prev, item]); };
-  const unpinItem = (item) => setPinnedItems(prev => prev.filter(p => p.name !== item.name));
 
   const inputStyle = {
     background: colors.inkLight, border: `1px solid ${colors.brass}44`, color: colors.parchment,
@@ -3978,9 +4081,7 @@ function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, s
                     <ItemRowHover
                       key={item.name}
                       item={item}
-                      isPinned={isPinned(item)}
-                      onPin={() => pinItem(item)}
-                      onUnpin={() => unpinItem(item)}
+                      inv={inv}
                       onSelect={() => setSelectedMundane(selectedMundane && selectedMundane.name === item.name ? null : item)}
                       isSelected={selectedMundane && selectedMundane.name === item.name}
                       accentColor={accentColor}
@@ -4020,17 +4121,15 @@ function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, s
               <p style={{ color: colors.parchment + "cc", fontSize: 14, lineHeight: 1.7, fontFamily: "'Crimson Text','Georgia',serif", margin: "0 0 16px" }}>
                 {selectedMundane.description}
               </p>
-              <button
-                onClick={() => isPinned(selectedMundane) ? unpinItem(selectedMundane) : pinItem(selectedMundane)}
-                style={{
-                  width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer",
-                  fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none",
-                  background: isPinned(selectedMundane) ? colors.blood : colors.brass,
-                  color: isPinned(selectedMundane) ? colors.parchment : colors.ink
-                }}
-              >
-                {isPinned(selectedMundane) ? "− Remove from Important Items" : "✓ Add to Important Items"}
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }} data-testid="item-buttons">
+                {!inv.has(selectedMundane) ? (<>
+                  <button onClick={() => inv.add(selectedMundane, !!selectedMundane.rarity)} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: "none", background: colors.brass, color: colors.ink }}>{selectedMundane.rarity ? "+ Add to Inventory and Important Items" : "+ Add to Inventory"}</button>
+                  {!selectedMundane.rarity && <button onClick={() => inv.add(selectedMundane, true)} style={{ width: "100%", padding: "8px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 12, border: `1px solid ${colors.brass}`, background: "transparent", color: colors.brassLight }}>★ Add to Inventory and Important Items</button>}
+                </>) : (<>
+                  <button onClick={() => inv.setImportant(selectedMundane, !inv.important(selectedMundane))} style={{ width: "100%", padding: "10px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, border: `1px solid ${colors.brass}`, background: inv.important(selectedMundane) ? "transparent" : colors.brass, color: inv.important(selectedMundane) ? colors.brassLight : colors.ink }}>{inv.important(selectedMundane) ? "☆ Take off Important Items (keep in inventory)" : "★ Mark as Important"}</button>
+                  <button onClick={() => inv.remove(selectedMundane)} style={{ width: "100%", padding: "8px 0", borderRadius: 6, cursor: "pointer", fontFamily: fontDisplay, fontSize: 12, border: "none", background: colors.blood, color: colors.parchment }}>− Remove from Inventory</button>
+                </>)}
+              </div>
             </>
           ) : (
             <div style={{ color: colors.parchment + "44", fontFamily: "'Crimson Text','Georgia',serif", fontSize: 15, textAlign: "center", paddingTop: 60 }}>
@@ -4039,21 +4138,10 @@ function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, s
           )}
         </div>
 
-        {pinnedItems.filter(p => !p.rarity).length > 0 && (
+        {inv.items.filter(p => !p.rarity).length > 0 && (
           <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}33`, borderRadius: 10, padding: 16 }}>
-            <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase" }}>
-              Pinned Mundane Items ({pinnedItems.filter(p => !p.rarity).length})
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
-              {pinnedItems.filter(p => !p.rarity).map(item => (
-                <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: accentColor, flexShrink: 0 }} />
-                  <span style={{ color: colors.parchment, fontSize: 13, flex: 1, fontFamily: "'Crimson Text','Georgia',serif" }}>{item.name}</span>
-                  <span style={{ fontSize: 11, color: colors.parchment + "55" }}>{item.cost}</span>
-                  <button onClick={() => unpinItem(item)} style={{ background: "none", border: "none", color: colors.blood, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>
-                </div>
-              ))}
-            </div>
+            <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, letterSpacing: 0.5, marginBottom: 10, textTransform: "uppercase" }}>Your Mundane Items ({inv.items.filter(p => !p.rarity).length})</div>
+            <InventoryList items={inv.items.filter(p => !p.rarity)} inv={inv} colors={colors} />
           </div>
         )}
       </div>
