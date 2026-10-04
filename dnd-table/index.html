@@ -30,7 +30,7 @@
     <button role="tab" data-tab="builder" aria-selected="true">Character Builder</button>
     <button role="tab" data-tab="resolver" aria-selected="false">Combat Resolver</button>
   </div>
-  <iframe id="builder" title="Character Builder" src="builder.html"></iframe>
+  <iframe id="builder" title="Character Builder"></iframe>
   <iframe id="resolver" title="Combat Resolver" hidden></iframe>
   <script>
     (function () {
@@ -44,7 +44,10 @@
 
       // An invite link (#room=CODE) opens straight into the Combat Resolver, already in that room.
       var room = (/room=([A-Za-z0-9]+)/.exec(location.hash) || [])[1];
-      frames.resolver.src = 'resolver.html' + (room ? '#room=' + room : '');
+      // A fresh address on every visit, so the browser never shows a stale copy after an update.
+      var fresh = '?v=' + Date.now();
+      frames.builder.src = 'builder.html' + fresh;
+      frames.resolver.src = 'resolver.html' + fresh + (room ? '#room=' + room : '');
       if (room) show('resolver');
 
       // "Send to Combat Resolver" in the builder hands the character across.
