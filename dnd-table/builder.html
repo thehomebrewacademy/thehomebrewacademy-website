@@ -7,6 +7,9 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="spells.js"></script>
+  <script src="rules.js"></script>
+  <script src="mechanics.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,7 +33,12 @@ STEP 1. Ask the user to upload or paste their content: a homebrew document, a so
 
 STEP 2. Read all of it. For every option, work out two things:
   a. The character option itself (what shows on the character sheet).
-  b. Every feature, spell or item that a character ACTIVATES (uses on purpose, or that triggers). Each of those becomes an entry in "abilities" with full mechanics, so the Combat Resolver can run it.
+  b. Every feature, trait, spell or item that DOES something. Each one becomes an entry in "abilities", so the sheet's numbers change and the Combat Resolver can run it. Sort each one into these kinds (one feature can be several at once):
+     PASSIVE: it changes a number or a defense all the time (Armor Class, Speed, Hit Points, a save, a Resistance, a sense, a spell that is always prepared). It gets "statics".
+     ACTIVATED: the character uses it or it triggers (an attack, a breath weapon, a heal, a buff, a reaction). It gets activation, target, roll and results.
+     RESOURCE: it gives a pool of uses that one or more features spend (Rage, Focus Points, Channel Divinity). It gets "resource".
+     CHOICE: the player picks one option from a list when they gain it (a fighting style, a land type, a damage type). It gets "options".
+     TEXT ONLY: it has no number and no roll the app could apply (a language, a ribbon). It needs no ability; its text on the class or species is enough.
 
 STEP 3. Output ONE JSON file and nothing else, in a single code block, so the user can save it as a .json file. It must be valid JSON: double quotes, no comments, no trailing commas. If the content is too long for one reply, tell the user, then continue the same file in the next reply so the pieces join into one file.
 
@@ -95,7 +103,8 @@ Rules for classes:
 - features has one list per level, levels "1" to "20". A level with nothing new can be left out.
 - Write the exact text "Ability Score Improvement" at each level that grants one, and "Epic Boon" at level 19 if the class has it.
 - Write the exact text "Subclass feature" at each level where the subclass grants something. The subclass entry then lists what it grants at that same level.
-- Put a short reminder of the numbers in the feature text when it helps, for example "Rage (2 uses, +2 damage)".
+- Use each feature's exact name. Its mechanics go in "abilities" under the same name.
+- A spellcasting class can also give: "preparedSpells": a list of 20 numbers (how many spells are prepared at each level), "cantripsKnown": a list of 20 numbers, and "expertise": { "2": 2, "9": 4 } (level reached: total skills with Expertise).
 
 ---------------------------------------------------------------------
 SUBCLASSES FOR CLASSES THAT ALREADY EXIST
@@ -118,6 +127,7 @@ SPECIES, BACKGROUNDS, FEATS
 }
 Write senses exactly as "Darkvision (60 ft.)", "Blindsight (30 ft.)", "Tremorsense (30 ft.)" or "Truesight (30 ft.)" so the sheet picks them up.
 If the species lets the player choose a skill proficiency, add "skillChoice": { "count": 1, "from": ["Insight", "Perception", "Survival"] }. Leave "from" empty for any skill.
+If the species has a lineage, ancestry or legacy to choose from, add "lineage": { "label": "Ember Lineage", "options": { "Ashborn": { "traits": ["Ash Step: full text."] }, "Flameborn": { "traits": ["Flame Skin: full text."] } } }. What each option does goes in "abilities" with grantedBy type "lineage".
 
 "backgrounds": {
   "Lamplighter": { "abilityScores": ["Dexterity", "Constitution", "Wisdom"], "feat": "Alert", "skills": ["Perception", "Stealth"], "tool": "Tinker's Tools" }
@@ -146,7 +156,7 @@ rarity is Common, Uncommon, Rare, Very Rare, Legendary or Artifact.
 ABILITIES: EVERYTHING A CHARACTER ACTIVATES
 ---------------------------------------------------------------------
 
-This is the most important section. Passive features (a flat bonus that is always on, a proficiency, a ribbon) only need their text in the class, species or feat. Anything that is USED needs an entry here: an attack, a spell, a breath weapon, a smite, a healing pool, a buff, a debuff, a reaction.
+This is the most important section. Every feature that changes a number, gives uses, offers a choice or can be used needs an entry here. Only pure text (a language, a ribbon) can be left out.
 
 The Combat Resolver does this with each ability:
   1. The player picks it on their turn and picks a target (or it lands on themselves).
@@ -177,15 +187,16 @@ Each ability looks like this. Leave out any field that does not apply.
 }
 
 grantedBy: who gets it.
-  type is "class", "subclass", "species", "background", "feat", "spell" or "item".
-  name is the exact name of that class, subclass, species, background, feat, spell or item.
-  level (class and subclass only) is the level at which it is gained. Leave it out for level 1.
+  type is "class", "subclass", "species", "lineage", "background", "feat", "spell" or "item".
+  name is the exact name of that class, subclass, species, lineage option, background, feat, spell or item.
+  For type "lineage" also give "species": the species the lineage belongs to.
+  level is the character level at which it is gained. Leave it out for level 1.
   A character gets the ability when their sheet has that option. A "spell" ability is granted when the spell is on their spell list. An "item" ability is granted when the item is on their sheet.
 
 activation: "action", "bonus", "reaction" or "free".
 
 target: "creature" (the user picks a target) or "self" (it lands on the user).
-  For an area, use "creature": the user resolves it once per creature in the area.
+targets: how many creatures one use can affect. Leave it out for one. Give a number or a formula ("3", "MAX(1,CHA)") for "up to that many", or "any" for an area or "each creature of your choice". The user picks them all, one use is spent, the damage is rolled once and each target rolls its own save.
 
 roll: what decides the result.
   "attack": the user rolls to hit the target's Armor Class. Needs "attack".
@@ -195,6 +206,7 @@ roll: what decides the result.
 attack: { "bonus": "PROF+STR", "ranged": false }
   bonus is a formula (see FORMULAS). Use "SPELLATK" for a spell attack.
   ranged is true for a ranged attack, so the rules for a Prone target and for automatic Critical Hits apply correctly.
+  weapon is true when the attack is made with a weapon, and twoHanded is true when that weapon is held in two hands, so feats such as Savage Attacker, Archery and Great Weapon Fighting apply to it.
 
 save: { "ability": "Wisdom", "dc": "SPELLDC" }
   ability is the save the TARGET makes. dc is a formula, for example "SPELLDC", "8+PROF+CON" or 15.
@@ -210,6 +222,8 @@ RESULTS. Each of these holds "conditions" and "effects":
   "onFail": applied to the target when it fails the save.
   "onSuccess": applied to the target when it succeeds on the save. Use this for the alternative result, such as a weaker effect on a success.
   "onUse": applied when there is no roll (roll "none"), to the target or to the user if target is "self".
+
+A result can also give Temporary Hit Points: "onUse": { "tempHP": "1d8+WIS" }.
 
 conditions: a list of
   { "name": "Frightened", "duration": { "amount": 1, "unit": "minutes" }, "repeatSave": { "when": "end", "turn": "target", "ability": "Wisdom" } }
@@ -241,14 +255,95 @@ effects: a list of timed bonuses, penalties and riders. Give each a name (usuall
   "immuneTo": "Frightened"                         immune to that condition while it lasts
   "reduceDamageType": "Fire"                       reduces that damage type by 1d4 once per turn
   "tempHPEachTurn": "CHA"                          formula: Temporary Hit Points at the start of each of its turns
+  "resistDamage": ["Bludgeoning", "Piercing"]      Resistance to those damage types while it lasts
+  "damageBonus": 2                                 formula: added to the damage of its weapon attacks and Unarmed Strikes
+  "damageBonusFor": "Strength"                     only when the attack uses that ability
+  "attackAdvantage": true                          Advantage on its attack rolls (or an ability name: only attacks using it)
+  "attacksAgainstHaveDisadvantage": true           attack rolls against the creature have Disadvantage
+  "spellSaveDC": 1                                 bonus to the save DC of its spells
+  "spellAttackAdvantage": true                     Advantage on its spell attack rolls
+  "inspirationDie": "d8"                           a die it can add to one failed roll (d4, d6, d8, d10 or d12)
   "sense": "Darkvision 60 ft."                     a sense it gains
   "movement": "Fly 60 ft. (hover)"                 a movement mode it gains
   "note": "Anything the app cannot apply by itself. It is shown to the table as a reminder."
 
 uses: { "max": "PROF", "recharge": "short" }
   max is a formula for how many times it can be used. recharge is "short" (back on a Short or Long Rest) or "long" (back on a Long Rest). Leave uses out if it is unlimited or spends spell slots.
+  To spend from a shared pool instead, write uses: { "pool": "Focus Points", "cost": 1 }. The pool itself is defined once with "resource" (see RESOURCES).
+  If the use (or the spell slot) is only spent on one result, add "refundOn": "miss", "hit", "saveSuccess" or "saveFail". The app gives the use back when that result happens. For example, a feature that "isn't expended if the attack misses" has "refundOn": "miss".
+
+feature: when one feature gives several things to use (Channel Divinity gives Divine Spark and Turn Undead), make one ability for each and set "feature" to the parent feature's name.
 
 atLevel: changes at higher character levels. The key is the level, the value holds the fields to replace from that level on. The highest level reached wins.
+  A value that changes at many levels can instead be written as a list of exactly 20 values, one for each level 1 to 20: "dice": ["1d6","1d6","1d6","1d6","1d8", ...].
+
+---------------------------------------------------------------------
+PASSIVE FEATURES: statics
+---------------------------------------------------------------------
+
+"statics" holds what a feature changes on the sheet all the time. An ability can have only statics (no activation at all):
+{ "name": "Stone Skin", "grantedBy": { "type": "class", "name": "Warden" }, "statics": { "acBase": { "formula": "10+CON+WIS", "shield": true } } }
+
+  "acBase": { "formula": "10+DEX+CON", "shield": true }   Armor Class while wearing no armor. shield false: not while using a Shield.
+  "acBonus": { "formula": 1, "when": "armor" }            added to Armor Class. when: "armor", "noArmor", "noHeavy" or leave out for always.
+  "speed": { "formula": 10, "when": "noHeavy" }           feet added to Speed. when: "noHeavy", "noArmor", "noArmorNoShield" or leave out.
+  "speedBase": 35                                         replaces the species' Speed
+  "hp": "LEVEL"                                           added to the Hit Point maximum
+  "initiative": "PROF"                                    added to Initiative
+  "scores": { "Strength": 4, "Constitution": 4 }          added to ability scores
+  "saveProficiency": ["Wisdom", "Charisma"]               saving throw proficiencies, or "all"
+  "saveBonus": "MAX(1,CHA)"                               added to every saving throw
+  "saveAdvantage": ["Dexterity"]                          Advantage on saves with those abilities
+  "conditionAdvantage": ["Charmed"]                       Advantage on saves to avoid or end those conditions
+  "conditionImmune": ["Frightened"]                       immune to those conditions
+  "resist": ["Poison"]                                    Resistance to those damage types
+  "senses": ["Darkvision 120 ft."]                        senses
+  "halfProficiency": true                                 half Proficiency Bonus on skills it lacks proficiency in
+  "skillPicks": { "class": 1, "any": 3 }                  more skill proficiencies to choose: from the class list, or from any skill
+  "skillBonus": { "skills": ["Arcana"], "formula": "MAX(1,WIS)" }   a bonus to those skills
+  "spells": { "1": ["Bless"], "5": ["Revivify"] }         spells always prepared from that level (they don't count against the limit)
+  "cantripBonus": 1                                       more cantrips known
+  "cantripDamage": "WIS"                                  added to the damage of its cantrips
+  "schoolDamage": { "school": "Evocation", "formula": "INT" }       added to the damage of spells of that school
+  "weaponDamage": { "dice": "1d8", "type": "Radiant", "when": "melee" }   extra damage on every hit. when: "melee", "weapon" or "all".
+  "weaponMasteries": 2                                    how many kinds of weapons it can use the mastery property of (a list of 20 for a number that grows)
+  "unarmedDie": 6                                         its Unarmed Strike rolls this die (a list of 20 for a die that grows)
+  "unarmedDexterity": true                                Unarmed Strikes can use Dexterity
+  "passives": { ... }                                     standing combat rules, below
+
+passives the Combat Resolver applies:
+  "attacks": 2                 attacks made with the Attack action (shown as a reminder)
+  "criticalOn": 19             weapon attacks and Unarmed Strikes score a Critical Hit on this roll or higher
+  "sneakAttackDice": 3         d6s added once per turn to a hit with a Finesse or Ranged weapon
+  "evasion": true              a Dexterity save for half damage: none on a success, half on a failure
+  "initiativeAdvantage": true  Advantage on Initiative (shown as a reminder)
+  "discipleOfLife": true       healing spells cast with a slot restore 2 + the slot's level more
+  "supremeHealing": true       healing dice count as their highest number
+  "potentCantrip": true        a damaging cantrip still deals half damage on a miss or a successful save
+
+---------------------------------------------------------------------
+RESOURCES: pools of uses
+---------------------------------------------------------------------
+
+When several features spend the same uses, or the number of uses is its own feature, define the pool once:
+{ "name": "Warden's Resolve", "grantedBy": { "type": "class", "name": "Warden", "level": 2 },
+  "resource": { "name": "Resolve Points", "max": "LEVEL", "recharge": "short" } }
+
+  max is a formula, or a list of 20 numbers taken from the class table.
+  recharge is "short" or "long". For "regain one use on a Short Rest and all on a Long Rest" write "recharge": "long", "shortRegain": 1.
+Each feature that spends from it uses: { "pool": "Resolve Points", "cost": 1 }. The Combat Resolver shows the pool, takes the cost when the feature is used, blocks it when the pool is too low, and refills it on the right rest.
+
+---------------------------------------------------------------------
+CHOICES INSIDE A FEATURE: options
+---------------------------------------------------------------------
+
+When the player picks one of several options, list them. Each choice is written like an ability (statics, activation and so on) and takes effect only when picked:
+{ "name": "Warden's Path", "grantedBy": { "type": "class", "name": "Warden", "level": 3 },
+  "options": { "label": "Warden's Path", "choices": [
+    { "name": "Bulwark", "statics": { "acBonus": { "formula": 1 } } },
+    { "name": "Avenger", "activation": "reaction", "target": "creature", "roll": "none", "damage": [ { "dice": "1d8", "type": "Force" } ] } ] } }
+The builder shows a dropdown for the choice on the Features tab.
+If the choice can be changed after a rest, add "changeOn": "short" (a Short or Long Rest) or "changeOn": "long" (a Long Rest only) inside "options". The builder's rest window then lists it as something the player can change.
 
 text: the full rules text, copied as written. It is shown in the combat log.
 
@@ -263,7 +358,7 @@ A formula is a number or a sum using these words, in capitals:
   SPELLMOD                   the user's spellcasting ability modifier
   SPELLDC                    the user's spell save DC
   SPELLATK                   the user's spell attack bonus
-You can use + - * / and brackets. Division rounds down. Examples: "8+PROF+WIS", "LEVEL*5", "(LEVEL+1)/2".
+You can use + - * / and brackets. Division rounds down. MAX(a,b) gives the larger and MIN(a,b) the smaller, for rules such as "minimum of 1". Examples: "8+PROF+WIS", "LEVEL*5", "(LEVEL+1)/2", "MAX(1,CHA)".
 
 A dice formula adds dice, written with a small letter d: "2d6", "1d8+STR", "1d10+LEVEL". The number of dice can itself be a formula in brackets: "(LEVEL+1)/2d6" means that many d6.
 
@@ -316,7 +411,11 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 
 - The file is valid JSON with "format": "homebrew-academy-content" and "version": 1.
 - Every ability's grantedBy name matches a name in this file or a built-in option, spelled the same way.
-- Every activated feature, castable spell and usable item has an ability. Passive ones do not.
+- Go through every class level, every subclass level, every species trait and every lineage option one at a time. Each one is PASSIVE, ACTIVATED, RESOURCE, CHOICE or TEXT ONLY, and everything except TEXT ONLY has an ability.
+- Every "your X increases", "you have Resistance", "you gain proficiency", "you always have the spell prepared" is in statics.
+- Every "a number of times equal to", "you can use this feature twice" or table column of uses is a uses or a resource.
+- Every "choose one of the following" is options.
+- Every area, "each creature" or "up to N creatures" has targets.
 - Every roll "attack" has "attack". Every roll "save" has "save" with an ability and a dc.
 - Every number that depends on the character is a formula, not a fixed number.
 - Every condition or effect that the text gives a time limit has a duration. Every "repeats the save" has a repeatSave with the right turn.
@@ -871,9 +970,9 @@ function getFeaturesUpToLevel(className, subclassName, level) {
       if (f === "—") return;
       if (f === "Subclass feature" && subclassName) {
         const subFeats = (cls.subclasses[subclassName] || {})[l];
-        if (subFeats) subFeats.forEach(sf => out.push({ level: l, text: sf, source: "Subclass" }));
+        if (subFeats) subFeats.forEach(sf => out.push({ level: l, text: sf, source: "Subclass", detail: featureText(className, subclassName, sf, l) }));
       } else if (f !== "Subclass feature") {
-        out.push({ level: l, text: f, source: "Class" });
+        out.push({ level: l, text: f, source: "Class", detail: featureText(className, "", f, l) });
       }
     });
   }
@@ -894,17 +993,22 @@ function getSpellSlots(className, level) {
 const SPECIES_SKILL_CHOICE = { Human: { count: 1, from: [] }, Elf: { count: 1, from: ["Insight", "Perception", "Survival"] } };
 // Sorts a character's skills by what grants each one. picks = skills the player chose, removed = granted skills taken away.
 // Anything chosen that no source can pay for is "Custom".
-function sortSkills(cls, species, background, picks, removed) {
+function sortSkills(cls, species, fixed, picks, removed, extra) { // extra: more picks granted by features {classPicks, anyPicks} // fixed: [{skill, source}] granted outright (background, feats)
   const valid = (list) => (Array.isArray(list) ? list : []).filter(k => ALL_SKILLS.includes(k));
-  const bgAll = valid((BACKGROUNDS[background] || {}).skills);
+  const fixedBy = {};
+  fixed.forEach(f => { if (ALL_SKILLS.includes(f.skill) && !fixedBy[f.skill]) fixedBy[f.skill] = f.source; });
+  const bgAll = Object.keys(fixedBy);
   const classList = valid(cls && cls.skillList);
-  const classAny = !classList.length, classPool = classAny ? ALL_SKILLS : classList, classCount = (cls && cls.skillChoices) || 0;
+  const classAny = !classList.length, classPool = classAny ? ALL_SKILLS : classList, classCount = ((cls && cls.skillChoices) || 0) + ((extra && extra.classPicks) || 0);
+  const anyCount = (extra && extra.anyPicks) || 0;
   const sc = (SPECIES[species] || {}).skillChoice || SPECIES_SKILL_CHOICE[species] || { count: 0, from: [] };
   const speciesList = valid(sc.from), speciesCount = Math.max(0, parseInt(sc.count, 10) || 0);
   const speciesAny = speciesCount > 0 && !speciesList.length, speciesPool = speciesAny ? ALL_SKILLS : speciesList;
   const source = {};
   const bg = bgAll.filter(k => !removed.includes(k));
-  bg.forEach(k => { source[k] = "Background"; });
+  bg.forEach(k => { source[k] = fixedBy[k]; });
+  const grantedBy = {}; // source -> skills, for the summary line
+  bgAll.forEach(k => { (grantedBy[fixedBy[k]] = grantedBy[fixedBy[k]] || []).push(k); });
   const free = Array.from(new Set(picks)).filter(k => ALL_SKILLS.includes(k) && !bgAll.includes(k));
   let classLeft = classCount, speciesLeft = speciesCount;
   const inC = k => classPool.includes(k), inS = k => speciesCount > 0 && speciesPool.includes(k);
@@ -913,11 +1017,20 @@ function sortSkills(cls, species, background, picks, removed) {
   free.filter(k => !source[k] && inC(k) && inS(k)).forEach(k => {
     if (classLeft > 0) { source[k] = "Class"; classLeft--; } else if (speciesLeft > 0) { source[k] = "Species"; speciesLeft--; }
   });
+  let anyLeft = anyCount; // picks a feature gives from any skill (College of Lore's Bonus Proficiencies)
+  free.filter(k => !source[k]).forEach(k => { if (anyLeft > 0) { source[k] = "Feature"; anyLeft--; } });
   free.filter(k => !source[k]).forEach(k => { source[k] = "Custom"; });
-  const canChoose = ALL_SKILLS.filter(k => !source[k] && !bgAll.includes(k) && ((classLeft > 0 && inC(k)) || (speciesLeft > 0 && inS(k))));
-  return { source, bg: bgAll, removed: bgAll.filter(k => removed.includes(k)), canChoose,
+  const canChoose = ALL_SKILLS.filter(k => !source[k] && !bgAll.includes(k) && (anyLeft > 0 || (classLeft > 0 && inC(k)) || (speciesLeft > 0 && inS(k))));
+  return { source, bg: bgAll, fixedBy, grantedBy, removed: bgAll.filter(k => removed.includes(k)), canChoose, anyCount, anyLeft,
     classPool, classAny, classCount, classLeft, speciesPool, speciesAny, speciesCount, speciesLeft };
 }
+
+function traitText(species, lineage, name) { // rules text of a species trait or lineage trait
+  const sp = RULES && RULES.species[species]; if (!sp) return "";
+  const t = sp.traits.find(x => x.name === name) || (((sp.lineage || {}).options || {})[lineage] || { traits: [] }).traits.find(x => x.name === name || name.startsWith(x.name.split(":")[0]));
+  return t ? t.text : "";
+}
+const allSkillProfsOf = (info) => ALL_SKILLS.filter(k => info.source[k]);
 
 /* ============ CONTENT PACKS ============ */
 // A Content Pack is a JSON file of homebrew or source book options. It is kept on this computer, merged into
@@ -929,7 +1042,7 @@ const PACK_SPELLS = [];
 const CONDITION_NAMES = ["Blinded","Charmed","Deafened","Frightened","Grappled","Incapacitated","Invisible","Paralyzed","Petrified","Poisoned","Prone","Restrained","Stunned","Unconscious"];
 const RESIST_TYPES = ["Acid","Bludgeoning","Cold","Fire","Lightning","Necrotic","Piercing","Poison","Radiant","Slashing","Thunder"];
 const UNIT_SECONDS = { rounds: 6, minutes: 60, hours: 3600, days: 86400 };
-const GRANT_TYPES = ["class","subclass","species","background","feat","spell","item"];
+const GRANT_TYPES = ["class","subclass","species","lineage","background","feat","spell","item"];
 const pObj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
 const pArr = (v) => (Array.isArray(v) ? v : []);
 const pStr = (v, n) => String(v == null ? "" : v).slice(0, n);
@@ -952,6 +1065,10 @@ function evalFormula(src, ctx) {
     if (!m) return NaN;
     i += m[0].length;
     if (/^\d/.test(m[0])) return parseInt(m[0], 10);
+    if ((m[0] === "MAX" || m[0] === "MIN") && peek() === "(") { // MAX(1,WIS): the larger of the two; MIN the smaller
+      i++; const a = expr(); if (peek() !== ",") return NaN; i++; const b = expr(); if (peek() !== ")") return NaN; i++;
+      return m[0] === "MAX" ? Math.max(a, b) : Math.min(a, b);
+    }
     return Object.prototype.hasOwnProperty.call(ctx, m[0]) ? ctx[m[0]] : NaN;
   }
   const v = expr();
@@ -1040,13 +1157,22 @@ function compileOutcome(o, ctx) {
     if (RESIST_TYPES.includes(e.reduceDamageType)) out.resistType = e.reduceDamageType;
     if (e.sense) out.sense = pStr(e.sense, 60);
     if (e.movement) out.move = pStr(e.movement, 60);
+    const rd = pArr(e.resistDamage).map((t) => pStr(t, 20)).filter(Boolean);
+    if (rd.length) out.resist = rd.join(", ");
+    if (e.damageBonus != null) { const n = evalFormula(e.damageBonus, ctx); if (Number.isFinite(n) && n) { out.dmgBonus = n; if (ABILITIES.includes(e.damageBonusFor)) out.dmgBonusFor = e.damageBonusFor; } }
+    if (e.attackAdvantage) out.atkAdv = ABILITIES.includes(e.attackAdvantage) ? e.attackAdvantage : true;
+    if (e.attacksAgainstHaveDisadvantage) out.disAgainst = true;
+    if (/^d(4|6|8|10|12)$/.test(String(e.inspirationDie || ""))) out.inspire = e.inspirationDie;
+    if (e.spellSaveDC != null) { const n = evalFormula(e.spellSaveDC, ctx); if (Number.isFinite(n) && n) out.dcBonus = n; }
+    if (e.spellAttackAdvantage) out.spellAtkAdv = true;
     if (e.note) out.note = pStr(e.note, 300);
     return out;
   }).filter(Boolean);
   const out = {};
   if (conds.length) out.conds = conds;
   if (effs.length) out.effs = effs;
-  return conds.length || effs.length ? out : null;
+  if (o.tempHP != null) { const t = evalDice(o.tempHP, ctx); if (t && t !== "0") out.temp = t; }
+  return conds.length || effs.length || out.temp ? out : null;
 }
 // Works one ability out for one character. ctx holds that character's numbers. Throws with a reason if it can't.
 function compileAbility(ab0, ctx) {
@@ -1070,6 +1196,8 @@ function compileAbility(ab0, ctx) {
     if (!Number.isFinite(atk)) throw new Error('roll is "attack" but attack.bonus is missing or can\'t be read');
     out.type = "attack"; out.atk = atk;
     if (pObj(ab.attack).ranged) out.ranged = true;
+    if (pObj(ab.attack).weapon) out.weapon = true;
+    if (pObj(ab.attack).twoHanded) out.twoHanded = true;
     if (dmgList.length) out.dmgList = dmgList;
     const o = compileOutcome(ab.onHit, ctx); if (o) out.onHit = o;
     if (!dmgList.length && !o) throw new Error("the attack has no damage and no onHit result");
@@ -1091,9 +1219,16 @@ function compileAbility(ab0, ctx) {
     } else if (dmgList.length) { out.type = "auto"; out.dmgList = dmgList; }
     else if (o) out.type = "apply";
     else out.type = "info";
+    if (o && (out.type === "heal" || out.type === "selfheal" || out.type === "auto")) out.onUse = o;
+  }
+  if (ab.targets != null) { // how many creatures one use can affect: a number, a formula, or "any"
+    if (ab.targets === "any") out.targets = "any";
+    else { const n = evalFormula(ab.targets, ctx); if (Number.isFinite(n) && n > 1) out.targets = Math.min(20, n); }
   }
   const uses = pObj(ab.uses);
-  if (uses.max != null) {
+  if (uses.pool) { out.pool = pStr(uses.pool, 40); out.cost = Math.max(1, evalFormula(uses.cost == null ? 1 : uses.cost, ctx) || 1); }
+  if (["miss", "hit", "saveSuccess", "saveFail"].includes(uses.refundOn)) out.refundOn = uses.refundOn; // the use is given back on that result
+  else if (uses.max != null) {
     const max = evalFormula(uses.max, ctx);
     if (!Number.isFinite(max)) throw new Error("uses.max can't be read");
     if (max > 0) { out.usesMax = max; out.recharge = uses.recharge === "short" ? "short" : "long"; }
@@ -1110,9 +1245,11 @@ function actionSummary(a) {
   const oc = (label, o) => {
     if (!o) return;
     const time = (n) => (n ? ` (${n >= 3600 ? n / 3600 + " h" : n >= 60 ? n / 60 + " min" : (n / 6 === 1 ? "1 round" : n / 6 + " rounds")})` : "");
-    bits.push(`${label}: ${[...(o.conds || []).map((c) => c.name + time(c.left) + (c.when ? ", save repeats" : "")), ...(o.effs || []).map((e) => e.name + time(e.left))].join(", ")}`);
+    bits.push(`${label}: ${[...(o.conds || []).map((c) => c.name + time(c.left) + (c.when ? ", save repeats" : "")), ...(o.effs || []).map((e) => e.name + time(e.left)), o.temp ? `${o.temp} Temporary Hit Points` : ""].filter(Boolean).join(", ")}`);
   };
   oc("on a hit", a.onHit); oc("on a failed save", a.onFail); oc("on a successful save", a.onSuccess); oc("applies", a.onUse);
+  if (a.targets) bits.push(a.targets === "any" ? "any number of targets" : `up to ${a.targets} targets`);
+  if (a.pool) bits.push(`costs ${a.cost} ${a.pool}`);
   if (a.usesMax) bits.push(`${a.usesMax} per ${a.recharge === "short" ? "Short Rest" : "Long Rest"}`);
   return bits.join(" · ");
 }
@@ -1121,7 +1258,8 @@ function abilityGranted(ab, ch) {
   switch (g.type) {
     case "class": return sameName(g.name, ch.className) && ch.level >= lvl;
     case "subclass": return sameName(g.name, ch.subclassName) && ch.level >= lvl;
-    case "species": return sameName(g.name, ch.species);
+    case "species": return sameName(g.name, ch.species) && ch.level >= lvl;
+    case "lineage": return sameName(g.species, ch.species) && sameName(g.name, ch.lineage) && ch.level >= lvl;
     case "background": return sameName(g.name, ch.background);
     case "feat": return ch.feats.some((f) => sameName(f, g.name));
     case "item": return ch.items.some((f) => sameName(f, g.name));
@@ -1169,6 +1307,10 @@ function checkPack(raw) {
       skillChoices: Math.max(0, Math.min(18, parseInt(c.skillChoices, 10) || 2)), skillList: pArr(c.skillList).map((x) => pStr(x, 30)),
       subclassLevel: Math.max(1, Math.min(20, parseInt(c.subclassLevel, 10) || 3)), subclassName: pStr(c.subclassName, 40) || "Subclass", features, subclasses };
     if (casterType) { entry.casterType = casterType; entry.spellAbility = c.spellAbility; }
+    const table20 = (v) => (Array.isArray(v) && v.length === 20 && v.every((n) => Number.isFinite(+n)) ? v.map((n) => Math.max(0, Math.round(+n))) : null);
+    if (table20(c.preparedSpells)) entry.preparedSpells = table20(c.preparedSpells);
+    if (table20(c.cantripsKnown)) entry.cantripsKnown = table20(c.cantripsKnown);
+    if (c.expertise && typeof c.expertise === "object") { entry.expertise = {}; Object.keys(c.expertise).forEach((l) => { if (+l >= 1 && +l <= 20 && +c.expertise[l] > 0) entry.expertise[+l] = Math.round(+c.expertise[l]); }); }
     pack.classes[name] = entry;
   });
   Object.keys(pObj(raw.subclasses)).forEach((cn) => {
@@ -1183,6 +1325,12 @@ function checkPack(raw) {
     pack.species[name] = { speed: Math.max(0, Math.min(120, parseInt(sp.speed, 10) || 30)), traits: pArr(sp.traits).map((x) => pStr(x, 600)).filter(Boolean) };
     const sk = pObj(sp.skillChoice);
     if (parseInt(sk.count, 10) > 0) pack.species[name].skillChoice = { count: Math.min(18, parseInt(sk.count, 10)), from: pArr(sk.from).filter((k) => ALL_SKILLS.includes(k)) };
+    const ln = pObj(sp.lineage), lo = pObj(ln.options);
+    if (Object.keys(lo).length) {
+      const options = {};
+      Object.keys(lo).slice(0, 30).forEach((o) => { options[pStr(o, 40)] = { traits: pArr(pObj(lo[o]).traits).map((x) => { const t = pStr(x, 800); const k = t.indexOf(": "); return { name: k > 0 ? t.slice(0, k) : t, text: k > 0 ? t.slice(k + 2) : "", level: 1 }; }) }; });
+      pack.species[name].lineage = { label: pStr(ln.label, 40) || "Lineage", options };
+    }
   });
   Object.keys(pObj(raw.backgrounds)).slice(0, 80).forEach((key) => {
     const name = pStr(key, 40).trim(); const b = pObj(raw.backgrounds[key]); if (!name) return;
@@ -1210,7 +1358,16 @@ function checkPack(raw) {
     const label = `Ability ${pStr(pObj(ab).name, 60) || "#" + (i + 1)}`;
     const g = pObj(pObj(ab).grantedBy);
     if (!GRANT_TYPES.includes(g.type) || !pStr(g.name, 60).trim()) { errors.push(`${label}: grantedBy needs a type (${GRANT_TYPES.join(", ")}) and a name. It was skipped.`); return; }
-    try { compileAbility(ab, probe(1)); compileAbility(ab, probe(20)); }
+    try { // run it, and every option inside it, at level 1 and level 20
+      [1, 20].forEach((L) => {
+        const run = (x) => compileAbility(resolveLevels(atLevelOf(x, L), L), probe(L));
+        if (pObj(pObj(ab).options).choices) pArr(ab.options.choices).forEach((c) => { if (!pStr(pObj(c).name, 60).trim()) throw new Error("an option has no name"); run({ ...c, grantedBy: ab.grantedBy }); });
+        const { options, ...rest } = pObj(ab);
+        run(rest);
+      });
+      const r = pObj(pObj(ab).resource);
+      if (pObj(ab).resource && (!pStr(r.name, 40).trim() || !Number.isFinite(evalFormula(resolveLevels(r.max, 20), probe(20))))) throw new Error("its resource needs a name and a max that can be read");
+    }
     catch (e) { errors.push(`${label}: ${e.message}. It was skipped.`); return; }
     pack.abilities.push(ab);
   });
@@ -1221,18 +1378,26 @@ function checkPack(raw) {
 }
 function mergePack(pack) {
   Object.assign(CLASSES, JSON.parse(JSON.stringify(pack.classes)));
+  Object.keys(pack.classes).forEach((cn) => { // the class's own tables
+    const c = pack.classes[cn];
+    if (c.preparedSpells) PREPARED_SPELLS[cn] = c.preparedSpells;
+    if (c.cantripsKnown) { CANTRIPS_KNOWN[cn] = {}; c.cantripsKnown.forEach((n, i) => { CANTRIPS_KNOWN[cn][i + 1] = n; }); }
+    if (c.expertise) EXPERTISE_SLOTS[cn] = c.expertise;
+  });
   Object.keys(pack.subclasses).forEach((cn) => { if (CLASSES[cn]) Object.assign(CLASSES[cn].subclasses, pack.subclasses[cn]); });
   Object.assign(SPECIES, pack.species);
   Object.assign(BACKGROUNDS, pack.backgrounds);
   Object.assign(ORIGIN_FEATS, pack.feats);
+  Object.keys(pack.feats).forEach((name) => { if (!FEATS[name]) FEATS[name] = { category: "Any", text: pack.feats[name] }; });
   pack.items.forEach((it) => { const k = MAGIC_ITEMS.findIndex((x) => x.name === it.name); if (k >= 0) MAGIC_ITEMS[k] = it; else MAGIC_ITEMS.push(it); });
   pack.spells.forEach((sp) => { const k = PACK_SPELLS.findIndex((x) => x.name === sp.name); if (k >= 0) PACK_SPELLS[k] = sp; else PACK_SPELLS.push(sp); });
+  pack.spells.forEach((sp) => registerSpell({ n: sp.name, l: sp.level, s: sp.school || "", c: sp.classes || [], t: sp.castingTime || "", r: sp.range || "", k: "", d: sp.duration || "", x: sp.text || "", conc: sp.concentration ? 1 : 0, rit: sp.ritual ? 1 : 0, pack: true }));
   pack.abilities.forEach((ab) => PACK_ABILITIES.push(ab));
 }
 function storedPacks() { try { const a = JSON.parse(lsGet(PACKS_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 function storePacks(list) { try { window.localStorage.setItem(PACKS_KEY, JSON.stringify(list)); return true; } catch (e) { return false; } }
 const INSTALLED_PACKS = [];
-storedPacks().forEach((raw) => { const r = checkPack(raw); if (r.pack) { mergePack(r.pack); INSTALLED_PACKS.push({ name: r.pack.name, author: r.pack.author, counts: r.counts }); } });
+// Installed packs are merged in at the bottom of this script, once every list they add to exists.
 
 function ContentPacksTab({ colors, fontDisplay, sheetActions }) {
   const inputRef = useRef(null);
@@ -1322,6 +1487,193 @@ function ContentPacksTab({ colors, fontDisplay, sheetActions }) {
   );
 }
 
+/* ============ RULES ENGINE ============ */
+// Built-in features and Content Pack abilities share one format (see the Content Pack prompt). This part finds the
+// entries a character has, applies their passive changes to the sheet (statics) and turns the rest into things the
+// Combat Resolver can run.
+const RULES = window.HBA_RULES || null;
+const BUILTIN_MECHANICS = window.HBA_MECHANICS || [];
+if (RULES) { // the System Reference Document's class tables, features, species and lineages replace the short built-in lists
+  Object.keys(RULES.classes).forEach(c => {
+    if (!CLASSES[c]) return;
+    CLASSES[c].features = RULES.classes[c].features;
+    CLASSES[c].subclasses = RULES.classes[c].subclasses;
+    CLASSES[c].subclassLevel = RULES.classes[c].subclassLevel;
+  });
+  Object.keys(RULES.species).forEach(s => {
+    const sp = RULES.species[s];
+    SPECIES[s] = { ...(SPECIES[s] || {}), speed: sp.speed, traits: sp.traits.map(t => `${t.name}: ${t.text}`), lineage: sp.lineage || null };
+  });
+}
+const ARMOR = RULES ? RULES.armor.filter(a => a.cat !== "Shield").sort((a, b) => ["Light", "Medium", "Heavy"].indexOf(a.cat) - ["Light", "Medium", "Heavy"].indexOf(b.cat) || a.base - b.base) : [];
+const WEAPONS = RULES ? RULES.weapons.slice().sort((a, b) => a.name.localeCompare(b.name)) : [];
+function featureText(className, subName, name, level) {
+  if (!RULES) return "";
+  const exact = RULES.text[`${className}|${subName || ""}|${name}|${level}`];
+  if (exact) return exact;
+  const key = Object.keys(RULES.text).find(k => k.startsWith(`${className}|${subName || ""}|${name}|`)) || Object.keys(RULES.text).find(k => k.startsWith(`${className}|`) && k.split("|")[2] === name);
+  return key ? RULES.text[key] : "";
+}
+// A list of 20 plain values means "one per level": pick this level's value. Works at any depth.
+function resolveLevels(v, L) {
+  if (Array.isArray(v)) {
+    if (v.length === 20 && v.every(x => x == null || typeof x !== "object")) return v[Math.max(0, Math.min(19, L - 1))];
+    return v.map(x => resolveLevels(x, L));
+  }
+  if (v && typeof v === "object") { const out = {}; Object.keys(v).forEach(k => { out[k] = k === "atLevel" || k === "spells" ? v[k] : resolveLevels(v[k], L); }); return out; }
+  return v;
+}
+function atLevelOf(entry, L) {
+  let e = entry;
+  Object.keys(pObj(entry.atLevel)).map(Number).filter(l => l >= 1 && l <= L).sort((a, b) => a - b).forEach(l => {
+    const o = pObj(entry.atLevel[l]);
+    e = { ...e, ...o, statics: o.statics ? { ...pObj(e.statics), ...o.statics } : e.statics };
+  });
+  return e;
+}
+const isActivated = (e) => !!(e.activation || e.roll === "attack" || e.roll === "save" || e.heal != null || (e.damage && e.damage.length) || e.onUse);
+const optionKey = (e) => `${pObj(e.grantedBy).type}:${pObj(e.grantedBy).name}:${e.name}`;
+// Every entry this character has, with level changes and chosen options applied.
+function activeMechanics(ch) {
+  const entries = [], optionSlots = [];
+  [...BUILTIN_MECHANICS, ...PACK_ABILITIES].forEach(raw => {
+    if (!abilityGranted(raw, ch)) return;
+    const e = resolveLevels(atLevelOf(raw, ch.level), ch.level);
+    if (e.options && Array.isArray(e.options.choices)) {
+      const key = optionKey(raw), picked = ch.featureChoices[key] || "";
+      optionSlots.push({ key, label: e.options.label || e.name, feature: e.name, choices: e.options.choices.map(c => c.name), picked, changeOn: e.options.changeOn === "short" || e.options.changeOn === "long" ? e.options.changeOn : "" });
+      const c = e.options.choices.find(x => x.name === picked);
+      if (c) entries.push({ ...resolveLevels(atLevelOf(c, ch.level), ch.level), feature: e.name, grantedBy: raw.grantedBy });
+      const { options, ...rest } = e;
+      if (rest.statics || rest.resource || isActivated(rest)) entries.push(rest);
+      return;
+    }
+    entries.push(e);
+  });
+  return { entries, optionSlots };
+}
+// Adds up the passive changes. Formulas are worked out against ctx (this character's numbers).
+function gatherStatics(entries, ctx, gear, level) {
+  const d = { acBases: [], acBonus: 0, speedBonus: 0, speedBase: 0, hp: 0, initiative: 0, saveProf: [], saveBonus: 0, saveAdv: [], condImmune: [], condAdv: [], resist: [], senses: [],
+    halfProf: false, classPicks: 0, anyPicks: 0, spells: [], cantripBonus: 0, skillBonus: {}, cantripDamage: 0, schoolDamage: {}, weaponDamage: [], unarmedDie: 0, unarmedDex: false, monkWeapons: false, masteryCount: 0, passives: {} };
+  const num = (f) => { const n = evalFormula(f, ctx); return Number.isFinite(n) ? n : 0; };
+  const armorCat = gear.armor ? gear.armor.cat : "";
+  const when = (w) => w === "noHeavy" ? armorCat !== "Heavy" : w === "noArmor" ? !armorCat : w === "noArmorNoShield" ? !armorCat && !gear.shield : w === "armor" ? !!armorCat : true;
+  entries.forEach(e => {
+    const s = e.statics; if (!s) return;
+    if (s.acBase) pArr(Array.isArray(s.acBase) ? s.acBase : [s.acBase]).forEach(b => d.acBases.push({ value: num(b.formula), shield: b.shield !== false, source: e.name }));
+    if (s.acBonus) { const b = pObj(s.acBonus); if (when(b.when)) d.acBonus += num(b.formula != null ? b.formula : s.acBonus); }
+    if (s.speed) { const b = typeof s.speed === "object" ? s.speed : { formula: s.speed }; if (when(b.when)) d.speedBonus += num(b.formula); }
+    if (s.speedBase) d.speedBase = Math.max(d.speedBase, num(s.speedBase));
+    if (s.hp != null) d.hp += num(s.hp);
+    if (s.initiative != null) d.initiative += num(s.initiative);
+    if (s.saveProficiency) d.saveProf.push(...(s.saveProficiency === "all" ? ABILITIES : pArr(s.saveProficiency).filter(a => ABILITIES.includes(a))));
+    if (s.saveBonus != null) d.saveBonus += num(s.saveBonus);
+    pArr(s.saveAdvantage).forEach(a => { if (ABILITIES.includes(a)) d.saveAdv.push(a); });
+    pArr(s.conditionImmune).forEach(c => { if (CONDITION_NAMES.includes(c)) d.condImmune.push(c); });
+    pArr(s.conditionAdvantage).forEach(c => { if (CONDITION_NAMES.includes(c)) d.condAdv.push(c); });
+    pArr(s.resist).forEach(t => d.resist.push(pStr(t, 20)));
+    pArr(s.senses).forEach(t => d.senses.push(pStr(t, 40)));
+    if (s.halfProficiency) d.halfProf = true;
+    if (s.skillPicks) { d.classPicks += parseInt(pObj(s.skillPicks).class, 10) || 0; d.anyPicks += parseInt(pObj(s.skillPicks).any, 10) || 0; }
+    if (s.spells) Object.keys(pObj(s.spells)).forEach(l => { if (+l <= level) pArr(s.spells[l]).forEach(n => d.spells.push({ name: pStr(n, 60), source: e.feature || e.name })); });
+    if (s.cantripBonus) d.cantripBonus += num(s.cantripBonus);
+    if (s.skillBonus) pArr(pObj(s.skillBonus).skills).forEach(k => { d.skillBonus[k] = (d.skillBonus[k] || 0) + num(s.skillBonus.formula); });
+    if (s.cantripDamage != null) d.cantripDamage += num(s.cantripDamage);
+    if (s.schoolDamage) d.schoolDamage[pStr(pObj(s.schoolDamage).school, 20)] = num(s.schoolDamage.formula);
+    if (s.weaponDamage) pArr(Array.isArray(s.weaponDamage) ? s.weaponDamage : [s.weaponDamage]).forEach(w => { const dice = evalDice(w.dice, ctx); if (dice) d.weaponDamage.push({ dice, type: pStr(w.type, 20), when: w.when || "weapon" }); });
+    if (s.unarmedDie) d.unarmedDie = Math.max(d.unarmedDie, num(s.unarmedDie));
+    if (s.unarmedDexterity) d.unarmedDex = true;
+    if (s.monkWeapons) d.monkWeapons = true;
+    if (s.weaponMasteries != null) d.masteryCount = Math.max(d.masteryCount, num(s.weaponMasteries));
+    Object.keys(pObj(s.passives)).forEach(k => { const v = s.passives[k]; d.passives[k] = typeof v === "string" ? num(v) : v; });
+  });
+  return d;
+}
+function armorClassOf(d, gear, dexMod) {
+  let base, how;
+  if (gear.armor) { const a = gear.armor; base = a.base + (a.dex ? (a.max != null ? Math.min(dexMod, a.max) : dexMod) : 0); how = a.name; }
+  else {
+    base = 10 + dexMod; how = "Unarmored";
+    d.acBases.forEach(b => { if ((b.shield || !gear.shield) && b.value > base) { base = b.value; how = b.source; } });
+  }
+  return { value: base + (gear.shield ? 2 : 0) + d.acBonus, how: how + (gear.shield ? " + Shield" : "") };
+}
+// Attacks the character can always make: Unarmed Strike and each weapon on the sheet.
+function weaponActions(weaponNames, ctx, d, featNames, mastered) { // mastered: weapons whose mastery property this character can use
+  const best = Math.max(ctx.STR, ctx.DEX);
+  const rider = (melee) => d.weaponDamage.filter(w => w.when === "all" || w.when === "weapon" || (w.when === "melee" && melee)).map(w => [w.dice, w.type]);
+  const out = [];
+  const uMod = d.unarmedDex ? best : ctx.STR;
+  out.push({ name: "Unarmed Strike", type: "attack", activation: "action", atk: ctx.PROF + uMod, unarmed: true, abil: d.unarmedDex && ctx.DEX > ctx.STR ? "Dexterity" : "Strength",
+    dmgList: [[evalDice(d.unarmedDie ? `1d${d.unarmedDie}+${uMod}` : `1+${ctx.STR}`, ctx), "Bludgeoning"], ...rider(true)],
+    desc: d.unarmedDie ? "Martial Arts: you roll your Martial Arts die for the damage and can use Dexterity." : "Instead of using a weapon to make a melee attack, you can use a punch, kick, head-butt, or similar forceful blow." });
+  weaponNames.forEach(n => {
+    const w = WEAPONS.find(x => x.name === n); if (!w) return;
+    const finesse = w.props.includes("Finesse"), monk = d.monkWeapons && !w.ranged && (w.cat === "Simple" || w.props.includes("Light"));
+    const mod = w.ranged ? ctx.DEX : (finesse || monk) ? best : ctx.STR;
+    const abil = w.ranged ? "Dexterity" : (finesse || monk) && ctx.DEX > ctx.STR ? "Dexterity" : "Strength";
+    const info = [w.props.join(", "), w.range ? `Range ${w.range} ft.` : "", w.thrown ? `Thrown ${w.thrown} ft.` : "", w.mastery ? `Mastery: ${w.mastery}` : ""].filter(Boolean).join(". ");
+    const make = (label, die, two) => {
+      let dice = die;
+      if (monk && d.unarmedDie) { const m = /^1d(\d+)$/.exec(die); if (m && +m[1] < d.unarmedDie) dice = `1d${d.unarmedDie}`; }
+      const a = { name: label, type: "attack", activation: "action", atk: ctx.PROF + mod, weapon: true, abil, dmgList: [[evalDice(`${dice}+${mod}`, ctx), w.type], ...rider(!w.ranged)], desc: info };
+      if (w.mastery && (mastered || []).includes(w.name)) { // the Combat Resolver applies the mastery property on a hit (or a miss, for Graze)
+        a.mastery = w.mastery; a.masteryMod = mod; a.masteryDc = 8 + mod + ctx.PROF;
+        a.desc = `${info}. ${w.mastery}: ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`;
+      }
+      if (w.ranged) a.ranged = true;
+      if (finesse) a.finesse = true;
+      if (two || w.props.includes("Two-Handed")) a.twoHanded = true;
+      out.push(a);
+    };
+    make(w.name, w.dice, false);
+    if (w.versatile) make(`${w.name} (two hands)`, w.versatile, true);
+  });
+  return out;
+}
+
+function GearSection({ armor, setArmor, shield, setShield, weapons, setWeapons, ac, colors, fontDisplay, masteries, setMasteries, masteryCount, custom, glow }) {
+  const sel = { ...fieldStyle(colors), width: 260 };
+  const used = masteries.filter(n => weapons.includes(n));
+  const toggleMastery = (n) => {
+    if (used.includes(n)) { setMasteries(masteries.filter(x => x !== n)); return; }
+    if (used.length >= masteryCount && !(custom && window.confirm(`Use the mastery property of ${n}? Your class allows ${masteryCount}, so this one will show in red.`))) return;
+    setMasteries([...used, n]);
+  };
+  return (
+    <Section title="Armor & Weapons" colors={colors} fontDisplay={fontDisplay}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
+        <select aria-label="Armor" value={armor} onChange={e => setArmor(e.target.value)} style={sel}>
+          <option value="">No armor</option>
+          {["Light", "Medium", "Heavy"].map(cat => <optgroup key={cat} label={`${cat} armor`}>{ARMOR.filter(a => a.cat === cat).map(a => <option key={a.name} value={a.name}>{a.name} (AC {a.base}{a.dex ? (a.max != null ? ` + Dex, max ${a.max}` : " + Dex") : ""})</option>)}</optgroup>)}
+        </select>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}><input type="checkbox" checked={shield} onChange={e => setShield(e.target.checked)} aria-label="Shield" /> Shield (+2)</label>
+        <span style={{ fontSize: 13, opacity: 0.8 }} data-testid="ac-how">Armor Class {ac.value}: {ac.how}</span>
+      </div>
+      <div style={{ fontSize: 12, opacity: 0.75, margin: "10px 0 6px" }}>Weapons you carry. Each one becomes an attack in the Combat Resolver, worked out from your scores and features.</div>
+      {masteryCount > 0 && <div data-testid="mastery-note" style={{ fontSize: 13, marginBottom: 8, padding: glow ? "6px 10px" : 0, border: glow ? `2px solid ${colors.brassLight}` : "none", borderRadius: 6 }}>
+        <strong>Weapon Mastery:</strong> you can use the mastery property of {masteryCount} kinds of weapons ({used.length} chosen). Click a weapon's mastery name to choose it. You can change these when you finish a Long Rest.</div>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        {weapons.map(n => {
+          const w = WEAPONS.find(x => x.name === n) || {}; const on = used.includes(n); const over = on && used.indexOf(n) >= masteryCount;
+          return (
+          <span key={n} data-testid={`weapon-${n}`} data-mastery={over ? "custom" : on ? "yes" : ""} style={{ border: `${over ? 2 : 1}px solid ${over ? CUSTOM_RED : colors.brass}`, borderRadius: 14, padding: "3px 10px", fontSize: 13 }}>
+            {n}
+            {w.mastery && (masteryCount > 0 || custom || on) && <button aria-label={`Mastery for ${n}`} onClick={() => toggleMastery(n)} title={(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}
+              style={{ marginLeft: 6, background: on ? colors.brass : "transparent", color: on ? colors.ink : colors.brassLight, border: `1px solid ${colors.brass}`, borderRadius: 10, padding: "0 8px", fontSize: 11, cursor: "pointer" }}>{on ? "★ " : ""}{w.mastery}</button>}
+            {" "}<button aria-label={`Remove ${n}`} onClick={() => setWeapons(weapons.filter(x => x !== n))} style={{ background: "transparent", border: "none", color: colors.parchment, cursor: "pointer" }}>×</button>
+          </span>
+        ); })}
+      </div>
+      <select aria-label="Add a weapon" value="" onChange={e => { if (e.target.value && !weapons.includes(e.target.value)) setWeapons([...weapons, e.target.value]); }} style={sel}>
+        <option value="">+ Add a weapon</option>
+        {["Simple", "Martial"].map(cat => <optgroup key={cat} label={`${cat} weapons`}>{WEAPONS.filter(w => w.cat === cat && !weapons.includes(w.name)).map(w => <option key={w.name} value={w.name}>{w.name} ({w.dice} {w.type})</option>)}</optgroup>)}
+      </select>
+    </Section>
+  );
+}
+
 /* ============ MAIN COMPONENT ============ */
 function CharacterSheet() {
   const [tab, setTab] = useState(() => { // after a pack is added or removed the page reloads and comes back to the same tab
@@ -1357,6 +1709,18 @@ function CharacterSheet() {
   const [customScores, setCustomScores] = useState({Strength:8,Dexterity:8,Constitution:8,Intelligence:8,Wisdom:8,Charisma:8});
   const [abilityAdj, setAbilityAdj] = useState({});     // additional modifier to each score
   const [showCustomList, setShowCustomList] = useState(false);
+  const [lineage, setLineage] = useState("");          // species lineage, ancestry or legacy
+  const [armor, setArmor] = useState("");              // armor worn
+  const [shield, setShield] = useState(false);
+  const [weapons, setWeapons] = useState([]);          // weapons carried
+  const [masteries, setMasteries] = useState([]);      // weapons whose mastery property is in use (Weapon Mastery)
+  const [resting, setResting] = useState(null);        // "short" or "long" while a rest is being taken
+  const [featureChoices, setFeatureChoices] = useState({}); // options chosen inside features (Divine Order, Hunter's Prey...)
+  const [featPicks, setFeatPicks] = useState({});   // feats chosen in each slot, and the choices each one asks for
+  const [extraFeats, setExtraFeats] = useState([]); // feats added past the rules
+  // Customize Origin: your own ability scores, skills, Origin Feat and tool in place of the background's.
+  const [originCustom, setOriginCustom] = useState(null);
+  const bgEff = originCustom || BACKGROUNDS[background] || BACKGROUNDS.Soldier;
 
   // ASI / Feat choices made at ASI levels: { level: {type:"asi", abilities:[a,b]} or {type:"feat", name:""} }
   const [asiChoices, setAsiChoices] = useState({});
@@ -1422,7 +1786,11 @@ function CharacterSheet() {
     return out;
   }, [asiChoices]);
 
-  const finalScores = useMemo(() => {
+  const availableAsiLevels = useMemo(() => abilityScoreImprovementLevels(className), [className]);
+  const reachedAsiLevels = availableAsiLevels.filter(l => l <= level);
+
+  // Scores before feats add to them. Feat prerequisites are checked against these.
+  const baseScores = useMemo(() => {
     const out = {};
     ABILITIES.forEach(a => {
       out[a] = (abilityMode === "custom" ? customScores[a] : pointBuy[a]) + (bgBonuses[a] || 0) + (asiBonuses[a] || 0) + (abilityAdj[a] || 0);
@@ -1430,11 +1798,88 @@ function CharacterSheet() {
     return out;
   }, [pointBuy, bgBonuses, asiBonuses, abilityMode, customScores, abilityAdj]);
 
+  // Every feat this character has, where it came from, what was chosen for it, and whether it goes past the rules.
+  const slots = useMemo(() => featSlots(className, subclassName, level, species, bgEff.feat), [className, subclassName, level, species, bgEff]);
+  const takenFeats = useMemo(() => {
+    const ch = { level, scores: baseScores, caster: !!(cls && cls.casterType) };
+    const out = [];
+    const add = (key, where, name, choices, cats, extra) => {
+      if (!name) return;
+      const problem = extra ? "an extra feat nothing grants" : featProblem(name, cats, ch);
+      out.push({ key, where, name, base: featBase(name), def: featDef(name), choices: choices || {}, problem });
+    };
+    slots.forEach(sl => { const pk = featPicks[sl.id] || {}; add(sl.id, sl.label, sl.fixed != null ? sl.fixed : pk.name, pk.choices, sl.cats, false); });
+    Object.entries(asiChoices).forEach(([lvl, c]) => {
+      if (parseInt(lvl) > level || !c || c.type !== "feat" || !availableAsiLevels.includes(parseInt(lvl))) return;
+      add("asi" + lvl, `Level ${lvl}`, c.name, c.choices, ["General", "Origin"].concat(parseInt(lvl) >= 19 ? ["Epic Boon"] : []), false);
+    });
+    extraFeats.forEach((f, i) => add("extra" + i, "Extra feat", f.name, f.choices, FEAT_CATEGORIES, true));
+    return out;
+  }, [slots, featPicks, asiChoices, extraFeats, level, baseScores, cls, availableAsiLevels]);
+  const featBonuses = useMemo(() => {
+    const out = {};
+    takenFeats.forEach(f => { const a = f.choices.ability; if (f.def && f.def.grants && f.def.grants.ability && ABILITIES.includes(a)) out[a] = (out[a] || 0) + 1; });
+    return out;
+  }, [takenFeats]);
+  const featSkills = useMemo(() => {
+    const skills = [], tools = [];
+    takenFeats.forEach(f => {
+      if (!(f.def && f.def.grants && f.def.grants.skills)) return;
+      (f.choices.skills || []).slice(0, f.def.grants.skills.count).forEach(v => {
+        if (ALL_SKILLS.includes(v)) skills.push({ skill: v, source: f.base });
+        else if (String(v).startsWith("tool:") && v.slice(5).trim()) tools.push({ tool: v.slice(5).trim(), source: f.base });
+      });
+    });
+    return { skills, tools };
+  }, [takenFeats]);
+  const featSpells = useMemo(() => {
+    const out = [];
+    takenFeats.forEach(f => { if (f.def && f.def.grants && f.def.grants.magic) ["cantrip1", "cantrip2", "spell"].forEach(k => { if (f.choices[k] && f.choices[k].trim()) out.push(f.choices[k].trim()); }); });
+    return out;
+  }, [takenFeats]);
+
+  // Every feature, trait and pack ability this character has, with level changes and choices applied.
+  const mech = useMemo(() => activeMechanics({ className, subclassName, level, species, lineage, background, featureChoices,
+    spells: [...spells.filter(Boolean), ...featSpells], feats: Array.from(new Set(takenFeats.flatMap(f => [f.name, f.base]))),
+    items: [...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean) }),
+    [className, subclassName, level, species, lineage, background, featureChoices, spells, featSpells, takenFeats, pinnedItems, characterItems]);
+  const featureScores = useMemo(() => {
+    const out = {};
+    mech.entries.forEach(e => { const sc = pObj(pObj(e.statics).scores); Object.keys(sc).forEach(a => { if (ABILITIES.includes(a)) out[a] = (out[a] || 0) + (parseInt(sc[a], 10) || 0); }); });
+    return out;
+  }, [mech]);
+
+  const finalScores = useMemo(() => {
+    const out = {};
+    ABILITIES.forEach(a => { out[a] = baseScores[a] + (featBonuses[a] || 0) + (featureScores[a] || 0); });
+    return out;
+  }, [baseScores, featBonuses, featureScores]);
+
   const finalMods = useMemo(() => {
     const out = {};
     ABILITIES.forEach(a => { out[a] = mod(finalScores[a]); });
     return out;
   }, [finalScores]);
+
+  // This character's numbers, for working out formulas in features and spells.
+  const spellCtx = useMemo(() => {
+    const mi = takenFeats.find(f => f.def && f.def.grants && f.def.grants.magic && ABILITIES.includes(f.choices.castAbility));
+    const ability = cls && cls.spellAbility ? cls.spellAbility : mi ? mi.choices.castAbility : null;
+    const spellMod = ability ? finalMods[ability] : 0;
+    return { STR: finalMods.Strength, DEX: finalMods.Dexterity, CON: finalMods.Constitution, INT: finalMods.Intelligence, WIS: finalMods.Wisdom, CHA: finalMods.Charisma,
+      PROF: profBonus, LEVEL: level, SPELLMOD: spellMod, SPELLDC: 8 + profBonus + spellMod, SPELLATK: profBonus + spellMod };
+  }, [cls, finalMods, profBonus, level, takenFeats]);
+  const gear = useMemo(() => ({ armor: ARMOR.find(a => a.name === armor) || null, shield }), [armor, shield]);
+  // What the character's features change on the sheet: Armor Class, Speed, Hit Points, saves, senses and so on.
+  const derived = useMemo(() => {
+    const d = gatherStatics(mech.entries, spellCtx, gear, level);
+    ((SPECIES[species] || {}).traits || []).forEach(t => { const m = /^(Darkvision|Blindsight|Tremorsense|Truesight) \((\d+) ft\.\)/.exec(t); if (m) d.senses.push(`${m[1]} ${m[2]} ft.`); });
+    takenFeats.forEach(f => { if (f.def && f.def.sense) d.senses.push(f.def.sense); });
+    const best = {}; // keep the longest range of each sense
+    d.senses.forEach(x => { const m = /^(\w+) (\d+)/.exec(x); const k = m ? m[1] : x; if (!best[k] || (m && +m[2] > +(/(\d+)/.exec(best[k]) || [0, 0])[1])) best[k] = x; });
+    d.senses = Object.values(best);
+    return d;
+  }, [mech, spellCtx, gear, level, species, takenFeats]);
 
   const maxHp = useMemo(() => {
     if (!cls) return 0;
@@ -1443,58 +1888,68 @@ function CharacterSheet() {
     for (let l = 2; l <= level; l++) {
       hp += Math.floor(cls.hitDie / 2) + 1 + conMod; // average roll for subsequent levels
     }
-    return Math.max(hp, level); // minimum 1 per level
-  }, [cls, level, finalMods.Constitution]);
+    return Math.max(hp, level) + derived.hp; // minimum 1 per level, plus features such as Dwarven Toughness
+  }, [cls, level, finalMods.Constitution, derived]);
 
-  const availableAsiLevels = useMemo(() => abilityScoreImprovementLevels(className), [className]);
-  const reachedAsiLevels = availableAsiLevels.filter(l => l <= level);
 
   const featureLedger = useMemo(() => {
     const entries = [];
     // Species traits
     if (SPECIES[species]) {
       SPECIES[species].traits.forEach(t => entries.push({ level: 1, text: t, source: "Species" }));
+      const lo = ((SPECIES[species].lineage || {}).options || {})[lineage];
+      if (lo) lo.traits.forEach(t => { if ((t.level || 1) <= level) entries.push({ level: t.level || 1, text: `${t.name}: ${t.text}`, source: lineage }); });
     }
     // Background
-    if (BACKGROUNDS[background]) {
-      const bg = BACKGROUNDS[background];
-      entries.push({ level: 1, text: `Origin Feat: ${bg.feat} — ${ORIGIN_FEATS[bg.feat] || ""}`, source: "Background" });
-      entries.push({ level: 1, text: `Tool Proficiency: ${bg.tool}`, source: "Background" });
-    }
+    if (bgEff && bgEff.tool) entries.push({ level: 1, text: `Tool Proficiency: ${bgEff.tool}`, source: "Background" });
     // Class + subclass features
     entries.push(...getFeaturesUpToLevel(className, subclassName, level));
-    // ASI/Feat choices
+    // Ability Score Improvements
     Object.entries(asiChoices).forEach(([lvl, choice]) => {
       if (parseInt(lvl) > level || !choice) return;
       if (choice.type === "asi" && choice.abilities && choice.abilities.filter(Boolean).length) {
         entries.push({ level: parseInt(lvl), text: `Ability Score Improvement: ${choice.abilities.filter(Boolean).map(a => ABBR[a]).join(", ")}`, source: "ASI" });
-      } else if (choice.type === "feat" && choice.name) {
-        entries.push({ level: parseInt(lvl), text: `Feat: ${choice.name}`, source: "Feat" });
       }
     });
+    // Feats, with what was chosen for each
+    takenFeats.forEach(f => {
+      const lvl = /^asi(\d+)$/.exec(f.key) ? parseInt(f.key.slice(3)) : (/(\d+)/.exec(f.key) ? parseInt(/(\d+)/.exec(f.key)[1]) : 1);
+      const c = f.choices, picked = [];
+      if (c.ability) picked.push(`+1 ${c.ability}`);
+      if (c.skills && c.skills.filter(Boolean).length) picked.push(c.skills.filter(Boolean).map(v => v.startsWith("tool:") ? v.slice(5) : v).join(", "));
+      if (f.def && f.def.grants && f.def.grants.magic) picked.push([c.list || featPreset(f.name), c.castAbility, c.cantrip1, c.cantrip2, c.spell].filter(Boolean).join(", "));
+      const text = (f.def && f.def.text) || ORIGIN_FEATS[f.name] || "";
+      entries.push({ level: f.key.startsWith("extra") ? 1 : lvl, source: f.key === "origin" ? "Background" : f.key === "species" ? "Species" : "Feat",
+        text: `${f.key === "origin" ? "Origin Feat" : "Feat"}: ${f.name}${picked.filter(Boolean).length ? ` (${picked.filter(Boolean).join("; ")})` : ""}${text ? ". " + text : ""}` });
+    });
+    featSkills.tools.forEach(t => entries.push({ level: 1, text: `Tool Proficiency: ${t.tool}`, source: t.source }));
     return entries.sort((a, b) => a.level - b.level);
-  }, [species, background, className, subclassName, level, asiChoices]);
+  }, [species, lineage, bgEff, className, subclassName, level, asiChoices, takenFeats, featSkills]);
 
   // Each save: "class" (granted), "added" (custom), "removed" (granted but taken away) or "".
   const saveInfo = useMemo(() => {
     const out = {};
     ABILITIES.forEach(a => {
-      const granted = !!(cls && cls.saves.includes(a));
+      const granted = !!(cls && cls.saves.includes(a)) || derived.saveProf.includes(a); // class, or a feature such as Slippery Mind
       out[a] = granted ? (saveRemove.includes(a) ? "removed" : "class") : (saveAdd.includes(a) ? "added" : "");
     });
     return out;
-  }, [cls, saveAdd, saveRemove]);
+  }, [cls, saveAdd, saveRemove, derived]);
 
   const savingThrows = useMemo(() => {
     const out = {};
     ABILITIES.forEach(a => {
       const isProf = saveInfo[a] === "class" || saveInfo[a] === "added";
-      out[a] = finalMods[a] + (isProf ? profBonus : 0);
+      out[a] = finalMods[a] + (isProf ? profBonus : 0) + derived.saveBonus;
     });
     return out;
-  }, [saveInfo, finalMods, profBonus]);
+  }, [saveInfo, finalMods, profBonus, derived]);
 
-  const skillInfo = useMemo(() => sortSkills(cls, species, background, skillProfs, skillRemove), [cls, species, background, skillProfs, skillRemove]);
+  const skillInfo = useMemo(() => sortSkills(cls, species, [...((bgEff && bgEff.skills) || []).map(k => ({ skill: k, source: "Background" })), ...featSkills.skills], skillProfs, skillRemove, { classPicks: derived.classPicks, anyPicks: derived.anyPicks }), [cls, species, bgEff, featSkills, skillProfs, skillRemove, derived]);
+  // Expertise: the class says how many. Any past that is a customization.
+  const expertiseMax = expertiseSlots(className, level);
+  const expertiseList = skillExpertise.filter(k => allSkillProfsOf(skillInfo).includes(k));
+  const expertiseCustom = expertiseList.slice(expertiseMax);
   const allSkillProfs = useMemo(() => ALL_SKILLS.filter(k => skillInfo.source[k]), [skillInfo]);
 
   const skillMods = useMemo(() => {
@@ -1502,13 +1957,15 @@ function CharacterSheet() {
     ALL_SKILLS.forEach(skill => {
       const ability = SKILL_ABILITY[skill];
       let bonus = finalMods[ability];
-      if (allSkillProfs.includes(skill) && skillExpertise.includes(skill)) bonus += profBonus * 2;
+      if (allSkillProfs.includes(skill) && skillExpertise.includes(skill)) bonus += profBonus * 2; // red-starred Expertise counts too
       else if (allSkillProfs.includes(skill)) bonus += profBonus;
-      out[skill] = bonus;
+      else if (derived.halfProf) bonus += Math.floor(profBonus / 2); // Jack of All Trades
+      out[skill] = bonus + (derived.skillBonus[skill] || 0);
     });
     return out;
-  }, [finalMods, allSkillProfs, skillExpertise, profBonus]);
+  }, [finalMods, allSkillProfs, skillExpertise, profBonus, derived]);
 
+  const spellInfo = useMemo(() => sortSpells(cls, className, level, spells, derived.cantripBonus), [cls, className, level, spells, derived]);
   // Everything on this sheet that goes past the rules, in words.
   const customizations = useMemo(() => {
     const out = [];
@@ -1517,13 +1974,18 @@ function CharacterSheet() {
     ABILITIES.forEach(a => { if (saveInfo[a] === "added") out.push(`Added ${a} saving throw proficiency`); if (saveInfo[a] === "removed") out.push(`Removed ${a} saving throw proficiency`); });
     ALL_SKILLS.forEach(k => { if (skillInfo.source[k] === "Custom") out.push(`Added ${k} proficiency`); });
     skillInfo.removed.forEach(k => out.push(`Removed ${k} proficiency`));
+    expertiseCustom.forEach(k => out.push(`Added Expertise in ${k}`));
+    takenFeats.forEach(f => { if (f.problem) out.push(`Feat ${f.name}: ${f.problem}`); });
+    spellInfo.list.forEach(e => { if (e.sp && e.problem) out.push(`Spell ${e.sp.n}: ${e.problem}`); });
+    masteries.filter(n => weapons.includes(n)).slice(derived.masteryCount).forEach(n => out.push(`Weapon Mastery with ${n}: more than your class allows`));
     return out;
-  }, [abilityMode, customScores, abilityAdj, saveInfo, skillInfo]);
+  }, [abilityMode, customScores, abilityAdj, saveInfo, skillInfo, takenFeats, skillExpertise, expertiseMax, spellInfo, masteries, weapons, derived]);
 
-  const initiative = finalMods.Dexterity;
-  const armorClass = 10 + finalMods.Dexterity; // base unarmored; user can override mentally
+  const initiative = finalMods.Dexterity + (takenFeats.some(f => f.def && f.def.initiativeProf) ? profBonus : 0) + derived.initiative; // Alert adds the Proficiency Bonus
+  const ac = armorClassOf(derived, gear, finalMods.Dexterity);
+  const armorClass = ac.value + (takenFeats.some(f => f.base === "Defense") && gear.armor ? 1 : 0); // Defense: +1 while wearing armor
   const passivePerception = 10 + skillMods.Perception;
-  const speed = SPECIES[species] ? SPECIES[species].speed : 30;
+  const speed = (derived.speedBase || (SPECIES[species] ? SPECIES[species].speed : 30)) + derived.speedBonus;
 
   const effectiveMaxHp = maxHp;
   const displayHp = currentHp === null ? effectiveMaxHp : currentHp;
@@ -1544,8 +2006,8 @@ function CharacterSheet() {
   function toggleSkill(skill) {
     const src = skillInfo.source[skill];
     if (skillInfo.removed.includes(skill)) { setSkillRemove(prev => prev.filter(k => k !== skill)); return; } // put a removed one back
-    if (src === "Background") {
-      if (custom && window.confirm(`Remove ${skill}? Your background grants it, so it will show in red as removed.`)) { setSkillRemove(prev => [...prev, skill]); setSkillExpertise(e => e.filter(k => k !== skill)); }
+    if (skillInfo.fixedBy[skill]) {
+      if (custom && window.confirm(`Remove ${skill}? ${src === "Background" ? "Your background" : src} grants it, so it will show in red as removed.`)) { setSkillRemove(prev => [...prev, skill]); setSkillExpertise(e => e.filter(k => k !== skill)); }
       return;
     }
     if (src) { dropSkill(skill); return; }
@@ -1556,7 +2018,7 @@ function CharacterSheet() {
     if (!skillInfo.source[skill]) { setSkillRemove(prev => prev.filter(k => k !== skill)); if (!skillInfo.bg.includes(skill)) setSkillProfs(prev => [...prev, skill]); }
   }
   function removeSkill(skill) { // the Remove a skill button
-    if (skillInfo.source[skill] === "Background") { setSkillRemove(prev => [...prev, skill]); setSkillExpertise(e => e.filter(k => k !== skill)); }
+    if (skillInfo.fixedBy[skill]) { setSkillRemove(prev => [...prev, skill]); setSkillExpertise(e => e.filter(k => k !== skill)); }
     else dropSkill(skill);
   }
   function toggleSave(a) {
@@ -1570,8 +2032,12 @@ function CharacterSheet() {
 
   function toggleExpertise(skill) {
     if (!allSkillProfs.includes(skill)) return;
-    setSkillExpertise(prev => prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]);
+    if (skillExpertise.includes(skill)) { setSkillExpertise(prev => prev.filter(s => s !== skill)); return; }
+    if (expertiseList.length >= expertiseMax && !(custom && window.confirm(`Add Expertise in ${skill}? Your class does not grant ${expertiseMax ? "another" : "any"} Expertise, so it will show in red.`))) return;
+    setSkillExpertise(prev => [...prev.filter(s => allSkillProfs.includes(s)), skill]);
   }
+  function setFeatPick(slotId, pick) { setFeatPicks(prev => ({ ...prev, [slotId]: pick })); }
+  function setAsiFeatChoices(lvl, choices) { setAsiChoices(prev => ({ ...prev, [lvl]: { ...(prev[lvl] || { type: "feat", name: "" }), choices } })); }
 
   function setAsiAbilities(lvl, idx, ability) {
     setAsiChoices(prev => {
@@ -1590,21 +2056,78 @@ function CharacterSheet() {
     setAsiChoices(prev => ({ ...prev, [lvl]: { type: "feat", name } }));
   }
 
-  // Activated features from Content Packs, worked out from this character's numbers as they stand now.
-  const sheetActions = useMemo(() => {
-    const spellMod = cls && cls.spellAbility ? finalMods[cls.spellAbility] : 0;
-    const ctx = { STR: finalMods.Strength, DEX: finalMods.Dexterity, CON: finalMods.Constitution, INT: finalMods.Intelligence, WIS: finalMods.Wisdom, CHA: finalMods.Charisma,
-      PROF: profBonus, LEVEL: level, SPELLMOD: spellMod, SPELLDC: 8 + profBonus + spellMod, SPELLATK: profBonus + spellMod };
-    const ch = { className, subclassName, level, species, background, spells: spells.filter(Boolean),
-      feats: [BACKGROUNDS[background] ? BACKGROUNDS[background].feat : "", ...Object.entries(asiChoices).filter(([l, c]) => parseInt(l) <= level && c && c.type === "feat" && c.name).map(([, c]) => c.name)].filter(Boolean),
-      items: [...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean) };
-    const out = [];
-    PACK_ABILITIES.forEach(ab => {
-      if (!abilityGranted(ab, ch)) return;
-      try { out.push(compileAbility(ab, ctx)); } catch (e) {}
+  // Spells: which ones the rules allow, and how each resolves in combat with this character's numbers.
+  const spellActions = useMemo(() => {
+    const out = [], seen = new Set();
+    const packNames = new Set(PACK_ABILITIES.filter(ab => ab.grantedBy && ab.grantedBy.type === "spell").map(ab => String(ab.grantedBy.name || "").toLowerCase()));
+    const push = (sp, opts) => {
+      if (!sp || seen.has(sp.n) || packNames.has(sp.n.toLowerCase())) return; // a pack's own mechanics for a spell win
+      seen.add(sp.n);
+      try { const a = spellAction(sp, spellCtx, opts); if (a) out.push(a); } catch (e) {}
+    };
+    const tune = { cantripDamage: derived.cantripDamage, schoolDamage: derived.schoolDamage, potentCantrip: !!derived.passives.potentCantrip };
+    spellInfo.list.forEach(e => push(e.sp, tune));
+    derived.spells.forEach(g => push(spellOf(g.name), { ...tune, once: !(cls && cls.casterType) }));
+    takenFeats.forEach(f => {
+      if (!(f.def && f.def.grants && f.def.grants.magic)) return;
+      ["cantrip1", "cantrip2"].forEach(k => push(spellOf(f.choices[k])));
+      push(spellOf(f.choices.spell), { once: !(cls && cls.casterType) });
     });
     return out;
-  }, [cls, finalMods, profBonus, level, className, subclassName, species, background, spells, asiChoices, pinnedItems, characterItems]);
+  }, [spellInfo, spellCtx, takenFeats, cls, derived]);
+  const spellSummary = (sp) => { try { const a = spellAction(sp, spellCtx); return a ? actionSummary(a) : ""; } catch (e) { return ""; } };
+
+  // Activated features from Content Packs, worked out from this character's numbers as they stand now.
+  // Everything this character can activate, worked out from its numbers as they stand now.
+  const sheetActions = useMemo(() => {
+    const out = weaponActions(weapons, spellCtx, derived, takenFeats.map(f => f.base), masteries);
+    mech.entries.forEach(e => {
+      if (!isActivated(e)) return;
+      try {
+        const a = compileAbility(e, spellCtx);
+        if (!a.desc) { const g = pObj(e.grantedBy); const t = featureText(g.class || g.name, g.type === "subclass" ? g.name : "", e.feature || e.name, g.level || 1) || traitText(species, lineage, e.feature || e.name); if (t) a.desc = t.slice(0, 1200); }
+        out.push(a);
+      } catch (err) {}
+    });
+    return out;
+  }, [mech, spellCtx, derived, weapons, masteries, takenFeats, species, lineage]);
+  // Pools of uses shared by several features (Rage, Focus Points, Channel Divinity...).
+  const pools = useMemo(() => {
+    const out = {};
+    mech.entries.forEach(e => {
+      const r = e.resource; if (!r || !r.name) return;
+      const max = evalFormula(r.max, spellCtx);
+      if (Number.isFinite(max) && max > 0) { out[pStr(r.name, 40)] = { max: Math.min(999, max), recharge: r.recharge === "short" ? "short" : "long" }; if (+r.shortRegain > 0) out[pStr(r.name, 40)].shortRegain = +r.shortRegain; }
+    });
+    return out;
+  }, [mech, spellCtx]);
+
+  // What this character may change when it finishes a rest, with the tab each one lives on.
+  const restChanges = useMemo(() => {
+    const list = (kind) => {
+      const out = [];
+      const fits = (c) => c === "short" || (c === "long" && kind === "long"); // "short" means a Short or Long Rest
+      mech.optionSlots.forEach(o => { if (o.changeOn && fits(o.changeOn)) out.push({ key: o.key, tab: "features", text: `${o.feature}${o.label !== o.feature ? ` (${o.label})` : ""}: ${o.picked || "not chosen yet"}` }); });
+      if (kind === "long" && derived.masteryCount > 0) out.push({ key: "mastery", tab: "combat", text: `Weapon Mastery: one of your ${derived.masteryCount} weapon choices` });
+      if (kind === "long" && ["Cleric", "Druid", "Wizard"].includes(className)) out.push({ key: "spells", tab: "spells", text: "Prepared spells: you can change your list" });
+      if (kind === "long" && ["Paladin", "Ranger"].includes(className)) out.push({ key: "spells", tab: "spells", text: "Prepared spells: you can replace one spell" });
+      if (kind === "short" && className === "Wizard" && level >= 5) out.push({ key: "spells", tab: "spells", text: "Memorize Spell: you can replace one prepared spell with another from your spellbook" });
+      if (kind === "long" && species === "Elf" && lineage === "High Elf") out.push({ key: "spells", tab: "spells", text: "High Elf: you can replace the Prestidigitation cantrip with another Wizard cantrip" });
+      return out;
+    };
+    return { short: list("short"), long: list("long") };
+  }, [mech, derived, className, level, species, lineage]);
+  const restGlow = resting ? restChanges[resting] : [];
+  function spendHitDie() { // Short Rest: roll a Hit Point Die and add the Constitution modifier
+    if (!cls || hitDiceUsed >= level) return;
+    const gain = Math.max(1, Math.floor(Math.random() * cls.hitDie) + 1 + finalMods.Constitution);
+    setHitDiceUsed(hitDiceUsed + 1);
+    setCurrentHp(Math.min(effectiveMaxHp, displayHp + gain));
+  }
+  function completeRest() {
+    if (resting === "long") { setCurrentHp(null); setTempHp(0); setHitDiceUsed(0); } // all Hit Points and Hit Point Dice back; Temporary Hit Points end
+    setResting(null);
+  }
 
   /* ============ CHARACTER FILE (save / load / send to Combat Resolver) ============ */
   const fileInputRef = useRef(null);
@@ -1619,16 +2142,39 @@ function CharacterSheet() {
       scores: finalScores, saves: savingThrows, profBonus,
       maxHP: effectiveMaxHp, currentHP: displayHp, tempHP: tempHp,
       ac: armorClass, initiativeBonus: initiative, speed,
-      features: featureLedger.map(f => f.text),
-      spells: spells.filter(Boolean),
-      actions: sheetActions,
+      features: featureLedger.map(f => f.detail ? `${f.text}. ${f.detail}` : f.text),
+      spells: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name)].map(x => { const sp = spellOf(x); return sp ? `${sp.n} (${spellLine(sp)})` : x; }))),
+      feats: takenFeats.map(f => f.name),
+      rules: 1, // this sheet carries its own attacks, features and spells, so the Resolver adds no placeholders
+      actions: [...sheetActions, ...takenFeats.flatMap(f => (f.def && f.def.actions) || []), ...spellActions],
+      pools,
+      resist: Array.from(new Set(derived.resist)),
+      conditionImmune: Array.from(new Set(derived.condImmune)),
+      lineage, armor, shield, weapons, masteries: masteries.filter(n => weapons.includes(n)),
+      passives: (() => {
+        const has = n => takenFeats.some(f => f.base === n);
+        const out = {};
+        if (has("Savage Attacker")) out.savage = true;
+        if (has("Archery")) out.archery = true;
+        if (has("Great Weapon Fighting")) out.gwf = true;
+        if (has("Grappler")) out.grappler = true;
+        if (has("Boon of Combat Prowess")) out.prowess = true;
+        const io = takenFeats.find(f => f.base === "Boon of Irresistible Offense");
+        if (io && ABILITIES.includes(io.choices.ability)) out.irresistible = finalScores[io.choices.ability];
+        Object.assign(out, derived.passives);
+        if (derived.saveAdv.length) out.saveAdv = Array.from(new Set(derived.saveAdv));
+        if (derived.condAdv.length) out.condAdv = Array.from(new Set(derived.condAdv));
+        return out;
+      })(),
       packs: INSTALLED_PACKS.map(p => p.name),
       passivePerception,
-      senses: ((SPECIES[species] || {}).traits || []).map(t => { const m = /^(Darkvision|Blindsight|Tremorsense|Truesight) \((\d+) ft\.\)/.exec(t); return m ? `${m[1]} ${m[2]} ft.` : null; }).filter(Boolean),
+      senses: ((SPECIES[species] || {}).traits || []).map(t => { const m = /^(Darkvision|Blindsight|Tremorsense|Truesight) \((\d+) ft\.\)/.exec(t); return null; }).filter(Boolean).concat(derived.senses),
       skills: skillMods, skillProfs: allSkillProfs, skillExpertise: skillExpertise.filter(k => allSkillProfs.includes(k)),
       customizations,
       spellcasting: cls && cls.casterType ? {
         ability: cls.spellAbility,
+        slotList: cls.casterType === "pact" ? null : (getSpellSlots(className, level) || []),
+        pact: cls.casterType === "pact" ? { slots: PACT_SLOTS[level].slots, level: PACT_SLOTS[level].level } : null,
         dc: 8 + profBonus + finalMods[cls.spellAbility],
         attack: profBonus + finalMods[cls.spellAbility],
         slots: cls.casterType === "pact"
@@ -1638,7 +2184,8 @@ function CharacterSheet() {
       hitDie: cls ? cls.hitDie : null, hitDiceUsed,
       equipment,
       items: Array.from(new Set([...pinnedItems, ...characterItems].map(i => i && i.name).filter(Boolean))),
-      builder: { custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
+      origin: originCustom ? { custom: true, ...originCustom } : null,
+      builder: { lineage, armor, shield, weapons, masteries, featureChoices, featPicks, extraFeats, originCustom, custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
         pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, characterItems, pinnedItems, spells }
     };
   }
@@ -1691,6 +2238,17 @@ function CharacterSheet() {
     setBgBonusChoices(arr(s.bgBonusChoices).filter(a => ABILITIES.includes(a)));
     setSkillProfs(arr(s.skillProfs).filter(k => ALL_SKILLS.includes(k)));
     setSkillExpertise(arr(s.skillExpertise).filter(k => ALL_SKILLS.includes(k)));
+    setLineage(String(s.lineage || ""));
+    setArmor(ARMOR.some(a => a.name === s.armor) ? s.armor : "");
+    setShield(!!s.shield);
+    setWeapons(arr(s.weapons).filter(n => WEAPONS.some(w => w.name === n)));
+    setMasteries(arr(s.masteries).filter(n => WEAPONS.some(w => w.name === n)));
+    setFeatureChoices(s.featureChoices && typeof s.featureChoices === "object" && !Array.isArray(s.featureChoices) ? s.featureChoices : {});
+    setFeatPicks(s.featPicks && typeof s.featPicks === "object" && !Array.isArray(s.featPicks) ? s.featPicks : {});
+    setExtraFeats(arr(s.extraFeats).filter(f => f && typeof f === "object").map(f => ({ name: String(f.name || ""), choices: f.choices && typeof f.choices === "object" ? f.choices : {} })));
+    const oc = s.originCustom && typeof s.originCustom === "object" ? s.originCustom : null;
+    const ocAb = oc ? arr(oc.abilityScores).filter(a => ABILITIES.includes(a)) : [];
+    setOriginCustom(oc && ocAb.length === 3 ? { abilityScores: ocAb, skills: arr(oc.skills).filter(k => ALL_SKILLS.includes(k)).slice(0, 2), feat: String(oc.feat || "").slice(0, 60), tool: String(oc.tool || "").slice(0, 60) } : null);
     setCustom(!!s.custom);
     setSkillRemove(arr(s.skillRemove).filter(k => ALL_SKILLS.includes(k)));
     setSaveAdd(arr(s.saveAdd).filter(a => ABILITIES.includes(a)));
@@ -1847,6 +2405,8 @@ function CharacterSheet() {
               ["Save Character File", saveCharacterFile, true],
               ["Load Character File", () => fileInputRef.current && fileInputRef.current.click(), true],
               ["Send to Combat Resolver", sendToResolver, inSuite],
+              ["Take Short Rest", () => setResting("short"), true],
+              ["Take Long Rest", () => setResting("long"), true],
             ].filter(x => x[2]).map(([label, fn]) => (
               <button key={label} onClick={fn} style={{
                 background: colors.ink, color: colors.parchment, border: `1px solid ${colors.ink}`, borderRadius: 6,
@@ -1917,6 +2477,7 @@ function CharacterSheet() {
             onClick={() => setTab(key)}
             style={{
               background: tab === key ? colors.brass : "transparent",
+              boxShadow: restGlow.some(r => r.tab === key) ? `inset 0 -3px 0 ${colors.brassLight}, 0 0 10px ${colors.brassLight}` : "none",
               color: tab === key ? colors.ink : colors.parchment,
               border: "none", padding: "10px 16px", fontFamily: fontDisplay, fontSize: 13,
               fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", borderRadius: "6px 6px 0 0",
@@ -1927,6 +2488,31 @@ function CharacterSheet() {
           </button>
         ))}
       </div>
+
+      {/* REST IN PROGRESS */}
+      {resting && (
+        <div data-testid="rest-panel" style={{ position: "fixed", right: 16, bottom: 16, zIndex: 50, width: 360, maxWidth: "calc(100vw - 32px)", background: colors.ink, border: `2px solid ${colors.brassLight}`, borderRadius: 10, padding: 16, boxShadow: "0 8px 30px rgba(0,0,0,0.6)" }}>
+          <div style={{ fontFamily: fontDisplay, fontSize: 16, fontWeight: 700, color: colors.brassLight, marginBottom: 8 }}>{resting === "long" ? "Long Rest (8 hours)" : "Short Rest (1 hour)"}</div>
+          {restGlow.length > 0 ? (<>
+            <div style={{ fontSize: 13, marginBottom: 6 }}>You can now change:</div>
+            <ul style={{ margin: "0 0 10px 18px", fontSize: 13, lineHeight: 1.5 }}>
+              {restGlow.map((r, i) => <li key={i}><a href="#" onClick={e => { e.preventDefault(); setTab(r.tab); }} style={{ color: colors.brassLight }}>{r.text}</a></li>)}
+            </ul>
+          </>) : <div style={{ fontSize: 13, marginBottom: 10, opacity: 0.8 }}>Nothing on this sheet changes on a {resting === "long" ? "Long" : "Short"} Rest.</div>}
+          {resting === "short" && (
+            <div style={{ fontSize: 13, marginBottom: 10 }}>
+              Hit Point Dice left: {level - hitDiceUsed} of {level} (d{cls.hitDie}). Hit Points: {displayHp} / {effectiveMaxHp}.{" "}
+              <button onClick={spendHitDie} disabled={hitDiceUsed >= level || displayHp >= effectiveMaxHp} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "2px 10px", fontSize: 12, cursor: "pointer" }}>Spend one</button>
+            </div>
+          )}
+          {resting === "long" && <div style={{ fontSize: 13, marginBottom: 10 }}>Completing the rest restores all Hit Points and Hit Point Dice and ends Temporary Hit Points.</div>}
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>In a session, the DM's rest button in the Combat Resolver gives back spell slots and feature uses.</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button data-testid="complete-rest" onClick={completeRest} style={{ flex: 1, background: colors.brass, color: colors.ink, border: "none", borderRadius: 6, padding: "10px 12px", fontFamily: fontDisplay, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Complete {resting === "long" ? "Long" : "Short"} Rest</button>
+            <button onClick={() => setResting(null)} style={{ background: "transparent", color: colors.parchment, border: `1px solid ${colors.brass}66`, borderRadius: 6, padding: "10px 12px", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* FURTHER CUSTOMIZATION */}
       <div data-testid="custom-bar" style={{ background: colors.ink, borderBottom: `1px solid ${customizations.length ? CUSTOM_RED : colors.brass + "44"}`, padding: "8px 16px" }}>
@@ -1951,22 +2537,22 @@ function CharacterSheet() {
       {/* CONTENT */}
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px 16px 60px" }}>
         {tab === "identity" && (
-          <IdentityTab {...{ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems }} />
+          <IdentityTab {...{ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
         )}
         {tab === "abilities" && (
-          <AbilitiesTab {...{ pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay, custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }} />
+          <AbilitiesTab {...{ featBonuses, pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay, custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }} />
         )}
         {tab === "skills" && (
-          <SkillsTab {...{ cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }} />
+          <SkillsTab {...{ expertiseMax, expertiseList, expertiseCustom, cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }} />
         )}
         {tab === "combat" && (
-          <CombatTab {...{ cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
+          <CombatTab {...{ masteries, setMasteries, custom, resting, armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
         )}
         {tab === "features" && (
-          <FeaturesTab {...{ featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, colors, fontDisplay }} />
+          <FeaturesTab {...{ glowKeys: restGlow.map(r => r.key), optionSlots: mech.optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay, slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }} />
         )}
         {tab === "spells" && (
-          <SpellsTab {...{ cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells }} />
+          <SpellsTab {...{ glow: restGlow.some(r => r.key === "spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }} />
         )}
         {tab === "notes" && (
           <NotesTab {...{ equipment, setEquipment, notes, setNotes, colors, fontDisplay }} />
@@ -1977,8 +2563,8 @@ function CharacterSheet() {
         {tab === "packs" && (
           <ContentPacksTab {...{ colors, fontDisplay, sheetActions }} />
         )}
-        <datalist id="hba-spell-list">{PACK_SPELLS.map(sp => <option key={sp.name} value={spellLabel(sp)} />)}</datalist>
-        <datalist id="hba-feat-list">{Object.keys(ORIGIN_FEATS).map(f => <option key={f} value={f} />)}</datalist>
+        <datalist id="hba-spell-list">{ALL_SPELLS.map(sp => <option key={sp.n} value={sp.n} />)}</datalist>
+        <datalist id="hba-feat-list">{Array.from(new Set([...Object.keys(FEATS).filter(f => FEATS[f].category === "Origin" || FEATS[f].category === "Any"), ...Object.keys(ORIGIN_FEATS)])).map(f => <option key={f} value={f} />)}</datalist>
         {tab === "mundane" && (
           <MundaneItemsTab {...{ mundaneSearch, setMundaneSearch, mundaneTypeFilter, setMundaneTypeFilter, selectedMundane, setSelectedMundane, pinnedItems, setPinnedItems, colors, fontDisplay }} />
         )}
@@ -2008,8 +2594,29 @@ function fieldStyle(colors) {
   };
 }
 
-function IdentityTab({ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems }) {
-  const bg = BACKGROUNDS[background];
+function IdentityTab({ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, bgEff, originCustom, setOriginCustom, lineage, setLineage }) {
+  const bg = bgEff;
+  const [originOpen, setOriginOpen] = useState(false);
+  const baseBg = BACKGROUNDS[background] || bgEff;
+  const startOrigin = () => {
+    if (!originCustom) setOriginCustom({ abilityScores: [...baseBg.abilityScores], skills: [...baseBg.skills].slice(0, 2), feat: baseBg.feat || "", tool: baseBg.tool || "" });
+    setOriginOpen(true);
+  };
+  const setOrigin = (patch) => setOriginCustom(prev => ({ ...prev, ...patch }));
+  const setOriginAbility = (i, a) => {
+    const next = [...originCustom.abilityScores]; const j = next.indexOf(a);
+    if (j >= 0) next[j] = next[i]; // picking one already chosen swaps the two
+    next[i] = a;
+    setOrigin({ abilityScores: next });
+    setBgBonusChoices(prev => prev.filter(x => next.includes(x)));
+  };
+  const setOriginSkill = (i, k) => {
+    const next = [...originCustom.skills]; const j = next.indexOf(k);
+    if (j >= 0) next[j] = next[i];
+    next[i] = k;
+    setOrigin({ skills: next });
+  };
+  const resetOrigin = () => { setOriginCustom(null); setOriginOpen(false); setBgBonusChoices(prev => prev.filter(x => baseBg.abilityScores.includes(x))); };
   const subclassLevel = cls.subclassLevel;
   const hasSubclassYet = level >= subclassLevel;
 
@@ -2055,21 +2662,64 @@ function IdentityTab({ className, setClassName, subclassName, setSubclassName, l
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="two-col">
           <div>
             <label style={{ fontSize: 12, opacity: 0.8 }}>Species</label>
-            <select value={species} onChange={e => setSpecies(e.target.value)} style={fieldStyle(colors)}>
+            <select value={species} onChange={e => { setSpecies(e.target.value); setLineage(""); }} style={fieldStyle(colors)}>
               {Object.keys(SPECIES).map(s => <option key={s} value={s}>{s}</option>)}
             </select>
+            {SPECIES[species] && SPECIES[species].lineage && (
+              <select aria-label={SPECIES[species].lineage.label} value={lineage} onChange={e => setLineage(e.target.value)} style={{ ...fieldStyle(colors), marginTop: 8 }}>
+                <option value="">{SPECIES[species].lineage.label}: choose...</option>
+                {Object.keys(SPECIES[species].lineage.options).map(o => <option key={o} value={o}>{o}{SPECIES[species].lineage.options[o].damageType ? ` (${SPECIES[species].lineage.options[o].damageType})` : ""}</option>)}
+              </select>
+            )}
           </div>
           <div>
             <label style={{ fontSize: 12, opacity: 0.8 }}>Background</label>
-            <select value={background} onChange={e => { setBackground(e.target.value); setBgBonusChoices([]); }} style={fieldStyle(colors)}>
-              {Object.keys(BACKGROUNDS).map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
+            <div style={{ display: "flex", gap: 8 }}>
+              <select value={background} onChange={e => { setBackground(e.target.value); setBgBonusChoices([]); setOriginCustom(null); setOriginOpen(false); }} style={fieldStyle(colors)}>
+                {Object.keys(BACKGROUNDS).map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <button onClick={() => (originOpen ? setOriginOpen(false) : startOrigin())} data-testid="customize-origin" style={{ whiteSpace: "nowrap", background: originCustom ? colors.brass : "transparent", color: originCustom ? colors.ink : colors.brassLight, border: `1px solid ${colors.brass}`, borderRadius: 6, padding: "0 12px", fontFamily: fontDisplay, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {originOpen ? "Done" : "Customize Origin"}
+              </button>
+            </div>
           </div>
         </div>
 
         <div style={{ marginTop: 14, background: colors.inkLight, border: `1px solid ${colors.brass}40`, borderRadius: 8, padding: 14 }}>
+          {originOpen && originCustom && (
+            <div data-testid="origin-panel" style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${colors.brass}40` }}>
+              <div style={{ fontFamily: fontDisplay, fontWeight: 700, color: colors.brassLight, marginBottom: 8 }}>Customize Origin</div>
+              <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Ability scores your increases can go to (three)</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                {[0, 1, 2].map(i => (
+                  <select key={i} aria-label={`Origin ability ${i + 1}`} value={originCustom.abilityScores[i]} onChange={e => setOriginAbility(i, e.target.value)} style={{ ...fieldStyle(colors), width: 160 }}>
+                    {ABILITIES.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Skill proficiencies (two)</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                {[0, 1].map(i => (
+                  <select key={i} aria-label={`Origin skill ${i + 1}`} value={originCustom.skills[i] || ""} onChange={e => setOriginSkill(i, e.target.value)} style={{ ...fieldStyle(colors), width: 200 }}>
+                    {ALL_SKILLS.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                ))}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }} className="two-col">
+                <div>
+                  <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Origin Feat</div>
+                  <input aria-label="Origin Feat" list="hba-feat-list" value={originCustom.feat} onChange={e => setOrigin({ feat: e.target.value.slice(0, 60) })} placeholder="Origin Feat" style={fieldStyle(colors)} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Tool proficiency</div>
+                  <input aria-label="Origin tool" value={originCustom.tool} onChange={e => setOrigin({ tool: e.target.value.slice(0, 60) })} placeholder="Tool" style={fieldStyle(colors)} />
+                </div>
+              </div>
+              <button onClick={resetOrigin} data-testid="origin-reset" style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Reset to {background}</button>
+            </div>
+          )}
           <div style={{ fontSize: 13, marginBottom: 10 }}>
-            <strong>{background}</strong> grants ability score increases from: {bg.abilityScores.join(", ")}
+            <strong>{background}</strong>{originCustom && <SourceTag text="Customized origin" colors={colors} />} grants ability score increases from: {bg.abilityScores.join(", ")}
           </div>
           <div style={{ display: "flex", gap: 16, marginBottom: 10, fontSize: 13 }}>
             <label><input type="radio" checked={bgBonusMode === "2-1"} onChange={() => { setBgBonusMode("2-1"); setBgBonusChoices([]); }} /> +2 / +1</label>
@@ -2164,7 +2814,7 @@ function SourceTag({ text, custom, colors }) {
     border: `1px solid ${custom ? CUSTOM_RED : colors.brass + "88"}`, color: custom ? CUSTOM_RED : colors.brassLight }}>{text}</span>;
 }
 
-function AbilitiesTab({ pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay,
+function AbilitiesTab({ featBonuses, pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay,
   custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }) {
   const [editing, setEditing] = useState(false);     // custom scores are being set
   const [adjOpen, setAdjOpen] = useState(null);      // which ability's additional modifier is open
@@ -2208,7 +2858,7 @@ function AbilitiesTab({ pointBuy, updatePointBuy, pointBuyRemaining, finalScores
                 </>}
               </div>
               <div style={{ fontSize: 11, color: colors.brassLight, minHeight: 16 }}>
-                {bgBonuses[a] ? `+${bgBonuses[a]} BG ` : ""}{asiBonuses[a] ? `+${asiBonuses[a]} ASI ` : ""}
+                {bgBonuses[a] ? `+${bgBonuses[a]} BG ` : ""}{asiBonuses[a] ? `+${asiBonuses[a]} ASI ` : ""}{featBonuses[a] ? `+${featBonuses[a]} Feat ` : ""}
                 {abilityAdj[a] ? <span style={{ color: CUSTOM_RED }}>{fmt(abilityAdj[a])} Custom</span> : null}
               </div>
               <div style={{ fontFamily: fontDisplay, fontSize: 18, color: colors.brassLight, marginTop: 4 }}>
@@ -2238,7 +2888,7 @@ function AbilitiesTab({ pointBuy, updatePointBuy, pointBuyRemaining, finalScores
   );
 }
 
-function SkillsTab({ cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }) {
+function SkillsTab({ expertiseMax, expertiseList, expertiseCustom, cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }) {
   const pick = { ...fieldStyle(colors), width: "auto", cursor: "pointer" };
   const notProf = ALL_SKILLS.filter(k => !skillInfo.source[k]);
   const prof = ALL_SKILLS.filter(k => skillInfo.source[k]);
@@ -2272,9 +2922,11 @@ function SkillsTab({ cls, skillInfo, toggleSkill, addSkill, removeSkill, skillEx
 
       <Section title="Skills" colors={colors} fontDisplay={fontDisplay}>
         <div style={{ fontSize: 13, marginBottom: 10, lineHeight: 1.6 }} data-testid="skill-choices">
-          {skillInfo.bg.length > 0 && <div><strong>Background</strong> grants {skillInfo.bg.join(" and ")}.</div>}
+          {Object.entries(skillInfo.grantedBy).map(([src, list]) => <div key={src}><strong>{src}</strong> grants {list.join(" and ")}.</div>)}
           <div><strong>Class</strong>: choose {skillInfo.classCount} from {skillInfo.classAny ? "any skill" : skillInfo.classPool.join(", ")} ({skillInfo.classLeft} left).</div>
           {skillInfo.speciesCount > 0 && <div><strong>Species</strong>: choose {skillInfo.speciesCount} from {skillInfo.speciesAny ? "any skill" : skillInfo.speciesPool.join(", ")} ({skillInfo.speciesLeft} left).</div>}
+          {skillInfo.anyCount > 0 && <div><strong>Features</strong>: choose {skillInfo.anyCount} from any skill ({skillInfo.anyLeft} left).</div>}
+          {(expertiseMax > 0 || expertiseList.length > 0) && <div><strong>Expertise</strong>: your class grants {expertiseMax} ({Math.max(0, expertiseMax - expertiseList.length)} left). Click a star on a skill you are proficient in.</div>}
         </div>
         <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
           Click a skill with a dashed outline to choose it. Click the star for Expertise.
@@ -2298,9 +2950,10 @@ function SkillsTab({ cls, skillInfo, toggleSkill, addSkill, removeSkill, skillEx
             const removed = skillInfo.removed.includes(skill);
             const isCustom = src === "Custom";
             const open = !src && !removed && skillInfo.canChoose.includes(skill);
-            const isExpertise = skillExpertise.includes(skill);
+            const isExpertise = expertiseList.includes(skill);
+            const redStar = expertiseCustom.includes(skill);
             return (
-              <div key={skill} data-testid={`skill-${skill}`} data-state={removed ? "removed" : src} style={{
+              <div key={skill} data-testid={`skill-${skill}`} data-expertise={redStar ? "custom" : isExpertise ? "yes" : ""} data-state={removed ? "removed" : src} data-source={src} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
                 background: src && !isCustom ? colors.brass + "22" : colors.inkLight,
                 border: isCustom ? `2px solid ${CUSTOM_RED}` : src ? `1px solid ${colors.brass}` : open ? `1px dashed ${colors.brass}` : `1px solid ${colors.brass}30`,
@@ -2311,7 +2964,7 @@ function SkillsTab({ cls, skillInfo, toggleSkill, addSkill, removeSkill, skillEx
                   {src && <SourceTag text={src === "Background" ? "BG" : src} custom={isCustom} colors={colors} />}
                   {removed && <span style={{ fontSize: 10, marginLeft: 6 }}>removed</span>}
                 </span>
-                <span onClick={() => toggleExpertise(skill)} style={{ marginRight: 8, color: isExpertise ? colors.brassLight : colors.parchment + "40", fontSize: 14 }}>★</span>
+                <span onClick={() => toggleExpertise(skill)} title="Expertise" style={{ marginRight: 8, color: redStar ? CUSTOM_RED : isExpertise ? colors.brassLight : colors.parchment + "40", fontSize: 14 }}>★</span>
                 <span style={{ fontFamily: fontDisplay, fontWeight: 700, minWidth: 30, textAlign: "right", color: removed ? CUSTOM_RED : colors.parchment }}>{fmt(skillMods[skill])}</span>
               </div>
             );
@@ -2322,7 +2975,7 @@ function SkillsTab({ cls, skillInfo, toggleSkill, addSkill, removeSkill, skillEx
   );
 }
 
-function CombatTab({ cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }) {
+function CombatTab({ masteries, setMasteries, custom, resting, armor, setArmor, shield, setShield, weapons, setWeapons, ac, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }) {
   const displayHp = currentHp === null ? effectiveMaxHp : currentHp;
   return (
     <div>
@@ -2353,7 +3006,7 @@ function CombatTab({ cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp
 
       <Section title="Defenses & Movement" colors={colors} fontDisplay={fontDisplay}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-          {[["Armor Class", armorClass, "(unarmored base; adjust for worn armor)"], ["Initiative", fmt(initiative), ""], ["Speed", `${speed} ft`, ""]].map(([label, val, note]) => (
+          {[["Armor Class", armorClass, ac.how], ["Initiative", fmt(initiative), ""], ["Speed", `${speed} ft`, ""]].map(([label, val, note]) => (
             <div key={label} style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
               <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>{label}</div>
               <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, color: colors.brassLight }}>{val}</div>
@@ -2363,25 +3016,254 @@ function CombatTab({ cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp
         </div>
       </Section>
 
-      <Section title="Weapon Mastery & Attacks" colors={colors} fontDisplay={fontDisplay}>
-        <div style={{ fontSize: 13, opacity: 0.85, lineHeight: 1.6 }}>
-          Use the Equipment tab to log your weapons. Attack bonus = ability mod + proficiency bonus (if proficient). Track Weapon Mastery properties (Cleave, Graze, Nick, Push, Sap, Slow, Topple, Vex) per your class's weapon mastery feature in the Features tab.
-        </div>
+      <GearSection {...{ armor, setArmor, shield, setShield, weapons, setWeapons, ac, colors, fontDisplay, masteries, setMasteries, masteryCount: derived.masteryCount, custom, glow: resting === "long" }} />
+      {(derived.resist.length > 0 || derived.condImmune.length > 0 || derived.saveAdv.length > 0 || derived.condAdv.length > 0 || derived.senses.length > 0) && (
+        <Section title="Defenses From Features" colors={colors} fontDisplay={fontDisplay}>
+          <div style={{ fontSize: 14, lineHeight: 1.7 }} data-testid="defenses">
+            {derived.resist.length > 0 && <div><strong>Resistance:</strong> {Array.from(new Set(derived.resist)).join(", ")}</div>}
+            {derived.condImmune.length > 0 && <div><strong>Immune to:</strong> {Array.from(new Set(derived.condImmune)).join(", ")}</div>}
+            {derived.saveAdv.length > 0 && <div><strong>Advantage on saves:</strong> {Array.from(new Set(derived.saveAdv)).join(", ")}</div>}
+            {derived.condAdv.length > 0 && <div><strong>Advantage on saves against:</strong> {Array.from(new Set(derived.condAdv)).join(", ")}</div>}
+            {derived.senses.length > 0 && <div><strong>Senses:</strong> {derived.senses.join(", ")}</div>}
+          </div>
+        </Section>
+      )}
+      <Section title="Attacks & Activated Features" colors={colors} fontDisplay={fontDisplay}>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>Worked out from this character's current numbers. These go to the Combat Resolver with the character.</div>
+        {Object.keys(pools).length > 0 && <div style={{ fontSize: 14, marginBottom: 10 }} data-testid="pools"><strong>Resources:</strong> {Object.entries(pools).map(([n, p]) => `${n} ${p.max} (${p.recharge === "short" ? "Short Rest" : p.shortRegain ? "Long Rest, 1 back on a Short Rest" : "Long Rest"})`).join(" · ")}</div>}
+        {sheetActions.map((a, i) => (
+          <div key={i} style={{ padding: "6px 0", borderBottom: `1px solid ${colors.brass}22` }} data-testid="sheet-action">
+            <span style={{ fontFamily: fontDisplay, fontSize: 14, color: colors.brassLight }}>{a.name}</span>
+            <span style={{ fontSize: 13, marginLeft: 10 }}>{actionSummary(a)}</span>
+          </div>
+        ))}
       </Section>
     </div>
   );
 }
 
-function FeaturesTab({ featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, colors, fontDisplay }) {
+/* ============ FEATS ============ */
+// Every feat in the System Reference Document 5.2.1 (CC-BY-4.0, Wizards of the Coast), with its rules text as written.
+// grants: what the builder asks for and applies when the feat is taken.
+//   skills {count, tools}   proficiencies chosen when the feat is taken
+//   ability {from, max}     +1 to one ability score (from [] = any)
+//   magic                   spell list, spellcasting ability, two cantrips and a level 1 spell
+// needs: what the rules require before it can be taken.
+const FEATS = {
+  "Alert": { category: "Origin", initiativeProf: true,
+    text: "Initiative Proficiency. When you roll Initiative, you can add your Proficiency Bonus to the roll. Initiative Swap. Immediately after you roll Initiative, you can swap your Initiative with the Initiative of one willing ally in the same combat. You can't make this swap if you or the ally has the Incapacitated condition." },
+  "Magic Initiate": { category: "Origin", repeatable: true, grants: { magic: true },
+    text: "Two Cantrips. You learn two cantrips of your choice from the Cleric, Druid, or Wizard spell list. Intelligence, Wisdom, or Charisma is your spellcasting ability for this feat's spells (choose when you select this feat). Level 1 Spell. Choose a level 1 spell from the same list you selected for this feat's cantrips. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have. Spell Change. Whenever you gain a new level, you can replace one of the spells you chose for this feat with a different spell of the same level from the chosen spell list. Repeatable. You can take this feat more than once, but you must choose a different spell list each time." },
+  "Savage Attacker": { category: "Origin",
+    text: "You've trained to deal particularly damaging strikes. Once per turn when you hit a target with a weapon, you can roll the weapon's damage dice twice and use either roll against the target." },
+  "Skilled": { category: "Origin", repeatable: true, grants: { skills: { count: 3, tools: true } },
+    text: "You gain proficiency in any combination of three skills or tools of your choice. Repeatable. You can take this feat more than once." },
+  "Grappler": { category: "General", prereq: "Level 4+, Strength or Dexterity 13+", needs: { level: 4, score: { abilities: ["Strength", "Dexterity"], min: 13 } },
+    grants: { ability: { from: ["Strength", "Dexterity"], max: 20 } },
+    text: "Ability Score Increase. Increase your Strength or Dexterity score by 1, to a maximum of 20. Punch and Grab. When you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can use both the Damage and the Grapple option. You can use this benefit only once per turn. Attack Advantage. You have Advantage on attack rolls against a creature Grappled by you. Fast Wrestler. You don't have to spend extra movement to move a creature Grappled by you if the creature is your size or smaller." },
+  "Archery": { category: "Fighting Style", prereq: "Fighting Style Feature",
+    text: "You gain a +2 bonus to attack rolls you make with Ranged weapons." },
+  "Defense": { category: "Fighting Style", prereq: "Fighting Style Feature",
+    text: "While you're wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class." },
+  "Great Weapon Fighting": { category: "Fighting Style", prereq: "Fighting Style Feature",
+    text: "When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit." },
+  "Two-Weapon Fighting": { category: "Fighting Style", prereq: "Fighting Style Feature",
+    text: "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage." },
+  "Boon of Combat Prowess": { category: "Epic Boon", prereq: "Level 19+", needs: { level: 19 }, grants: { ability: { from: [], max: 30 } },
+    text: "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30. Peerless Aim. When you miss with an attack roll, you can hit instead. Once you use this benefit, you can't use it again until the start of your next turn." },
+  "Boon of Dimensional Travel": { category: "Epic Boon", prereq: "Level 19+", needs: { level: 19 }, grants: { ability: { from: [], max: 30 } },
+    text: "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30. Blink Steps. Immediately after you take the Attack action or the Magic action, you can teleport up to 30 feet to an unoccupied space you can see." },
+  "Boon of Fate": { category: "Epic Boon", prereq: "Level 19+", needs: { level: 19 }, grants: { ability: { from: [], max: 30 } },
+    text: "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30. Improve Fate. When you or another creature within 60 feet of you succeeds on or fails a D20 Test, you can roll 2d4 and apply the total rolled as a bonus or penalty to the d20 roll. Once you use this benefit, you can't use it again until you roll Initiative or finish a Short or Long Rest." },
+  "Boon of Irresistible Offense": { category: "Epic Boon", prereq: "Level 19+", needs: { level: 19 }, grants: { ability: { from: ["Strength", "Dexterity"], max: 30 } },
+    text: "Ability Score Increase. Increase your Strength or Dexterity score by 1, to a maximum of 30. Overcome Defenses. The Bludgeoning, Piercing, and Slashing damage you deal always ignores Resistance. Overwhelming Strike. When you roll a 20 on the d20 for an attack roll, you can deal extra damage to the target equal to the ability score increased by this feat. The extra damage's type is the same as the attack's type." },
+  "Boon of Spell Recall": { category: "Epic Boon", prereq: "Level 19+, Spellcasting Feature", needs: { level: 19, spellcasting: true }, grants: { ability: { from: ["Intelligence", "Wisdom", "Charisma"], max: 30 } },
+    text: "Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 30. Free Casting. Whenever you cast a spell with a level 1–4 spell slot, roll 1d4. If the number you roll is the same as the slot's level, the slot isn't expended." },
+  "Boon of the Night Spirit": { category: "Epic Boon", prereq: "Level 19+", needs: { level: 19 }, grants: { ability: { from: [], max: 30 } },
+    actions: [{ name: "Merge with Shadows", type: "apply", activation: "bonus", self: true, onUse: { conds: [{ name: "Invisible" }] },
+      desc: "While within Dim Light or Darkness, you can give yourself the Invisible condition as a Bonus Action. The condition ends on you immediately after you take an action, a Bonus Action, or a Reaction." }],
+    text: "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30. Merge with Shadows. While within Dim Light or Darkness, you can give yourself the Invisible condition as a Bonus Action. The condition ends on you immediately after you take an action, a Bonus Action, or a Reaction. Shadowy Form. While within Dim Light or Darkness, you have Resistance to all damage except Psychic and Radiant." },
+  "Boon of Truesight": { category: "Epic Boon", prereq: "Level 19+", needs: { level: 19 }, grants: { ability: { from: [], max: 30 } }, sense: "Truesight 60 ft.",
+    text: "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30. Truesight. You have Truesight with a range of 60 feet." },
+};
+const FEAT_CATEGORIES = ["Origin", "General", "Fighting Style", "Epic Boon"];
+// "Magic Initiate (Cleric)" is the Magic Initiate feat with its spell list already chosen.
+const featBase = (name) => String(name || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+const featDef = (name) => FEATS[name] || FEATS[featBase(name)] || null;
+const featPreset = (name) => { const m = /\(([^)]+)\)\s*$/.exec(String(name || "")); return m ? m[1] : ""; };
+// Classes that grant Expertise: level reached -> total skills with Expertise.
+const EXPERTISE_SLOTS = { Rogue: { 1: 2, 6: 4 }, Bard: { 2: 2, 9: 4 }, Ranger: { 2: 1, 9: 3 }, Wizard: { 2: 1 } };
+function expertiseSlots(className, level) {
+  let n = 0;
+  Object.entries(EXPERTISE_SLOTS[className] || {}).forEach(([l, total]) => { if (level >= +l) n = Math.max(n, total); });
+  return n;
+}
+// Every place this character gets a feat from. cats: the feat categories the rules allow there.
+function featSlots(className, subclassName, level, species, originFeat) {
+  const slots = [{ id: "origin", label: "Origin Feat (background)", cats: ["Origin"], fixed: originFeat || "" }];
+  if (species === "Human") slots.push({ id: "species", label: "Human: Versatile", cats: ["Origin"] });
+  getFeaturesUpToLevel(className, subclassName, level).forEach(f => {
+    const sub = f.source === "Subclass" ? "s" : "";
+    if (/^(Additional )?Fighting Style/.test(f.text)) slots.push({ id: `fs${f.level}${sub}`, label: `Level ${f.level}: ${f.text}`, cats: ["Fighting Style"] });
+    if (/^Epic Boon/.test(f.text)) slots.push({ id: `boon${f.level}`, label: `Level ${f.level}: Epic Boon`, cats: ["Epic Boon", "General", "Origin"] });
+  });
+  return slots;
+}
+// Why the rules don't allow this feat here, or "" if they do.
+function featProblem(name, cats, ch) {
+  const def = featDef(name);
+  if (!def) return "";
+  if (def.category !== "Any" && !cats.includes(def.category)) return `${def.category} feat in a slot for ${cats.join(" or ")} feats`;
+  const n = def.needs || {};
+  if (n.level && ch.level < n.level) return `needs Level ${n.level}+`;
+  if (n.score && !n.score.abilities.some(a => ch.scores[a] >= n.score.min)) return `needs ${n.score.abilities.join(" or ")} ${n.score.min}+`;
+  if (n.spellcasting && !ch.caster) return "needs the Spellcasting feature";
+  return "";
+}
+
+// The choices a feat asks for, shown right where the feat is picked.
+function FeatChoices({ name, choices, onChange, colors }) {
+  const def = featDef(name);
+  if (!def) return null;
+  const g = def.grants || {};
+  const c = choices || {};
+  const set = (patch) => onChange({ ...c, ...patch });
+  const sel = { ...fieldStyle(colors), width: 190 };
+  const label = { fontSize: 12, opacity: 0.8, margin: "8px 0 4px" };
+  return (
+    <div data-testid="feat-choices">
+      {def.prereq && <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}><strong>Prerequisite:</strong> {def.prereq}</div>}
+      <div style={{ fontSize: 13, opacity: 0.9, marginTop: 6, lineHeight: 1.5 }}>{def.text}</div>
+      {g.skills && (<>
+        <div style={label}>Choose {g.skills.count} {g.skills.tools ? "skills or tools" : "skills"}</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {Array.from({ length: g.skills.count }).map((_, i) => {
+            const v = (c.skills || [])[i] || "";
+            const isTool = v.startsWith("tool:");
+            const put = (val) => { const next = [...(c.skills || [])]; while (next.length < g.skills.count) next.push(""); next[i] = val; set({ skills: next }); };
+            return (
+              <span key={i} style={{ display: "inline-flex", gap: 6 }}>
+                <select aria-label={`${featBase(name)} proficiency ${i + 1}`} value={isTool ? "tool:" : v} onChange={e => put(e.target.value)} style={sel}>
+                  <option value="">Choose...</option>
+                  {(g.skills.from && g.skills.from.length ? g.skills.from : ALL_SKILLS).map(k => <option key={k} value={k}>{k}</option>)}
+                  {g.skills.tools && <option value="tool:">A tool...</option>}
+                </select>
+                {isTool && <input aria-label={`${featBase(name)} tool ${i + 1}`} value={v.slice(5)} onChange={e => put("tool:" + e.target.value.slice(0, 40))} placeholder="Tool name" style={{ ...fieldStyle(colors), width: 160 }} />}
+              </span>
+            );
+          })}
+        </div>
+      </>)}
+      {g.ability && (<>
+        <div style={label}>Increase one ability score by 1 (maximum {g.ability.max})</div>
+        <select aria-label={`${featBase(name)} ability`} value={c.ability || ""} onChange={e => set({ ability: e.target.value })} style={sel}>
+          <option value="">+1 to...</option>
+          {(g.ability.from && g.ability.from.length ? g.ability.from : ABILITIES).map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </>)}
+      {g.magic && (<>
+        <div style={label}>Spell list and spellcasting ability</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <select aria-label="Magic Initiate spell list" value={c.list || featPreset(name) || ""} disabled={!!featPreset(name)} onChange={e => set({ list: e.target.value })} style={sel}>
+            <option value="">Spell list...</option>
+            {["Cleric", "Druid", "Wizard"].map(x => <option key={x} value={x}>{x}</option>)}
+          </select>
+          <select aria-label="Magic Initiate ability" value={c.castAbility || ""} onChange={e => set({ castAbility: e.target.value })} style={sel}>
+            <option value="">Spellcasting ability...</option>
+            {["Intelligence", "Wisdom", "Charisma"].map(x => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </div>
+        <div style={label}>Two cantrips and one level 1 spell from that list</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[["cantrip1", "Cantrip"], ["cantrip2", "Cantrip"], ["spell", "Level 1 spell"]].map(([k, ph]) => (
+            <input key={k} aria-label={`Magic Initiate ${k}`} list="hba-spell-list" value={c[k] || ""} onChange={e => set({ [k]: e.target.value.slice(0, 60) })} placeholder={ph} style={{ ...fieldStyle(colors), width: 190 }} />
+          ))}
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+// A dropdown of feats. allowed: names the rules allow in this slot. With Further Customization on, the rest are listed too.
+function FeatPicker({ value, onPick, cats, taken, custom, colors, label }) {
+  const names = Object.keys(FEATS).filter(n => n !== "Ability Score Improvement");
+  const free = (n) => FEATS[n].repeatable || n === value || !taken.includes(n);
+  const legal = names.filter(n => (FEATS[n].category === "Any" || cats.includes(FEATS[n].category)) && free(n));
+  const others = custom ? names.filter(n => !legal.includes(n)) : [];
+  const unknown = value && !FEATS[value];
+  return (
+    <select aria-label={label} value={value || ""} onChange={e => onPick(e.target.value)} style={{ ...fieldStyle(colors), maxWidth: 360 }}>
+      <option value="">Choose a feat...</option>
+      {unknown && <option value={value}>{value}</option>}
+      {FEAT_CATEGORIES.concat("Any").map(cat => {
+        const list = legal.filter(n => FEATS[n].category === cat);
+        return list.length ? <optgroup key={cat} label={cat === "Any" ? "Content Pack feats" : `${cat} feats`}>{list.map(n => <option key={n} value={n}>{n}</option>)}</optgroup> : null;
+      })}
+      {others.length > 0 && <optgroup label="Beyond the rules (shown in red)">{others.map(n => <option key={n} value={n}>{n} ({FEATS[n].category})</option>)}</optgroup>}
+    </select>
+  );
+}
+
+function FeaturesTab({ glowKeys, optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay,
+  slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }) {
+  const taken = takenFeats.map(f => f.base);
+  const problemOf = (key) => { const f = takenFeats.find(x => x.key === key); return f ? f.problem : ""; };
+  const box = (red) => ({ background: colors.inkLight, border: `${red ? 2 : 1}px solid ${red ? CUSTOM_RED : colors.brass + "40"}`, borderRadius: 8, padding: 12, marginBottom: 10 });
+  const head = { fontFamily: fontDisplay, fontWeight: 700, marginBottom: 8, color: colors.brassLight };
+  const warn = (p) => p ? <div style={{ fontSize: 12, color: CUSTOM_RED, marginTop: 6 }}>Beyond the rules: {p}.</div> : null;
   return (
     <div>
+      {optionSlots.length > 0 && (
+        <Section title="Feature Choices" colors={colors} fontDisplay={fontDisplay}>
+          {optionSlots.map(o => (
+            <div key={o.key} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: fontDisplay, color: colors.brassLight, minWidth: 220 }}>{o.feature}{o.label !== o.feature ? `: ${o.label}` : ""}</span>
+              <select aria-label={`Choice for ${o.feature}`} data-glow={glowKeys.includes(o.key) ? "yes" : ""} value={o.picked} onChange={e => setFeatureChoices(prev => ({ ...prev, [o.key]: e.target.value }))} style={{ ...fieldStyle(colors), width: 260, border: glowKeys.includes(o.key) ? `2px solid ${colors.brassLight}` : fieldStyle(colors).border }}>
+                <option value="">Choose...</option>
+                {o.choices.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {o.changeOn && <span style={{ fontSize: 12, opacity: 0.7 }}>can change on a {o.changeOn === "short" ? "Short or Long" : "Long"} Rest</span>}
+            </div>
+          ))}
+        </Section>
+      )}
+      <Section title="Feats" colors={colors} fontDisplay={fontDisplay}>
+        {slots.map(slot => {
+          const pick = featPicks[slot.id] || {};
+          const name = slot.fixed != null ? slot.fixed : (pick.name || "");
+          const p = problemOf(slot.id);
+          return (
+            <div key={slot.id} data-testid={`feat-slot-${slot.id}`} style={box(!!p)}>
+              <div style={head}>{slot.label}</div>
+              {slot.fixed != null
+                ? <div style={{ fontSize: 15 }}><strong>{slot.fixed || "None"}</strong> <span style={{ fontSize: 12, opacity: 0.7 }}>(change it with Customize Origin on the Identity tab)</span></div>
+                : <FeatPicker label={`Feat for ${slot.label}`} value={name} cats={slot.cats} taken={taken} custom={custom} colors={colors} onPick={n => setFeatPick(slot.id, { name: n, choices: {} })} />}
+              {name && <FeatChoices name={name} choices={pick.choices} onChange={ch => setFeatPick(slot.id, { name: slot.fixed != null ? "" : name, choices: ch })} colors={colors} />}
+              {warn(p)}
+            </div>
+          );
+        })}
+        {extraFeats.map((f, i) => (
+          <div key={i} data-testid={`feat-extra-${i}`} style={box(true)}>
+            <div style={{ ...head, color: CUSTOM_RED, display: "flex", justifyContent: "space-between" }}>
+              <span>Extra feat (custom)</span>
+              <button onClick={() => setExtraFeats(prev => prev.filter((_, k) => k !== i))} style={{ background: "transparent", border: `1px solid ${CUSTOM_RED}`, color: CUSTOM_RED, borderRadius: 6, padding: "2px 10px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+            </div>
+            <FeatPicker label={`Extra feat ${i + 1}`} value={f.name} cats={FEAT_CATEGORIES} taken={taken} custom={true} colors={colors} onPick={n => setExtraFeats(prev => prev.map((x, k) => k === i ? { name: n, choices: {} } : x))} />
+            {f.name && <FeatChoices name={f.name} choices={f.choices} onChange={ch => setExtraFeats(prev => prev.map((x, k) => k === i ? { ...x, choices: ch } : x))} colors={colors} />}
+          </div>
+        ))}
+        {custom && <button data-testid="add-extra-feat" onClick={() => setExtraFeats(prev => [...prev, { name: "", choices: {} }])} style={{ background: "transparent", border: `1px dashed ${CUSTOM_RED}`, color: CUSTOM_RED, borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer" }}>+ Add an extra feat</button>}
+      </Section>
+
       <Section title="Ability Score Improvements & Feats" colors={colors} fontDisplay={fontDisplay}>
         {reachedAsiLevels.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No ASI levels reached yet.</div>}
         {reachedAsiLevels.map(lvl => {
           const choice = asiChoices[lvl] || { type: "asi", abilities: [null, null] };
+          const p = problemOf("asi" + lvl);
           return (
-            <div key={lvl} style={{ background: colors.inkLight, border: `1px solid ${colors.brass}40`, borderRadius: 8, padding: 12, marginBottom: 10 }}>
-              <div style={{ fontFamily: fontDisplay, fontWeight: 700, marginBottom: 8, color: colors.brassLight }}>Level {lvl}</div>
+            <div key={lvl} data-testid={`feat-slot-asi${lvl}`} style={box(!!p)}>
+              <div style={head}>Level {lvl}</div>
               <div style={{ display: "flex", gap: 14, marginBottom: 8, fontSize: 13 }}>
                 <label><input type="radio" checked={choice.type === "asi"} onChange={() => setAsiType(lvl, "asi")} /> Ability Score Improvement</label>
                 <label><input type="radio" checked={choice.type === "feat"} onChange={() => setAsiType(lvl, "feat")} /> Feat</label>
@@ -2395,9 +3277,11 @@ function FeaturesTab({ featureLedger, reachedAsiLevels, asiChoices, setAsiAbilit
                     </select>
                   ))}
                 </div>
-              ) : (
-                <input value={choice.name || ""} onChange={e => setFeatName(lvl, e.target.value)} placeholder="Feat name" list="hba-feat-list" style={fieldStyle(colors)} />
-              )}
+              ) : (<>
+                <FeatPicker label={`Feat for level ${lvl}`} value={choice.name || ""} cats={["General", "Origin"].concat(lvl >= 19 ? ["Epic Boon"] : [])} taken={taken} custom={custom} colors={colors} onPick={n => setFeatName(lvl, n)} />
+                {choice.name && <FeatChoices name={choice.name} choices={choice.choices} onChange={ch => setAsiFeatChoices(lvl, ch)} colors={colors} />}
+                {warn(p)}
+              </>)}
             </div>
           );
         })}
@@ -2405,7 +3289,7 @@ function FeaturesTab({ featureLedger, reachedAsiLevels, asiChoices, setAsiAbilit
 
       <Section title="Feature Ledger" colors={colors} fontDisplay={fontDisplay}>
         <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 12 }}>
-          Every feature granted by your species, background, class, and subclass, in the order you gain them.
+          Every feature granted by your species, background, class, subclass and feats, in the order you gain them.
         </div>
         {featureLedger.map((f, i) => (
           <div key={i} style={{
@@ -2413,7 +3297,9 @@ function FeaturesTab({ featureLedger, reachedAsiLevels, asiChoices, setAsiAbilit
           }}>
             <div style={{ minWidth: 64, fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight }}>Lvl {f.level}</div>
             <div style={{ minWidth: 80, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", opacity: 0.65, paddingTop: 1 }}>{f.source}</div>
-            <div style={{ fontSize: 14, flex: 1 }}>{f.text}</div>
+            <div style={{ fontSize: 14, flex: 1 }}>
+              {f.detail ? <details><summary style={{ cursor: "pointer" }}>{f.text}</summary><div style={{ fontSize: 13, opacity: 0.9, marginTop: 4, whiteSpace: "pre-line", lineHeight: 1.5 }}>{f.detail}</div></details> : f.text}
+            </div>
           </div>
         ))}
       </Section>
@@ -2421,24 +3307,156 @@ function FeaturesTab({ featureLedger, reachedAsiLevels, asiChoices, setAsiAbilit
   );
 }
 
-function SpellsTab({ cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells }) {
-  if (!cls.casterType) {
-    return (
-      <Section title="Spellcasting" colors={colors} fontDisplay={fontDisplay}>
-        <div style={{ fontSize: 14, opacity: 0.75 }}>{className} has no spellcasting class features at base level (unless granted by subclass — check your Features tab for subclasses like Eldritch Knight or Arcane Trickster).</div>
-      </Section>
-    );
+/* ============ SPELLS ============ */
+// The spell list comes from spells.js (every SRD 5.2.1 spell) plus any Content Pack spells.
+const ALL_SPELLS = [];
+const SPELL_BY_NAME = {};
+function registerSpell(sp) {
+  const key = sp.n.toLowerCase();
+  const k = ALL_SPELLS.findIndex(x => x.n.toLowerCase() === key);
+  if (k >= 0) ALL_SPELLS[k] = sp; else ALL_SPELLS.push(sp);
+  SPELL_BY_NAME[key] = sp;
+}
+(window.HBA_SPELLS || []).forEach(registerSpell);
+// A sheet stores spell names. Older sheets may hold "Name (Level 2 Evocation)" or a name typed by hand.
+const spellOf = (str) => { const t = String(str || "").trim().toLowerCase(); return SPELL_BY_NAME[t] || SPELL_BY_NAME[t.replace(/\s*\([^)]*\)\s*$/, "")] || null; };
+const spellLine = (sp) => (sp.l ? `Level ${sp.l} ${sp.s}` : `${sp.s} cantrip`);
+// Prepared Spells by class level, from the class tables.
+const PREPARED_SPELLS = {
+  Bard:     [4,5,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22],
+  Cleric:   [4,5,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22],
+  Druid:    [4,5,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22],
+  Sorcerer: [2,4,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22],
+  Warlock:  [2,3,4,5,6,7,8,9,10,10,11,11,12,12,13,13,14,14,15,15],
+  Wizard:   [4,5,6,7,9,10,11,12,14,15,16,16,17,18,19,21,22,23,24,25],
+  Paladin:  [2,3,4,5,6,6,7,7,9,9,10,10,11,11,12,12,14,14,15,15],
+  Ranger:   [2,3,4,5,6,6,7,7,9,9,10,10,11,11,12,12,14,14,15,15],
+};
+function cantripsKnown(className, level) {
+  const table = CANTRIPS_KNOWN[className];
+  if (!table) return 0;
+  let n = 0;
+  Object.keys(table).map(Number).sort((a, b) => a - b).forEach(t => { if (level >= t) n = table[t]; });
+  return n;
+}
+function maxSpellLevel(cls, className, level) {
+  if (!cls || !cls.casterType) return 0;
+  if (cls.casterType === "pact") return PACT_SLOTS[level].level;
+  return (getSpellSlots(className, level) || []).length;
+}
+// Sorts a character's spells into what the rules allow and what goes past them.
+function sortSpells(cls, className, level, names, cantripBonus) {
+  const caster = !!(cls && cls.casterType);
+  const maxLevel = maxSpellLevel(cls, className, level);
+  const cantripMax = caster ? cantripsKnown(className, level) + (cantripBonus || 0) : 0;
+  const prepTable = PREPARED_SPELLS[className];
+  const prepMax = !caster ? 0 : prepTable ? prepTable[level - 1] : null; // null: a Content Pack class with no table, so no limit
+  let cantrips = 0, prepared = 0;
+  const list = names.map((raw, index) => {
+    const sp = spellOf(raw);
+    if (!sp) return { raw, index, sp: null, problem: "" };
+    let problem = "";
+    if (sp.l === 0) cantrips++; else prepared++;
+    if (!caster) problem = `${className} has no Spellcasting feature`;
+    else if (!sp.c.includes(className)) problem = `not on the ${className} spell list`;
+    else if (sp.l > maxLevel) problem = `Level ${sp.l} is higher than a level ${level} ${className} can cast`;
+    else if (sp.l === 0 && cantrips > cantripMax) problem = `more cantrips than a level ${level} ${className} knows`;
+    else if (sp.l > 0 && prepMax != null && prepared > prepMax) problem = `more prepared spells than a level ${level} ${className} has`;
+    return { raw, index, sp, problem };
+  });
+  return { list, caster, maxLevel, cantripMax, prepMax, cantrips, prepared };
+}
+// How a spell resolves in the Combat Resolver, worked out from this character's numbers. Returns null for a spell with no roll.
+function spellAction(sp, ctx, opts) {
+  const m = sp.m;
+  if (!m) return null;
+  const out = { name: sp.n, spell: true, slot: sp.l, desc: sp.x.slice(0, 1200) };
+  if (m.act) out.activation = m.act;
+  let dice = m.dmg ? m.dmg[0] : null;
+  if (dice && m.cu) { // cantrip damage grows at levels 5, 11 and 17
+    const mult = ctx.LEVEL >= 17 ? 4 : ctx.LEVEL >= 11 ? 3 : ctx.LEVEL >= 5 ? 2 : 1;
+    dice = dice.replace(/^(\d+)d/, (_, n) => `${n * mult}d`);
   }
+  if (m.k === "attack") { out.type = "attack"; out.atk = ctx.SPELLATK; if (m.rng) out.ranged = true; if (dice) out.dmgList = [[dice, m.dmg[1]]]; else return null; }
+  else if (m.k === "save") {
+    out.type = "save"; out.saveAbility = m.ab; out.dc = ctx.SPELLDC;
+    if (dice) out.dmgList = [[dice, m.dmg[1]]];
+    if (m.half) out.halfOnSave = true;
+    if (m.cond) { const c = { name: m.cond }; if (m.dur) c.left = m.dur; if (m.rep) c.when = m.rep; out.onFail = { conds: [c] }; }
+  }
+  else if (m.k === "heal") { out.type = "heal"; out.healDice = evalDice(m.mod ? `${m.heal}+SPELLMOD` : m.heal, ctx); }
+  else if (m.k === "auto") { out.type = "auto"; out.dmgList = [[dice, m.dmg[1]]]; }
+  else return null;
+  if (m.up) out.up = m.up;
+  if (m.tg) out.targets = m.tg === "slot" ? 1 : m.tg; // "slot": one more target per slot level, set in the Resolver when cast
+  if (m.tg === "slot") out.targetsPerSlot = true;
+  const o = opts || {};
+  const extra = (sp.l === 0 ? (o.cantripDamage || 0) : 0) + ((o.schoolDamage || {})[sp.s] || 0); // Potent Spellcasting, Empowered Evocation
+  if (extra && out.dmgList) out.dmgList = [[evalDice(`${out.dmgList[0][0]}+${extra}`, ctx), out.dmgList[0][1]]];
+  if (o.potentCantrip && sp.l === 0 && out.dmgList) { if (out.type === "save") out.halfOnSave = true; if (out.type === "attack") out.missHalf = true; }
+  if (opts && opts.once) { out.slot = 0; out.usesMax = 1; out.recharge = "long"; } // a feat's free casting
+  return out;
+}
 
-  const spellAbilityMod = finalMods[cls.spellAbility];
-  const spellSaveDC = 8 + profBonus + spellAbilityMod;
-  const spellAttackBonus = profBonus + spellAbilityMod;
+function SpellRow({ entry, onRemove, colors, fontDisplay, summary }) {
+  const [open, setOpen] = useState(false);
+  const sp = entry.sp, red = !!entry.problem;
+  return (
+    <div data-testid={`spell-${sp ? sp.n : entry.raw}`} data-state={red ? "custom" : "ok"} style={{ border: `${red ? 2 : 1}px solid ${red ? CUSTOM_RED : colors.brass + "40"}`, background: colors.inkLight, borderRadius: 6, padding: "6px 10px", marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span onClick={() => setOpen(v => !v)} style={{ flex: 1, cursor: sp ? "pointer" : "default" }}>
+          <strong style={{ fontFamily: fontDisplay, fontSize: 14 }}>{sp ? sp.n : entry.raw}</strong>
+          {sp && <span style={{ fontSize: 12, opacity: 0.75, marginLeft: 8 }}>{spellLine(sp)}{sp.conc ? " · Concentration" : ""}{sp.rit ? " · Ritual" : ""}</span>}
+          {!sp && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 8 }}>typed in by hand, not in the spell list</span>}
+        </span>
+        <button onClick={onRemove} aria-label={`Remove ${sp ? sp.n : entry.raw}`} style={{ background: "transparent", border: "none", color: colors.parchment, opacity: 0.7, cursor: "pointer", fontSize: 16 }}>×</button>
+      </div>
+      {summary && <div style={{ fontSize: 12, color: colors.brassLight }}>In combat: {summary}</div>}
+      {red && <div style={{ fontSize: 12, color: CUSTOM_RED }}>Beyond the rules: {entry.problem}.</div>}
+      {open && sp && (
+        <div style={{ fontSize: 13, lineHeight: 1.5, marginTop: 6, opacity: 0.92 }}>
+          <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>Casting Time: {sp.t} · Range: {sp.r} · Components: {sp.k.split("").join(", ")}{sp.mat ? ` (${sp.mat})` : ""} · Duration: {sp.conc ? "Concentration, " : ""}{sp.d}</div>
+          {sp.x}{sp.h ? <div style={{ marginTop: 4 }}><strong>Using a Higher-Level Spell Slot.</strong> {sp.h}</div> : null}
+        </div>
+      )}
+    </div>
+  );
+}
 
+function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
+  const [filterLevel, setFilterLevel] = useState("all");
+  const [search, setSearch] = useState("");
+  const [anyList, setAnyList] = useState(false);     // customization: spells from every class list
+  const [allLevels, setAllLevels] = useState(false); // customization: spells above the level you can cast
+  const [typed, setTyped] = useState("");
+  const { caster, maxLevel, cantripMax, prepMax } = spellInfo;
+  const chosen = new Set(spellInfo.list.filter(e => e.sp).map(e => e.sp.n));
+  grantedSpells.forEach(g => { const sp = spellOf(g.name); if (sp) chosen.add(sp.n); });
+  const wideList = custom && anyList, wideLevel = custom && allLevels;
+  const topLevel = wideLevel ? 9 : maxLevel;
+  const q = search.trim().toLowerCase();
+  const pool = ALL_SPELLS.filter(sp =>
+    !chosen.has(sp.n) && (wideList || (caster && sp.c.includes(className))) && (sp.l === 0 || sp.l <= topLevel)
+    && (filterLevel === "all" || sp.l === +filterLevel) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
+    .sort((a, b) => a.l - b.l || a.n.localeCompare(b.n));
+  const room = (sp) => (sp.l === 0 ? spellInfo.cantrips < cantripMax : prepMax == null || spellInfo.prepared < prepMax);
+  const legal = (sp) => caster && sp.c.includes(className) && sp.l <= maxLevel && room(sp);
+  const add = (name) => setSpells([...spells.filter(Boolean), name]);
+  const remove = (index) => { const next = spells.filter((_, i) => i !== index); setSpells(next.length ? next : [""]); };
+  const rows = spellInfo.list.filter(e => e.raw);
+  const cantripRows = rows.filter(e => e.sp && e.sp.l === 0), spellRows = rows.filter(e => e.sp && e.sp.l > 0).sort((a, b) => a.sp.l - b.sp.l), handRows = rows.filter(e => !e.sp);
+  const stat = (label, val) => (
+    <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
+      <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>{label}</div>
+      <div style={{ fontFamily: fontDisplay, fontSize: 20, fontWeight: 700, color: colors.brassLight }}>{val}</div>
+    </div>
+  );
+  const check = { display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: CUSTOM_RED, border: `1px solid ${CUSTOM_RED}`, borderRadius: 6, padding: "4px 10px" };
   let slotsDisplay = null;
-  if (cls.casterType === "pact") {
+  if (caster && cls.casterType === "pact") {
     const pact = PACT_SLOTS[level];
     slotsDisplay = <div style={{ fontSize: 14 }}>{pact.slots} Pact Magic slots, all of level {pact.level}. (Slots recharge on a Short or Long Rest.)</div>;
-  } else {
+  } else if (caster) {
     const slots = getSpellSlots(className, level) || [];
     slotsDisplay = (
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -2452,65 +3470,84 @@ function SpellsTab({ cls, className, level, finalMods, profBonus, colors, fontDi
       </div>
     );
   }
-
-  const cantripsTable = CANTRIPS_KNOWN[className];
-  let cantripsKnown = null;
-  if (cantripsTable) {
-    const thresholds = Object.keys(cantripsTable).map(Number).sort((a, b) => a - b);
-    let count = cantripsTable[thresholds[0]];
-    thresholds.forEach(t => { if (level >= t) count = cantripsTable[t]; });
-    cantripsKnown = count;
-  }
-
   return (
     <div>
-      <Section title="Spellcasting Overview" colors={colors} fontDisplay={fontDisplay}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 16 }}>
-          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Spellcasting Ability</div>
-            <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: colors.brassLight }}>{cls.spellAbility}</div>
+      {caster ? (<>
+        <Section title="Spellcasting Overview" colors={colors} fontDisplay={fontDisplay}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+            {stat("Spellcasting Ability", cls.spellAbility)}
+            {stat("Spell Save DC", 8 + profBonus + finalMods[cls.spellAbility])}
+            {stat("Spell Attack Bonus", fmt(profBonus + finalMods[cls.spellAbility]))}
+            {stat("Cantrips", `${spellInfo.cantrips} / ${cantripMax}`)}
+            {stat("Prepared Spells", `${spellInfo.prepared} / ${prepMax == null ? "no limit" : prepMax}`)}
+            {stat("Highest Spell Level", maxLevel || "none yet")}
           </div>
-          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Spell Save DC</div>
-            <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, color: colors.brassLight }}>{spellSaveDC}</div>
+        </Section>
+        <Section title={cls.casterType === "pact" ? "Pact Magic Slots" : "Spell Slots"} colors={colors} fontDisplay={fontDisplay}>{slotsDisplay}</Section>
+      </>) : (
+        <Section title="Spellcasting" colors={colors} fontDisplay={fontDisplay}>
+          <div style={{ fontSize: 14, opacity: 0.8 }}>{className} has no Spellcasting feature. {custom ? "Further Customization is on, so you can still add spells below. They will show in red." : "Turn on Further Customization to add spells anyway."}</div>
+        </Section>
+      )}
+
+      <Section title="Your Spells" colors={colors} fontDisplay={fontDisplay}>
+        {glow && <div data-testid="spell-glow" style={{ border: `2px solid ${colors.brassLight}`, borderRadius: 6, padding: "6px 10px", marginBottom: 10, fontSize: 13 }}>This rest lets you change spells here.</div>}
+        {rows.length === 0 && grantedSpells.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No spells yet. Add them from the list below.</div>}
+        {cantripRows.length > 0 && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "4px 0 6px" }}>CANTRIPS</div>}
+        {cantripRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
+        {spellRows.length > 0 && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "10px 0 6px" }}>PREPARED SPELLS</div>}
+        {spellRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
+        {handRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} />)}
+        {grantedSpells.length > 0 && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "10px 0 6px" }}>ALWAYS PREPARED (these do not count against your limits)</div>}
+        {grantedSpells.map((g, i) => {
+          const sp = spellOf(g.name);
+          return <div key={i} data-testid={`granted-${g.name}`} style={{ border: `1px solid ${colors.brass}40`, background: colors.inkLight, borderRadius: 6, padding: "6px 10px", marginBottom: 6, fontSize: 14 }}>
+            <strong style={{ fontFamily: fontDisplay }}>{g.name}</strong>{sp && <span style={{ fontSize: 12, opacity: 0.75, marginLeft: 8 }}>{spellLine(sp)}</span>}<SourceTag text={g.source} colors={colors} />
+            {sp && spellSummary(sp) && <div style={{ fontSize: 12, color: colors.brassLight }}>In combat: {spellSummary(sp)}</div>}
+          </div>;
+        })}
+      </Section>
+
+      {(caster || custom) && (
+        <Section title="Add Spells" colors={colors} fontDisplay={fontDisplay}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+            <select aria-label="Spell level filter" value={filterLevel} onChange={e => setFilterLevel(e.target.value)} style={{ ...fieldStyle(colors), width: 150 }}>
+              <option value="all">All levels</option>
+              <option value="0">Cantrips</option>
+              {Array.from({ length: topLevel }).map((_, i) => <option key={i + 1} value={i + 1}>Level {i + 1}</option>)}
+            </select>
+            <input aria-label="Search spells" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or school" style={{ ...fieldStyle(colors), width: 240 }} />
+            {custom && <label style={check}><input type="checkbox" checked={anyList} onChange={e => setAnyList(e.target.checked)} data-testid="any-list" /> Any spell list</label>}
+            {custom && <label style={check}><input type="checkbox" checked={allLevels} onChange={e => setAllLevels(e.target.checked)} data-testid="all-levels" /> All spell levels</label>}
           </div>
-          <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Spell Attack Bonus</div>
-            <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, color: colors.brassLight }}>{fmt(spellAttackBonus)}</div>
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 8 }} data-testid="spell-pool-note">
+            Showing {pool.length} {wideList ? "spells from every list" : `${className} spells`}{wideLevel ? ", all levels" : maxLevel ? `, up to Level ${maxLevel}` : ", cantrips only"}.
+            {custom ? " Spells past your limits can still be added and will show in red." : ""}
           </div>
-          {cantripsKnown !== null && (
-            <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>Cantrips Known</div>
-              <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, color: colors.brassLight }}>{cantripsKnown}</div>
+          <div style={{ maxHeight: 420, overflowY: "auto", border: `1px solid ${colors.brass}30`, borderRadius: 6 }}>
+            {pool.map(sp => {
+              const ok = legal(sp);
+              return (
+                <div key={sp.n} data-testid={`pool-${sp.n}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderBottom: `1px solid ${colors.brass}18` }}>
+                  <div style={{ flex: 1 }}>
+                    <strong style={{ fontSize: 14 }}>{sp.n}</strong>
+                    <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 8 }}>{spellLine(sp)}{sp.conc ? " · Concentration" : ""}{sp.rit ? " · Ritual" : ""} · {sp.c.join(", ")}</span>
+                  </div>
+                  <button disabled={!ok && !custom} onClick={() => add(sp.n)} title={ok ? "" : custom ? "Past your limits: it will show in red" : "Past your limits"}
+                    style={{ background: "transparent", border: `1px solid ${ok ? colors.brass : CUSTOM_RED}`, color: ok ? colors.brassLight : CUSTOM_RED, borderRadius: 6, padding: "3px 12px", fontSize: 12, cursor: ok || custom ? "pointer" : "default", opacity: ok || custom ? 1 : 0.35 }}>Add</button>
+                </div>
+              );
+            })}
+            {pool.length === 0 && <div style={{ padding: 12, fontSize: 13, opacity: 0.7 }}>No spells match.</div>}
+          </div>
+          {custom && (
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <input aria-label="Spell typed by hand" value={typed} onChange={e => setTyped(e.target.value)} placeholder="Or type a spell that is not in the list" style={{ ...fieldStyle(colors), maxWidth: 320 }} />
+              <button onClick={() => { if (typed.trim()) { add(typed.trim().slice(0, 60)); setTyped(""); } }} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "0 14px", cursor: "pointer" }}>Add</button>
             </div>
           )}
-        </div>
-      </Section>
-      <Section title={cls.casterType === "pact" ? "Pact Magic Slots" : "Spell Slots"} colors={colors} fontDisplay={fontDisplay}>
-        {slotsDisplay}
-      </Section>
-      <Section title="Spells Known / Prepared" colors={colors} fontDisplay={fontDisplay}>
-        <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 8 }}>
-          Log your chosen spells here — this app tracks slots and DCs, but spell selection from the full PHB list is up to you.
-        </div>
-        <SpellList colors={colors} fontDisplay={fontDisplay} spells={spells} setSpells={setSpells} />
-      </Section>
-    </div>
-  );
-}
-
-function SpellList({ colors, fontDisplay, spells, setSpells }) {
-  return (
-    <div>
-      {spells.map((s, i) => (
-        <input key={i} value={s} onChange={e => {
-          const next = [...spells]; next[i] = e.target.value; setSpells(next);
-        }} placeholder={`Spell ${i + 1}`} list="hba-spell-list" style={{ ...fieldStyle(colors), marginBottom: 6 }} />
-      ))}
-      <button onClick={() => setSpells([...spells, ""])} style={{
-        background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight,
-        borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, marginTop: 4
-      }}>+ Add spell</button>
+        </Section>
+      )}
     </div>
   );
 }
@@ -2891,6 +3928,9 @@ function MundaneItemsTab({ mundaneSearch, setMundaneSearch, mundaneTypeFilter, s
   );
 }
 
+
+// Merge installed Content Packs into the lists before the first render.
+storedPacks().forEach((raw) => { const r = checkPack(raw); if (r.pack) { mergePack(r.pack); INSTALLED_PACKS.push({ name: r.pack.name, author: r.pack.author, counts: r.counts }); } });
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<CharacterSheet />);
