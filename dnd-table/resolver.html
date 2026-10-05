@@ -1655,8 +1655,8 @@ function App() {
 
   useEffect(() => { // when the turn passes to someone this screen controls, show them
     const a = combatants.find(c => c.id === activeId);
-    // The sheet you are looking at stays put. A player's own main character is opened on its turn; "Follow the turn" opens every creature you control.
-    if (combatStarted && a && canControl(a) && (followTurn || (!isDM && a.main && a.owner === myId))) { setViewId(a.id); setSelectedAction(null); if (!isDM) setPane('sheet'); }
+    // The sheet you are looking at stays put, for players and the DM alike. The DM can switch on "Follow the turn" on the tracker.
+    if (combatStarted && a && canControl(a) && followTurn) { setViewId(a.id); setSelectedAction(null); if (!isDM) setPane('sheet'); }
   }, [activeId, combatStarted]);
 
   // ── ADD COMBATANT FORM STATE ──
@@ -2360,6 +2360,7 @@ function App() {
 
     else if (action.type === 'save' && target) {
       // The target's own player (or the DM) rolls this one: it goes up as a prompt.
+      if (action.conc && action.concSecs && action.onFail && action.onFail.conds) action = {...action, onFail: {...action.onFail, conds: action.onFail.conds.map(k => ({...k, left: action.concSecs}))}}; // one clock: the condition lasts as long as the Concentration
       const {name, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc} = action;
       const dc = action.dc + (action.spell ? sumEff(active, 'dcBonus') : 0); // Innate Sorcery raises a spell's DC
       setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: target.id, actorId: active.id, actorName: active.name,
@@ -3606,6 +3607,7 @@ function App() {
           <div className="panel-body">
             {(!isDM || leftTab === 'order') && <>
             <div className="who-am-i" data-testid="who-am-i">{!room ? <>You are running this alone, with <strong>DM</strong> controls.</> : isDM ? <>You are the <strong>DM</strong>{myOwn.length ? <> and also play <strong>{myOwn.map(c => c.name).join(', ')}</strong></> : null}.</> : myOwn.length ? <>You are playing <strong>{myOwn.map(c => c.name).join(', ')}</strong>.</> : <>You are a <strong>player</strong> with no character here yet.</>}</div>
+            {isDM && <label className="rule-label" style={{margin:'0 0 4px'}} title="On: your screen opens whichever creature's turn it is. Off: the sheet you are looking at stays until you press View on another."><input type="checkbox" data-testid="rule-follow" checked={followTurn} onChange={e=>{ setFollowTurn(e.target.checked); try { window.localStorage.setItem('hba-follow-turn', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> Follow the turn</label>}
             <div className="rel-key" data-testid="rel-key"><span><i style={{background:'#4da3ff'}}/>Yours</span><span><i style={{background:'#4caf50'}}/>Ally</span><span><i style={{background:'#e05252'}}/>Hostile</span><span><i style={{background:'#e6c84a'}}/>Neutral</span><span><i style={{background:'#000', border:'1px solid #555'}}/>Defeated</span></div>
             {!combatStarted && isDM && inPlay.length > 0 && (
               <div className="initiative-controls">
@@ -3699,7 +3701,6 @@ function App() {
                 <label className="rule-label" style={{margin:'2px 0'}} title="When you press Start Combat, everyone is asked to roll Initiative for their creatures, and combat begins when they have"><input type="checkbox" data-testid="rule-ask-init" checked={askInit} onChange={e=>setAskInit(e.target.checked)}/> Everyone rolls Initiative when combat is called</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="An attack is declared, then rolled by the attacker, then shown to the target, and only then applied"><input type="checkbox" data-testid="rule-step" checked={stepOn} onChange={e=>setStepOn(e.target.checked)}/> Attacks are declared before they are rolled, so the target can react</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="A player can take back the action they just took, until the turn changes"><input type="checkbox" data-testid="rule-undo" checked={allowUndo} onChange={e=>setAllowUndo(e.target.checked)}/> Players can take back their last action</label>
-                <label className="rule-label" style={{margin:'2px 0'}} title="Off: the sheet you are looking at stays until you press View on another. On: each creature you control is opened when its turn starts."><input type="checkbox" data-testid="rule-follow" checked={followTurn} onChange={e=>{ setFollowTurn(e.target.checked); try { window.localStorage.setItem('hba-follow-turn', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> Follow the turn: open each creature's sheet on its turn</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="Players see whether your creatures hit, miss, save or fail, and the damage, but not the numbers you rolled"><input type="checkbox" data-testid="rule-hide-rolls" checked={hideRolls} onChange={e=>setHideRolls(e.target.checked)}/> Hide my rolls from players</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="When you roll a d20 for one of your creatures, you are asked whether to roll it or to type the total it comes to"><input type="checkbox" data-testid="rule-choose" checked={dmChoose} onChange={e=>{ setDmChoose(e.target.checked); try { window.localStorage.setItem('hba-dm-choose', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> Fudging: when I roll a d20 for a creature, ask whether to roll it or type the total</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="The next d20 you roll for an attack, a save or a check shows this number, and looks like any other roll">Next d20 shows <input type="number" min="1" max="20" aria-label="Next d20 shows" data-testid="fudge-d20" value={fudge} onChange={e=>{ const n = Math.max(0, Math.min(20, parseInt(e.target.value, 10) || 0)); NEXT_D20 = n; setFudge(n ? String(n) : ''); }} style={{width:54, marginLeft:6}}/></label>
