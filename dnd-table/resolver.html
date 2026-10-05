@@ -466,6 +466,21 @@
     .condition-tag.good.removable, .condition-tag.bad.removable { cursor: pointer; }
     .combatant-card.pending { border-style: dashed; border-color: var(--warning); }
     .combatant-card.mine { border-left: 3px solid var(--brass-light); }
+    .combatant-card.rel-own { border: 2px solid #4da3ff; }
+    .combatant-card.rel-ally { border: 2px solid #4caf50; }
+    .combatant-card.rel-hostile { border: 2px solid #e05252; }
+    .combatant-card.rel-neutral { border: 2px solid #e6c84a; }
+    .combatant-card.rel-dead { border: 2px solid #000; }
+    .combatant-card.active { box-shadow: 0 0 10px rgba(201,168,76,0.75); }
+    .combatant-card.targeted { box-shadow: 0 0 10px rgba(224,82,82,0.8); }
+    .combatant-card.folded { padding-top: 6px; padding-bottom: 6px; }
+    .combatant-card.folded > *:not(.combatant-header):not(.turn-marker) { display: none; }
+    .combatant-card.folded .combatant-type { display: none; }
+    .rel-key { display: flex; gap: 8px; flex-wrap: wrap; font-size: 0.72rem; color: var(--text-muted); margin: 2px 0 6px; }
+    .rel-key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
+    .who-am-i { font-size: 0.82rem; margin: 2px 0 4px; color: var(--parchment); }
+    .rel-select { background: #0F1923; border: 1px solid #3d5166; color: var(--parchment); border-radius: 4px; font-size: 0.72rem; padding: 1px 3px; margin-top: 3px; }
+    .init-bar { background: #1a2633; border-bottom: 2px solid var(--gold); padding: 8px 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .pending-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 0.78rem; color: var(--warning); }
     .card-remove { margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 2px; }
     .card-remove:hover { color: #ff8a80; }
@@ -622,9 +637,9 @@ const MONSTERS = window.HBA_MONSTERS || [];
 
 let idSeq = 0; // keeps entries made in the same millisecond in the order they were made
 function newId() { idSeq = (idSeq + 1) % 1296; return Date.now().toString(36) + idSeq.toString(36).padStart(2, '0') + Math.random().toString(36).slice(2, 6); }
-function makeCode() {
+function makeCode(len) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({length: 6}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return Array.from({length: len || 6}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 function cleanCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12); }
 function sessionFromHash() { const m = /room=([A-Za-z0-9]+)/.exec(window.location.hash); return m ? cleanCode(m[1]) : ''; }
@@ -1253,7 +1268,11 @@ function speedText(c) { return [`${effectiveSpeed(c)} ft.`, c.speedExtra, ...eff
 function effectiveInit(c) { return (+c.initiative || 0) + sumEff(c, 'init'); }       // place in the order
 function effectiveInitBonus(c) { return (+c.initBonus || 0) + sumEff(c, 'init'); }   // modifier to the roll
 function effectiveSenses(c) { return [...(c.senses || []), ...effs(c).map(e => e.sense)].filter(Boolean); }
-const byInit = list => list.map((c, i) => [c, i]).sort((a, b) => (effectiveInit(b[0]) - effectiveInit(a[0])) || (a[1] - b[1])).map(x => x[0]);
+const byInit = list => { // highest first; a summoned creature goes straight after the one that summoned it
+  const lead = list.filter(c => !c.after || !list.some(o => o.id === c.after));
+  const sorted = lead.map((c, i) => [c, i]).sort((a, b) => (effectiveInit(b[0]) - effectiveInit(a[0])) || (a[1] - b[1])).map(x => x[0]);
+  return sorted.flatMap(c => [c, ...list.filter(f => f.after === c.id && !lead.includes(f))]);
+};
 
 // ── CHARACTER SHEETS (files from the Character Builder) ──────────────────────
 // Turns a saved sheet into everything a combatant carries, so the whole sheet comes into the fight.
@@ -1538,6 +1557,13 @@ function App() {
     setCombatants(prev => prev.map(c => mark.some(m => m.id === c.id) && c.conc ? {...c, conc: {...c.conc, held: true}} : over.some(m => m.id === c.id) ? (({conc, ...rest}) => rest)(c) : c));
     if (over.length) setLog(prev => [...prev, ...over.map(c => stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> stops concentrating on <span class="log-result">${esc(c.conc.name)}</span><div class="log-detail">Nothing of the spell is left.</div>`}))]);
   }, [combatants]);
+  useEffect(() => {
+    const gone = combatants.filter(x => x.summonOf && x.blockId && canControl(x) && !((combatants.find(o => o.id === x.summonOf) || {}).blocks || []).some(b => b.id === x.blockId));
+    if (!gone.length) return;
+    gone.forEach(x => { if (room && db) db.ref('rooms/' + room + '/combatants/' + x.id).remove(); });
+    setCombatants(prev => prev.filter(c => !gone.some(x => x.id === c.id)));
+    setLog(prev => [...prev, ...gone.map(x => stamp({type:'roll', html:`<strong>${esc(x.name)}</strong> is gone.<div class="log-detail">What brought it here has ended.</div>`}))]);
+  }, [combatants]);
   useEffect(() => { FUDGE_DONE = () => setFudge(''); return () => { FUDGE_DONE = null; NEXT_D20 = 0; }; }, []);
   const [blockPick, setBlockPick] = useState(null);  // choosing the creature for a form or a summon: {cId, kind, source, left, q}
   const [restSummary, setRestSummary] = useState(null); // what a player's rest just gave back
@@ -1553,6 +1579,9 @@ function App() {
   const [dmChoose, setDmChoose] = useState(() => { try { return window.localStorage.getItem('hba-dm-choose') !== 'off'; } catch (e) { return true; } });
   const [callRoll, setCallRoll] = useState({targetId: '', kind: 'save', ability: 'Constitution', skill: '', dc: '10', why: ''});
   const actingRef = useRef('');                     // whose action is being resolved, for the fight summary
+  const [initCall, setInitCall] = useState(0);      // the DM has called for Initiative: a number that marks this call, or 0
+  const [askInit, setAskInit] = useState(() => { try { return window.localStorage.getItem('hba-ask-init') !== 'off'; } catch (e) { return true; } }); // table rule: everyone rolls Initiative when combat is called
+  const [initType, setInitType] = useState({});     // typed Initiative totals, by creature
   const [sessName, setSessName] = useState('');     // the name the DM gave this session
   const [sessions, setSessions] = useState(() => mySessions());
   const [showSessions, setShowSessions] = useState(true);
@@ -1623,6 +1652,7 @@ function App() {
   const openAdd = () => { setForm({...emptyForm, type: isDM ? 'monster' : 'companion'}); setShowAddModal(true); };
 
   const placeByInitiative = (list, c) => {
+    if (c.after) { const j = list.reduce((k, x, n) => x.id === c.after || x.after === c.after ? n : k, -1); return j < 0 ? [...list, c] : [...list.slice(0, j + 1), c, ...list.slice(j + 1)]; }
     if (!combatStarted) return [...list, c];
     const i = list.findIndex(x => effectiveInit(x) < effectiveInit(c));
     return i < 0 ? [...list, c] : [...list.slice(0, i), c, ...list.slice(i)];
@@ -1638,7 +1668,7 @@ function App() {
       if (asPlayer || form.fromSheet) newC.owner = myId;
       if (form.fromSheet) newC.main = true;
     } else {
-      const type = asPlayer && form.type !== 'player' ? 'companion' : form.type;
+      const type = asPlayer && form.type !== 'player' ? 'companion' : form.type === 'npc' ? 'monster' : form.type;
       const scores = {Strength:+form.str,Dexterity:+form.dex,Constitution:+form.con,
                       Intelligence:+form.int,Wisdom:+form.wis,Charisma:+form.cha};
       const pb = profBonus(+form.level || 1);
@@ -1659,6 +1689,7 @@ function App() {
         conditions: [], effects: [],
         pb,
       };
+      if (form.type === 'npc') { newC.rel = 'neutral'; newC.sub = 'NPC'; }
       if (type === 'player') newC.charClass = form.charClass;
       else {
         const dmg = String(form.atkDmg || '').replace(/\s/g, '');
@@ -1713,8 +1744,34 @@ function App() {
   };
   const acceptCombatant = (id) => setCombatants(prev => prev.map(c => c.id === id ? {...c, pending: false} : c));
 
-  const startCombat = () => {
-    const sorted = byInit(combatants);
+  const startCombat = () => { // with the table rule on, combat begins once everyone has rolled Initiative
+    if (askInit && !initCall) {
+      const tok = Date.now();
+      setInitCall(tok);
+      setLog(prev => [...prev, stamp({type:'roll', html:`<strong>The DM calls for Initiative.</strong><div class="log-detail">Roll for each of your creatures at the top of the screen. Combat begins when everyone has.</div>`})]);
+      return;
+    }
+    beginCombat(combatants);
+  };
+  const needInit = initCall ? inPlay.filter(c => !c.after && c.initFor !== initCall) : [];
+  const rollInit = (c, typed) => {
+    if (!initCall || !canControl(c)) return;
+    const b = effectiveInitBonus(c), t = parseInt(typed, 10);
+    let v, how;
+    if (Number.isFinite(t)) { v = t; how = 'entered by hand'; }
+    else { const r = roll20((c.passives || {}).initiativeAdvantage ? 1 : 0); v = r.total + b; how = `${r.rolls.join('/')} ${signed(b)}${(c.passives || {}).initiativeAdvantage ? ' with Advantage' : ''}`; }
+    setCombatants(prev => prev.map(x => x.id === c.id ? {...x, initiative: v, initFor: initCall} : x.after === c.id ? {...x, initiative: v, initFor: initCall} : x));
+    setLog(prev => [...prev, stamp({type:'roll', ...(isDM && !c.owner && hideRolls ? {dmOnly: true} : {}), html:`<strong>${esc(c.name)}</strong> · Initiative<br/><span class="log-result">🎲 ${v}</span><div class="log-dice">${esc(how)}</div>`})]);
+  };
+  const forceStart = () => { // the DM starts now: whoever has not rolled is rolled for
+    let work = combatants;
+    needInit.forEach(c => { const v = rollD(20) + effectiveInitBonus(c); work = work.map(x => x.id === c.id || x.after === c.id ? {...x, initiative: v, initFor: initCall} : x); });
+    beginCombat(work);
+  };
+  useEffect(() => { if (isDM && initCall && !combatStarted && inPlay.length > 0 && needInit.length === 0) beginCombat(combatants); }, [initCall, combatants]);
+  const beginCombat = (list) => {
+    setInitCall(0);
+    const sorted = byInit(list);
     const first = sorted.find(c => !c.pending);
     setCombatants(sorted.map(c => ({...c, turn: {}, fight: {dealt: 0, taken: 0}, recovered: null, fightStart: plain({slotsUsed: c.slotsUsed || {}, poolUsed: c.poolUsed || {}, used: c.used || {}})})));
     setActiveId(first ? first.id : '');
@@ -2006,7 +2063,8 @@ function App() {
   // A Reaction that does not hold anything up is offered for a moment: after damage, or when a spell is cast.
   // A Reaction is only brought up when the other side sets it off: a monster or NPC against a player character, or the reverse.
   // What you or your allies do never raises one. It can still be used from the sheet at any time.
-  const foes = (actor, c) => !!c && (!actor || (actor.type === 'monster') !== (c.type === 'monster'));
+  const sideOf = c => c.type !== 'monster' || c.rel === 'ally' ? 'party' : (c.rel || 'hostile');
+  const foes = (actor, c) => !!c && (!actor || sideOf(actor) !== sideOf(c));
   const isCasting = (c, a) => !!a && (!!a.spell || (!!c && c.type === 'monster' && (/\bspell\b/i.test(a.desc || '') || SPELL_NAMES.has(String(a.name || '').toLowerCase()))));
   const offerReactions = (ev, ids, text, actor) => {
     const qs = ids.map(id => inPlay.find(c => c.id === id)).filter(c => c && foes(actor, c) && hasReaction(c, ev)).map(c => plain({id: newId(), kind: 'offer', ev, targetId: c.id, by: myId, text, at: Date.now()}));
@@ -2658,13 +2716,13 @@ function App() {
   };
 
   // ── LIVE SYNC ───────────────────────────────────────────────────────────────
-  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || '', reveal: reveal || 'full', revealAC: revealAC !== false, stepOn: stepOn !== false, allowUndo: allowUndo !== false, hideRolls: !!hideRolls, ammoOn: !!ammoOn, name: sessName || '', ...(ended ? {ended} : {})});
+  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || '', reveal: reveal || 'full', revealAC: revealAC !== false, stepOn: stepOn !== false, allowUndo: allowUndo !== false, hideRolls: !!hideRolls, ammoOn: !!ammoOn, name: sessName || '', initCall: +initCall || 0, askInit: askInit !== false, ...(ended ? {ended} : {})});
   const setHash = h => { try { (window.parent || window).history.replaceState(null, '', h); } catch (e) {} };
   const enterSession = code => { promptedRef.current = false; setRemoteSigs(null); setSyncMsg(''); setRoom(code); setRoomInput(''); setHash('#room=' + code); };
 
   const createSession = async (from) => { // from: an earlier session of mine whose player characters come along
     if (!db) return;
-    const code = makeCode();
+    const code = makeCode(10); // session codes are 10 characters, so they cannot be guessed
     setSyncStatus('connecting');
     try {
       const updates = {meta: {...metaOf(), name: '', ended: null, round: 1, combatStarted: false, activeId: '', dm: myId, approval: false}, touched: firebase.database.ServerValue.TIMESTAMP};
@@ -2742,7 +2800,7 @@ function App() {
         .sort((a, b) => ((a.seq || 0) - (b.seq || 0)) || (a.id < b.id ? -1 : 1));
       const logList = Object.values(v.log || {}).filter(e => e && e.id).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const m = v.meta || {};
-      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : '', reveal: ['full','bar','conditions','none'].includes(m.reveal) ? m.reveal : 'full', revealAC: m.revealAC !== false, stepOn: m.stepOn !== false, allowUndo: m.allowUndo !== false, hideRolls: !!m.hideRolls, ammoOn: !!m.ammoOn, name: String(m.name || '').slice(0, 60), ...(m.ended && m.ended.at ? {ended: m.ended} : {})};
+      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : '', reveal: ['full','bar','conditions','none'].includes(m.reveal) ? m.reveal : 'full', revealAC: m.revealAC !== false, stepOn: m.stepOn !== false, allowUndo: m.allowUndo !== false, hideRolls: !!m.hideRolls, ammoOn: !!m.ammoOn, name: String(m.name || '').slice(0, 60), initCall: +m.initCall || 0, askInit: m.askInit !== false, ...(m.ended && m.ended.at ? {ended: m.ended} : {})};
       const promptList = Object.values(v.prompts || {}).filter(q => q && q.id && q.targetId).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const sigs = {combatants: {}, log: {}, prompts: {}, meta: stable(meta)};
       promptList.forEach(q => { sigs.prompts[q.id] = true; });
@@ -2756,7 +2814,7 @@ function App() {
       setActiveId(meta.activeId);
       setDmId(meta.dm);
       setApproval(meta.approval);
-      setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn); setSessName(meta.name); setEnded(prev => stable(prev) === stable(meta.ended || null) ? prev : (meta.ended || null));
+      setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn); setSessName(meta.name); setInitCall(meta.initCall); setAskInit(meta.askInit); setEnded(prev => stable(prev) === stable(meta.ended || null) ? prev : (meta.ended || null));
       setRemoteSigs(sigs);
       setSyncStatus('live');
     };
@@ -2779,7 +2837,7 @@ function App() {
     if (stable(meta) !== remoteSigs.meta) updates['meta'] = meta;
     if (Object.keys(updates).length) updates['touched'] = firebase.database.ServerValue.TIMESTAMP; // last activity, for the 90-day cleanup
     if (Object.keys(updates).length) db.ref('rooms/' + room).update(updates).catch(err => { console.error('Session write failed', err); setSyncStatus('error'); setSyncMsg('Could not save'); });
-  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, reveal, revealAC, stepOn, allowUndo, hideRolls, ammoOn, ended, sessName, room, remoteSigs]);
+  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, reveal, revealAC, stepOn, allowUndo, hideRolls, ammoOn, ended, sessName, initCall, askInit, room, remoteSigs]);
 
   // This browser keeps a list of the sessions it has been in.
   const sessKey = room && remoteSigs ? [room, sessName, dmId === myId ? 'dm' : 'player', combatants.filter(c => c.type !== 'monster' && !c.pending).map(c => c.name).join('|')].join('~') : '';
@@ -2789,7 +2847,11 @@ function App() {
     const list = [{code: room, name: sessName || '', role: dmId === myId ? 'dm' : 'player', last: Date.now(), who: combatants.filter(c => c.type !== 'monster' && !c.pending).map(c => c.name)}, ...rest];
     saveSessions(list); setSessions(list);
   }, [sessKey]);
-  const forgetSession = (code) => { if (!window.confirm(`Take session ${code} off this list? The session itself is not deleted, and its code still works.`)) return; const list = mySessions().filter(x => x.code !== code); saveSessions(list); forgetRoom(code); setSessions(mySessions()); };
+  const forgetSession = (code) => {
+    const x = mySessions().find(y => y.code === code) || {code, name: ''};
+    if (!window.confirm(`Remove ${x.name ? `"${x.name}"` : 'this session'} from your list?\n\nIt is not deleted. You can get back into it with its code, ${code}, or its invite link. Without one of those you cannot, so note the code first if you might want it again.`)) return;
+    saveSessions(mySessions().filter(y => y.code !== code)); forgetRoom(code); setSessions(mySessions());
+  };
   const openSession = async (x) => {
     if (!db) return;
     try { const m = (await db.ref('rooms/' + x.code + '/meta').get()).val();
@@ -2879,6 +2941,9 @@ function App() {
   }, []);
 
   // ── RENDER HELPERS ──────────────────────────────────────────────────────────
+  // The outline of a card: yours, an ally, hostile, neutral, or defeated. The DM says what each of their creatures is to the party.
+  const relOf = c => c.currentHP <= 0 ? 'dead' : (c.owner && c.owner === myId) ? 'own' : c.type !== 'monster' ? 'ally' : (c.rel || 'hostile');
+  const myOwn = combatants.filter(c => c.owner && c.owner === myId && !c.summonOf && c.type !== 'monster');
   const typeLine = c => c.type === 'player' ? `${c.charClass || 'Character'} ${c.level}` : c.type === 'companion' ? 'Companion' : (c.sub || 'Monster/NPC');
   const sheetLine = c => {
     const sh = c.sheet || {};
@@ -3410,6 +3475,21 @@ function App() {
           </div>
         </div>
       )}
+      {initCall > 0 && !combatStarted && (
+        <div className="init-bar" data-testid="init-bar">
+          <strong>Roll Initiative.</strong>
+          {needInit.filter(canControl).map(c => (
+            <span key={c.id} className="p-btns" data-testid="init-item">
+              <button className="btn btn-primary btn-sm" data-testid="init-roll" onClick={() => rollInit(c)}>🎲 {c.name} ({signed(effectiveInitBonus(c))})</button>
+              <input type="number" aria-label={`Initiative total for ${c.name}`} placeholder="or type" value={initType[c.id] || ''} onChange={e => setInitType({...initType, [c.id]: e.target.value})} onKeyDown={e => { if (e.key === 'Enter' && initType[c.id]) rollInit(c, initType[c.id]); }} style={{width: 70}}/>
+              {initType[c.id] ? <button className="btn btn-ghost btn-sm" data-testid="init-set" onClick={() => rollInit(c, initType[c.id])}>Set</button> : null}
+            </span>))}
+          {needInit.filter(canControl).length === 0 && <span className="prompt-wait">{needInit.length ? `Waiting for ${needInit.map(c => c.name).join(', ')}` : 'Everyone has rolled.'}</span>}
+          {isDM && needInit.filter(canControl).length > 1 && <button className="btn btn-ghost btn-sm" data-testid="init-roll-mine" onClick={() => needInit.filter(c => !c.owner || c.owner === myId).forEach(c => rollInit(c))}>Roll all of mine</button>}
+          {isDM && <button className="btn btn-ghost btn-sm" data-testid="init-force" onClick={forceStart}>Start now, rolling for the rest</button>}
+          {isDM && <button className="btn btn-ghost btn-sm" data-testid="init-cancel" onClick={() => setInitCall(0)}>Cancel</button>}
+        </div>
+      )}
       {(openPrompts.length > 0 || flowPrompts.length > 0) && (
         <div className="prompt-bar" data-testid="prompt-bar">
           {flowPrompts.map(({q, c}) => {
@@ -3460,9 +3540,12 @@ function App() {
             : <div className="panel-header">Initiative Order</div>}
           <div className="panel-body">
             {(!isDM || leftTab === 'order') && <>
+            <div className="who-am-i" data-testid="who-am-i">{!room ? <>You are running this alone, with <strong>DM</strong> controls.</> : isDM ? <>You are the <strong>DM</strong>{myOwn.length ? <> and also play <strong>{myOwn.map(c => c.name).join(', ')}</strong></> : null}.</> : myOwn.length ? <>You are playing <strong>{myOwn.map(c => c.name).join(', ')}</strong>.</> : <>You are a <strong>player</strong> with no character here yet.</>}</div>
+            <div className="rel-key" data-testid="rel-key"><span><i style={{background:'#4da3ff'}}/>Yours</span><span><i style={{background:'#4caf50'}}/>Ally</span><span><i style={{background:'#e05252'}}/>Hostile</span><span><i style={{background:'#e6c84a'}}/>Neutral</span><span><i style={{background:'#000', border:'1px solid #555'}}/>Defeated</span></div>
             {!combatStarted && isDM && inPlay.length > 0 && (
               <div className="initiative-controls">
-                <button className="btn btn-primary btn-full" onClick={startCombat}>⚔ Start Combat</button>
+                {initCall ? <div className="buff-note" data-testid="init-waiting">Initiative is being rolled. Waiting for: {needInit.map(c => c.name).join(', ') || 'nobody'}.</div>
+                  : <button className="btn btn-primary btn-full" onClick={startCombat}>⚔ Start Combat</button>}
               </div>
             )}
             {isDM && (combatStarted || combatants.some(c => c.type === 'monster')) && (
@@ -3480,7 +3563,8 @@ function App() {
               return (
               <div
                 key={c.id}
-                className={`combatant-card ${isActive?'active':''} ${targetIds.includes(c.id)?'targeted':''} ${c.currentHP<=0?'dead':''} ${c.type==='monster' && c.currentHP<=0 && !openDown[c.id]?'down':''} ${c.pending?'pending':''} ${c.owner===myId?'mine':''}`}
+                className={`combatant-card ${isActive?'active':''} ${targetIds.includes(c.id)?'targeted':''} ${c.currentHP<=0?'dead':''} ${c.type==='monster' && c.currentHP<=0 && !openDown[c.id]?'down':''} ${c.pending?'pending':''} ${c.owner===myId?'mine':''} rel-${relOf(c)} ${c.summonOf && c.currentHP > 0 && !openDown[c.id] ? 'folded' : ''}`}
+                data-rel={relOf(c)}
                 onClick={()=>{ if (c.pending) return; if (canControl(c)) { setViewId(c.id); setSelectedAction(null); } else if (!viewed || c.id!==viewed.id) toggleTarget(c.id); }}
                 title={canControl(c) ? 'Click to open this sheet' : 'Click to target'}
               >
@@ -3488,11 +3572,14 @@ function App() {
                 <div className="combatant-header">
                   <div className="init-badge" title="Initiative">{effectiveInit(c)}</div>
                   <div>
-                    <div className="combatant-name">{c.name} {c.currentHP<=0?'☠':''}</div>
+                    <div className="combatant-name">{c.name} {c.currentHP<=0?'☠':''}{c.summonOf && c.currentHP > 0 && !openDown[c.id] ? <span style={{fontSize:'0.72rem', opacity:0.75}}> · {c.currentHP}/{totalHP(c)} HP · summoned</span> : null}</div>
+                    {isDM && c.type === 'monster' && c.currentHP > 0 && <select className="rel-select" aria-label={`What ${c.name} is to the party`} data-testid="rel-select" value={c.rel || 'hostile'} onClick={e=>e.stopPropagation()} onChange={e=>{ const v = e.target.value; setCombatants(prev => prev.map(x => x.id === c.id ? {...x, rel: v} : x)); }}>
+                      <option value="hostile">Hostile</option><option value="neutral">Neutral</option><option value="ally">Ally</option><option value="none">No designation</option></select>}
                     <div className="combatant-type">{typeLine(c)}{veil(c) && !revealAC ? '' : ` · AC ${effectiveAC(c)} · ${effectiveSpeed(c)} ft.`} {c.owner===myId && <span className="owner-tag">· yours</span>}</div>
                     {c.conc && <span className="conc-badge" data-testid={`conc-${c.name}`} title={`Concentrating on ${c.conc.name}${+c.conc.left > 0 ? `, ${timeText(c.conc.left)} left` : ''}${canControl(c) ? '. Click to stop concentrating.' : ''}`}
                       onClick={e=>{ e.stopPropagation(); if (canControl(c)) { if (window.confirm(`Stop concentrating on ${c.conc.name}?`)) endConcentration(c.id); } else window.alert(`${c.name} is concentrating on ${c.conc.name}.`); }}>◈ Concentrating</span>}
                   </div>
+                  {c.summonOf && c.currentHP > 0 && ctl && <button className="card-remove" style={{right: 30}} data-testid="fold-toggle" title={openDown[c.id] ? 'Fold this summoned creature away' : 'Open this summoned creature up'} onClick={e=>{e.stopPropagation(); setOpenDown(p => ({...p, [c.id]: !p[c.id]}));}}>{openDown[c.id] ? '▾' : '▸'}</button>}
                   {isDM && c.type==='monster' && c.currentHP<=0 && <button className="card-remove" style={{right: 30}} data-testid="down-toggle" title={openDown[c.id] ? 'Fold this defeated creature away' : 'Open this defeated creature up'} onClick={e=>{e.stopPropagation(); setOpenDown(p => ({...p, [c.id]: !p[c.id]}));}}>{openDown[c.id] ? '▾' : '▸'}</button>}
                   {ctl && <button className="card-remove" title="Remove from combat" onClick={e=>{e.stopPropagation(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id);}}>×</button>}
                 </div>
@@ -3542,6 +3629,7 @@ function App() {
               <div className="manual-roll" data-testid="flow-panel">
                 <span className="label">How actions resolve</span>
                 <label className="rule-label" style={{margin:'2px 0 6px'}} title="Shown to everyone at the top, and in each person's list of sessions">Session name <input aria-label="Session name" data-testid="session-name-input" maxLength={60} placeholder="For example: Thursday campaign" value={sessName} onChange={e=>setSessName(e.target.value.slice(0, 60))} style={{marginLeft:6, width:190}}/></label>
+                <label className="rule-label" style={{margin:'2px 0'}} title="When you press Start Combat, everyone is asked to roll Initiative for their creatures, and combat begins when they have"><input type="checkbox" data-testid="rule-ask-init" checked={askInit} onChange={e=>setAskInit(e.target.checked)}/> Everyone rolls Initiative when combat is called</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="An attack is declared, then rolled by the attacker, then shown to the target, and only then applied"><input type="checkbox" data-testid="rule-step" checked={stepOn} onChange={e=>setStepOn(e.target.checked)}/> Attacks are declared before they are rolled, so the target can react</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="A player can take back the action they just took, until the turn changes"><input type="checkbox" data-testid="rule-undo" checked={allowUndo} onChange={e=>setAllowUndo(e.target.checked)}/> Players can take back their last action</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="Players see whether your creatures hit, miss, save or fail, and the damage, but not the numbers you rolled"><input type="checkbox" data-testid="rule-hide-rolls" checked={hideRolls} onChange={e=>setHideRolls(e.target.checked)}/> Hide my rolls from players</label>
@@ -4101,7 +4189,16 @@ function App() {
       {blockPick && (() => { const q = (blockPick.q || '').trim().toLowerCase(), form = blockPick.kind === 'form';
         const list = MONSTERS.filter(m => (!form || blockPick.any || /beast/i.test(m.t)) && (!q || m.n.toLowerCase().includes(q))).slice(0, 40);
         const pick = (name) => { const n = String(name || '').trim().slice(0, 60); if (!n) return;
-          setCombatants(prev => prev.map(x => x.id !== blockPick.cId ? x : {...x, blocks: [...(x.blocks || []), plain({id: newId(), name: n, kind: blockPick.kind, source: blockPick.source || '', conc: blockPick.conc || '', left: blockPick.left || 0})].slice(-8)}));
+          const bid = newId(), boss = combatants.find(x => x.id === blockPick.cId), m = MONSTERS.find(x => x.n === n);
+          let add = null;
+          if (blockPick.kind === 'summon' && boss) { // a summoned creature joins the order, straight after its summoner
+            const scores = {}, saves = {}; ABILITY_KEYS.forEach(([k, full], i) => { scores[full] = m ? m.s[i] : 10; saves[full] = m ? ((m.sv && m.sv[full] != null) ? m.sv[full] : mod(m.s[i])) : 0; });
+            const hp = m ? m.hp : Math.max(1, parseInt(blockPick.hp, 10) || 10);
+            add = plain({id: newId(), name: `${n} (${boss.name})`.slice(0, 60), base: n, type: 'companion', sub: m ? `${m.t}, CR ${m.cr}` : 'Summoned', level: 1, maxHP: hp, currentHP: hp, ac: m ? m.ac : Math.max(1, parseInt(blockPick.ac, 10) || 10),
+              initiative: boss.initiative || 0, initBonus: m ? mod(m.s[1]) : 0, initFor: boss.initFor || 0, scores, saves, speed: m ? (parseInt(m.sp, 10) || 0) : 30, senses: m ? (m.se || []) : [], conditions: [], effects: [],
+              pb: m ? m.pb : 2, actions: m ? monsterActions(m) : [], info: m ? monsterInfo(m) : [], ...(boss.owner ? {owner: boss.owner} : {}), ...(boss.type === 'monster' ? {type: 'monster', rel: boss.rel || 'hostile'} : {}), summonOf: boss.id, blockId: bid, after: boss.id});
+          }
+          setCombatants(prev => { const next = prev.map(x => x.id !== blockPick.cId ? x : {...x, blocks: [...(x.blocks || []), plain({id: bid, name: n, kind: blockPick.kind, source: blockPick.source || '', conc: blockPick.conc || '', left: blockPick.left || 0})].slice(-8)}); return add ? placeByInitiative(next, add) : next; });
           setSheetTab('blocks'); setBlockPick(null); };
         return (
         <div className="modal-overlay" onClick={() => setBlockPick(null)}>
@@ -4114,6 +4211,7 @@ function App() {
                 {list.map(m => <div key={m.n} className="roster-row" style={{cursor: 'pointer'}} onClick={() => pick(m.n)}><span className="r-name">{m.n}</span><span className="r-meta">{m.t} · CR {m.cr} · AC {m.ac} · {m.hp} HP</span></div>)}
                 {list.length === 0 && <div className="empty-state">Nothing in the roster by that name. You can still use the name you typed.</div>}
               </div>
+              {!form && <div className="buff-note">It joins the Initiative order straight after you, folded away. If it has no stat block here, give it: Hit Points <input type="number" min="1" aria-label="Summoned creature Hit Points" value={blockPick.hp || ''} placeholder="10" onChange={e => setBlockPick({...blockPick, hp: e.target.value})} style={{width: 60}}/> AC <input type="number" min="1" aria-label="Summoned creature AC" value={blockPick.ac || ''} placeholder="10" onChange={e => setBlockPick({...blockPick, ac: e.target.value})} style={{width: 54}}/></div>}
               <div className="do-row"><button className="btn btn-primary" data-testid="block-use-name" disabled={!(blockPick.q || '').trim()} onClick={() => pick(blockPick.q)}>Use the name I typed</button><button className="btn btn-ghost btn-sm" onClick={() => setBlockPick(null)}>Skip</button></div>
             </div>
           </div>
@@ -4211,7 +4309,8 @@ function App() {
                   <label>Type</label>
                   <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>
                     <option value="player">{isDM ? 'Player Character' : 'My Character'}</option>
-                    {isDM && <option value="monster">Monster / NPC</option>}
+                    {isDM && <option value="monster">Monster (hostile)</option>}
+                    {isDM && <option value="npc">NPC (neutral)</option>}
                     <option value="companion">Companion (pet, familiar, summon)</option>
                   </select>
                 </div>
