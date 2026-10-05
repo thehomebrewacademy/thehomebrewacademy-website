@@ -100,8 +100,8 @@
       { name: "Magician", statics: { cantripBonus: 1, skillBonus: { skills: ["Arcana", "Nature"], formula: "MAX(1,WIS)" } } },
       { name: "Warden", statics: { proficiencies: { armor: ["Medium"], weapons: ["Martial"] } } }] } }),
     cls("Druid", 2, "Wild Shape", { resource: { name: "Wild Shape", max: table("Druid", "wild_shape_uses"), recharge: "long", shortRegain: 1 },
-      activation: "bonus", target: "self", roll: "none", uses: { pool: "Wild Shape", cost: 1 } }),
-    cls("Druid", 2, "Wild Companion", { activation: "action", target: "self", roll: "none", uses: { pool: "Wild Shape", cost: 1 } }),
+      activation: "bonus", target: "self", roll: "none", statBlock: "form", uses: { pool: "Wild Shape", cost: 1 } }),
+    cls("Druid", 2, "Wild Companion", { activation: "action", target: "self", roll: "none", statBlock: "summon", uses: { pool: "Wild Shape", cost: 1 } }),
     cls("Druid", 7, "Elemental Fury", { options: { label: "Elemental Fury", choices: [
       { name: "Potent Spellcasting", statics: { cantripDamage: "WIS" } },
       { name: "Primal Strike", activation: "free", target: "creature", roll: "none", damage: [{ dice: byLevel({ 7: "1d8", 15: "2d8" }), type: "Elemental" }],

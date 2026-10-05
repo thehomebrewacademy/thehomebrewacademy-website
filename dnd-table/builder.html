@@ -304,6 +304,7 @@ uses: { "max": "PROF", "recharge": "short" }
   max is a formula for how many times it can be used. recharge is "short" (back on a Short or Long Rest) or "long" (back on a Long Rest). Leave uses out if it is unlimited or spends spell slots.
   To spend from a shared pool instead, write uses: { "pool": "Focus Points", "cost": 1 }. The pool itself is defined once with "resource" (see RESOURCES).
   If the use (or the spell slot) is only spent on one result, add "refundOn": "miss", "hit", "saveSuccess" or "saveFail". The app gives the use back when that result happens. For example, a feature that "isn't expended if the attack misses" has "refundOn": "miss".
+statBlock: when using the feature turns the character into a creature or brings one out (a beast form, a summoned spirit, a companion called for a time), add "statBlock": "form" (the character becomes it) or "statBlock": "summon" (it appears beside the character). Using the feature then asks which creature, and its stat block sits on the sheet's Stat Blocks tab until it is dismissed or its time runs out. Give the effect its duration so the app knows when that is. If the creature is new, describe its stat block in the feature's "text".
 
 feature: when one feature gives several things to use (Channel Divinity gives Divine Spark and Turn Undead), make one ability for each and set "feature" to the parent feature's name.
 
@@ -1281,6 +1282,7 @@ function compileAbility(ab0, ctx) {
   const uses = pObj(ab.uses);
   if (uses.pool) { out.pool = pStr(uses.pool, 40); out.cost = Math.max(1, evalFormula(uses.cost == null ? 1 : uses.cost, ctx) || 1); }
   if (["miss", "hit", "saveSuccess", "saveFail"].includes(uses.refundOn)) out.refundOn = uses.refundOn; // the use is given back on that result
+  if (ab.statBlock === "form" || ab.statBlock === "summon") out.block = ab.statBlock; // using it asks which creature, and shows its stat block
   else if (uses.max != null) {
     const max = evalFormula(uses.max, ctx);
     if (!Number.isFinite(max)) throw new Error("uses.max can't be read");
@@ -1831,6 +1833,7 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { /
         a.desc = `${info}. ${w.mastery}: ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`;
       }
       a.reach = w.ranged ? "0" : w.props.includes("Reach") ? "10" : "5";
+      if (w.mastery) a.mprop = w.mastery; // shown on the sheet: gold when the character has it, grey when not
       if (w.range || w.thrown) a.rng = String(w.range || w.thrown);
       if (w.ranged) a.ranged = true;
       if (finesse) a.finesse = true;
@@ -2348,6 +2351,7 @@ function CharacterSheet() {
         const a = compileAbility(e, spellCtx);
         if (pObj(e.grantedBy).type === "spell") { // a pack spell brings its components along
           const sp = spellOf(e.grantedBy.name); a.spell = true;
+          if (sp && sp.conc) a.conc = true;
           if (sp && sp.l > 0 && !a.pool && !a.usesMax) { // casting it costs a slot of its level, or points for a class that casts with points
             a.slot = sp.l;
             if (cls && cls.spellPoints) { a.pool = cls.spellPoints.pool; a.pointCosts = cls.spellPoints.costs; a.cost = cls.spellPoints.costs[sp.l - 1] || 1; a.maxLvl = spellInfo.maxLevel || sp.l; }
@@ -3773,6 +3777,9 @@ function spellAction(sp, ctx, opts) {
   // A spell the app has no mechanics for is still cast: it spends its slot and posts its text for the table to resolve.
   const m = sp.m || { k: "info", act: /^bonus/i.test(sp.t || "") ? "bonus" : /^reaction/i.test(sp.t || "") ? "reaction" : /^action/i.test(sp.t || "") ? "action" : "" };
   const out = { name: sp.n, spell: true, slot: sp.l, desc: sp.x.slice(0, 1200) };
+  if (sp.conc) { out.conc = true; const dm = /(\d+) (round|minute|hour|day)/i.exec(String(sp.d || "")); if (dm) out.concSecs = +dm[1] * { round: 6, minute: 60, hour: 3600, day: 86400 }[dm[2].toLowerCase()]; }
+  if (/^(Find Familiar|Find Steed|Conjure |Summon |Animate Dead|Animate Objects|Create Undead|Giant Insect)/.test(sp.n)) out.block = "summon";
+  if (/^(Polymorph|True Polymorph|Shapechange|Animal Shapes)$/.test(sp.n)) out.block = "form";
   if (sp.k) { // Verbal, Somatic, Material: the Combat Resolver checks these when the DM turns the rule on
     out.comp = sp.k;
     if (sp.mat) { out.mat = String(sp.mat).replace(/^\(/, "").slice(0, 240); if (/\d[\d,]*\+? ?(GP|SP|CP)/i.test(sp.mat)) out.matCost = true; if (/consume/i.test(sp.mat)) out.matConsumed = true; }
