@@ -1969,6 +1969,7 @@ function CharacterSheet() {
   const [currentHp, setCurrentHp] = useState(null);
   const [tempHp, setTempHp] = useState(0);
   const [hitDiceUsed, setHitDiceUsed] = useState(0);
+  const [xp, setXp] = useState(0); // Experience Points; the Combat Resolver adds to this when the DM gives them out
 
   // Equipment / notes
   const [equipment, setEquipment] = useState("");
@@ -2523,7 +2524,7 @@ function CharacterSheet() {
           ? `${PACT_SLOTS[level].slots} Pact Magic slots of Level ${PACT_SLOTS[level].level}`
           : (getSpellSlots(className, level) || []).map((n, i) => `Level ${i + 1}: ${n}`).join(", ")
       } : null,
-      hitDie: cls ? cls.hitDie : null, hitDiceUsed,
+      hitDie: cls ? cls.hitDie : null, hitDiceUsed, xp,
       equipment,
       items: Array.from(new Set(characterItems.map(i => i && i.name).filter(Boolean))),
       origin: originCustom ? { custom: true, ...originCustom } : null,
@@ -2609,6 +2610,7 @@ function CharacterSheet() {
     setCurrentHp(typeof s.currentHp === "number" ? s.currentHp : null);
     setTempHp(parseInt(s.tempHp) || 0);
     setHitDiceUsed(parseInt(s.hitDiceUsed) || 0);
+    setXp(Math.max(0, parseInt(data.xp) || 0));
     setEquipment(String(s.equipment || ""));
     setNotes(String(s.notes || ""));
     setJournal(cleanJournal(s.journal, s.notes, s.equipment));
@@ -2660,7 +2662,7 @@ function CharacterSheet() {
     const onStorage = (e) => {
       if (e.key === CODE_KEY && e.newValue && cleanCode(e.newValue) !== playerCode) openPlayerCode(e.newValue, false);
       if (e.key === charKey(playerCode) && e.newValue) {
-        try { const d = JSON.parse(e.newValue); if (d && d.builder && typeof d.builder.currentHp === "number") setCurrentHp(d.builder.currentHp); } catch (err) {}
+        try { const d = JSON.parse(e.newValue); if (d && d.builder && typeof d.builder.currentHp === "number") setCurrentHp(d.builder.currentHp); if (d && typeof d.xp === "number") setXp(Math.max(0, d.xp)); } catch (err) {}
       }
     };
     window.addEventListener("storage", onStorage);
@@ -2896,7 +2898,7 @@ function CharacterSheet() {
       {/* CONTENT */}
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px 16px 60px" }}>
         {tab === "identity" && (
-          <IdentityTab {...{ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
+          <IdentityTab {...{ xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
         )}
         {tab === "abilities" && (
           <AbilitiesTab {...{ featBonuses, pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay, custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }} />
@@ -2963,7 +2965,8 @@ function fieldStyle(colors) {
   };
 }
 
-function IdentityTab({ className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }) {
+const XP_LEVELS = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000]; // Experience Points needed for each level
+function IdentityTab({ xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }) {
   const bg = bgEff;
   const [originOpen, setOriginOpen] = useState(false);
   const baseBg = BACKGROUNDS[background] || bgEff;
@@ -3019,6 +3022,11 @@ function IdentityTab({ className, setClassName, subclassName, setSubclassName, l
           <div>
             <label style={{ fontSize: 12, opacity: 0.8 }}>Level</label>
             <input type="number" min={1} max={20} value={level} onChange={e => setLevel(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))} style={fieldStyle(colors)} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, opacity: 0.8 }}>Experience Points</label>
+            <input type="number" min={0} data-testid="xp-field" value={xp} onChange={e => setXp(Math.max(0, parseInt(e.target.value) || 0))} style={fieldStyle(colors)} />
+            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{level >= 20 ? "Level 20 is the highest level." : `Level ${level + 1} at ${XP_LEVELS[level].toLocaleString("en-US")}.`}{level < 20 && xp >= XP_LEVELS[level] ? " Enough to level up: change the level when your DM says so." : ""}</div>
           </div>
         </div>
         <div style={{ marginTop: 12, fontSize: 13, opacity: 0.85, lineHeight: 1.6 }}>
@@ -3821,6 +3829,7 @@ function spellAction(sp, ctx, opts) {
   else return null;
   if (m.up) out.up = m.up;
   if (m.upEff) out.upEff = m.upEff;
+  if (m.self) out.self = true; // it lands on the caster, with no target to pick
   if (m.tg) out.targets = m.tg === "slot" ? 1 : m.tg; // "slot": one more target per slot level, set in the Resolver when cast
   if (m.tg === "slot") out.targetsPerSlot = true;
   const o = opts || {};

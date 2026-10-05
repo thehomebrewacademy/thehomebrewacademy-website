@@ -712,6 +712,7 @@ function reactEvents(name, trigger, text) {
   if (/cast(s|ing) a spell/.test(t)) out.push('cast');
   return out;
 }
+const SPELL_NAMES = new Set((window.HBA_SPELLS || []).map(x => String(x.n || '').toLowerCase()));
 let NEXT_D20 = 0, FUDGE_DONE = null; // the DM can say what the next d20 shows
 function roll20(advantage=0) { // 0=normal, 1=advantage, -1=disadvantage
   if (NEXT_D20) { const n = NEXT_D20; NEXT_D20 = 0; if (FUDGE_DONE) FUDGE_DONE(); return {total:n, rolls:[n]}; }
@@ -1047,6 +1048,16 @@ function cleanAction(a, i) {
   return out;
 }
 
+// Sessions this browser has created or joined, so they can be opened again: [{code, name, role, last, who}]
+const SESS_KEY = 'hba-sessions';
+function mySessions() {
+  let a = []; try { a = JSON.parse(lsGet(SESS_KEY) || '[]'); } catch (e) {}
+  a = (Array.isArray(a) ? a : []).filter(x => x && cleanCode(x.code)).map(x => ({code: cleanCode(x.code), name: String(x.name || '').slice(0, 60), role: x.role === 'dm' ? 'dm' : 'player', last: +x.last || 0, who: Array.isArray(x.who) ? x.who.slice(0, 12).map(n => String(n).slice(0, 40)) : []}));
+  dmRooms().forEach(code => { if (!a.some(x => x.code === code)) a.push({code, name: '', role: 'dm', last: 0, who: []}); }); // sessions made before the list existed
+  return a.sort((x, y) => y.last - x.last);
+}
+function saveSessions(list) { lsSet(SESS_KEY, JSON.stringify(list.slice(0, 40))); }
+function agoText(t) { if (!t) return 'not opened since the list was added'; const d = Math.floor((Date.now() - t) / 86400000); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 60 ? `${d} days ago` : `${Math.floor(d / 30)} months ago`; }
 function dmRooms() { try { const a = JSON.parse(lsGet(ROOMS_KEY) || '[]'); return Array.isArray(a) ? a.map(cleanCode).filter(Boolean) : []; } catch (e) { return []; } }
 function rememberRoom(code) { const a = dmRooms(); if (!a.includes(code)) lsSet(ROOMS_KEY, JSON.stringify([...a, code])); }
 function forgetRoom(code) { lsSet(ROOMS_KEY, JSON.stringify(dmRooms().filter(c => c !== code))); }
@@ -1300,7 +1311,7 @@ function sheetToFields(data) {
   return {
     name: str(data.name, 60) || 'Unnamed Hero', type: 'player',
     charClass: str(data.className, 40).trim() || 'Fighter', // any class name, so homebrew classes keep theirs
-    level, maxHP, currentHP: Math.max(0, Math.min(maxHP, num(data.currentHP, maxHP))), hitDiceUsed: Math.max(0, Math.min(level, num(data.hitDiceUsed, 0))),
+    level, maxHP, xp: Math.max(0, num(data.xp, 0)), currentHP: Math.max(0, Math.min(maxHP, num(data.currentHP, maxHP))), hitDiceUsed: Math.max(0, Math.min(level, num(data.hitDiceUsed, 0))),
     tempHP: Math.max(0, num(data.tempHP, 0)), ac: num(data.ac, 10), speed: num(data.speed, 30), initBonus: num(data.initiativeBonus, mod(scores.Dexterity)),
     senses: list(data.senses, 10, 40), scores, saves, pb: num(data.profBonus, profBonus(level)), sheet, info,
     passives: cleanPassives(data.passives),
@@ -1542,6 +1553,9 @@ function App() {
   const [dmChoose, setDmChoose] = useState(() => { try { return window.localStorage.getItem('hba-dm-choose') !== 'off'; } catch (e) { return true; } });
   const [callRoll, setCallRoll] = useState({targetId: '', kind: 'save', ability: 'Constitution', skill: '', dc: '10', why: ''});
   const actingRef = useRef('');                     // whose action is being resolved, for the fight summary
+  const [sessName, setSessName] = useState('');     // the name the DM gave this session
+  const [sessions, setSessions] = useState(() => mySessions());
+  const [showSessions, setShowSessions] = useState(true);
   const [hideRolls, setHideRolls] = useState(false); // DM: players see the result of the DM's rolls, not the numbers
   const [ammoOn, setAmmoOn] = useState(false);     // table rule: everyone counts ammunition (a player can also switch it on alone)
   const [fudge, setFudge] = useState('');           // DM: what the next d20 shows
@@ -1569,7 +1583,7 @@ function App() {
     if (seenLog.current === null) { seenLog.current = new Set(log.map(e => e.id)); return; }
     const fresh = log.filter(e => !seenLog.current.has(e.id));
     fresh.forEach(e => seenLog.current.add(e.id));
-    const mineNow = !noticesOn ? [] : fresh.filter(e => e.forId && (e.by === myId || combatants.some(c => c.id === e.forId && (c.owner === myId || (isDM && !c.owner)))));
+    const mineNow = fresh.filter(e => e.forAll || (noticesOn && e.forId) && (e.by === myId || combatants.some(c => c.id === e.forId && (c.owner === myId || (isDM && !c.owner)))));
     if (mineNow.length) setNotices(prev => [...prev, ...mineNow.map(e => ({id: e.id, html: e.html, concEnd: e.concEnd || null, name: (combatants.find(c => c.id === e.forId) || {}).name || ''}))].slice(-12));
   }, [log]);
 
@@ -1926,7 +1940,7 @@ function App() {
       const actor = combatants.find(c => c.id === q.actorId) || null;
       const tr = track(() => resolveSave(q.action, q.actorName || 'Someone', actor, tgt, ruled));
       const {roll: svRoll, ...svRest} = tr.res;
-      offerReactions('damage', tr.d.filter(d => d.hp < 0 && d.id !== q.actorId).map(d => d.id), `${q.actorName || 'Something'} damaged`);
+      offerReactions('damage', tr.d.filter(d => d.hp < 0 && d.id !== q.actorId).map(d => d.id), `${q.actorName || 'Something'} damaged`, actor);
       const ovq = {action: q.action, actorName: q.actorName || '', actorId: q.actorId || '', targetId: tgt.id};
       const entry = {...svRest, ...concFail(q.action, svRest, tgt), forId: tgt.id, by: q.by || '', ov: plain({k: 'save', r: round, passed: svRest.type === 'save-pass', d: tr.d, q: ovq, roll: svRoll})};
       const rf = q.action.refund; // a use that is only spent on one result
@@ -1990,8 +2004,12 @@ function App() {
     ...((c.info || []).filter(g => g.h === 'Reactions').flatMap(g => g.items || [])).filter(it => reactEvents(it[0], '', it[1]).includes(ev)).map(it => ({name: it[0], text: it[1]}))];
   const hasReaction = (c, ev) => reactionsFor(c, ev).length > 0;
   // A Reaction that does not hold anything up is offered for a moment: after damage, or when a spell is cast.
-  const offerReactions = (ev, ids, text) => {
-    const qs = ids.map(id => inPlay.find(c => c.id === id)).filter(c => c && hasReaction(c, ev)).map(c => plain({id: newId(), kind: 'offer', ev, targetId: c.id, by: myId, text, at: Date.now()}));
+  // A Reaction is only brought up when the other side sets it off: a monster or NPC against a player character, or the reverse.
+  // What you or your allies do never raises one. It can still be used from the sheet at any time.
+  const foes = (actor, c) => !!c && (!actor || (actor.type === 'monster') !== (c.type === 'monster'));
+  const isCasting = (c, a) => !!a && (!!a.spell || (!!c && c.type === 'monster' && (/\bspell\b/i.test(a.desc || '') || SPELL_NAMES.has(String(a.name || '').toLowerCase()))));
+  const offerReactions = (ev, ids, text, actor) => {
+    const qs = ids.map(id => inPlay.find(c => c.id === id)).filter(c => c && foes(actor, c) && hasReaction(c, ev)).map(c => plain({id: newId(), kind: 'offer', ev, targetId: c.id, by: myId, text, at: Date.now()}));
     if (!qs.length) return;
     setPrompts(prev => [...prev, ...qs]);
     setTimeout(() => qs.forEach(q => removePromptRef.current(q.id)), REACT_MS + 1500);
@@ -2004,7 +2022,8 @@ function App() {
     if (!selAction || !actorNow) return;
     const tgt = inPlay.find(c => c.id === targetIds[0]); if (!tgt) return;
     const pid = newId();
-    setPrompts(prev => [...prev.filter(q => !(q.kind === 'incoming' && q.by === myId)), plain({id: pid, kind: 'incoming', targetId: tgt.id, actorId: actorNow.id, actorName: actorNow.name, by: myId, what: selAction.name, at: Date.now(), react: hasReaction(tgt, 'targeted') && !(isDM && !tgt.owner)})]);
+    setPrompts(prev => [...prev.filter(q => !(q.kind === 'incoming' && q.by === myId)), plain({id: pid, kind: 'incoming', targetId: tgt.id, actorId: actorNow.id, actorName: actorNow.name, by: myId, what: selAction.name, at: Date.now(), react: foes(actorNow, tgt) && hasReaction(tgt, 'targeted') && !(isDM && !tgt.owner)})]);
+    if (isCasting(actorNow, selAction) && combatStarted) offerReactions('cast', inPlay.filter(c => c.id !== actorNow.id).map(c => c.id), `${actorNow.name} is casting ${String(selAction.name).replace(/ \(Level \d slot\)$/, '')} near`, actorNow);
     setArmed({actionId: selAction.id, promptId: pid});
   };
   const cancelArmed = () => { if (armed && armed.promptId) removePrompt(armed.promptId); setArmed(null); };
@@ -2312,7 +2331,7 @@ function App() {
       entries.push({type:'heal', html:`<strong>${actorName}</strong> regains <span class="log-heal-val">+${2 + castLvl} HP</span><div class="log-detail">Blessed Healer</div>`});
     }
     } finally { if (step) { const ops = deferRef.current || []; deferRef.current = null; stepHold = ops; } }
-    const holdT = !re && stepOn && step && stepInfo && picked.length === 1 && hasReaction(picked[0], stepInfo.hit ? 'hit' : 'miss') && !(isDM && !picked[0].owner) ? picked[0] : null;
+    const holdT = !re && stepOn && step && stepInfo && picked.length === 1 && foes(active, picked[0]) && hasReaction(picked[0], stepInfo.hit ? 'hit' : 'miss') && !(isDM && !picked[0].owner) ? picked[0] : null;
     if (holdT) { // the target has a Reaction: it sees hit or miss and has a moment to answer before anything lands
       const pid = newId();
       pendingRef.current[pid] = {targetId: holdT.id, ctx: {replay: true, actorId: active.id, action, castLvl, pickedIds: [holdT.id], adv: advNow, sneak: sneakNow, roll: stepInfo.roll}};
@@ -2324,7 +2343,7 @@ function App() {
     if (step) { // applied at once; the DM can reverse it from the Combat Log for a round
       let after = combatants; stepHold.forEach(([k, u]) => { if (k === 'c') after = typeof u === 'function' ? u(after) : u; });
       stepHold.forEach(([k, u]) => k === 'c' ? setCombatantsRaw(u) : k === 'p' ? setPromptsRaw(u) : setLogRaw(u));
-      offerReactions('damage', deltaOf(combatants, after).filter(d => d.hp < 0 && d.id !== active.id).map(d => d.id), `${active.name} damaged`);
+      offerReactions('damage', deltaOf(combatants, after).filter(d => d.hp < 0 && d.id !== active.id).map(d => d.id), `${active.name} damaged`, active);
       const i = entries.findIndex(e => ['hit', 'miss', 'crit'].includes(e.type));
       if (stepInfo && picked.length === 1 && i >= 0) entries[i] = {...entries[i], ov: plain({k: 'atk', r: round, hit: !!stepInfo.hit, d: deltaOf(combatants, after),
         ctx: {actorId: active.id, action, castLvl, pickedIds: picked.map(x => x.id), adv: advNow, sneak: sneakNow, roll: stepInfo.roll}})};
@@ -2333,7 +2352,7 @@ function App() {
     }
     setLog(prev=>[...prev,...entries.map(stamp)]);
     }
-    if (!re && action.spell && combatStarted) offerReactions('cast', inPlay.filter(c => c.id !== active.id).map(c => c.id), `${active.name} is casting ${String(action.name).replace(/ \(Level \d slot\)$/, '')} near`);
+    if (!re && !armed && isCasting(active, action) && combatStarted) offerReactions('cast', inPlay.filter(c => c.id !== active.id).map(c => c.id), `${active.name} is casting ${String(action.name).replace(/ \(Level \d slot\)$/, '')} near`, active);
     const blkName = String(action.name).replace(/ \(Level \d slot\)$/, ''), blk = action.block || (action.spell ? (SUMMON_RE.test(blkName) ? 'summon' : FORM_RE.test(blkName) ? 'form' : '') : '');
     if (!re && blk && active.sheet) setBlockPick({cId: active.id, kind: blk, conc: action.conc ? blkName : '', source: blkName, left: action.concSecs || (((action.onUse || {}).effs || [])[0] || {}).left || 0, q: ''});
     setArmed(null);
@@ -2554,7 +2573,7 @@ function App() {
     const pcs = combatants.filter(c => c.type !== 'monster' && !c.pending && (c.main || c.owner)); if (!isDM || !pcs.length || !(total > 0)) return;
     const each = Math.floor(total / pcs.length);
     setCombatants(prev => prev.map(c => pcs.some(x => x.id === c.id) ? {...c, xp: (+c.xp || 0) + each} : c));
-    setLog(prev => [...prev, stamp({type:'heal', html:`<strong>The DM awards ${each} Experience Points each</strong> to ${pcs.map(c => esc(c.name)).join(', ')}<div class="log-detail">${total} in total${names.length ? ` for ${names.map(esc).join(', ')}` : ''}, shared between ${pcs.length} player character${pcs.length === 1 ? '' : 's'}.</div>`})]);
+    setLog(prev => [...prev, stamp({type:'heal', forAll: true, html:`<strong>The DM awards ${each} Experience Points each</strong> to ${pcs.map(c => esc(c.name)).join(', ')}<div class="log-detail">${total} in total${names.length ? ` for ${names.map(esc).join(', ')}` : ''}, shared between ${pcs.length} player character${pcs.length === 1 ? '' : 's'}.</div>`})]);
     setEnded(prev => prev ? {...prev, given: {total, each, players: pcs.length, at: Date.now()}} : prev);
   };
   const starText = () => stars.map(x => String(x.html || '').replace(/<br\s*\/?>/gi, ' · ').replace(/<\/div>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim()).join('\n');
@@ -2574,7 +2593,7 @@ function App() {
     if (!window.confirm(`Delete session ${room}? The shared room is erased for everyone and the code stops working. Character sheets saved on each player's own computer are not touched.`)) return;
     const code = room;
     db.ref('rooms/' + code).remove()
-      .then(() => forgetRoom(code))
+      .then(() => { forgetRoom(code); saveSessions(mySessions().filter(x => x.code !== code)); setSessions(mySessions()); })
       .catch(err => { console.error('Could not delete session', err); alert('Could not delete the session. Check your connection and try again.'); });
   };
 
@@ -2639,19 +2658,31 @@ function App() {
   };
 
   // ── LIVE SYNC ───────────────────────────────────────────────────────────────
-  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || '', reveal: reveal || 'full', revealAC: revealAC !== false, stepOn: stepOn !== false, allowUndo: allowUndo !== false, hideRolls: !!hideRolls, ammoOn: !!ammoOn, ...(ended ? {ended} : {})});
+  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || '', reveal: reveal || 'full', revealAC: revealAC !== false, stepOn: stepOn !== false, allowUndo: allowUndo !== false, hideRolls: !!hideRolls, ammoOn: !!ammoOn, name: sessName || '', ...(ended ? {ended} : {})});
   const setHash = h => { try { (window.parent || window).history.replaceState(null, '', h); } catch (e) {} };
   const enterSession = code => { promptedRef.current = false; setRemoteSigs(null); setSyncMsg(''); setRoom(code); setRoomInput(''); setHash('#room=' + code); };
 
-  const createSession = async () => {
+  const createSession = async (from) => { // from: an earlier session of mine whose player characters come along
     if (!db) return;
     const code = makeCode();
     setSyncStatus('connecting');
     try {
-      const updates = {meta: {...metaOf(), dm: myId, approval: false}, touched: firebase.database.ServerValue.TIMESTAMP};
-      combatants.forEach((c, i) => { updates['combatants/' + c.id] = plain({...c, seq: i}); });
+      const updates = {meta: {...metaOf(), name: '', ended: null, round: 1, combatStarted: false, activeId: '', dm: myId, approval: false}, touched: firebase.database.ServerValue.TIMESTAMP};
+      let party = [];
+      if (from && from.code) {
+        const old = (await db.ref('rooms/' + from.code + '/combatants').get()).val() || {};
+        party = Object.values(old).filter(c => c && c.id && c.type !== 'monster' && !c.pending).sort((a, b) => (a.seq || 0) - (b.seq || 0))
+          .map(({seq, turn, fight, fightStart, recovered, ...c}) => c); // Hit Points, spell slots, effects and items come along; the old fight's counters do not
+        if (!party.length) { setSyncStatus('offline'); window.alert('That session has no player characters in it any more, or it was deleted.'); return; }
+        updates.meta.name = from.name ? String(from.name).slice(0, 60) : '';
+        party.forEach((c, i) => { updates['combatants/' + c.id] = plain({...c, seq: i}); });
+      }
+      else combatants.forEach((c, i) => { updates['combatants/' + c.id] = plain({...c, seq: i}); });
+      if (from && from.code) { setCombatants([]); setLog([]); setPrompts([]); setEnded(null); setCombatStarted(false); setRound(1); setActiveId(''); }
+      if (!(from && from.code))
       log.forEach(e => { updates['log/' + e.id] = plain(e); });
       await db.ref('rooms/' + code).update(updates);
+      if (from && from.code) window.alert(`New session ${code} made with ${party.map(c => c.name).join(', ')}. Send your players the new invite link: the old one still opens the old session.`);
       rememberRoom(code);
       enterSession(code);
     } catch (e) { console.error('Could not create session', e); setSyncStatus('error'); setSyncMsg('Could not connect'); }
@@ -2669,7 +2700,7 @@ function App() {
   };
 
   const leaveSession = () => {
-    setRoom(null); setRemoteSigs(null); setSyncStatus('offline'); setSyncMsg(''); setDmId(''); setApproval(false);
+    setRoom(null); setRemoteSigs(null); setSyncStatus('offline'); setSyncMsg(''); setDmId(''); setApproval(false); setSessName(''); setSessions(mySessions()); setShowSessions(true);
     setHash('#');
   };
 
@@ -2711,7 +2742,7 @@ function App() {
         .sort((a, b) => ((a.seq || 0) - (b.seq || 0)) || (a.id < b.id ? -1 : 1));
       const logList = Object.values(v.log || {}).filter(e => e && e.id).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const m = v.meta || {};
-      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : '', reveal: ['full','bar','conditions','none'].includes(m.reveal) ? m.reveal : 'full', revealAC: m.revealAC !== false, stepOn: m.stepOn !== false, allowUndo: m.allowUndo !== false, hideRolls: !!m.hideRolls, ammoOn: !!m.ammoOn, ...(m.ended && m.ended.at ? {ended: m.ended} : {})};
+      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : '', reveal: ['full','bar','conditions','none'].includes(m.reveal) ? m.reveal : 'full', revealAC: m.revealAC !== false, stepOn: m.stepOn !== false, allowUndo: m.allowUndo !== false, hideRolls: !!m.hideRolls, ammoOn: !!m.ammoOn, name: String(m.name || '').slice(0, 60), ...(m.ended && m.ended.at ? {ended: m.ended} : {})};
       const promptList = Object.values(v.prompts || {}).filter(q => q && q.id && q.targetId).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const sigs = {combatants: {}, log: {}, prompts: {}, meta: stable(meta)};
       promptList.forEach(q => { sigs.prompts[q.id] = true; });
@@ -2725,7 +2756,7 @@ function App() {
       setActiveId(meta.activeId);
       setDmId(meta.dm);
       setApproval(meta.approval);
-      setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn); setEnded(prev => stable(prev) === stable(meta.ended || null) ? prev : (meta.ended || null));
+      setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn); setSessName(meta.name); setEnded(prev => stable(prev) === stable(meta.ended || null) ? prev : (meta.ended || null));
       setRemoteSigs(sigs);
       setSyncStatus('live');
     };
@@ -2748,8 +2779,24 @@ function App() {
     if (stable(meta) !== remoteSigs.meta) updates['meta'] = meta;
     if (Object.keys(updates).length) updates['touched'] = firebase.database.ServerValue.TIMESTAMP; // last activity, for the 90-day cleanup
     if (Object.keys(updates).length) db.ref('rooms/' + room).update(updates).catch(err => { console.error('Session write failed', err); setSyncStatus('error'); setSyncMsg('Could not save'); });
-  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, reveal, revealAC, stepOn, allowUndo, hideRolls, ammoOn, ended, room, remoteSigs]);
+  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, reveal, revealAC, stepOn, allowUndo, hideRolls, ammoOn, ended, sessName, room, remoteSigs]);
 
+  // This browser keeps a list of the sessions it has been in.
+  const sessKey = room && remoteSigs ? [room, sessName, dmId === myId ? 'dm' : 'player', combatants.filter(c => c.type !== 'monster' && !c.pending).map(c => c.name).join('|')].join('~') : '';
+  useEffect(() => {
+    if (!sessKey) return;
+    const rest = mySessions().filter(x => x.code !== room);
+    const list = [{code: room, name: sessName || '', role: dmId === myId ? 'dm' : 'player', last: Date.now(), who: combatants.filter(c => c.type !== 'monster' && !c.pending).map(c => c.name)}, ...rest];
+    saveSessions(list); setSessions(list);
+  }, [sessKey]);
+  const forgetSession = (code) => { if (!window.confirm(`Take session ${code} off this list? The session itself is not deleted, and its code still works.`)) return; const list = mySessions().filter(x => x.code !== code); saveSessions(list); forgetRoom(code); setSessions(mySessions()); };
+  const openSession = async (x) => {
+    if (!db) return;
+    try { const m = (await db.ref('rooms/' + x.code + '/meta').get()).val();
+      if (!m) { window.alert(`Session ${x.code} no longer exists. It was deleted, or went unused for 90 days.`); saveSessions(mySessions().filter(y => y.code !== x.code)); forgetRoom(x.code); setSessions(mySessions()); return; }
+      enterSession(x.code);
+    } catch (e) { setSyncStatus('error'); setSyncMsg('Could not connect'); }
+  };
   // The DM's computer remembers its sessions and marks them as used whenever the DM opens them.
   useEffect(() => {
     if (!room || !db || !dmId || dmId !== myId) return;
@@ -2794,8 +2841,12 @@ function App() {
     const me = combatants.find(c => c.main && c.owner === myId);
     if (!me) return;
     const d = readStoredCharacter(playerCode);
-    if (!d || d.name !== me.name || d.currentHP === me.currentHP) return;
-    d.currentHP = me.currentHP;
+    if (!d || d.name !== me.name) return;
+    // Experience Points the DM gives here are added to the sheet as well: only what is new since this screen last looked.
+    const key = 'hba-xp-seen-' + (room || 'local') + '-' + me.id, seenRaw = lsGet(key), seen = seenRaw == null ? (+me.xp || 0) : (+seenRaw || 0), gain = Math.max(0, (+me.xp || 0) - seen);
+    if (seenRaw == null || gain > 0) lsSet(key, String(+me.xp || 0));
+    if (d.currentHP === me.currentHP && !gain) return;
+    d.currentHP = me.currentHP; if (gain) d.xp = (+d.xp || 0) + gain;
     d.builder = {...(d.builder || {}), currentHp: me.currentHP};
     lsSet(charKey(playerCode), JSON.stringify(d));
   }, [combatants, playerCode]);
@@ -3308,7 +3359,7 @@ function App() {
           ) : room ? (
             <>
               <span className={`room-dot ${syncStatus}`} title={syncStatus}/>
-              <span>Session <span className="room-code" data-testid="session-code">{room}</span></span>
+              <span>Session {sessName ? <strong data-testid="session-name">{sessName} </strong> : null}<span className="room-code" data-testid="session-code">{room}</span></span>
               <span className="role-badge">{isDM ? 'DM' : 'Player'}</span>
               {isDM && <label title="When on, a player's character waits for you to accept it">
                 <input type="checkbox" style={{width:'auto'}} checked={approval} onChange={e=>setApproval(e.target.checked)}/> Approve players
@@ -3325,11 +3376,27 @@ function App() {
                 onChange={e=>setRoomInput(cleanCode(e.target.value))}
                 onKeyDown={e=>{ if (e.key==='Enter') joinSession(roomInput); }} />
               <button className="btn btn-primary btn-sm" disabled={!roomInput} onClick={()=>joinSession(roomInput)}>Join</button>
-              <button className="btn btn-ghost btn-sm" onClick={createSession}>Create Session as DM</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => createSession()}>Create Session as DM</button>
             </>
           )}
         </div>
       </div>
+      {!room && sessions.length > 0 && (
+        <div className="manual-roll" data-testid="my-sessions" style={{margin:'8px 12px'}}>
+          <span className="label" style={{cursor:'pointer'}} onClick={() => setShowSessions(v => !v)}>{showSessions ? '▾' : '▸'} My Sessions ({sessions.length})</span>
+          {showSessions && <>
+            {sessions.map(x => (
+              <div key={x.code} className="roster-row" data-testid="session-row">
+                <span className="r-name" style={{cursor:'default'}}>{x.name || 'Unnamed session'} <span className="room-code">{x.code}</span> <span className="role-badge">{x.role === 'dm' ? 'DM' : 'Player'}</span></span>
+                <span className="r-meta">{x.who.length ? x.who.join(', ') : 'No characters yet'} · opened {agoText(x.last)}</span>
+                <button className="btn btn-primary btn-sm" data-testid="session-open" disabled={!db} onClick={() => openSession(x)}>Open</button>
+                {x.role === 'dm' && <button className="btn btn-ghost btn-sm" data-testid="session-party" disabled={!db} title="Makes a new, empty session and brings these player characters into it as they are now" onClick={() => createSession(x)}>New session with this party</button>}
+                <button className="btn btn-ghost btn-sm" data-testid="session-forget" title="Take it off this list. The session is not deleted." onClick={() => forgetSession(x.code)}>×</button>
+              </div>))}
+            <div className="buff-note" style={{marginTop:6}}>Kept in this browser. A session is saved online with everything in it, and is deleted after 90 days without use. To start fresh, use Create Session as DM above.</div>
+          </>}
+        </div>
+      )}
       {dragging && <div className="drop-overlay">Drop a character file to add it to combat</div>}
       {restSummary && (
         <div className="modal-overlay" onClick={()=>setRestSummary(null)} data-testid="rest-summary">
@@ -3460,7 +3527,7 @@ function App() {
                 {ctl && !c.pending && (
                   <div className="hp-edit" onClick={e=>e.stopPropagation()}>
                     <input type="number" min="0" placeholder="amt" aria-label={`HP amount for ${c.name}`} id={'amt-'+c.id}/>
-                    <button className="btn btn-sm btn-danger" title="Damage by the typed amount" onClick={()=>{ const el=document.getElementById('amt-'+c.id); const n=Math.abs(+el.value||0); if(n){updateHP(c.id,-n); el.value='';} }}>Dmg</button>
+                    <button className="btn btn-sm btn-danger" title="Damage by the typed amount" onClick={()=>{ const el=document.getElementById('amt-'+c.id); const n=Math.abs(+el.value||0); if(n){updateHP(c.id,-n); el.value=''; if (isDM && c.type !== 'monster') offerReactions('damage', [c.id], 'The DM dealt damage to', null);} }}>Dmg</button>
                     <button className="btn btn-sm btn-success" title="Heal by the typed amount" onClick={()=>{ const el=document.getElementById('amt-'+c.id); const n=Math.abs(+el.value||0); if(n){updateHP(c.id,n,true); el.value='';} }}>Heal</button>
                     <button className="btn btn-sm btn-ghost" title="Set Temporary Hit Points to the typed amount (0 clears them)" onClick={()=>{ const el=document.getElementById('amt-'+c.id); if(el.value!==''){setTempHP(c.id,Math.abs(+el.value||0)); el.value='';} }}>Temp</button>
                   </div>
@@ -3474,10 +3541,11 @@ function App() {
             {isDM && leftTab === 'dm' && (
               <div className="manual-roll" data-testid="flow-panel">
                 <span className="label">How actions resolve</span>
+                <label className="rule-label" style={{margin:'2px 0 6px'}} title="Shown to everyone at the top, and in each person's list of sessions">Session name <input aria-label="Session name" data-testid="session-name-input" maxLength={60} placeholder="For example: Thursday campaign" value={sessName} onChange={e=>setSessName(e.target.value.slice(0, 60))} style={{marginLeft:6, width:190}}/></label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="An attack is declared, then rolled by the attacker, then shown to the target, and only then applied"><input type="checkbox" data-testid="rule-step" checked={stepOn} onChange={e=>setStepOn(e.target.checked)}/> Attacks are declared before they are rolled, so the target can react</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="A player can take back the action they just took, until the turn changes"><input type="checkbox" data-testid="rule-undo" checked={allowUndo} onChange={e=>setAllowUndo(e.target.checked)}/> Players can take back their last action</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="Players see whether your creatures hit, miss, save or fail, and the damage, but not the numbers you rolled"><input type="checkbox" data-testid="rule-hide-rolls" checked={hideRolls} onChange={e=>setHideRolls(e.target.checked)}/> Hide my rolls from players</label>
-                <label className="rule-label" style={{margin:'2px 0'}} title="When you roll a d20 for one of your creatures, you are asked whether to roll it or to type the total it comes to"><input type="checkbox" data-testid="rule-choose" checked={dmChoose} onChange={e=>{ setDmChoose(e.target.checked); try { window.localStorage.setItem('hba-dm-choose', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> When I roll a d20 for a creature, ask whether to roll it or type the total</label>
+                <label className="rule-label" style={{margin:'2px 0'}} title="When you roll a d20 for one of your creatures, you are asked whether to roll it or to type the total it comes to"><input type="checkbox" data-testid="rule-choose" checked={dmChoose} onChange={e=>{ setDmChoose(e.target.checked); try { window.localStorage.setItem('hba-dm-choose', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> Fudging: when I roll a d20 for a creature, ask whether to roll it or type the total</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="The next d20 you roll for an attack, a save or a check shows this number, and looks like any other roll">Next d20 shows <input type="number" min="1" max="20" aria-label="Next d20 shows" data-testid="fudge-d20" value={fudge} onChange={e=>{ const n = Math.max(0, Math.min(20, parseInt(e.target.value, 10) || 0)); NEXT_D20 = n; setFudge(n ? String(n) : ''); }} style={{width:54, marginLeft:6}}/></label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="When on, a player's character waits for you to accept it"><input type="checkbox" checked={approval} onChange={e=>setApproval(e.target.checked)}/> Approve players before they join</label>
               </div>
@@ -3997,7 +4065,7 @@ function App() {
                 {isDM && combatants.some(c => (c.conditions || []).length) && <button className="btn btn-ghost btn-full" data-testid="end-cond-everyone" onClick={() => combatants.forEach(c => (c.conditions || []).forEach(k => removeCondition(c.id, k)))}>Remove all conditions from everyone</button>}
               </div>}
               {endTab === 'summary' && <div data-testid="end-summary">
-                <div className="buff-note">{sum.rounds} round{sum.rounds === 1 ? '' : 's'}, about {timeText(sum.rounds * 6)}.{sum.given ? ` Experience Points: the DM gave ${sum.given.each} each (${sum.given.total} in total).` : ' The DM has not given out Experience Points yet.'}</div>
+                <div className="buff-note">{sum.rounds} round{sum.rounds === 1 ? '' : 's'}, about {timeText(sum.rounds * 6)}.{sum.given ? ` Experience Points: the DM gave ${sum.given.each} each (${sum.given.total} in total).` : ' Experience Points: pending. The DM has not given them out yet.'}</div>
                 <table className="end-table"><thead><tr><th>Who</th><th>Damage dealt</th><th>Damage taken</th><th>Hit Points now</th><th>Hit Point Dice left</th><th>Spent this fight</th></tr></thead>
                   <tbody>{sum.rows.map(r => { const c = combatants.find(x => x.id === r.id); return (
                     <tr key={r.id}><td>{r.name}{r.monster ? ' (monster)' : ''}{c && +c.xp > 0 ? ` · ${c.xp} XP` : ''}</td><td>{r.dealt}</td><td>{r.taken}</td><td>{c ? `${c.currentHP} of ${totalHP(c)}` : ''}</td><td>{c && c.sheet ? Math.max(0, c.level - (+c.hitDiceUsed || 0)) : ''}</td><td>{r.spent || (r.monster ? '' : 'Nothing')}</td></tr>); })}</tbody></table>
