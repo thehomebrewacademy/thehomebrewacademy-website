@@ -304,6 +304,7 @@ uses: { "max": "PROF", "recharge": "short" }
   max is a formula for how many times it can be used. recharge is "short" (back on a Short or Long Rest) or "long" (back on a Long Rest). Leave uses out if it is unlimited or spends spell slots.
   To spend from a shared pool instead, write uses: { "pool": "Focus Points", "cost": 1 }. The pool itself is defined once with "resource" (see RESOURCES).
   If the use (or the spell slot) is only spent on one result, add "refundOn": "miss", "hit", "saveSuccess" or "saveFail". The app gives the use back when that result happens. For example, a feature that "isn't expended if the attack misses" has "refundOn": "miss".
+trigger: for a feature used as a Reaction ("activation": "reaction"), add "trigger" so the Combat Resolver offers it at the right moment. Use one or more of these words, separated by commas: "targeted" (a creature targets you with an attack, before the roll), "hit" (an attack roll hits you), "miss" (an attack roll misses you), "damage" (you take damage), "cast" (a creature you can see casts a spell). Example: "trigger": "hit". If none of these fits, write the trigger in the source's own words, for example "trigger": "when a creature you can see within 30 feet fails a saving throw". The player can still use the Reaction from the sheet at any time.
 statBlock: when using the feature turns the character into a creature or brings one out (a beast form, a summoned spirit, a companion called for a time), add "statBlock": "form" (the character becomes it) or "statBlock": "summon" (it appears beside the character). Using the feature then asks which creature, and its stat block sits on the sheet's Stat Blocks tab until it is dismissed or its time runs out. Give the effect its duration so the app knows when that is. If the creature is new, describe its stat block in the feature's "text".
 
 feature: when one feature gives several things to use (Channel Divinity gives Divine Spark and Turn Undead), make one ability for each and set "feature" to the parent feature's name.
@@ -1282,6 +1283,7 @@ function compileAbility(ab0, ctx) {
   const uses = pObj(ab.uses);
   if (uses.pool) { out.pool = pStr(uses.pool, 40); out.cost = Math.max(1, evalFormula(uses.cost == null ? 1 : uses.cost, ctx) || 1); }
   if (["miss", "hit", "saveSuccess", "saveFail"].includes(uses.refundOn)) out.refundOn = uses.refundOn; // the use is given back on that result
+  if (typeof ab.trigger === "string" && ab.trigger.trim()) out.trigger = ab.trigger.trim().slice(0, 240); // when a Reaction can be taken
   if (ab.statBlock === "form" || ab.statBlock === "summon") out.block = ab.statBlock; // using it asks which creature, and shows its stat block
   else if (uses.max != null) {
     const max = evalFormula(uses.max, ctx);
@@ -3791,6 +3793,7 @@ function spellAction(sp, ctx, opts) {
   // A spell the app has no mechanics for is still cast: it spends its slot and posts its text for the table to resolve.
   const m = sp.m || { k: "info", act: /^bonus/i.test(sp.t || "") ? "bonus" : /^reaction/i.test(sp.t || "") ? "reaction" : /^action/i.test(sp.t || "") ? "action" : "" };
   const out = { name: sp.n, spell: true, slot: sp.l, desc: sp.x.slice(0, 1200) };
+  if (/^reaction/i.test(String(sp.t || ""))) out.trig = String(sp.t).slice(0, 240); // when the Reaction can be taken: the Combat Resolver offers it at that moment
   if (sp.conc) { out.conc = true; const dm = /(\d+) (round|minute|hour|day)/i.exec(String(sp.d || "")); if (dm) out.concSecs = +dm[1] * { round: 6, minute: 60, hour: 3600, day: 86400 }[dm[2].toLowerCase()]; }
   if (/^(Find Familiar|Find Steed|Conjure |Summon |Animate Dead|Animate Objects|Create Undead|Giant Insect)/.test(sp.n)) out.block = "summon";
   if (/^(Polymorph|True Polymorph|Shapechange|Animal Shapes)$/.test(sp.n)) out.block = "form";

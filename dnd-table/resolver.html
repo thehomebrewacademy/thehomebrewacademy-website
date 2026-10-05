@@ -694,6 +694,24 @@ function rollDice(count, sides) {
 }
 const REACT_MS = +window.HBA_REACT_MS || 30000; // how long a creature has to decide on a Reaction
 const XP_BY_CR = {'0':10,'1/8':25,'1/4':50,'1/2':100,'1':200,'2':450,'3':700,'4':1100,'5':1800,'6':2300,'7':2900,'8':3900,'9':5000,'10':5900,'11':7200,'12':8400,'13':10000,'14':11500,'15':13000,'16':15000,'17':18000,'18':20000,'19':22000,'20':25000,'21':33000,'22':41000,'23':50000,'24':62000,'25':75000,'26':90000,'27':105000,'28':120000,'29':135000,'30':155000};
+// When a Reaction can be taken. Read from an explicit trigger, the casting time of a Reaction spell, or the sentence of the feature that mentions the Reaction.
+const REACT_BY_NAME = {'shield': ['hit'], 'hellish rebuke': ['damage'], 'absorb elements': ['damage'], 'counterspell': ['cast'], 'uncanny dodge': ['hit'], 'deflect attacks': ['hit'], 'deflect missiles': ['hit'], 'parry': ['hit'], 'retaliation': ['damage'], "stone's endurance": ['damage'], 'feather fall': [], 'slow fall': [], 'opportunity attack': []};
+const REACT_EVENTS = ['targeted', 'hit', 'miss', 'damage', 'cast'];
+function reactEvents(name, trigger, text) {
+  const nm = String(name || '').replace(/ \(Level \d slot\)$/, '').toLowerCase();
+  const exp = String(trigger || '').toLowerCase().split(/[,\s]+/).filter(Boolean);
+  if (exp.length && exp.every(w => REACT_EVENTS.includes(w))) return exp;
+  if (!trigger && REACT_BY_NAME[nm]) return REACT_BY_NAME[nm];
+  let t = String(trigger || '');
+  if (!t) { const parts = String(text || '').match(/[^.!?]+[.!?]*/g) || [], hits = parts.filter(x => /reaction/i.test(x)); t = (hits.length ? hits : parts.slice(0, 2)).join(' '); }
+  t = t.toLowerCase(); const out = [];
+  if (/\bhits? (you|it|the \w+)\b|hit by an attack|would hit|(you are|it is|is) hit\b/.test(t)) out.push('hit');
+  if (/\bmiss(es)? (you|it)\b/.test(t)) out.push('miss');
+  if (/target(s|ed)? (you|it) with an attack|targeted by an attack|attack roll against (you|it)|\battacks (you|it)\b|(you are|it is) attacked|before the attack roll/.test(t)) out.push('targeted');
+  if (/tak(e|es|ing) (\w+ )?damage|damaged by|deals damage to (you|it)|damages (you|it)/.test(t)) out.push('damage');
+  if (/cast(s|ing) a spell/.test(t)) out.push('cast');
+  return out;
+}
 let NEXT_D20 = 0, FUDGE_DONE = null; // the DM can say what the next d20 shows
 function roll20(advantage=0) { // 0=normal, 1=advantage, -1=disadvantage
   if (NEXT_D20) { const n = NEXT_D20; NEXT_D20 = 0; if (FUDGE_DONE) FUDGE_DONE(); return {total:n, rolls:[n]}; }
@@ -1487,7 +1505,7 @@ function App() {
   const [endTab, setEndTab] = useState('do');
   const [stars, setStars] = useState([]);           // Combat Log entries this player starred: [{id, html, type}]
   const [nowTick, setNowTick] = useState(Date.now());
-  useEffect(() => { if (!prompts.some(q => q.kind === 'incoming' || q.kind === 'confirm')) return; setNowTick(Date.now()); const t = setInterval(() => setNowTick(Date.now()), 500); return () => clearInterval(t); }, [prompts]);
+  useEffect(() => { if (!prompts.some(q => q.kind === 'incoming' || q.kind === 'confirm' || q.kind === 'offer')) return; setNowTick(Date.now()); const t = setInterval(() => setNowTick(Date.now()), 500); return () => clearInterval(t); }, [prompts]);
   useEffect(() => { try { setStars(JSON.parse(window.localStorage.getItem('hba-stars-' + room) || '[]') || []); } catch (e) { setStars([]); } }, [room]);
   const saveStars = list => { setStars(list); try { window.localStorage.setItem('hba-stars-' + room, JSON.stringify(list.slice(-200))); } catch (e) {} };
   const toggleStar = e => saveStars(stars.some(x => x.id === e.id) ? stars.filter(x => x.id !== e.id) : [...stars, {id: e.id, html: e.html, type: e.type}]);
@@ -1496,10 +1514,18 @@ function App() {
     let seen = '', off = false; try { seen = window.localStorage.getItem('hba-ended-' + room) || ''; off = window.localStorage.getItem('hba-end-panel') === 'off'; } catch (e) {}
     if (seen === String(ended.at)) return;
     try { window.localStorage.setItem('hba-ended-' + room, String(ended.at)); } catch (e) {}
-    if (Date.now() - ended.at < 120000 && !off) { setEndTab('do'); setShowEnd(true); }
+    if (Date.now() - ended.at < 120000 && !off) { setEndTab(isDM ? 'xp' : 'do'); setShowEnd(true); }
   }, [ended && ended.at, room]);
   useEffect(() => { // a Reaction used during the window, or a "No reaction", lets the held attack go ahead
     Object.keys(pendingRef.current).forEach(pid => { const pend = pendingRef.current[pid], t = combatants.find(c => c.id === pend.targetId); if (!t || (t.turn || {}).r) setTimeout(() => finalizeRef.current(pid), 300); });
+  }, [combatants]);
+  useEffect(() => {
+    if (!isDM) return;
+    const held = c => combatants.some(x => (x.effects || []).some(e => e.concBy === c.id) || (x.conditions || []).some(k => ((x.condInfo || {})[k] || {}).concBy === c.id)) || (c.blocks || []).some(b => b.conc && b.conc === c.conc.name);
+    const mark = combatants.filter(c => c.conc && !c.conc.held && held(c)), over = combatants.filter(c => c.conc && c.conc.held && !held(c));
+    if (!mark.length && !over.length) return;
+    setCombatants(prev => prev.map(c => mark.some(m => m.id === c.id) && c.conc ? {...c, conc: {...c.conc, held: true}} : over.some(m => m.id === c.id) ? (({conc, ...rest}) => rest)(c) : c));
+    if (over.length) setLog(prev => [...prev, ...over.map(c => stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> stops concentrating on <span class="log-result">${esc(c.conc.name)}</span><div class="log-detail">Nothing of the spell is left.</div>`}))]);
   }, [combatants]);
   useEffect(() => { FUDGE_DONE = () => setFudge(''); return () => { FUDGE_DONE = null; NEXT_D20 = 0; }; }, []);
   const [blockPick, setBlockPick] = useState(null);  // choosing the creature for a form or a summon: {cId, kind, source, left, q}
@@ -1511,6 +1537,7 @@ function App() {
   const [diceExpr, setDiceExpr] = useState('');
   const [diceOpts, setDiceOpts] = useState({reroll: false, twice: ''}); // reroll 1s once; roll everything twice and keep the higher or lower total
   const [openDown, setOpenDown] = useState({});     // defeated monsters the DM has opened up again
+  const [xpPick, setXpPick] = useState({off: {}, extra: ''}); // DM: creatures left out of the Experience Points pool, and extra points
   const [dmAsk, setDmAsk] = useState(null);         // DM: roll, or choose the total. {kind:'attack'|'prompt', q, label, mod, total}
   const [dmChoose, setDmChoose] = useState(() => { try { return window.localStorage.getItem('hba-dm-choose') !== 'off'; } catch (e) { return true; } });
   const [callRoll, setCallRoll] = useState({targetId: '', kind: 'save', ability: 'Constitution', skill: '', dc: '10', why: ''});
@@ -1838,6 +1865,7 @@ function App() {
 
   // ── ROLL PROMPTS ──
   // A save is never rolled for someone. It waits here until whoever controls the creature presses Roll.
+  const removePromptRef = useRef(() => {});
   const removePrompt = (id) => {
     if (room && db) db.ref('rooms/' + room + '/prompts/' + id).remove();
     setPrompts(prev => prev.filter(q => q.id !== id));
@@ -1886,6 +1914,7 @@ function App() {
       setLog(prev => [...prev, stamp({...rest, ...concFail(ov.q.action, rest, tgt), forId: tgt.id, by: myId, ov: plain({k: 'save', r: round, passed: ruled === 'pass', d: tr.d, q: ov.q, roll})})]);
     }
   };
+  removePromptRef.current = removePrompt;
   const resolvePrompt = (q, ruled) => {
     const tgt = inPlay.find(c => c.id === q.targetId);
     if (tgt && !canControl(tgt)) return;
@@ -1897,6 +1926,7 @@ function App() {
       const actor = combatants.find(c => c.id === q.actorId) || null;
       const tr = track(() => resolveSave(q.action, q.actorName || 'Someone', actor, tgt, ruled));
       const {roll: svRoll, ...svRest} = tr.res;
+      offerReactions('damage', tr.d.filter(d => d.hp < 0 && d.id !== q.actorId).map(d => d.id), `${q.actorName || 'Something'} damaged`);
       const ovq = {action: q.action, actorName: q.actorName || '', actorId: q.actorId || '', targetId: tgt.id};
       const entry = {...svRest, ...concFail(q.action, svRest, tgt), forId: tgt.id, by: q.by || '', ov: plain({k: 'save', r: round, passed: svRest.type === 'save-pass', d: tr.d, q: ovq, roll: svRoll})};
       const rf = q.action.refund; // a use that is only spent on one result
@@ -1954,12 +1984,27 @@ function App() {
     resolve(pend.ctx);
   };
   const reactionsOf = c => c ? buildActions(c).filter(a => a.activation === 'reaction') : [];
-  const hasReaction = c => !!c && c.currentHP > 0 && !(c.turn || {}).r && (reactionsOf(c).length > 0 || (c.info || []).some(g => g.h === 'Reactions'));
+  // The Reactions a creature could take now in answer to this event: [{name, a (a sheet action) or text (a stat block line)}]
+  const reactionsFor = (c, ev) => !c || c.currentHP <= 0 || (c.turn || {}).r ? [] : [
+    ...reactionsOf(c).filter(a => !(limited(a) && usesLeft(c, a) <= 0) && reactEvents(a.name, a.trigger || a.trig, a.desc).includes(ev)).map(a => ({name: a.name, a})),
+    ...((c.info || []).filter(g => g.h === 'Reactions').flatMap(g => g.items || [])).filter(it => reactEvents(it[0], '', it[1]).includes(ev)).map(it => ({name: it[0], text: it[1]}))];
+  const hasReaction = (c, ev) => reactionsFor(c, ev).length > 0;
+  // A Reaction that does not hold anything up is offered for a moment: after damage, or when a spell is cast.
+  const offerReactions = (ev, ids, text) => {
+    const qs = ids.map(id => inPlay.find(c => c.id === id)).filter(c => c && hasReaction(c, ev)).map(c => plain({id: newId(), kind: 'offer', ev, targetId: c.id, by: myId, text, at: Date.now()}));
+    if (!qs.length) return;
+    setPrompts(prev => [...prev, ...qs]);
+    setTimeout(() => qs.forEach(q => removePromptRef.current(q.id)), REACT_MS + 1500);
+  };
+  const useStatReaction = (c, r) => { // a stat block Reaction has no button of its own: it is marked used and read out
+    setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, turn: {...(x.turn || {}), r: true}}));
+    setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> uses its Reaction: <span class="log-result">${esc(r.name)}</span><div class="log-detail">${esc(r.text || '')}</div>`})]);
+  };
   const declareAttack = () => { // step one: say what you are doing, so the target can react
     if (!selAction || !actorNow) return;
     const tgt = inPlay.find(c => c.id === targetIds[0]); if (!tgt) return;
     const pid = newId();
-    setPrompts(prev => [...prev.filter(q => !(q.kind === 'incoming' && q.by === myId)), plain({id: pid, kind: 'incoming', targetId: tgt.id, actorId: actorNow.id, actorName: actorNow.name, by: myId, what: selAction.name, at: Date.now(), react: hasReaction(tgt) && !(isDM && !tgt.owner)})]);
+    setPrompts(prev => [...prev.filter(q => !(q.kind === 'incoming' && q.by === myId)), plain({id: pid, kind: 'incoming', targetId: tgt.id, actorId: actorNow.id, actorName: actorNow.name, by: myId, what: selAction.name, at: Date.now(), react: hasReaction(tgt, 'targeted') && !(isDM && !tgt.owner)})]);
     setArmed({actionId: selAction.id, promptId: pid});
   };
   const cancelArmed = () => { if (armed && armed.promptId) removePrompt(armed.promptId); setArmed(null); };
@@ -2267,7 +2312,7 @@ function App() {
       entries.push({type:'heal', html:`<strong>${actorName}</strong> regains <span class="log-heal-val">+${2 + castLvl} HP</span><div class="log-detail">Blessed Healer</div>`});
     }
     } finally { if (step) { const ops = deferRef.current || []; deferRef.current = null; stepHold = ops; } }
-    const holdT = !re && stepOn && step && stepInfo && picked.length === 1 && hasReaction(picked[0]) && !(isDM && !picked[0].owner) ? picked[0] : null;
+    const holdT = !re && stepOn && step && stepInfo && picked.length === 1 && hasReaction(picked[0], stepInfo.hit ? 'hit' : 'miss') && !(isDM && !picked[0].owner) ? picked[0] : null;
     if (holdT) { // the target has a Reaction: it sees hit or miss and has a moment to answer before anything lands
       const pid = newId();
       pendingRef.current[pid] = {targetId: holdT.id, ctx: {replay: true, actorId: active.id, action, castLvl, pickedIds: [holdT.id], adv: advNow, sneak: sneakNow, roll: stepInfo.roll}};
@@ -2279,6 +2324,7 @@ function App() {
     if (step) { // applied at once; the DM can reverse it from the Combat Log for a round
       let after = combatants; stepHold.forEach(([k, u]) => { if (k === 'c') after = typeof u === 'function' ? u(after) : u; });
       stepHold.forEach(([k, u]) => k === 'c' ? setCombatantsRaw(u) : k === 'p' ? setPromptsRaw(u) : setLogRaw(u));
+      offerReactions('damage', deltaOf(combatants, after).filter(d => d.hp < 0 && d.id !== active.id).map(d => d.id), `${active.name} damaged`);
       const i = entries.findIndex(e => ['hit', 'miss', 'crit'].includes(e.type));
       if (stepInfo && picked.length === 1 && i >= 0) entries[i] = {...entries[i], ov: plain({k: 'atk', r: round, hit: !!stepInfo.hit, d: deltaOf(combatants, after),
         ctx: {actorId: active.id, action, castLvl, pickedIds: picked.map(x => x.id), adv: advNow, sneak: sneakNow, roll: stepInfo.roll}})};
@@ -2287,6 +2333,7 @@ function App() {
     }
     setLog(prev=>[...prev,...entries.map(stamp)]);
     }
+    if (!re && action.spell && combatStarted) offerReactions('cast', inPlay.filter(c => c.id !== active.id).map(c => c.id), `${active.name} is casting ${String(action.name).replace(/ \(Level \d slot\)$/, '')} near`);
     const blkName = String(action.name).replace(/ \(Level \d slot\)$/, ''), blk = action.block || (action.spell ? (SUMMON_RE.test(blkName) ? 'summon' : FORM_RE.test(blkName) ? 'form' : '') : '');
     if (!re && blk && active.sheet) setBlockPick({cId: active.id, kind: blk, conc: action.conc ? blkName : '', source: blkName, left: action.concSecs || (((action.onUse || {}).effs || [])[0] || {}).left || 0, q: ''});
     setArmed(null);
@@ -2472,8 +2519,9 @@ function App() {
         if (Object.keys(rec).length) out = {...out, ammo: am, recovered: rec}; }
       return out;
     });
-    const dead = gone.filter(c => c.currentHP <= 0), xpTotal = dead.reduce((t, c) => t + (XP_BY_CR[((/CR ([\d/]+)/.exec(c.sub || '') || [])[1]) || ''] || 0), 0), players = kept.filter(c => c.main || c.owner).length || 1;
-    const sum = plain({at: Date.now(), rounds: round, rows, stable: stableNames, ammo: ammoRows, xp: {total: xpTotal, each: Math.floor(xpTotal / players), players, from: dead.map(c => c.name)}});
+    const pool = gone.map(c => { const cr = ((/CR ([\d/]+)/.exec(c.sub || '') || [])[1]) || ''; return {name: c.name, cr, xp: XP_BY_CR[cr] || 0, dead: c.currentHP <= 0}; });
+    const sum = plain({at: Date.now(), rounds: round, rows, stable: stableNames, ammo: ammoRows, pool});
+    setXpPick({off: {}, extra: ''});
     const entries = [];
     if (stableNames.length) entries.push(stamp({type:'heal', html:`<strong>Combat ends.</strong> ${stableNames.map(esc).join(', ')} ${stableNames.length > 1 ? 'are' : 'is'} Stable.`}));
     ammoRows.forEach(r => entries.push(stamp({type:'roll', html:`<strong>${esc(r.name)}</strong> recovers ${r.got} ${esc(r.kind)}<div class="log-detail">Half of the ${r.spent} used, rounded down.</div>`})));
@@ -2492,7 +2540,7 @@ function App() {
     setTargetIds([]);
     setSelectedAction(null);
     setAdvantage(0);
-    if (!room) { setEndTab('do'); setShowEnd(true); }
+    if (!room) { setEndTab('xp'); setShowEnd(true); }
   };
   // After the fight a player can change how much ammunition came back. Anything other than half is written in red.
   const changeRecovered = (c, kind, n) => {
@@ -2500,6 +2548,14 @@ function App() {
     const got = Math.max(0, Math.min(+r.spent || 0, parseInt(n, 10) || 0)); if (got === r.got) return;
     setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, ammo: {...(x.ammo || {}), [kind]: {...ammoOf(x, kind), left: Math.max(0, ammoOf(x, kind).left + got - r.got)}}, recovered: {...x.recovered, [kind]: {...r, got}}}));
     setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> changes the ${esc(kind)} recovered from ${r.got} to ${got}<div class="log-detail" style="color:${got === r.half ? 'inherit' : 'var(--danger)'}">${got === r.half ? 'Back to half of what was used.' : `Half of the ${r.spent} used would be ${r.half}.`}</div>`})]);
+  };
+  // The DM hands out Experience Points: the pool chosen in the panel, shared equally between the player characters.
+  const giveXP = (total, names) => {
+    const pcs = combatants.filter(c => c.type !== 'monster' && !c.pending && (c.main || c.owner)); if (!isDM || !pcs.length || !(total > 0)) return;
+    const each = Math.floor(total / pcs.length);
+    setCombatants(prev => prev.map(c => pcs.some(x => x.id === c.id) ? {...c, xp: (+c.xp || 0) + each} : c));
+    setLog(prev => [...prev, stamp({type:'heal', html:`<strong>The DM awards ${each} Experience Points each</strong> to ${pcs.map(c => esc(c.name)).join(', ')}<div class="log-detail">${total} in total${names.length ? ` for ${names.map(esc).join(', ')}` : ''}, shared between ${pcs.length} player character${pcs.length === 1 ? '' : 's'}.</div>`})]);
+    setEnded(prev => prev ? {...prev, given: {total, each, players: pcs.length, at: Date.now()}} : prev);
   };
   const starText = () => stars.map(x => String(x.html || '').replace(/<br\s*\/?>/gi, ' · ').replace(/<\/div>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim()).join('\n');
   const saveStarsToNotes = () => {
@@ -3227,7 +3283,7 @@ function App() {
     if (q.action && q.action.concSave) return c.conc && c.conc.name === q.action.concSave ? {q, c, text: `Constitution saving throw to maintain Concentration on ${q.action.concSave}`, dc: q.action.dc} : null;
     return q.action ? {q, c, text: `${q.action.saveAbility} save against ${q.action.name}${q.actorName ? ` from ${q.actorName}` : ''}`, dc: q.action.dc} : null;
   }).filter(Boolean);
-  const flowPrompts = prompts.filter(q => (q.kind === 'incoming' || q.kind === 'confirm') && Date.now() - (+q.at || 0) < 600000).map(q => ({q, c: inPlay.find(x => x.id === q.targetId)})).filter(x => x.c);
+  const flowPrompts = prompts.filter(q => (q.kind === 'incoming' || q.kind === 'confirm' || (q.kind === 'offer' && nowTick - (+q.at || 0) < REACT_MS + 5000)) && Date.now() - (+q.at || 0) < 600000).map(q => ({q, c: inPlay.find(x => x.id === q.targetId)})).filter(x => x.c);
   const targets = inPlay.filter(c => viewed && c.id !== viewed.id && c.currentHP > 0);
   const rosterMatches = useMemo(() => {
     const q = rosterSearch.trim().toLowerCase();
@@ -3290,8 +3346,15 @@ function App() {
       {(openPrompts.length > 0 || flowPrompts.length > 0) && (
         <div className="prompt-bar" data-testid="prompt-bar">
           {flowPrompts.map(({q, c}) => {
-            const mine = canControl(c), reactions = mine ? buildActions(c).filter(a => a.activation === 'reaction') : [];
-            const react = reactions.length > 0 && <span className="p-btns">{reactions.map(a => <button key={a.id} className="btn btn-ghost btn-sm" title="Open this Reaction on your sheet" onClick={() => { setViewId(c.id); setSelectedAction(a.id); }}>Reaction: {a.name}</button>)}</span>;
+            const mine = canControl(c), reactions = mine ? reactionsFor(c, q.kind === 'incoming' ? 'targeted' : q.kind === 'offer' ? q.ev : q.hit ? 'hit' : 'miss') : [];
+            const react = reactions.length > 0 && <span className="p-btns">{reactions.map(r => r.a
+              ? <button key={r.name} className="btn btn-ghost btn-sm" data-testid="react-btn" title="Open this Reaction on your sheet" onClick={() => { setViewId(c.id); setSelectedAction(r.a.id); }}>Reaction: {r.name}</button>
+              : <button key={r.name} className="btn btn-ghost btn-sm" data-testid="react-btn" title={r.text} onClick={() => { if (q.kind === 'offer') removePrompt(q.id); useStatReaction(c, r); }}>Reaction: {r.name}</button>)}</span>;
+            if (q.kind === 'offer') return !mine || !reactions.length ? null : (
+              <div key={q.id} className="prompt-item yours" data-testid="prompt-offer">
+                <span>{q.text} <strong>{c.name}</strong>. A Reaction can answer that.</span>
+                <span className="p-btns">{react}<button className="btn btn-ghost btn-sm" data-testid="offer-dismiss" onClick={() => removePrompt(q.id)}>Not now</button></span>
+              </div>);
             const noR = (mine && (q.kind === 'confirm' || q.react) && !q.answer) ? <button className="btn btn-primary btn-sm" data-testid="no-reaction" onClick={() => answerPrompt(q, 'pass')}>No Reaction</button> : null;
             const secs = Math.max(0, Math.ceil(Math.min(REACT_MS, REACT_MS - (nowTick - (+q.at || 0))) / 1000));
             if (q.kind === 'incoming') return (
@@ -3414,7 +3477,7 @@ function App() {
                 <label className="rule-label" style={{margin:'2px 0'}} title="An attack is declared, then rolled by the attacker, then shown to the target, and only then applied"><input type="checkbox" data-testid="rule-step" checked={stepOn} onChange={e=>setStepOn(e.target.checked)}/> Attacks are declared before they are rolled, so the target can react</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="A player can take back the action they just took, until the turn changes"><input type="checkbox" data-testid="rule-undo" checked={allowUndo} onChange={e=>setAllowUndo(e.target.checked)}/> Players can take back their last action</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="Players see whether your creatures hit, miss, save or fail, and the damage, but not the numbers you rolled"><input type="checkbox" data-testid="rule-hide-rolls" checked={hideRolls} onChange={e=>setHideRolls(e.target.checked)}/> Hide my rolls from players</label>
-                <label className="rule-label" style={{margin:'2px 0'}} title="When you roll a d20 for one of your creatures, you are asked whether to roll it or to type the total it comes to"><input type="checkbox" data-testid="rule-choose" checked={dmChoose} onChange={e=>{ setDmChoose(e.target.checked); try { window.localStorage.setItem('hba-dm-choose', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> Ask me: roll, or choose the result</label>
+                <label className="rule-label" style={{margin:'2px 0'}} title="When you roll a d20 for one of your creatures, you are asked whether to roll it or to type the total it comes to"><input type="checkbox" data-testid="rule-choose" checked={dmChoose} onChange={e=>{ setDmChoose(e.target.checked); try { window.localStorage.setItem('hba-dm-choose', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> When I roll a d20 for a creature, ask whether to roll it or type the total</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="The next d20 you roll for an attack, a save or a check shows this number, and looks like any other roll">Next d20 shows <input type="number" min="1" max="20" aria-label="Next d20 shows" data-testid="fudge-d20" value={fudge} onChange={e=>{ const n = Math.max(0, Math.min(20, parseInt(e.target.value, 10) || 0)); NEXT_D20 = n; setFudge(n ? String(n) : ''); }} style={{width:54, marginLeft:6}}/></label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="When on, a player's character waits for you to accept it"><input type="checkbox" checked={approval} onChange={e=>setApproval(e.target.checked)}/> Approve players before they join</label>
               </div>
@@ -3896,20 +3959,33 @@ function App() {
       {showEnd && (() => {
         const mine = combatants.filter(c => !c.pending && c.type !== 'monster' && canControl(c));
         const arr = x => Array.isArray(x) ? x : (x && typeof x === 'object' ? Object.values(x) : []); // empty lists do not survive the trip through the session
-        const e0 = ended || {}, sum = {rounds: +e0.rounds || 0, rows: arr(e0.rows), stable: arr(e0.stable), ammo: arr(e0.ammo), xp: {total: +((e0.xp || {}).total) || 0, each: +((e0.xp || {}).each) || 0, players: +((e0.xp || {}).players) || 1, from: arr((e0.xp || {}).from)}};
+        const e0 = ended || {}, sum = {rounds: +e0.rounds || 0, rows: arr(e0.rows), stable: arr(e0.stable), ammo: arr(e0.ammo), pool: arr(e0.pool), given: e0.given || null};
+        const pcs = combatants.filter(c => c.type !== 'monster' && !c.pending && (c.main || c.owner));
+        const inPool = sum.pool.filter((m, i) => !xpPick.off[i]), extra = Math.max(0, parseInt(xpPick.extra, 10) || 0), xpTotal = inPool.reduce((t, m) => t + m.xp, 0) + extra, xpEach = Math.floor(xpTotal / Math.max(1, pcs.length));
         const running = combatants.flatMap(c => (c.effects || []).filter(e => +e.left > 0).map(e => `${e.name} on ${c.name}, ${timeText(e.left)} left`));
         return (
         <div className="modal-overlay" onClick={() => setShowEnd(false)}>
           <div className="modal" data-testid="end-panel" onClick={e => e.stopPropagation()} style={{maxWidth: 640}}>
             <div className="modal-header">After the Fight</div>
             <div className="modal-body">
-              <div className="end-tabs" role="tablist">{[['do', 'What you can do'], ['summary', 'Summary'], ['starred', `Starred log (${stars.length})`]].map(([k, l]) => <button key={k} role="tab" data-testid={`end-tab-${k}`} className={endTab === k ? 'on' : ''} onClick={() => setEndTab(k)}>{l}</button>)}</div>
+              <div className="end-tabs" role="tablist">{[...(isDM ? [['xp', 'Experience']] : []), ['do', 'What you can do'], ['summary', 'Summary'], ['starred', `Starred log (${stars.length})`]].map(([k, l]) => <button key={k} role="tab" data-testid={`end-tab-${k}`} className={endTab === k ? 'on' : ''} onClick={() => setEndTab(k)}>{l}</button>)}</div>
+              {endTab === 'xp' && isDM && <div data-testid="end-xp">
+                <div className="buff-note">Every creature in the fight is in the pool. Untick any you do not want counted, and add more if you like.</div>
+                {sum.pool.length === 0 && <div className="empty-state">No creatures were in this fight.</div>}
+                <table className="end-table"><tbody>{sum.pool.map((m, i) => (
+                  <tr key={i}><td><label className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="xp-include" checked={!xpPick.off[i]} onChange={e => setXpPick({...xpPick, off: {...xpPick.off, [i]: !e.target.checked}})}/> {m.name}</label></td>
+                    <td style={{color: m.dead ? 'var(--danger)' : 'var(--success)'}}>{m.dead ? 'Defeated' : 'Still up'}</td><td>{m.cr ? `CR ${m.cr}` : 'No Challenge Rating'}</td><td>{m.xp} XP</td></tr>))}</tbody></table>
+                <div className="log-ov"><span>Extra Experience Points</span><input type="number" min="0" aria-label="Extra Experience Points" data-testid="xp-extra" value={xpPick.extra} onChange={e => setXpPick({...xpPick, extra: e.target.value})} style={{width: 90}}/></div>
+                <div className="buff-note" data-testid="xp-total"><strong>{xpTotal} Experience Points</strong> shared between {pcs.length} player character{pcs.length === 1 ? '' : 's'} is <strong>{xpEach} each</strong>.</div>
+                <button className="btn btn-primary btn-full" data-testid="xp-give" disabled={!(xpEach > 0) || !pcs.length} onClick={() => giveXP(xpTotal, inPool.map(m => m.name))}>Give {xpEach} Experience Points to each player</button>
+                {sum.given && <div className="buff-note" data-testid="xp-given">Given: {sum.given.each} each, {sum.given.total} in total. Giving again adds more.</div>}
+              </div>}
               {endTab === 'do' && <div data-testid="end-do">
                 <div className="buff-note" data-testid="end-auto"><strong>Done already.</strong> Actions, Bonus Actions, Reactions and Movement are reset.{sum.stable.length ? ` ${sum.stable.join(', ')} ${sum.stable.length > 1 ? 'are' : 'is'} Stable.` : ' Nobody was making Death Saving Throws.'}{sum.ammo.length ? ` Half of the ammunition used was recovered: ${sum.ammo.map(r => `${r.name} ${r.got} of ${r.spent} ${r.kind}`).join(', ')}.` : ''}</div>
                 {mine.length === 0 && <div className="empty-state">You have no characters here.</div>}
                 {mine.map(c => (
                   <div key={c.id} className="pp-entry" data-testid="end-char" style={{marginBottom: 10}}>
-                    <div><strong>{c.name}</strong> · {c.currentHP} of {totalHP(c)} Hit Points</div>
+                    <div><strong>{c.name}</strong> · {c.currentHP} of {totalHP(c)} Hit Points{+c.xp > 0 ? ` · ${c.xp} Experience Points earned in this session` : ''}</div>
                     {c.conc && <div className="log-ov"><span>End Concentration on {c.conc.name}?</span><button className="btn btn-ghost btn-sm" data-testid="end-conc" onClick={() => endConcentration(c.id, 'Ended after the fight.')}>End it</button></div>}
                     {(c.conditions || []).length > 0 && <div className="log-ov"><span>Conditions (click to remove):</span>{c.conditions.map(k => <button key={k} className="btn btn-ghost btn-sm" data-testid="end-cond" onClick={() => removeCondition(c.id, k)}>{k} ×</button>)}
                       <button className="btn btn-ghost btn-sm" data-testid="end-cond-all" onClick={() => c.conditions.forEach(k => removeCondition(c.id, k))}>Remove all conditions</button></div>}
@@ -3921,10 +3997,10 @@ function App() {
                 {isDM && combatants.some(c => (c.conditions || []).length) && <button className="btn btn-ghost btn-full" data-testid="end-cond-everyone" onClick={() => combatants.forEach(c => (c.conditions || []).forEach(k => removeCondition(c.id, k)))}>Remove all conditions from everyone</button>}
               </div>}
               {endTab === 'summary' && <div data-testid="end-summary">
-                <div className="buff-note">{sum.rounds} round{sum.rounds === 1 ? '' : 's'}, about {timeText(sum.rounds * 6)}.{sum.xp.total > 0 ? ` Experience Points: ${sum.xp.total} for ${sum.xp.from.join(', ')}, which is ${sum.xp.each} each for ${sum.xp.players} player character${sum.xp.players === 1 ? '' : 's'}.` : ' No creatures with a Challenge Rating were defeated, so no Experience Points are worked out.'}</div>
+                <div className="buff-note">{sum.rounds} round{sum.rounds === 1 ? '' : 's'}, about {timeText(sum.rounds * 6)}.{sum.given ? ` Experience Points: the DM gave ${sum.given.each} each (${sum.given.total} in total).` : ' The DM has not given out Experience Points yet.'}</div>
                 <table className="end-table"><thead><tr><th>Who</th><th>Damage dealt</th><th>Damage taken</th><th>Hit Points now</th><th>Hit Point Dice left</th><th>Spent this fight</th></tr></thead>
                   <tbody>{sum.rows.map(r => { const c = combatants.find(x => x.id === r.id); return (
-                    <tr key={r.id}><td>{r.name}{r.monster ? ' (monster)' : ''}</td><td>{r.dealt}</td><td>{r.taken}</td><td>{c ? `${c.currentHP} of ${totalHP(c)}` : ''}</td><td>{c && c.sheet ? Math.max(0, c.level - (+c.hitDiceUsed || 0)) : ''}</td><td>{r.spent || (r.monster ? '' : 'Nothing')}</td></tr>); })}</tbody></table>
+                    <tr key={r.id}><td>{r.name}{r.monster ? ' (monster)' : ''}{c && +c.xp > 0 ? ` · ${c.xp} XP` : ''}</td><td>{r.dealt}</td><td>{r.taken}</td><td>{c ? `${c.currentHP} of ${totalHP(c)}` : ''}</td><td>{c && c.sheet ? Math.max(0, c.level - (+c.hitDiceUsed || 0)) : ''}</td><td>{r.spent || (r.monster ? '' : 'Nothing')}</td></tr>); })}</tbody></table>
                 <div className="buff-note">{running.length ? `Still running: ${running.join('; ')}.` : 'No timed effects are still running.'}</div>
               </div>}
               {endTab === 'starred' && <div data-testid="end-starred">
