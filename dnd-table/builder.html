@@ -284,6 +284,7 @@ effects: a list of timed bonuses, penalties and riders. Give each a name (usuall
   "attacksAgainstHaveAdvantage": true              attack rolls against the creature have Advantage
   "cannotBeInvisible": true                        it can't benefit from the Invisible condition
   "extraDamageFromUser": { "dice": "1d6", "type": "Force" }  the user deals this extra damage each time they hit the creature
+  "movable": true                                  the user can move this effect to another creature later without using the feature again (a mark that moves when its target drops to 0 Hit Points)
   "immuneTo": "Frightened"                         immune to that condition while it lasts
   "reduceDamageType": "Fire"                       reduces that damage type by 1d4 once per turn
   "tempHPEachTurn": "CHA"                          formula: Temporary Hit Points at the start of each of its turns
@@ -304,6 +305,8 @@ uses: { "max": "PROF", "recharge": "short" }
   max is a formula for how many times it can be used. recharge is "short" (back on a Short or Long Rest) or "long" (back on a Long Rest). Leave uses out if it is unlimited or spends spell slots.
   To spend from a shared pool instead, write uses: { "pool": "Focus Points", "cost": 1 }. The pool itself is defined once with "resource" (see RESOURCES).
   If the use (or the spell slot) is only spent on one result, add "refundOn": "miss", "hit", "saveSuccess" or "saveFail". The app gives the use back when that result happens. For example, a feature that "isn't expended if the attack misses" has "refundOn": "miss".
+again: when something keeps working on later turns while it lasts (a summoned weapon that attacks each turn, a beam you can fire again), add "again": "bonus", "action" or "free" for what it takes to use it again. The Combat Resolver lists it under Active with a "Use again" button, asks for a target each time, and spends no slot or use. A spell written in a pack can carry "again" in the same way.
+targets not in the fight: nothing needs to be written for this. Anything that needs a target can also be used on "something else", which the player names.
 trigger: for a feature used as a Reaction ("activation": "reaction"), add "trigger" so the Combat Resolver offers it at the right moment. Use one or more of these words, separated by commas: "targeted" (a creature targets you with an attack, before the roll), "hit" (an attack roll hits you), "miss" (an attack roll misses you), "damage" (you take damage), "cast" (a creature you can see casts a spell). Example: "trigger": "hit". If none of these fits, write the trigger in the source's own words, for example "trigger": "when a creature you can see within 30 feet fails a saving throw". The player can still use the Reaction from the sheet at any time.
 statBlock: when using the feature turns the character into a creature or brings one out (a beast form, a summoned spirit, a companion called for a time), add "statBlock": "form" (the character becomes it) or "statBlock": "summon" (it appears beside the character). Using the feature then asks which creature, and its stat block sits on the sheet's Stat Blocks tab until it is dismissed or its time runs out. Give the effect its duration so the app knows when that is. If the creature is new, describe its stat block in the feature's "text".
 
@@ -1205,6 +1208,7 @@ function compileOutcome(o, ctx) {
     const cb = pObj(e.checkBonus);
     if (SKILL_ABILITY[cb.skill]) { const d = evalDice(cb.dice, ctx); if (d) { out.check = d; out.checkSkill = cb.skill; } }
     if (e.attacksAgainstHaveAdvantage) out.advAgainst = true;
+    if (e.movable) out.movable = true; // the user can move it to another creature without using the feature again
     if (e.cannotBeInvisible) out.noInvisible = true;
     const xd = pObj(e.extraDamageFromUser);
     if (xd.dice) { const d = evalDice(xd.dice, ctx); if (d) { out.bonusDmg = d; out.bonusType = pStr(xd.type, 20); out.fromCaster = true; } }
@@ -1283,6 +1287,7 @@ function compileAbility(ab0, ctx) {
   const uses = pObj(ab.uses);
   if (uses.pool) { out.pool = pStr(uses.pool, 40); out.cost = Math.max(1, evalFormula(uses.cost == null ? 1 : uses.cost, ctx) || 1); }
   if (["miss", "hit", "saveSuccess", "saveFail"].includes(uses.refundOn)) out.refundOn = uses.refundOn; // the use is given back on that result
+  if (["action", "bonus", "free"].includes(ab.again)) out.again = ab.again; // while it lasts, it can be used again on later turns at no cost
   if (typeof ab.trigger === "string" && ab.trigger.trim()) out.trigger = ab.trigger.trim().slice(0, 240); // when a Reaction can be taken
   if (ab.statBlock === "form" || ab.statBlock === "summon") out.block = ab.statBlock; // using it asks which creature, and shows its stat block
   else if (uses.max != null) {
@@ -3829,6 +3834,7 @@ function spellAction(sp, ctx, opts) {
   else return null;
   if (m.up) out.up = m.up;
   if (m.upEff) out.upEff = m.upEff;
+  if (m.again) out.again = m.again; // while it lasts it can be used again on later turns, with no slot spent
   if (m.self) out.self = true; // it lands on the caster, with no target to pick
   if (m.tg) out.targets = m.tg === "slot" ? 1 : m.tg; // "slot": one more target per slot level, set in the Resolver when cast
   if (m.tg === "slot") out.targetsPerSlot = true;

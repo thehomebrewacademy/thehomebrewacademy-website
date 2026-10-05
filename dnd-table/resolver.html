@@ -488,8 +488,35 @@
     .card-menu button:hover { background: #2C3E50; }
     .card-view { background: none; border: 1px solid #3d5166; color: var(--text-muted); border-radius: 4px; font-size: 0.7rem; padding: 1px 6px; margin-left: 6px; cursor: pointer; }
     .card-view.on { border-color: var(--gold); color: var(--gold); cursor: default; }
-    .condition-tag.good.other { background: #33264d; border-color: #9b7fd1; color: #d9c8ff; }
-    .conc-badge { background: #1f3d24 !important; color: #9be7a1 !important; border: 1px solid #4caf50; }
+    .conc-badge { background: #33264d !important; color: #d9c8ff !important; border: 1px solid #9b7fd1; }
+    .pp-arow.hot { border: 1px solid var(--pp-border); border-radius: 8px; padding: 6px 8px; margin: 4px 0; background: color-mix(in srgb, var(--pp-border) 12%, transparent); }
+    .pp-arow.hot .pp-chip { font-size: 14px; padding: 3px 12px; }
+    .turn-bar { background: #1a2633; border-bottom: 2px solid #9b7fd1; padding: 8px 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    /* the sheet's text sizes: skills are the smallest reading text; everything else steps up from there */
+    .paper { font-size: 17px; }
+    .pp-skill { font-size: 13.5px; }
+    .pp-carry, .pp-center, .pp-cond, .pp-line, .pp-sum, .pp-note, .pp-hit { font-size: 16.5px; }
+    .pp-etext { font-size: 17px; }
+    .paper .action-btn .a-name, .pp-spell.pp-text .a-name { font-size: 18.5px; }
+    .paper .action-btn .a-detail { font-size: 15.5px; }
+    .pp-attack span:not(:first-child), .pp-spellrow span:not(:first-child) { font-size: 16.5px; }
+    .pp-ename { font-size: 18.5px; }
+    .pp-spellhead { font-size: 18px; }
+    .pp-lvl { font-size: 19px; }
+    .pp-lvl .pp-muted { font-size: 15.5px; }
+    .pp-h2 { font-size: 20px; }
+    .pp-h3 { font-size: 16px; }
+    .pp-head, .pp-type { font-size: 13.5px; }
+    .pp-chip { font-size: 14.5px; }
+    .pp-arow { font-size: 16.5px; }
+    .pp-arow .pp-chip, .pp-use .pp-chip { font-size: 13.5px; }
+    .pp-filter, .pp-tag, .pp-key { font-size: 14.5px; }
+    .pp-save { font-size: 13.5px; }
+    .pp-mod { font-size: 17px; }
+    .pp-abname { font-size: 14.5px; }
+    .pp-passive span, .pp-hprow span, .pp-stat span, .pp-shape span, .pp-heartval span { font-size: 12.5px; }
+    .pp-mast { font-size: 13px; }
+    .hand-box { font-size: 16.5px; }
     .init-bar { background: #1a2633; border-bottom: 2px solid var(--gold); padding: 8px 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .pending-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 0.78rem; color: var(--warning); }
     .card-remove { margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 2px; }
@@ -969,7 +996,7 @@ function cleanEffect(e) {
   if (SKILL_ABILITY[e.checkSkill]) out.checkSkill = e.checkSkill;
   if (CONDITIONS.includes(e.immune)) out.immune = e.immune;
   if (RESISTANCE_TYPES.includes(e.resistType)) out.resistType = e.resistType;
-  ['advAgainst','noInvisible','protect','conc','fromCaster'].forEach(k => { if (e[k]) out[k] = true; });
+  ['advAgainst','noInvisible','protect','conc','fromCaster','movable'].forEach(k => { if (e[k]) out[k] = true; });
   if (+e.left > 0) out.left = Math.min(MAX_SECONDS, Math.round(+e.left));
   if (e.resist) out.resist = String(e.resist).split(/,\s*/).filter(t => /^[A-Za-z]{3,12}$/.test(t)).slice(0, 14).join(', ');
   if (Number.isFinite(+e.dmgBonus) && +e.dmgBonus) { out.dmgBonus = Math.max(-20, Math.min(40, Math.round(+e.dmgBonus))); if (ABILITIES.includes(e.dmgBonusFor)) out.dmgBonusFor = e.dmgBonusFor; }
@@ -1055,6 +1082,8 @@ function cleanAction(a, i) {
   if (/^\d+d\d+$/.test(String(a.up || ''))) out.up = a.up;
   if (a.spell && Array.isArray(a.pointCosts) && a.pool) { out.pointCosts = a.pointCosts.slice(0, 9).map(n => Math.max(0, Math.min(999, Math.round(+n) || 0))); out.maxLvl = Math.max(1, Math.min(9, Math.round(+a.maxLvl) || 1)); }
   if (a.block === 'form' || a.block === 'summon') out.block = a.block;
+  if (a.trigger || a.trig) out.trigger = String(a.trigger || a.trig).slice(0, 240); // when a Reaction can be taken
+  if (['action','bonus','free'].includes(a.again)) out.again = a.again; // can be used again on later turns while it lasts
   if (a.conc) { out.conc = true; if (+a.concSecs > 0) out.concSecs = Math.min(MAX_SECONDS, Math.round(+a.concSecs)); }
   if (a.upEff && +a.upEff.hpMax > 0) out.upEff = {hpMax: Math.min(50, Math.round(+a.upEff.hpMax))};
   // Spell components, for the tables that track them
@@ -1495,6 +1524,9 @@ function App() {
   const [activeId, setActiveId] = useState('');
   const targetOverlay = useMemo(() => { try { return window.localStorage.getItem('hba-target-mode') !== 'list'; } catch (e) { return true; } }, []); // targets are picked on the Initiative tracker
   const [targeting, setTargeting] = useState(false); // picking a target: everything but the tracker fades
+  const [freeT, setFreeT] = useState(null);          // a target that is not on the tracker: its name, or null
+  const [freeAsk, setFreeAsk] = useState(null);      // typing that name
+  const [moveT, setMoveT] = useState(null);          // moving an effect to another creature: {fromId, effId, name, casterId}
   const [confirmT, setConfirmT] = useState('');      // the creature clicked, waiting for Yes or No
   const [cardMenu, setCardMenu] = useState(null);    // the right-click menu on a tracker card: {id, x, y}
   const [followTurn, setFollowTurn] = useState(() => { try { return window.localStorage.getItem('hba-follow-turn') === 'on'; } catch (e) { return false; } }); // open each creature's sheet when its turn starts
@@ -1650,7 +1682,10 @@ function App() {
     || mine[0] || active || null;
   const canAct = !!(combatStarted && active && viewed && viewed.id === active.id && canControl(active));
   const target = inPlay.find(c => c.id === targetId) || null;
-  const actions = viewed ? buildActions(viewed) : [];
+  // Things that keep working while they last (a spell used again each turn): offered again with no slot or use spent.
+  const runningOf = c => (c && c.running || []).filter(r => r && r.a && (!r.conc || (c.conc && c.conc.name === r.conc)));
+  const runActions = c => runningOf(c).map(r => ({...r.a, id: 'run-' + r.id, runId: r.id, name: r.name, activation: r.act === 'free' ? 'free' : r.act, rerun: true, detail: `Use again · ${ACTIVATIONS[r.act] || 'no action'} · nothing spent`}));
+  const actions = viewed ? [...buildActions(viewed), ...runActions(viewed)] : [];
   const pendingList = isDM ? combatants.filter(c => c.pending) : [];
 
   useEffect(() => { // when the turn passes to someone this screen controls, show them
@@ -2237,6 +2272,12 @@ function App() {
       setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, conc: {name: cname, ...(action.concSecs ? {left: action.concSecs} : {})}}));
     }
     if (ammoKind(action) && (ammoOn || active.ammoOn) && active.sheet) { const k = ammoKind(action), am = ammoOf(active, k); setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, ammo: {...(c.ammo || {}), [k]: {left: Math.max(0, am.left - 1), spent: am.spent + 1}}})); }
+    if (action.rerun) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, running: (c.running || []).map(r => r.id === action.runId ? {...r, usedAt: turnKey} : r)}));
+    else if (action.again && combatStarted) { // while it lasts it can be used again on later turns
+      const nm = String(action.name || '').replace(/ \(Level \d slot\)$/, '');
+      const {id, slot, pool, cost, usesMax, pointCosts, maxLvl, comp, mat, matCost, matConsumed, conc, concSecs, again, block, fromSheet, up, upEff, detail, ...keep} = action;
+      setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, running: [...(c.running || []).filter(r => r.name !== nm), plain({id: newId(), name: nm, act: action.again, conc: action.conc ? (action.concAs || nm) : '', usedAt: turnKey, a: keep})].slice(-6)}));
+    }
     if (action.pool) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, poolUsed: {...(c.poolUsed || {}), [action.pool]: (+((c.poolUsed || {})[action.pool]) || 0) + (action.cost || 1)}}));
     else if (action.usesMax) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, used: {...(c.used || {}), [action.id]: (+((c.used || {})[action.id]) || 0) + 1}}));
     }
@@ -2245,7 +2286,8 @@ function App() {
     const actorName = esc(active.name);
     const baseSlot = (actions.find(a => a.id === selectedAction) || {}).slot || 0;
     // A self feature lands on its user. Otherwise every picked target is resolved in turn, up to what the action allows.
-    const picked = action.self ? [active] : (re ? re.pickedIds : targetIds.slice(0, maxTargets({...action, slot: baseSlot}, castLvl))).map(id => inPlay.find(c => c.id === id)).filter(Boolean);
+    const freeName = !re && !action.self && freeT != null ? (freeT.trim() || 'something not on the tracker') : null;
+    const picked = action.self ? [active] : freeName != null ? [] : (re ? re.pickedIds : targetIds.slice(0, maxTargets({...action, slot: baseSlot}, castLvl))).map(id => inPlay.find(c => c.id === id)).filter(Boolean);
     const step = action.type === 'attack' && !action.self && picked.length > 0; // changes are noted as they are made, so the DM can reverse the result from the log
     if (step) deferRef.current = [];
     try {
@@ -2254,6 +2296,16 @@ function App() {
     (picked.length ? picked : [null]).forEach(target => {
     const firstEntry = entries.length;
     const targetName = esc(target?.name || '???');
+    if (!target && freeName != null) { // used on something that is not on the tracker: the dice are rolled, and the table applies the result
+      let body = '';
+      if (action.type === 'attack') { const r = roll20(advNow), tot = r.total + (+action.atk || 0); body = `Attack roll: ${r.rolls.join('/')} ${signed(+action.atk || 0)} = <strong>${tot}</strong>${r.total === 20 ? ' · natural 20' : r.total === 1 ? ' · natural 1' : ''}`; }
+      if (action.type === 'save') body = `DC ${action.dc} ${esc(action.saveAbility)} saving throw${action.halfOnSave ? ', half damage on a success' : ''}`;
+      const hasD = (action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0');
+      if (hasD && ['attack', 'save', 'auto'].includes(action.type)) { const parts = rollDamageParts(action, false); body += `<div class="log-dice">Damage${action.type === 'attack' ? ' on a hit' : ''}: <strong>${parts.reduce((t, x) => t + x.amount, 0)}</strong> (${parts.map(x => `${x.dice} ${esc(x.type)}`).join(' + ')})</div>`; }
+      if (action.type === 'heal' && action.healDice) { const h = parseDamage(action.healDice); body += `Heals <strong>${h.total}</strong> Hit Points<div class="log-dice">${h.parts.join(' + ')}</div>`; }
+      entries.push({type: 'roll', html: `<strong>${actorName}</strong> → <strong>${esc(freeName)}</strong><br/><span class="log-result">${esc(action.name)}</span><br/>${body}<div class="log-detail" style="color:#fff176">Not on the Initiative tracker: nothing was changed automatically.</div>${action.desc ? `<div class="log-detail">${esc(action.desc)}</div>` : ''}`});
+      return;
+    }
 
     if (action.type === 'attack') {
       const t = d20Test(active, 'attack', {target, ranged: !!action.ranged, abil: action.abil, spell: !!action.spell});
@@ -3215,15 +3267,19 @@ function App() {
                   {ctl && canUndo() && undoRef.current.actorId === c.id && <button className="pp-chip on" data-testid="undo-btn" onClick={undoLast}>Take back {undoRef.current.name}</button>}
                 </div>); })()}
               <div className="pp-card pp-active" data-testid="pp-active">
-                <div className="pp-h3" style={{margin: '0 0 4px', textAlign: 'left'}}>Active</div>
+                <div className="pp-h3" style={{margin: '0 0 4px', textAlign: 'left'}}>Active{runningOf(c).length || inPlay.some(x => (x.effects || []).some(e => e.casterId === c.id && isMovable(e))) ? ': use or move these on your turn' : ''}</div>
                 {(c.blocks || []).map(b => <div key={b.id} className="pp-arow" data-testid="active-block"><span><strong>{b.name}</strong> <span className="pp-muted">{b.kind === 'form' ? 'form' : 'summoned'}{b.source ? ` · ${b.source}` : ''}{+b.left > 0 ? ` · ${timeText(b.left)} left` : ''}</span></span><button className="pp-chip on" onClick={() => setSheetTab('blocks')}>Stat block</button></div>)}
+                {runningOf(c).map(r => <div key={r.id} className="pp-arow hot" data-testid="active-again"><span><strong>{r.name}</strong> <span className="pp-muted">can be used again each turn ({ACTIVATIONS[r.act] || 'no action'}){r.usedAt === turnKey ? ' · used this turn' : ''}</span></span>
+                  {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" data-testid="again-btn" onClick={() => { setSelectedAction('run-' + r.id); }}>Use again</button>
+                    <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, running: (x.running || []).filter(y => y.id !== r.id)}))}>End</button></span>}</div>)}
                 {c.conc && <div className="pp-arow" data-testid="active-conc"><span><strong>Concentrating on {c.conc.name}</strong>{+c.conc.left > 0 ? ` · ${timeText(c.conc.left)} left` : ''}</span>{ctl && <button className="pp-chip on" onClick={() => endConcentration(c.id)}>End</button>}</div>}
                 {(c.conditions || []).map(k => <div key={k} className="pp-arow"><span><strong>{k}</strong> <span className="pp-muted">condition{(() => { const i = condInfoOf(c, k); return i && +i.left > 0 ? ` · ${timeText(i.left)} left` : ''; })()}</span></span></div>)}
                 {(c.effects || []).map(e => <div key={e.id} className="pp-arow" title={[describeEffect(e), e.note].filter(Boolean).join('. ')}><span><strong>{e.name}</strong> <span className="pp-muted">on you{e.byName && e.casterId !== c.id && e.byName !== c.name ? ` from ${e.byName}` : ''}{+e.left > 0 ? ` · ${timeText(e.left)} left` : ''}{describeEffect(e) ? ` · ${describeEffect(e)}` : ''}</span></span>{ctl && <button className="pp-chip on" onClick={() => removeEffect(c.id, e.id)}>End</button>}</div>)}
                 {inPlay.filter(x => x.id !== c.id).flatMap(x => (x.effects || []).filter(e => e.casterId === c.id || e.concBy === c.id || e.src === c.id).map(e => ({x, e}))).map(({x, e}) => (
-                  <div key={e.id} className="pp-arow" data-testid="active-out"><span><strong>{e.name}</strong> <span className="pp-muted">on {x.name}{+e.left > 0 ? ` · ${timeText(e.left)} left` : ''}</span></span>
+                  <div key={e.id} className={`pp-arow ${isMovable(e) ? 'hot' : ''}`} data-testid="active-out"><span><strong>{e.name}</strong> <span className="pp-muted">on {x.name}{+e.left > 0 ? ` · ${timeText(e.left)} left` : ''}</span></span>
                     {ctl && <span style={{display: 'inline-flex', gap: 6}}>
-                      {targetIds.length === 1 && targetIds[0] !== x.id && <button className="pp-chip on" data-testid="active-move" title="Move it to the creature you have targeted, without casting again" onClick={() => moveEffect(x.id, e.id, targetIds[0])}>Move to {(inPlay.find(t => t.id === targetIds[0]) || {}).name}</button>}
+                      {!targetOverlay && targetIds.length === 1 && targetIds[0] !== x.id && <button className="pp-chip on" data-testid="active-move" title="Move it to the creature you have targeted, without casting again" onClick={() => moveEffect(x.id, e.id, targetIds[0])}>Move to {(inPlay.find(t => t.id === targetIds[0]) || {}).name}</button>}
+                      {targetOverlay && isMovable(e) && <button className="pp-chip on" data-testid="active-move" title="Move it to another creature without casting again" onClick={() => startMove(c, x, e)}>Move to another target</button>}
                       <button className="pp-chip on" onClick={() => removeEffect(x.id, e.id)}>End</button></span>}</div>))}
                 {inPlay.filter(x => x.id !== c.id).flatMap(x => (x.conditions || []).filter(k => (condInfoOf(x, k) || {}).concBy === c.id).map(k => ({x, k}))).map(({x, k}) => <div key={x.id + k} className="pp-arow"><span><strong>{k}</strong> <span className="pp-muted">on {x.name}, held by your Concentration</span></span></div>)}
                 {inPlay.filter(x => x.type === 'companion' && x.owner && x.owner === c.owner).map(x => <div key={x.id} className="pp-arow"><span><strong>{x.name}</strong> <span className="pp-muted">companion · {x.currentHP}/{totalHP(x)} HP</span></span>{ctl && <button className="pp-chip on" onClick={() => { setViewId(x.id); setSelectedAction(null); }}>Open</button>}</div>)}
@@ -3365,10 +3421,10 @@ function App() {
   const actorNow = viewed && canControl(viewed) && (!combatStarted || (active && viewed.id === active.id) || (selAction && selAction.activation === 'reaction')) ? viewed : null;
   // Why the chosen action cannot be done right now, in words, or '' when it can.
   const cannotWhy = !selAction ? 'Nothing chosen' : !actorNow ? 'Not your turn (a Reaction can be used at any time)' : blockReason(viewed, selAction) ? blockReason(viewed, selAction)
-    : (needsTargetNow && !inPlay.find(c => c.id === targetId)) ? 'Pick a target' : (limited(selAction) && usesLeft(viewed, selAction) <= 0) ? 'No uses left'
+    : (needsTargetNow && freeT == null && !inPlay.find(c => c.id === targetId)) ? 'Pick a target' : (limited(selAction) && usesLeft(viewed, selAction) <= 0) ? 'No uses left'
     : (selAction.slot > 0 && castOptions(viewed, selAction).length === 0) ? (selAction.pointCosts ? `Not enough ${selAction.pool}` : 'No spell slot left') : '';
   // An attack goes in steps when the table rule is on: declare it, roll it, the target sees the roll, then it applies.
-  const stepWanted = !!(stepOn && selAction && selAction.type === 'attack' && !selAction.self && inPlay.find(c => c.id === targetIds[0]));
+  const stepWanted = !!(stepOn && freeT == null && selAction && selAction.type === 'attack' && !selAction.self && inPlay.find(c => c.id === targetIds[0]));
   const isArmed = !!(armed && selAction && armed.actionId === selAction.id);
   const armedQ = isArmed ? prompts.find(q => q.id === armed.promptId) : null, armedT = armedQ ? inPlay.find(c => c.id === armedQ.targetId) : null;
   const waitLeft = armedQ && armedQ.react && !armedQ.answer && armedT && !(armedT.turn || {}).r ? Math.max(0, Math.min(REACT_MS, REACT_MS - (nowTick - (+armedQ.at || 0)))) : 0;
@@ -3421,11 +3477,26 @@ function App() {
   // Choosing something that needs a target opens target picking on the Initiative tracker, starting from no target.
   useEffect(() => {
     if (!targetOverlay) return;
+    setFreeT(null); setFreeAsk(null); setMoveT(null);
     if (selAction && needsTarget && viewed && canControl(viewed) && !armed) { setTargetIds([]); setConfirmT(''); setTargeting(true); setLeftTab('order'); setPane('order'); }
     else { setTargeting(false); setConfirmT(''); }
   }, [selectedAction, viewed && viewed.id]);
-  const endTargeting = () => { setTargeting(false); setConfirmT(''); setPane('sheet'); };
-  const pickCard = (c) => { if (viewed && c.id === viewed.id) return; if (selMax > 1) toggleTarget(c.id); else setConfirmT(c.id); };
+  const endTargeting = () => { setTargeting(false); setConfirmT(''); setFreeAsk(null); setMoveT(null); setPane('sheet'); };
+  const pickCard = (c) => { if (moveT) { if (c.id !== moveT.fromId && c.id !== moveT.casterId) setConfirmT(c.id); return; } if (viewed && c.id === viewed.id) return; if (selMax > 1) toggleTarget(c.id); else setConfirmT(c.id); };
+  // An effect its caster can move to another creature without casting again (Hunter's Mark, Hex, or one a Content Pack marks "movable").
+  const isMovable = e => !!e && (e.movable || /^(Hunter's Mark|Hex)$/i.test(e.name || ''));
+  const startMove = (caster, from, e) => { setSelectedAction(null); setTimeout(() => { setMoveT({fromId: from.id, effId: e.id, name: e.name, casterId: caster.id}); setConfirmT(''); setTargeting(true); setLeftTab('order'); setPane('order'); }, 0); };
+  const doMove = (to) => {
+    const m = moveT; if (!m) return;
+    const caster = combatants.find(c => c.id === m.casterId), from = combatants.find(c => c.id === m.fromId);
+    if (caster && combatStarted && !spendEconomy(caster, {activation: 'bonus', name: `moving ${m.name}`})) { endTargeting(); return; }
+    moveEffect(m.fromId, m.effId, to.id);
+    setLog(prev => [...prev, stamp({type:'roll', forId: to.id, by: myId, html:`<strong>${esc(caster ? caster.name : 'Someone')}</strong> moves <span class="log-result">${esc(m.name)}</span> from ${esc(from ? from.name : 'its last target')} to <strong>${esc(to.name)}</strong><div class="log-detail">A Bonus Action. The time left carries over.</div>`})]);
+    endTargeting();
+  };
+  // Reminders at the right moment: a mark whose target has dropped, and things you can use again on your turn.
+  const dropped = combatants.flatMap(x => x.currentHP <= 0 ? (x.effects || []).filter(e => isMovable(e) && e.casterId).map(e => ({x, e, caster: combatants.find(c => c.id === e.casterId)})) : []).filter(d => d.caster && canControl(d.caster) && d.caster.currentHP > 0);
+  const againNow = active && canControl(active) && combatStarted ? runningOf(active).filter(r => r.usedAt !== turnKey) : [];
   const openPrompts = prompts.map(q => {
     const c = inPlay.find(x => x.id === q.targetId);
     if (!c) return null;
@@ -3513,20 +3584,30 @@ function App() {
           </div>
         </div>
       )}
-      {targeting && selAction && (
+      {targeting && moveT && (
+        <div className="target-banner" data-testid="move-banner">
+          <strong>Select a new target for {moveT.name}</strong>
+          <span className="prompt-wait">Click a creature on the Initiative tracker.</span>
+          <button className="btn btn-ghost btn-sm" data-testid="move-cancel" onClick={endTargeting}>Cancel</button>
+        </div>
+      )}
+      {targeting && selAction && !moveT && (
         <div className="target-banner" data-testid="target-banner">
           <strong>{selMax > 1 ? `Select targets for ${selAction.name}` : `Select a target for ${selAction.name}`}</strong>
           <span className="prompt-wait">Click a creature on the Initiative tracker.{selMax > 1 ? ` ${targetIds.length} chosen${selMax < 99 ? `, up to ${selMax}` : ''}.` : ''}</span>
           {selMax > 1 && <button className="btn btn-primary btn-sm" data-testid="target-done" disabled={!targetIds.length} onClick={endTargeting}>Done</button>}
+          {freeAsk == null ? <button className="btn btn-ghost btn-sm" data-testid="target-else" title="Use it on something that is not on the tracker" onClick={() => setFreeAsk('')}>Something else</button>
+            : <><input autoFocus aria-label="What it is used on" data-testid="target-else-name" placeholder="What is it? (optional)" value={freeAsk} maxLength={60} onChange={e => setFreeAsk(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { setTargetIds([]); setFreeT(freeAsk); endTargeting(); } }} style={{width: 190}}/>
+              <button className="btn btn-primary btn-sm" data-testid="target-else-go" onClick={() => { setTargetIds([]); setFreeT(freeAsk); endTargeting(); }}>Use this</button></>}
           <button className="btn btn-ghost btn-sm" data-testid="target-cancel" onClick={() => { setSelectedAction(null); endTargeting(); }}>Cancel</button>
         </div>
       )}
       {targeting && confirmT && (() => { const c = inPlay.find(x => x.id === confirmT); if (!c) return null; return (
         <div className="modal-overlay" style={{background:'rgba(0,0,0,0.25)'}} onClick={() => setConfirmT('')}>
           <div className="modal" data-testid="target-confirm" onClick={e => e.stopPropagation()} style={{maxWidth: 360}}>
-            <div className="modal-header">Target {c.name}?</div>
+            <div className="modal-header">{moveT ? `Move ${moveT.name} to ${c.name}?` : `Target ${c.name}?`}</div>
             <div className="modal-body"><div className="do-row" style={{justifyContent:'center'}}>
-              <button className="btn btn-primary" data-testid="target-yes" autoFocus onClick={() => { setTargetIds([c.id]); endTargeting(); }}>Yes</button>
+              <button className="btn btn-primary" data-testid="target-yes" autoFocus onClick={() => { if (moveT) doMove(c); else { setFreeT(null); setTargetIds([c.id]); endTargeting(); } }}>Yes</button>
               <button className="btn btn-ghost" data-testid="target-no" onClick={() => setConfirmT('')}>No</button>
             </div></div>
           </div>
@@ -3541,6 +3622,14 @@ function App() {
             {!ctl && !(selAction && needsTarget) && <button onClick={close}>Nothing to do here</button>}
           </div>
         </div>); })()}
+      {(dropped.length > 0 || againNow.length > 0) && !targeting && (
+        <div className="turn-bar" data-testid="turn-bar">
+          {dropped.map(({x, e, caster}) => <span key={e.id} className="p-btns" data-testid="dropped-item"><span><strong>{x.name}</strong> is at 0 Hit Points. <strong>{caster.name}</strong> can move {e.name}.</span>
+            <button className="btn btn-primary btn-sm" data-testid="dropped-move" onClick={() => { setViewId(caster.id); startMove(caster, x, e); }}>Move it</button></span>)}
+          {againNow.map(r => <span key={r.id} className="p-btns" data-testid="again-item"><span>Your turn: <strong>{r.name}</strong> can be used again ({ACTIVATIONS[r.act] || 'no action'}).</span>
+            <button className="btn btn-primary btn-sm" data-testid="again-now" onClick={() => { setViewId(active.id); setSelectedAction('run-' + r.id); }}>Use again</button></span>)}
+        </div>
+      )}
       {initCall > 0 && !combatStarted && (
         <div className="init-bar" data-testid="init-bar">
           <strong>Roll Initiative.</strong>
@@ -3664,8 +3753,7 @@ function App() {
                     ))}
                     {(c.effects||[]).map(e=>{
                       const rm = isDM || ctl || e.by === myId;
-                      const other = (e.casterId && e.casterId !== c.id) || (e.src && e.src !== c.id); // put there by someone else
-                      return <span key={e.id} className={`condition-tag good ${other ? 'other' : ''} ${rm?'removable':''}`} title={`${[describeEffect(e), e.note].filter(Boolean).join('. ')||e.name}${e.conc?'. Concentration':''}${+e.left>0?`. ${timeText(e.left)} left`:''}${e.byName?` (from ${e.byName})`:''}`}
+                      return <span key={e.id} className={`condition-tag good ${rm?'removable':''}`} title={`${[describeEffect(e), e.note].filter(Boolean).join('. ')||e.name}${e.conc?'. Concentration':''}${+e.left>0?`. ${timeText(e.left)} left`:''}${e.byName?` (from ${e.byName})`:''}`}
                         onClick={ev=>{ev.stopPropagation(); if (rm) removeEffect(c.id,e.id);}}>{e.name}{e.lvl?` ${e.lvl}`:''}{+e.left>0?` · ${timeText(e.left)}`:''}{rm?' ×':''}</span>;
                     })}
                   </div>
@@ -3832,8 +3920,8 @@ function App() {
                 <div className="section-title">🎯 {selMax > 1 ? `Targets (${Math.min(targetIds.length, selMax)} of ${selMax >= 99 ? 'any number' : 'up to ' + selMax})` : 'Target'}</div>
                 {selMax > 1 && <div className="buff-note">This can affect more than one creature. Pick each target; one use covers them all.</div>}
                 {targetOverlay && <div className="buff-note" data-testid="target-summary" style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
-                  <span>{targetIds.length ? <>Chosen: <strong>{targetIds.map(id => (inPlay.find(c => c.id === id) || {}).name).filter(Boolean).join(', ')}</strong></> : needsTarget ? 'No target chosen.' : 'Pick an attack, action or spell. If it needs a target you choose it on the Initiative tracker.'}</span>
-                  {needsTarget && canControl(viewed) && !isArmed && <button className="btn btn-ghost btn-sm" data-testid="retarget" onClick={() => { setTargeting(true); setLeftTab('order'); setPane('order'); }}>{targetIds.length ? 'Change target' : 'Choose a target'}</button>}
+                  <span>{freeT != null && needsTarget ? <>Chosen: <strong>{freeT.trim() || 'something not on the tracker'}</strong> (not on the tracker)</> : targetIds.length ? <>Chosen: <strong>{targetIds.map(id => (inPlay.find(c => c.id === id) || {}).name).filter(Boolean).join(', ')}</strong></> : needsTarget ? 'No target chosen.' : 'Pick an attack, action or spell. If it needs a target you choose it on the Initiative tracker.'}</span>
+                  {needsTarget && canControl(viewed) && !isArmed && <button className="btn btn-ghost btn-sm" data-testid="retarget" onClick={() => { setTargeting(true); setLeftTab('order'); setPane('order'); }}>{targetIds.length || freeT != null ? 'Change target' : 'Choose a target'}</button>}
                 </div>}
                 {!targetOverlay && targets.length===0 && (
                   <div className="empty-state">No valid targets</div>
