@@ -302,6 +302,17 @@
     .conc-badge { display: inline-block; margin-top: 3px; font-size: 0.7rem; color: #10161f; background: #fff176; border-radius: 10px; padding: 0 8px; cursor: pointer; font-family: 'Cinzel', serif; font-weight: 700; }
     .hide-ac .ac-secret { display: none; }
     .hide-dm .dm-secret { display: none; }
+    .combatant-card.down { background: #2a0d0d; border-color: #5a1a1a; padding-top: 6px; padding-bottom: 6px; }
+    .combatant-card.down > *:not(.combatant-header):not(.turn-marker) { display: none; }
+    .combatant-card.down .combatant-type, .combatant-card.down .init-badge, .combatant-card.down .conc-badge { display: none; }
+    .combatant-card.down .combatant-name { color: #e57373; }
+    .log-star { float: right; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; padding: 0 2px; }
+    .log-star.on { color: var(--gold); }
+    .end-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .end-tabs button { flex: 1; padding: 6px; background: #0F1923; border: 1px solid #3d5166; color: var(--parchment); border-radius: 4px; cursor: pointer; font-family: 'Cinzel', serif; font-size: 0.8rem; }
+    .end-tabs button.on { background: var(--gold); color: #111; border-color: var(--gold); }
+    .end-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .end-table th, .end-table td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #2C3E50; vertical-align: top; }
     .log-entry.void { opacity: 0.5; }
     .log-entry.void .log-html { text-decoration: line-through; }
     .log-ov { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
@@ -681,6 +692,8 @@ function rollDice(count, sides) {
   const rolls = Array.from({length: count}, () => rollD(sides));
   return { total: rolls.reduce((a,b)=>a+b,0), rolls };
 }
+const REACT_MS = +window.HBA_REACT_MS || 30000; // how long a creature has to decide on a Reaction
+const XP_BY_CR = {'0':10,'1/8':25,'1/4':50,'1/2':100,'1':200,'2':450,'3':700,'4':1100,'5':1800,'6':2300,'7':2900,'8':3900,'9':5000,'10':5900,'11':7200,'12':8400,'13':10000,'14':11500,'15':13000,'16':15000,'17':18000,'18':20000,'19':22000,'20':25000,'21':33000,'22':41000,'23':50000,'24':62000,'25':75000,'26':90000,'27':105000,'28':120000,'29':135000,'30':155000};
 let NEXT_D20 = 0, FUDGE_DONE = null; // the DM can say what the next d20 shows
 function roll20(advantage=0) { // 0=normal, 1=advantage, -1=disadvantage
   if (NEXT_D20) { const n = NEXT_D20; NEXT_D20 = 0; if (FUDGE_DONE) FUDGE_DONE(); return {total:n, rolls:[n]}; }
@@ -1469,6 +1482,25 @@ function App() {
   const [leftTab, setLeftTab] = useState('order');   // the DM's left panel: order | dm
   const [noticesOn, setNoticesOn] = useState(() => { try { return window.localStorage.getItem('hba-notices') !== 'off'; } catch (e) { return true; } });
   const [undoTick, setUndoTick] = useState(0);
+  const [ended, setEnded] = useState(null);         // the last fight that was ended: {at, rounds, rows, xp, stable, ammo}
+  const [showEnd, setShowEnd] = useState(false);    // the end of combat panel
+  const [endTab, setEndTab] = useState('do');
+  const [stars, setStars] = useState([]);           // Combat Log entries this player starred: [{id, html, type}]
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => { if (!prompts.some(q => q.kind === 'incoming' || q.kind === 'confirm')) return; setNowTick(Date.now()); const t = setInterval(() => setNowTick(Date.now()), 500); return () => clearInterval(t); }, [prompts]);
+  useEffect(() => { try { setStars(JSON.parse(window.localStorage.getItem('hba-stars-' + room) || '[]') || []); } catch (e) { setStars([]); } }, [room]);
+  const saveStars = list => { setStars(list); try { window.localStorage.setItem('hba-stars-' + room, JSON.stringify(list.slice(-200))); } catch (e) {} };
+  const toggleStar = e => saveStars(stars.some(x => x.id === e.id) ? stars.filter(x => x.id !== e.id) : [...stars, {id: e.id, html: e.html, type: e.type}]);
+  useEffect(() => { // the end of combat panel opens for everyone, once per fight
+    if (!ended || !ended.at || !room) return;
+    let seen = '', off = false; try { seen = window.localStorage.getItem('hba-ended-' + room) || ''; off = window.localStorage.getItem('hba-end-panel') === 'off'; } catch (e) {}
+    if (seen === String(ended.at)) return;
+    try { window.localStorage.setItem('hba-ended-' + room, String(ended.at)); } catch (e) {}
+    if (Date.now() - ended.at < 120000 && !off) { setEndTab('do'); setShowEnd(true); }
+  }, [ended && ended.at, room]);
+  useEffect(() => { // a Reaction used during the window, or a "No reaction", lets the held attack go ahead
+    Object.keys(pendingRef.current).forEach(pid => { const pend = pendingRef.current[pid], t = combatants.find(c => c.id === pend.targetId); if (!t || (t.turn || {}).r) setTimeout(() => finalizeRef.current(pid), 300); });
+  }, [combatants]);
   useEffect(() => { FUDGE_DONE = () => setFudge(''); return () => { FUDGE_DONE = null; NEXT_D20 = 0; }; }, []);
   const [blockPick, setBlockPick] = useState(null);  // choosing the creature for a form or a summon: {cId, kind, source, left, q}
   const [restSummary, setRestSummary] = useState(null); // what a player's rest just gave back
@@ -1478,6 +1510,11 @@ function App() {
   const [pane, setPane] = useState('order'); // which panel shows on a phone: order | sheet | log
   const [diceExpr, setDiceExpr] = useState('');
   const [diceOpts, setDiceOpts] = useState({reroll: false, twice: ''}); // reroll 1s once; roll everything twice and keep the higher or lower total
+  const [openDown, setOpenDown] = useState({});     // defeated monsters the DM has opened up again
+  const [dmAsk, setDmAsk] = useState(null);         // DM: roll, or choose the total. {kind:'attack'|'prompt', q, label, mod, total}
+  const [dmChoose, setDmChoose] = useState(() => { try { return window.localStorage.getItem('hba-dm-choose') !== 'off'; } catch (e) { return true; } });
+  const [callRoll, setCallRoll] = useState({targetId: '', kind: 'save', ability: 'Constitution', skill: '', dc: '10', why: ''});
+  const actingRef = useRef('');                     // whose action is being resolved, for the fight summary
   const [hideRolls, setHideRolls] = useState(false); // DM: players see the result of the DM's rolls, not the numbers
   const [ammoOn, setAmmoOn] = useState(false);     // table rule: everyone counts ammunition (a player can also switch it on alone)
   const [fudge, setFudge] = useState('');           // DM: what the next d20 shows
@@ -1499,14 +1536,14 @@ function App() {
 
   useEffect(() => { logEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [log]);
   // An attack of mine that was waiting has been answered by the target or the DM.
-  useEffect(() => { prompts.forEach(q => { if (q.kind === 'confirm' && q.answer && pendingRef.current[q.id]) finalizeRef.current(q.id, q.answer); }); }, [prompts]);
+  useEffect(() => { prompts.forEach(q => { if (q.kind === 'confirm' && q.answer && pendingRef.current[q.id]) finalizeRef.current(q.id); }); }, [prompts]);
   // Something just happened to one of my creatures because of someone else: show it to me.
   useEffect(() => {
     if (seenLog.current === null) { seenLog.current = new Set(log.map(e => e.id)); return; }
     const fresh = log.filter(e => !seenLog.current.has(e.id));
     fresh.forEach(e => seenLog.current.add(e.id));
     const mineNow = !noticesOn ? [] : fresh.filter(e => e.forId && (e.by === myId || combatants.some(c => c.id === e.forId && (c.owner === myId || (isDM && !c.owner)))));
-    if (mineNow.length) setNotices(prev => [...prev, ...mineNow.map(e => ({id: e.id, html: e.html, name: (combatants.find(c => c.id === e.forId) || {}).name || ''}))].slice(-12));
+    if (mineNow.length) setNotices(prev => [...prev, ...mineNow.map(e => ({id: e.id, html: e.html, concEnd: e.concEnd || null, name: (combatants.find(c => c.id === e.forId) || {}).name || ''}))].slice(-12));
   }, [log]);
 
   // ── WHO CAN DO WHAT ──
@@ -1638,7 +1675,7 @@ function App() {
   const startCombat = () => {
     const sorted = byInit(combatants);
     const first = sorted.find(c => !c.pending);
-    setCombatants(sorted);
+    setCombatants(sorted.map(c => ({...c, turn: {}, fight: {dealt: 0, taken: 0}, recovered: null, fightStart: plain({slotsUsed: c.slotsUsed || {}, poolUsed: c.poolUsed || {}, used: c.used || {}})})));
     setActiveId(first ? first.id : '');
     setCombatStarted(true);
     setLog([stamp({type:'round',text:`Round 1`})]);
@@ -1705,6 +1742,7 @@ function App() {
     const adj = adjustDamage(tgt, dealt, turnKey, ignoreRes);
     if (adj.usedEffects.length) setCombatants(prev => prev.map(c => c.id !== tgt.id ? c : {...c, effects: (c.effects || []).map(e => adj.usedEffects.includes(e.id) ? {...e, usedAt: turnKey} : e)}));
     if (adj.total > 0) updateHP(tgt.id, -adj.total);
+    if (adj.total > 0 && combatStarted) { const by = actingRef.current; setCombatants(prev => prev.map(c => c.id === tgt.id ? {...c, fight: {...(c.fight || {}), taken: (+((c.fight || {}).taken) || 0) + adj.total}} : c.id === by ? {...c, fight: {...(c.fight || {}), dealt: (+((c.fight || {}).dealt) || 0) + adj.total}} : c)); }
     const concDC = Math.min(30, Math.max(10, Math.floor(adj.total / 2)));
     const concNote = adj.total > 0 && tgt.conc ? `<div class="log-detail" style="color:#fff176">${esc(tgt.name)} is asked for a DC ${concDC} Constitution saving throw to maintain Concentration on ${esc(tgt.conc.name)}.</div>` : '';
     if (adj.total > 0 && tgt.conc) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: tgt.id, actorId: '', actorName: 'Damage',
@@ -1765,6 +1803,7 @@ function App() {
   // A saving throw, rolled with the target's numbers as they stand when the button is pressed.
   const resolveSave = (action, actorNameRaw, actor, tgt, ruled, keep) => {
     const actorName = esc(actorNameRaw), targetName = esc(tgt.name);
+    actingRef.current = actor ? actor.id : '';
     const saveAbility = action.saveAbility;
     const saveMod = tgt.saves?.[saveAbility] ?? mod(tgt.scores?.[saveAbility]??10);
     const t = d20Test(tgt, 'save', {ability: saveAbility, conditions: ((action.onFail || {}).conds || []).map(k => k.name)});
@@ -1827,6 +1866,9 @@ function App() {
     if (x.effs) out = {...out, effects: (out.effects || []).filter(e => !x.effs.includes(e.id))};
     return out;
   })));
+  // A failed save to maintain Concentration does not end it by itself: the player or the DM decides, from the log entry.
+  const concFail = (action, entry, tgt) => action.concSave && entry.type === 'save-fail' ? {concEnd: {id: tgt.id, name: action.concSave}, html: entry.html + `<div class="log-detail" style="color:#fff176">${esc(tgt.name)} or the DM can end Concentration on ${esc(action.concSave)} from here.</div>`} : {};
+  const canEndConc = e => { const t = e && e.concEnd ? combatants.find(c => c.id === e.concEnd.id) : null; return !!(t && canControl(t) && t.conc && t.conc.name === e.concEnd.name); };
   const canOverride = e => isDM && e && e.ov && !e.void && round - (+e.ov.r || 0) <= 1;
   // The DM reverses a result that is still in the Combat Log: what it did is undone, then it is resolved the other way with the same roll.
   const overrideEntry = (e) => {
@@ -1839,9 +1881,9 @@ function App() {
     else {
       const tgt = combatants.find(c => c.id === ov.q.targetId); if (!tgt) return;
       const actor = combatants.find(c => c.id === ov.q.actorId) || null, ruled = ov.passed ? 'fail' : 'pass';
-      const tr = track(() => { const r = resolveSave(ov.q.action, ov.q.actorName || 'Someone', actor, tgt, ruled, ov.roll); if (ov.q.action.concSave && ruled === 'fail') endConcentration(tgt.id, 'The DM ruled that the Constitution saving throw to maintain Concentration fails.'); return r; });
+      const tr = track(() => resolveSave(ov.q.action, ov.q.actorName || 'Someone', actor, tgt, ruled, ov.roll));
       const {roll, ...rest} = tr.res;
-      setLog(prev => [...prev, stamp({...rest, forId: tgt.id, by: myId, ...(ov.q.action.concSave ? {} : {ov: plain({k: 'save', r: round, passed: ruled === 'pass', d: tr.d, q: ov.q, roll})})})]);
+      setLog(prev => [...prev, stamp({...rest, ...concFail(ov.q.action, rest, tgt), forId: tgt.id, by: myId, ov: plain({k: 'save', r: round, passed: ruled === 'pass', d: tr.d, q: ov.q, roll})})]);
     }
   };
   const resolvePrompt = (q, ruled) => {
@@ -1853,16 +1895,17 @@ function App() {
     if (q.kind === 'save' && q.action) {
       if (q.action.concSave && !(tgt.conc && tgt.conc.name === q.action.concSave)) return; // it stopped concentrating on that already
       const actor = combatants.find(c => c.id === q.actorId) || null;
-      const tr = track(() => { const r = resolveSave(q.action, q.actorName || 'Someone', actor, tgt, ruled); if (q.action.concSave && r.type === 'save-fail') endConcentration(tgt.id, 'Failed the Constitution saving throw to maintain Concentration.'); return r; });
+      const tr = track(() => resolveSave(q.action, q.actorName || 'Someone', actor, tgt, ruled));
       const {roll: svRoll, ...svRest} = tr.res;
       const ovq = {action: q.action, actorName: q.actorName || '', actorId: q.actorId || '', targetId: tgt.id};
-      const entry = {...svRest, forId: tgt.id, by: q.by || '', ...(q.action.concSave && svRest.type === 'save-fail' ? {} : {ov: plain({k: 'save', r: round, passed: svRest.type === 'save-pass', d: tr.d, q: ovq, roll: svRoll})})};
+      const entry = {...svRest, ...concFail(q.action, svRest, tgt), forId: tgt.id, by: q.by || '', ov: plain({k: 'save', r: round, passed: svRest.type === 'save-pass', d: tr.d, q: ovq, roll: svRoll})};
       const rf = q.action.refund; // a use that is only spent on one result
       if (rf && actor && ((rf.on === 'saveSuccess' && entry.type === 'save-pass') || (rf.on === 'saveFail' && entry.type === 'save-fail'))) {
         refund(actor.id, rf, rf.slotLvl);
         entry.html += `<div class="log-detail">${esc(q.actorName || 'The user')} keeps the use: it is not spent on this result.</div>`;
       }
       setLog(prev => [...prev, stamp(entry)]);
+    } else if (q.kind === 'check') { rollTest(tgt, 'check', q.ability, q.skill || '', q.dc, q.name);
     } else if (q.kind === 'repeat' && (tgt.conditions || []).includes(q.cond) && condInfoOf(tgt, q.cond)) {
       const r = rollCondSave(tgt, q.cond);
       if (r.usedEffect) removeEffect(tgt.id, r.usedEffect);
@@ -1900,24 +1943,23 @@ function App() {
   const canUndo = () => { const u = undoRef.current; return !!(u && (allowUndo || isDM) && u.key === `${round}:${activeId}`); };
   // ── ATTACKS, ONE STEP AT A TIME: declared, rolled, shown to the target, then applied ──
   const answerPrompt = (q, ans) => {
-    if (pendingRef.current[q.id]) { finalizeRef.current(q.id, ans); return; }
+    if (pendingRef.current[q.id]) { finalizeRef.current(q.id); return; }
     if (room && db) db.ref('rooms/' + room + '/prompts/' + q.id + '/answer').set(ans);
     setPromptsRaw(prev => prev.map(x => x.id === q.id ? {...x, answer: ans} : x));
   };
-  finalizeRef.current = (pid, ans) => {
+  finalizeRef.current = (pid) => { // the Reaction window is over: the attack is resolved with the roll everyone saw, against things as they stand now
     const pend = pendingRef.current[pid]; if (!pend) return;
     delete pendingRef.current[pid];
     removePrompt(pid);
-    if (ans === 'ok' || (ans === 'hit') === pend.hit) {
-      pend.ops.forEach(([k, u]) => k === 'c' ? setCombatantsRaw(u) : k === 'p' ? setPromptsRaw(u) : setLogRaw(u));
-      setLogRaw(prev => [...prev, ...pend.entries.map(stamp)]);
-    } else resolve({...pend.ctx, force: ans === 'miss' ? 'miss' : 'hit'}); // the DM ruled the other way: the same roll, resolved as ruled
+    resolve(pend.ctx);
   };
+  const reactionsOf = c => c ? buildActions(c).filter(a => a.activation === 'reaction') : [];
+  const hasReaction = c => !!c && c.currentHP > 0 && !(c.turn || {}).r && (reactionsOf(c).length > 0 || (c.info || []).some(g => g.h === 'Reactions'));
   const declareAttack = () => { // step one: say what you are doing, so the target can react
     if (!selAction || !actorNow) return;
     const tgt = inPlay.find(c => c.id === targetIds[0]); if (!tgt) return;
     const pid = newId();
-    setPrompts(prev => [...prev.filter(q => !(q.kind === 'incoming' && q.by === myId)), plain({id: pid, kind: 'incoming', targetId: tgt.id, actorId: actorNow.id, actorName: actorNow.name, by: myId, what: selAction.name, at: Date.now()})]);
+    setPrompts(prev => [...prev.filter(q => !(q.kind === 'incoming' && q.by === myId)), plain({id: pid, kind: 'incoming', targetId: tgt.id, actorId: actorNow.id, actorName: actorNow.name, by: myId, what: selAction.name, at: Date.now(), react: hasReaction(tgt) && !(isDM && !tgt.owner)})]);
     setArmed({actionId: selAction.id, promptId: pid});
   };
   const cancelArmed = () => { if (armed && armed.promptId) removePrompt(armed.promptId); setArmed(null); };
@@ -2023,6 +2065,7 @@ function App() {
     if (!active || (!re && !selectedAction)) return;
     let action = re ? re.action : actions.find(a=>a.id===selectedAction);
     if (!action) return;
+    actingRef.current = active.id;
     const advNow = re ? re.adv : advantage, sneakNow = re ? re.sneak : sneakOn;
     let castLvl = re ? re.castLvl : 0;
     let stepInfo = null, stepHold = [];
@@ -2179,7 +2222,7 @@ function App() {
       const {name, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc} = action;
       const dc = action.dc + (action.spell ? sumEff(active, 'dcBonus') : 0); // Innate Sorcery raises a spell's DC
       setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: target.id, actorId: active.id, actorName: active.name,
-        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc, rolled: sharedDamage,
+        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc, conc: !!action.conc, rolled: sharedDamage,
           refund: action.refundOn && target === picked[0] ? {on: action.refundOn, pool: action.pool, cost: action.cost, usesMax: action.usesMax, id: action.id, slotLvl: castLvl} : null}})]);
       entries.push({
         type:'roll',
@@ -2224,6 +2267,15 @@ function App() {
       entries.push({type:'heal', html:`<strong>${actorName}</strong> regains <span class="log-heal-val">+${2 + castLvl} HP</span><div class="log-detail">Blessed Healer</div>`});
     }
     } finally { if (step) { const ops = deferRef.current || []; deferRef.current = null; stepHold = ops; } }
+    const holdT = !re && stepOn && step && stepInfo && picked.length === 1 && hasReaction(picked[0]) && !(isDM && !picked[0].owner) ? picked[0] : null;
+    if (holdT) { // the target has a Reaction: it sees hit or miss and has a moment to answer before anything lands
+      const pid = newId();
+      pendingRef.current[pid] = {targetId: holdT.id, ctx: {replay: true, actorId: active.id, action, castLvl, pickedIds: [holdT.id], adv: advNow, sneak: sneakNow, roll: stepInfo.roll}};
+      const gone = prompts.filter(q => q.kind === 'incoming' && q.by === myId).map(q => q.id);
+      if (gone.length && room && db) setTimeout(() => gone.forEach(id => db.ref('rooms/' + room + '/prompts/' + id).remove()), 400);
+      setPrompts(prev => [...prev.filter(q => !gone.includes(q.id)), plain({id: pid, kind: 'confirm', targetId: holdT.id, actorId: active.id, actorName: active.name, by: myId, hit: !!stepInfo.hit, crit: !!stepInfo.crit, what: action.name, ...(isDM && !active.owner && hideRolls ? {} : {total: stepInfo.total}), at: Date.now()})]);
+      setTimeout(() => finalizeRef.current(pid), REACT_MS);
+    } else {
     if (step) { // applied at once; the DM can reverse it from the Combat Log for a round
       let after = combatants; stepHold.forEach(([k, u]) => { if (k === 'c') after = typeof u === 'function' ? u(after) : u; });
       stepHold.forEach(([k, u]) => k === 'c' ? setCombatantsRaw(u) : k === 'p' ? setPromptsRaw(u) : setLogRaw(u));
@@ -2234,6 +2286,7 @@ function App() {
       if (gone.length) { setPrompts(prev => prev.filter(q => !gone.includes(q.id))); if (room && db) setTimeout(() => gone.forEach(id => db.ref('rooms/' + room + '/prompts/' + id).remove()), 400); }
     }
     setLog(prev=>[...prev,...entries.map(stamp)]);
+    }
     const blkName = String(action.name).replace(/ \(Level \d slot\)$/, ''), blk = action.block || (action.spell ? (SUMMON_RE.test(blkName) ? 'summon' : FORM_RE.test(blkName) ? 'form' : '') : '');
     if (!re && blk && active.sheet) setBlockPick({cId: active.id, kind: blk, conc: action.conc ? blkName : '', source: blkName, left: action.concSecs || (((action.onUse || {}).effs || [])[0] || {}).left || 0, q: ''});
     setArmed(null);
@@ -2243,7 +2296,7 @@ function App() {
   };
 
   // Ability checks, skill checks and saving throws rolled straight from the sheet.
-  const rollTest = (c, kind, ability, skill) => {
+  const rollTest = (c, kind, ability, skill, dc, why) => {
     const score = (c.scores || {})[ability] ?? 10;
     const base = kind === 'save' ? ((c.saves || {})[ability] ?? mod(score))
       : (skill && c.sheet && c.sheet.skills && Number.isFinite(+c.sheet.skills[skill])) ? +c.sheet.skills[skill] : mod(score);
@@ -2255,7 +2308,8 @@ function App() {
       const roll = roll20(testMode(t)); total = roll.total + base + t.bonus;
       body = `<span class="log-result">🎲 ${roll.total + base + t.bonus}</span><div class="log-dice">${roll.rolls.join('/')} ${signed(base)}${t.bonusText ? ` (${t.bonusText})` : ''}</div>${modeText(t) ? `<div class="log-detail">${modeText(t)}</div>` : ''}`;
     }
-    setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> · ${esc(label)}<br/>${body}`})]);
+    if (dc) body += `<div class="log-detail">${why ? esc(why) + ' · ' : ''}DC ${+dc} · <strong style="color:${total != null && total >= +dc ? 'var(--success)' : 'var(--danger)'}">${total != null && total >= +dc ? 'Success' : 'Failure'}</strong></div>`;
+    setLog(prev => [...prev, stamp({type: dc ? (total != null && total >= +dc ? 'save-pass' : 'save-fail') : 'roll', html:`<strong>${esc(c.name)}</strong> · ${esc(label)}<br/>${body}`})]);
     return total;
   };
 
@@ -2396,25 +2450,68 @@ function App() {
     if (!(secs > 0)) return;
     advanceTime(secs, `${timeText(secs)} pass`);
   };
-  // Ending the encounter clears the monsters, the turn order and the log. Players stay, with their effects.
+  // Ending combat: the automatic things are done, a summary is kept for everyone, then monsters, the turn order and the log are cleared.
   const endEncounter = () => {
     if (!isDM) return;
-    if (!window.confirm('End this encounter? Monsters, the turn order and the combat log are cleared. Players and their active effects stay.')) return;
+    if (!window.confirm('End combat? Monsters, the turn order and the combat log are cleared. Players and their active effects stay. Everyone gets the end of combat panel.')) return;
     const gone = combatants.filter(c => c.type === 'monster');
+    const stableNames = [], ammoRows = [];
+    const spent = (c) => { // spell slots and limited uses spent during this fight
+      const st = c.fightStart || {}, out = [];
+      Object.keys(c.slotsUsed || {}).forEach(l => { const n = (+c.slotsUsed[l] || 0) - (+((st.slotsUsed || {})[l]) || 0); if (n > 0) out.push(`${n} Level ${l} slot${n > 1 ? 's' : ''}`); });
+      Object.keys(c.poolUsed || {}).forEach(k => { const n = (+c.poolUsed[k] || 0) - (+((st.poolUsed || {})[k]) || 0); if (n > 0) out.push(`${n} ${k}`); });
+      Object.keys(c.used || {}).forEach(k => { const n = (+c.used[k] || 0) - (+((st.used || {})[k]) || 0); const a = (c.sheetActions || c.actions || []).find(x => x.id === k); if (n > 0) out.push(`${n} × ${a ? a.name : 'a feature'}`); });
+      return out.join(', ');
+    };
+    const rows = combatants.filter(c => !c.pending).map(c => ({id: c.id, name: c.name, monster: c.type === 'monster', dealt: +((c.fight || {}).dealt) || 0, taken: +((c.fight || {}).taken) || 0, spent: spent(c)}));
+    const kept = combatants.filter(c => c.type !== 'monster').map(c => {
+      let out = {...c, turn: {}};
+      if (c.currentHP <= 0 && !(c.effects || []).some(e => e.name === 'Stable')) { stableNames.push(c.name); out = {...out, effects: [...(out.effects || []), {id: newId(), name: 'Stable', by: myId, byName: 'DM', note: 'At 0 Hit Points and no longer making Death Saving Throws.'}]}; }
+      if ((ammoOn || c.ammoOn) && c.ammo) { const rec = {}; const am = {...c.ammo};
+        Object.keys(am).forEach(k => { const sp = +am[k].spent || 0; if (sp > 0) { const got = Math.floor(sp / 2); am[k] = {left: (+am[k].left || 0) + got, spent: 0}; rec[k] = {spent: sp, got, half: got}; ammoRows.push({name: c.name, kind: k, spent: sp, got}); } });
+        if (Object.keys(rec).length) out = {...out, ammo: am, recovered: rec}; }
+      return out;
+    });
+    const dead = gone.filter(c => c.currentHP <= 0), xpTotal = dead.reduce((t, c) => t + (XP_BY_CR[((/CR ([\d/]+)/.exec(c.sub || '') || [])[1]) || ''] || 0), 0), players = kept.filter(c => c.main || c.owner).length || 1;
+    const sum = plain({at: Date.now(), rounds: round, rows, stable: stableNames, ammo: ammoRows, xp: {total: xpTotal, each: Math.floor(xpTotal / players), players, from: dead.map(c => c.name)}});
+    const entries = [];
+    if (stableNames.length) entries.push(stamp({type:'heal', html:`<strong>Combat ends.</strong> ${stableNames.map(esc).join(', ')} ${stableNames.length > 1 ? 'are' : 'is'} Stable.`}));
+    ammoRows.forEach(r => entries.push(stamp({type:'roll', html:`<strong>${esc(r.name)}</strong> recovers ${r.got} ${esc(r.kind)}<div class="log-detail">Half of the ${r.spent} used, rounded down.</div>`})));
     if (room && db) {
-      const updates = {log: null, prompts: null, meta: {...metaOf(), round: 1, combatStarted: false, activeId: ''}};
+      const updates = {log: null, prompts: null, meta: {...metaOf(), round: 1, combatStarted: false, activeId: '', ended: sum}};
       gone.forEach(c => { updates['combatants/' + c.id] = null; });
       db.ref('rooms/' + room).update(updates);
     }
-    setCombatants(prev => prev.filter(c => c.type !== 'monster'));
+    setEnded(sum);
+    setCombatants(kept);
     setPrompts([]);
-    setLog([]);
+    setLog(entries);
     setCombatStarted(false);
     setRound(1);
     setActiveId('');
     setTargetIds([]);
     setSelectedAction(null);
     setAdvantage(0);
+    if (!room) { setEndTab('do'); setShowEnd(true); }
+  };
+  // After the fight a player can change how much ammunition came back. Anything other than half is written in red.
+  const changeRecovered = (c, kind, n) => {
+    const r = (c.recovered || {})[kind]; if (!r) return;
+    const got = Math.max(0, Math.min(+r.spent || 0, parseInt(n, 10) || 0)); if (got === r.got) return;
+    setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, ammo: {...(x.ammo || {}), [kind]: {...ammoOf(x, kind), left: Math.max(0, ammoOf(x, kind).left + got - r.got)}}, recovered: {...x.recovered, [kind]: {...r, got}}}));
+    setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> changes the ${esc(kind)} recovered from ${r.got} to ${got}<div class="log-detail" style="color:${got === r.half ? 'inherit' : 'var(--danger)'}">${got === r.half ? 'Back to half of what was used.' : `Half of the ${r.spent} used would be ${r.half}.`}</div>`})]);
+  };
+  const starText = () => stars.map(x => String(x.html || '').replace(/<br\s*\/?>/gi, ' · ').replace(/<\/div>/gi, ' ').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim()).join('\n');
+  const saveStarsToNotes = () => {
+    if (!stars.length) return;
+    const d = new Date(), z = n => String(n).padStart(2, '0'), date = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+    const note = {id: newId().slice(0, 18), title: `Combat, ${date}`, date, text: starText()};
+    const ch = readStoredCharacter(playerCode);
+    if (!ch) { const done = () => window.alert('No character sheet is saved on this computer for your player code, so the starred entries were copied instead. Paste them wherever you keep notes.'); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(note.text).then(done, () => window.prompt('Copy your starred entries:', note.text)); else window.prompt('Copy your starred entries:', note.text); return; }
+    const j = ch.journal && typeof ch.journal === 'object' ? ch.journal : {};
+    lsSet(charKey(playerCode), JSON.stringify({...ch, journal: {...j, sessions: [note, ...(Array.isArray(j.sessions) ? j.sessions : [])]}}));
+    lsSet('hba-note', JSON.stringify({code: playerCode, note, at: Date.now()})); // an open Character Builder adds it to its Journal too
+    window.alert(`Saved to Session Notes in ${ch.name || 'your character'}'s Journal as "${note.title}".`);
   };
   const deleteSession = () => {
     if (!isDM || !room || !db) return;
@@ -2486,7 +2583,7 @@ function App() {
   };
 
   // ── LIVE SYNC ───────────────────────────────────────────────────────────────
-  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || '', reveal: reveal || 'full', revealAC: revealAC !== false, stepOn: stepOn !== false, allowUndo: allowUndo !== false, hideRolls: !!hideRolls, ammoOn: !!ammoOn});
+  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || '', reveal: reveal || 'full', revealAC: revealAC !== false, stepOn: stepOn !== false, allowUndo: allowUndo !== false, hideRolls: !!hideRolls, ammoOn: !!ammoOn, ...(ended ? {ended} : {})});
   const setHash = h => { try { (window.parent || window).history.replaceState(null, '', h); } catch (e) {} };
   const enterSession = code => { promptedRef.current = false; setRemoteSigs(null); setSyncMsg(''); setRoom(code); setRoomInput(''); setHash('#room=' + code); };
 
@@ -2558,7 +2655,7 @@ function App() {
         .sort((a, b) => ((a.seq || 0) - (b.seq || 0)) || (a.id < b.id ? -1 : 1));
       const logList = Object.values(v.log || {}).filter(e => e && e.id).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const m = v.meta || {};
-      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : '', reveal: ['full','bar','conditions','none'].includes(m.reveal) ? m.reveal : 'full', revealAC: m.revealAC !== false, stepOn: m.stepOn !== false, allowUndo: m.allowUndo !== false, hideRolls: !!m.hideRolls, ammoOn: !!m.ammoOn};
+      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : '', reveal: ['full','bar','conditions','none'].includes(m.reveal) ? m.reveal : 'full', revealAC: m.revealAC !== false, stepOn: m.stepOn !== false, allowUndo: m.allowUndo !== false, hideRolls: !!m.hideRolls, ammoOn: !!m.ammoOn, ...(m.ended && m.ended.at ? {ended: m.ended} : {})};
       const promptList = Object.values(v.prompts || {}).filter(q => q && q.id && q.targetId).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const sigs = {combatants: {}, log: {}, prompts: {}, meta: stable(meta)};
       promptList.forEach(q => { sigs.prompts[q.id] = true; });
@@ -2572,7 +2669,7 @@ function App() {
       setActiveId(meta.activeId);
       setDmId(meta.dm);
       setApproval(meta.approval);
-      setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn);
+      setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn); setEnded(prev => stable(prev) === stable(meta.ended || null) ? prev : (meta.ended || null));
       setRemoteSigs(sigs);
       setSyncStatus('live');
     };
@@ -2595,7 +2692,7 @@ function App() {
     if (stable(meta) !== remoteSigs.meta) updates['meta'] = meta;
     if (Object.keys(updates).length) updates['touched'] = firebase.database.ServerValue.TIMESTAMP; // last activity, for the 90-day cleanup
     if (Object.keys(updates).length) db.ref('rooms/' + room).update(updates).catch(err => { console.error('Session write failed', err); setSyncStatus('error'); setSyncMsg('Could not save'); });
-  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, reveal, revealAC, stepOn, allowUndo, hideRolls, ammoOn, room, remoteSigs]);
+  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, reveal, revealAC, stepOn, allowUndo, hideRolls, ammoOn, ended, room, remoteSigs]);
 
   // The DM's computer remembers its sessions and marks them as used whenever the DM opens them.
   useEffect(() => {
@@ -3071,7 +3168,35 @@ function App() {
   // An attack goes in steps when the table rule is on: declare it, roll it, the target sees the roll, then it applies.
   const stepWanted = !!(stepOn && selAction && selAction.type === 'attack' && !selAction.self && inPlay.find(c => c.id === targetIds[0]));
   const isArmed = !!(armed && selAction && armed.actionId === selAction.id);
-  const go = () => { if (stepWanted && !isArmed) declareAttack(); else resolve(); };
+  const armedQ = isArmed ? prompts.find(q => q.id === armed.promptId) : null, armedT = armedQ ? inPlay.find(c => c.id === armedQ.targetId) : null;
+  const waitLeft = armedQ && armedQ.react && !armedQ.answer && armedT && !(armedT.turn || {}).r ? Math.max(0, Math.min(REACT_MS, REACT_MS - (nowTick - (+armedQ.at || 0)))) : 0;
+  const go = () => {
+    if (stepWanted && !isArmed) { declareAttack(); return; }
+    if (waitLeft > 0) return;
+    if (isDM && dmChoose && selAction && selAction.type === 'attack' && viewed && !viewed.owner) setDmAsk({kind: 'attack', label: `${viewed.name}: attack roll with ${selAction.name}`, mod: +selAction.atk || 0, total: ''});
+    else resolve();
+  };
+  const askSave = (q, c) => { // the DM rolls a save: roll it, or choose what it comes to
+    if (isDM && dmChoose && q.kind === 'save' && q.action && !c.owner) setDmAsk({kind: 'prompt', q, label: `${c.name}: ${q.action.saveAbility} saving throw`, mod: (c.saves || {})[q.action.saveAbility] ?? mod((c.scores || {})[q.action.saveAbility] ?? 10), total: ''});
+    else resolvePrompt(q);
+  };
+  const dmAskRun = (useTotal) => {
+    const a = dmAsk; if (!a) return;
+    if (useTotal) { const n = Math.max(1, Math.min(20, (parseInt(a.total, 10) || 0) - a.mod)); NEXT_D20 = n; }
+    setDmAsk(null);
+    if (a.kind === 'attack') resolve(); else resolvePrompt(a.q);
+  };
+  // The DM asks anyone for a saving throw or an ability check, with a DC.
+  const callForRoll = () => {
+    const t = inPlay.find(c => c.id === callRoll.targetId) || null, dc = Math.max(1, Math.min(40, parseInt(callRoll.dc, 10) || 10));
+    if (!t) { window.alert('Choose who makes the roll.'); return; }
+    if (callRoll.kind === 'conc' && !t.conc) { window.alert(`${t.name} is not concentrating on anything.`); return; }
+    const base = {id: newId(), by: myId, targetId: t.id, actorId: '', actorName: 'The DM'};
+    const q = callRoll.kind === 'check' ? {...base, kind: 'check', ability: callRoll.ability, skill: SKILL_ABILITY[callRoll.skill] ? callRoll.skill : '', dc, name: callRoll.why.slice(0, 80)}
+      : callRoll.kind === 'conc' ? {...base, kind: 'save', action: {name: `Concentration on ${t.conc.name}`, dc, saveAbility: 'Constitution', concSave: t.conc.name}}
+      : {...base, kind: 'save', action: {name: callRoll.why.slice(0, 80) || 'a roll the DM called for', dc, saveAbility: callRoll.ability}};
+    setPrompts(prev => [...prev, plain(q)]);
+  };
   const rollPreview = () => { // what will be rolled, with every modifier named
     if (!selAction || !viewed) return '';
     const tgt = inPlay.find(c => c.id === targetIds[0]) || null;
@@ -3098,10 +3223,11 @@ function App() {
       const info = (c.conditions || []).includes(q.cond) ? condInfoOf(c, q.cond) : null;
       return info && info.dc ? {q, c, text: `${info.abil} save to end ${q.cond}`, dc: info.dc} : null;
     }
+    if (q.kind === 'check') return {q, c, text: `${q.ability}${q.skill ? ` (${q.skill})` : ''} check${q.name ? `: ${q.name}` : ''}`, dc: q.dc};
     if (q.action && q.action.concSave) return c.conc && c.conc.name === q.action.concSave ? {q, c, text: `Constitution saving throw to maintain Concentration on ${q.action.concSave}`, dc: q.action.dc} : null;
     return q.action ? {q, c, text: `${q.action.saveAbility} save against ${q.action.name}${q.actorName ? ` from ${q.actorName}` : ''}`, dc: q.action.dc} : null;
   }).filter(Boolean);
-  const flowPrompts = prompts.filter(q => q.kind === 'incoming' && Date.now() - (+q.at || 0) < 600000).map(q => ({q, c: inPlay.find(x => x.id === q.targetId)})).filter(x => x.c);
+  const flowPrompts = prompts.filter(q => (q.kind === 'incoming' || q.kind === 'confirm') && Date.now() - (+q.at || 0) < 600000).map(q => ({q, c: inPlay.find(x => x.id === q.targetId)})).filter(x => x.c);
   const targets = inPlay.filter(c => viewed && c.id !== viewed.id && c.currentHP > 0);
   const rosterMatches = useMemo(() => {
     const q = rosterSearch.trim().toLowerCase();
@@ -3166,18 +3292,24 @@ function App() {
           {flowPrompts.map(({q, c}) => {
             const mine = canControl(c), reactions = mine ? buildActions(c).filter(a => a.activation === 'reaction') : [];
             const react = reactions.length > 0 && <span className="p-btns">{reactions.map(a => <button key={a.id} className="btn btn-ghost btn-sm" title="Open this Reaction on your sheet" onClick={() => { setViewId(c.id); setSelectedAction(a.id); }}>Reaction: {a.name}</button>)}</span>;
+            const noR = (mine && (q.kind === 'confirm' || q.react) && !q.answer) ? <button className="btn btn-primary btn-sm" data-testid="no-reaction" onClick={() => answerPrompt(q, 'pass')}>No Reaction</button> : null;
+            const secs = Math.max(0, Math.ceil(Math.min(REACT_MS, REACT_MS - (nowTick - (+q.at || 0))) / 1000));
             if (q.kind === 'incoming') return (
               <div key={q.id} className={`prompt-item ${mine ? 'yours' : ''}`} data-testid="prompt-incoming">
-                <span><strong>{q.actorName}</strong> is attacking <strong>{c.name}</strong> with {q.what}. It has not been rolled yet. The result is applied as soon as it is.</span>
-                <span className="p-btns">{react}{q.by === myId ? <span className="prompt-wait">Press Roll to hit</span> : null}</span>
+                <span><strong>{q.actorName}</strong> is attacking <strong>{c.name}</strong> with {q.what}. It has not been rolled yet.{q.react && !q.answer ? (mine ? ` You have a Reaction: about ${secs} seconds to decide.` : ` ${c.name} has a moment to use a Reaction.`) : ''}</span>
+                <span className="p-btns">{q.react && !q.answer ? react : null}{noR}{q.by === myId ? <span className="prompt-wait">{q.react && !q.answer && secs > 0 ? 'Waiting on the Reaction' : 'Press Roll to hit'}</span> : null}</span>
               </div>);
-            return null;
+            return (
+              <div key={q.id} className={`prompt-item ${mine ? 'yours' : ''}`} data-testid="prompt-confirm">
+                <span><strong>{q.actorName}</strong>'s {q.what} <strong>{q.hit ? (q.crit ? 'is a Critical Hit on' : 'hits') : 'misses'}</strong> <strong>{c.name}</strong>{q.total != null ? ` (${q.total} to hit)` : ''}. {mine ? `You have a Reaction: about ${secs} seconds to use it before this is resolved.` : `${c.name} has a moment to use a Reaction before this is resolved.`}</span>
+                <span className="p-btns">{react}{noR}</span>
+              </div>);
           })}
           {openPrompts.map(({q, c, text, dc}) => (
             <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`}>
               <span><strong>{c.name}</strong>: {text} · DC {dc}</span>
               {canControl(c)
-                ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="prompt-roll" onClick={()=>resolvePrompt(q)}>🎲 Roll {c.name}'s save</button>
+                ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="prompt-roll" onClick={()=>askSave(q, c)}>🎲 Roll {c.name}'s {q.kind === 'check' ? 'check' : 'save'}</button>
                     {isDM && q.kind === 'save' && <><button className="btn btn-ghost btn-sm" data-testid="rule-fail" onClick={()=>resolvePrompt(q, 'fail')}>Cause to fail</button><button className="btn btn-ghost btn-sm" data-testid="rule-pass" onClick={()=>resolvePrompt(q, 'pass')}>Cause to succeed</button></>}</span>
                 : <span className="prompt-wait">Waiting for {c.owner ? 'its player' : 'the DM'}</span>}
             </div>
@@ -3205,9 +3337,10 @@ function App() {
             )}
             {isDM && (combatStarted || combatants.some(c => c.type === 'monster')) && (
               <div className="initiative-controls">
-                <button className="btn btn-danger btn-full" onClick={endEncounter}>End Encounter</button>
+                <button className="btn btn-danger btn-full" onClick={endEncounter}>End Combat</button>
               </div>
             )}
+            {ended && !combatStarted && <div className="initiative-controls"><button className="btn btn-ghost btn-full" data-testid="end-open" onClick={() => { setEndTab('summary'); setShowEnd(true); }}>After the Fight</button></div>}
             {visible.length === 0 && (
               <div className="empty-state">{isDM ? 'Add combatants to begin' : 'Add your character to join the fight'}</div>
             )}
@@ -3217,7 +3350,7 @@ function App() {
               return (
               <div
                 key={c.id}
-                className={`combatant-card ${isActive?'active':''} ${targetIds.includes(c.id)?'targeted':''} ${c.currentHP<=0?'dead':''} ${c.pending?'pending':''} ${c.owner===myId?'mine':''}`}
+                className={`combatant-card ${isActive?'active':''} ${targetIds.includes(c.id)?'targeted':''} ${c.currentHP<=0?'dead':''} ${c.type==='monster' && c.currentHP<=0 && !openDown[c.id]?'down':''} ${c.pending?'pending':''} ${c.owner===myId?'mine':''}`}
                 onClick={()=>{ if (c.pending) return; if (canControl(c)) { setViewId(c.id); setSelectedAction(null); } else if (!viewed || c.id!==viewed.id) toggleTarget(c.id); }}
                 title={canControl(c) ? 'Click to open this sheet' : 'Click to target'}
               >
@@ -3230,6 +3363,7 @@ function App() {
                     {c.conc && <span className="conc-badge" data-testid={`conc-${c.name}`} title={`Concentrating on ${c.conc.name}${+c.conc.left > 0 ? `, ${timeText(c.conc.left)} left` : ''}${canControl(c) ? '. Click to stop concentrating.' : ''}`}
                       onClick={e=>{ e.stopPropagation(); if (canControl(c)) { if (window.confirm(`Stop concentrating on ${c.conc.name}?`)) endConcentration(c.id); } else window.alert(`${c.name} is concentrating on ${c.conc.name}.`); }}>◈ Concentrating</span>}
                   </div>
+                  {isDM && c.type==='monster' && c.currentHP<=0 && <button className="card-remove" style={{right: 30}} data-testid="down-toggle" title={openDown[c.id] ? 'Fold this defeated creature away' : 'Open this defeated creature up'} onClick={e=>{e.stopPropagation(); setOpenDown(p => ({...p, [c.id]: !p[c.id]}));}}>{openDown[c.id] ? '▾' : '▸'}</button>}
                   {ctl && <button className="card-remove" title="Remove from combat" onClick={e=>{e.stopPropagation(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id);}}>×</button>}
                 </div>
                 {!(veil(c) && (reveal === 'conditions' || reveal === 'none')) && <>
@@ -3280,8 +3414,23 @@ function App() {
                 <label className="rule-label" style={{margin:'2px 0'}} title="An attack is declared, then rolled by the attacker, then shown to the target, and only then applied"><input type="checkbox" data-testid="rule-step" checked={stepOn} onChange={e=>setStepOn(e.target.checked)}/> Attacks are declared before they are rolled, so the target can react</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="A player can take back the action they just took, until the turn changes"><input type="checkbox" data-testid="rule-undo" checked={allowUndo} onChange={e=>setAllowUndo(e.target.checked)}/> Players can take back their last action</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="Players see whether your creatures hit, miss, save or fail, and the damage, but not the numbers you rolled"><input type="checkbox" data-testid="rule-hide-rolls" checked={hideRolls} onChange={e=>setHideRolls(e.target.checked)}/> Hide my rolls from players</label>
+                <label className="rule-label" style={{margin:'2px 0'}} title="When you roll a d20 for one of your creatures, you are asked whether to roll it or to type the total it comes to"><input type="checkbox" data-testid="rule-choose" checked={dmChoose} onChange={e=>{ setDmChoose(e.target.checked); try { window.localStorage.setItem('hba-dm-choose', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> Ask me: roll, or choose the result</label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="The next d20 you roll for an attack, a save or a check shows this number, and looks like any other roll">Next d20 shows <input type="number" min="1" max="20" aria-label="Next d20 shows" data-testid="fudge-d20" value={fudge} onChange={e=>{ const n = Math.max(0, Math.min(20, parseInt(e.target.value, 10) || 0)); NEXT_D20 = n; setFudge(n ? String(n) : ''); }} style={{width:54, marginLeft:6}}/></label>
                 <label className="rule-label" style={{margin:'2px 0'}} title="When on, a player's character waits for you to accept it"><input type="checkbox" checked={approval} onChange={e=>setApproval(e.target.checked)}/> Approve players before they join</label>
+              </div>
+            )}
+            {isDM && leftTab === 'dm' && (
+              <div className="manual-roll" data-testid="call-panel">
+                <span className="label">Call for a Roll</span>
+                <div className="buff-row" style={{flexWrap:'wrap', gap:6}}>
+                  <select aria-label="Who rolls" value={callRoll.targetId} onChange={e=>setCallRoll({...callRoll, targetId: e.target.value})}><option value="">Who rolls?</option>{inPlay.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                  <select aria-label="Kind of roll" value={callRoll.kind} onChange={e=>setCallRoll({...callRoll, kind: e.target.value})}><option value="save">Saving throw</option><option value="check">Ability check</option><option value="conc">Constitution save to maintain Concentration</option></select>
+                  {callRoll.kind !== 'conc' && <select aria-label="Ability" value={callRoll.ability} onChange={e=>setCallRoll({...callRoll, ability: e.target.value, skill: ''})}>{ABILITY_KEYS.map(([k, full]) => <option key={full} value={full}>{full}</option>)}</select>}
+                  {callRoll.kind === 'check' && <select aria-label="Skill" value={callRoll.skill} onChange={e=>setCallRoll({...callRoll, skill: e.target.value, ability: SKILL_ABILITY[e.target.value] || callRoll.ability})}><option value="">No skill</option>{Object.keys(SKILL_ABILITY).map(k => <option key={k} value={k}>{k}</option>)}</select>}
+                  <label className="rule-label" style={{margin:0}}>DC <input type="number" min="1" max="40" aria-label="DC" value={callRoll.dc} onChange={e=>setCallRoll({...callRoll, dc: e.target.value})} style={{width:54, marginLeft:4}}/></label>
+                  {callRoll.kind !== 'conc' && <input aria-label="What it is for" placeholder="What it is for (optional)" value={callRoll.why} onChange={e=>setCallRoll({...callRoll, why: e.target.value})} style={{flex:1, minWidth:120}}/>}
+                  <button className="btn btn-primary btn-sm" data-testid="call-go" onClick={callForRoll}>Ask for it</button>
+                </div>
               </div>
             )}
             {isDM && leftTab === 'dm' && (
@@ -3409,7 +3558,7 @@ function App() {
                 {/* What the chosen action needs */}
                 {selAction && canControl(viewed) && (
                   <div className="do-row" data-testid="do-row">
-                    <button className="btn btn-primary" data-testid="do-action" disabled={!!cannotWhy} onClick={go}>{isArmed ? '🎲 Roll to hit' : `${selAction.spell ? 'Cast' : selAction.type === 'attack' ? 'Attack with' : 'Use'} ${selAction.name}`}</button>
+                    <button className="btn btn-primary" data-testid="do-action" disabled={!!cannotWhy || (isArmed && waitLeft > 0)} onClick={go}>{isArmed && waitLeft > 0 ? `Waiting for ${armedT ? armedT.name : 'the target'} (${Math.ceil(waitLeft / 1000)})` : isArmed ? '🎲 Roll to hit' : `${selAction.spell ? 'Cast' : selAction.type === 'attack' ? 'Attack with' : 'Use'} ${selAction.name}`}</button>
                     {cannotWhy && <span className="do-why" data-testid="do-why">{cannotWhy}</span>}
                     {/is not in hand\.$/.test(cannotWhy || '') && viewed && canControl(viewed) && <button className="btn btn-ghost btn-sm" data-testid="hold-it" onClick={() => holdItem(viewed, selAction.name.replace(/ \(two hands\)$/, ''))}>Hold it</button>}
                     {isArmed && !cannotWhy && <span className="do-roll" data-testid="roll-preview">{rollPreview()}</span>}
@@ -3707,11 +3856,13 @@ function App() {
                 ? <div key={entry.id||i} className="log-round">{entry.text}</div>
                 : entry.dmOnly && !isDM ? null
                 : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result ${entry.void ? 'void' : ''}`}>
+                    <button className={`log-star ${stars.some(x => x.id === entry.id) ? 'on' : ''}`} data-testid="log-star" title="Star this to keep it for after the fight" aria-label="Star this entry" onClick={() => toggleStar(entry)}>{stars.some(x => x.id === entry.id) ? '★' : '☆'}</button>
                     <div className="log-html" dangerouslySetInnerHTML={{__html:sanitizeLogHtml(entry.html)}}/>
                     {entry.void && <div className="log-detail" style={{color:'#fff176'}}>Overridden by the DM. See the new result below.</div>}
                     {entry.dmOnly && <div className="log-detail" style={{color:'#fff176'}}>Only you can see this roll.</div>}
                     {canOverride(entry) && <div className="log-ov"><button className="btn btn-ghost btn-sm" data-testid="log-override" title="Undo what this did and resolve it the other way, with the same roll. Open for one round." onClick={() => overrideEntry(entry)}>
-                      Override: {entry.ov.k === 'atk' ? (entry.ov.hit ? 'cause it to miss' : 'cause it to hit') : (entry.ov.passed ? 'cause to fail' : 'cause to succeed')}</button></div>}
+                      Override: {(entry.ov.k === 'atk' ? entry.ov.hit : entry.ov.passed) ? 'cause to fail' : 'cause to succeed'}</button></div>}
+                    {canEndConc(entry) && <div className="log-ov"><button className="btn btn-ghost btn-sm" data-testid="conc-end" onClick={() => endConcentration(entry.concEnd.id, 'After a failed Constitution saving throw to maintain Concentration.')}>End Concentration on {entry.concEnd.name}</button></div>}
                   </div>
             ))}
             <div ref={logEndRef}/>
@@ -3725,6 +3876,66 @@ function App() {
       </div>
 
       {renderStd()}
+      {dmAsk && (
+        <div className="modal-overlay" onClick={() => setDmAsk(null)}>
+          <div className="modal" data-testid="dm-ask" onClick={e => e.stopPropagation()} style={{maxWidth: 420}}>
+            <div className="modal-header">{dmAsk.label}</div>
+            <div className="modal-body">
+              <button className="btn btn-primary btn-full" data-testid="dm-roll" style={{marginBottom: 10}} onClick={() => dmAskRun(false)}>🎲 Roll it</button>
+              <div className="buff-row" style={{alignItems:'center', gap: 8}}>
+                <span>Or choose the total</span>
+                <input type="number" aria-label="Total to show" data-testid="dm-total" autoFocus value={dmAsk.total} onChange={e => setDmAsk({...dmAsk, total: e.target.value})} onKeyDown={e => { if (e.key === 'Enter' && dmAsk.total !== '') dmAskRun(true); }} style={{width: 70}}/>
+                <button className="btn btn-primary btn-sm" data-testid="dm-go" disabled={dmAsk.total === ''} onClick={() => dmAskRun(true)}>Go</button>
+              </div>
+              {dmAsk.total !== '' && <div className="buff-note">The d20 will show {Math.max(1, Math.min(20, (parseInt(dmAsk.total, 10) || 0) - dmAsk.mod))} with {signed(dmAsk.mod)}, and it is written like any other roll.{((parseInt(dmAsk.total, 10) || 0) - dmAsk.mod > 20 || (parseInt(dmAsk.total, 10) || 0) - dmAsk.mod < 1) ? ' A d20 cannot reach that total, so this is the closest.' : ''}</div>}
+              <div className="buff-note">Switch this question off in DM Controls.</div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showEnd && (() => {
+        const mine = combatants.filter(c => !c.pending && c.type !== 'monster' && canControl(c));
+        const arr = x => Array.isArray(x) ? x : (x && typeof x === 'object' ? Object.values(x) : []); // empty lists do not survive the trip through the session
+        const e0 = ended || {}, sum = {rounds: +e0.rounds || 0, rows: arr(e0.rows), stable: arr(e0.stable), ammo: arr(e0.ammo), xp: {total: +((e0.xp || {}).total) || 0, each: +((e0.xp || {}).each) || 0, players: +((e0.xp || {}).players) || 1, from: arr((e0.xp || {}).from)}};
+        const running = combatants.flatMap(c => (c.effects || []).filter(e => +e.left > 0).map(e => `${e.name} on ${c.name}, ${timeText(e.left)} left`));
+        return (
+        <div className="modal-overlay" onClick={() => setShowEnd(false)}>
+          <div className="modal" data-testid="end-panel" onClick={e => e.stopPropagation()} style={{maxWidth: 640}}>
+            <div className="modal-header">After the Fight</div>
+            <div className="modal-body">
+              <div className="end-tabs" role="tablist">{[['do', 'What you can do'], ['summary', 'Summary'], ['starred', `Starred log (${stars.length})`]].map(([k, l]) => <button key={k} role="tab" data-testid={`end-tab-${k}`} className={endTab === k ? 'on' : ''} onClick={() => setEndTab(k)}>{l}</button>)}</div>
+              {endTab === 'do' && <div data-testid="end-do">
+                <div className="buff-note" data-testid="end-auto"><strong>Done already.</strong> Actions, Bonus Actions, Reactions and Movement are reset.{sum.stable.length ? ` ${sum.stable.join(', ')} ${sum.stable.length > 1 ? 'are' : 'is'} Stable.` : ' Nobody was making Death Saving Throws.'}{sum.ammo.length ? ` Half of the ammunition used was recovered: ${sum.ammo.map(r => `${r.name} ${r.got} of ${r.spent} ${r.kind}`).join(', ')}.` : ''}</div>
+                {mine.length === 0 && <div className="empty-state">You have no characters here.</div>}
+                {mine.map(c => (
+                  <div key={c.id} className="pp-entry" data-testid="end-char" style={{marginBottom: 10}}>
+                    <div><strong>{c.name}</strong> · {c.currentHP} of {totalHP(c)} Hit Points</div>
+                    {c.conc && <div className="log-ov"><span>End Concentration on {c.conc.name}?</span><button className="btn btn-ghost btn-sm" data-testid="end-conc" onClick={() => endConcentration(c.id, 'Ended after the fight.')}>End it</button></div>}
+                    {(c.conditions || []).length > 0 && <div className="log-ov"><span>Conditions (click to remove):</span>{c.conditions.map(k => <button key={k} className="btn btn-ghost btn-sm" data-testid="end-cond" onClick={() => removeCondition(c.id, k)}>{k} ×</button>)}
+                      <button className="btn btn-ghost btn-sm" data-testid="end-cond-all" onClick={() => c.conditions.forEach(k => removeCondition(c.id, k))}>Remove all conditions</button></div>}
+                    {Object.keys(c.recovered || {}).map(k => <div key={k} className="log-ov"><span>{k} recovered, of {c.recovered[k].spent} used:</span>
+                      <input type="number" min="0" max={c.recovered[k].spent} aria-label={`${k} recovered`} data-testid="end-ammo" defaultValue={c.recovered[k].got} onBlur={e => changeRecovered(c, k, e.target.value)} onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }} style={{width: 60}}/>
+                      <span className="pp-muted">Half is {c.recovered[k].half}. A different number is noted in the log.</span></div>)}
+                    {!c.conc && !(c.conditions || []).length && !Object.keys(c.recovered || {}).length && <div className="pp-muted">Nothing to decide.</div>}
+                  </div>))}
+                {isDM && combatants.some(c => (c.conditions || []).length) && <button className="btn btn-ghost btn-full" data-testid="end-cond-everyone" onClick={() => combatants.forEach(c => (c.conditions || []).forEach(k => removeCondition(c.id, k)))}>Remove all conditions from everyone</button>}
+              </div>}
+              {endTab === 'summary' && <div data-testid="end-summary">
+                <div className="buff-note">{sum.rounds} round{sum.rounds === 1 ? '' : 's'}, about {timeText(sum.rounds * 6)}.{sum.xp.total > 0 ? ` Experience Points: ${sum.xp.total} for ${sum.xp.from.join(', ')}, which is ${sum.xp.each} each for ${sum.xp.players} player character${sum.xp.players === 1 ? '' : 's'}.` : ' No creatures with a Challenge Rating were defeated, so no Experience Points are worked out.'}</div>
+                <table className="end-table"><thead><tr><th>Who</th><th>Damage dealt</th><th>Damage taken</th><th>Hit Points now</th><th>Hit Point Dice left</th><th>Spent this fight</th></tr></thead>
+                  <tbody>{sum.rows.map(r => { const c = combatants.find(x => x.id === r.id); return (
+                    <tr key={r.id}><td>{r.name}{r.monster ? ' (monster)' : ''}</td><td>{r.dealt}</td><td>{r.taken}</td><td>{c ? `${c.currentHP} of ${totalHP(c)}` : ''}</td><td>{c && c.sheet ? Math.max(0, c.level - (+c.hitDiceUsed || 0)) : ''}</td><td>{r.spent || (r.monster ? '' : 'Nothing')}</td></tr>); })}</tbody></table>
+                <div className="buff-note">{running.length ? `Still running: ${running.join('; ')}.` : 'No timed effects are still running.'}</div>
+              </div>}
+              {endTab === 'starred' && <div data-testid="end-starred">
+                {stars.length === 0 && <div className="empty-state">Nothing starred. Press the star on an entry in the Combat Log during a fight to keep it here.</div>}
+                {stars.map(x => <div key={x.id} className={`log-entry ${x.type || ''}`}><button className="log-star on" aria-label="Remove the star" onClick={() => toggleStar(x)}>★</button><div dangerouslySetInnerHTML={{__html: sanitizeLogHtml(x.html)}}/></div>)}
+                {stars.length > 0 && <div className="do-row"><button className="btn btn-primary" data-testid="end-save-notes" onClick={saveStarsToNotes}>Save to Session Notes</button><button className="btn btn-ghost btn-sm" data-testid="end-clear-stars" onClick={() => { if (window.confirm('Remove every star?')) saveStars([]); }}>Clear stars</button></div>}
+              </div>}
+              <div className="do-row"><button className="btn btn-ghost btn-sm" data-testid="end-close" onClick={() => setShowEnd(false)}>Close</button></div>
+            </div>
+          </div>
+        </div>); })()}
       {handPick && (() => {
         const c = combatants.find(x => x.id === handPick.cId); if (!c) return null;
         const hd = handsOf(c), close = () => setHandPick(null), nth = i => i ? 'second hand' : 'first hand';
@@ -3770,7 +3981,8 @@ function App() {
             <div className="modal-body">
               <div className="log-entry" dangerouslySetInnerHTML={{__html: notices[0].html}} />
               <div className="buff-note">Hit Points, conditions and effects are already updated. Switch these off with Pop-ups above the Combat Log.</div>
-              <button className="btn btn-primary btn-full" data-testid="notice-ok" onClick={() => setNotices(prev => prev.slice(1))}>OK</button>
+              {canEndConc(notices[0]) && <button className="btn btn-danger btn-full" style={{marginBottom: 6}} data-testid="notice-conc-end" onClick={() => { endConcentration(notices[0].concEnd.id, 'After a failed Constitution saving throw to maintain Concentration.'); setNotices(prev => prev.slice(1)); }}>End Concentration on {notices[0].concEnd.name}</button>}
+              <button className="btn btn-primary btn-full" data-testid="notice-ok" onClick={() => setNotices(prev => prev.slice(1))}>{canEndConc(notices[0]) ? 'Keep concentrating' : 'OK'}</button>
             </div>
           </div>
         </div>

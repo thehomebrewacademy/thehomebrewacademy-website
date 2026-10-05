@@ -1997,6 +1997,20 @@ function CharacterSheet() {
   const [playerCode, setPlayerCode] = useState(currentPlayerCode);
   const [codeInput, setCodeInput] = useState("");
   const [ready, setReady] = useState(false);
+  // Starred Combat Log entries saved from the Combat Resolver arrive here as a Session Notes entry.
+  useEffect(() => {
+    const onNote = (e) => {
+      if (e.key !== "hba-note" || !e.newValue) return;
+      try {
+        const m = JSON.parse(e.newValue), n = m && m.note;
+        if (!n || m.code !== playerCode || typeof n.text !== "string") return;
+        const note = { id: String(n.id || journalId()).slice(0, 20), title: String(n.title || "Combat").slice(0, 80), date: String(n.date || "").slice(0, 20), text: n.text.slice(0, 20000) };
+        setJournal(prev => prev.sessions.some(x => x.id === note.id) ? prev : { ...prev, sessions: [note, ...prev.sessions] });
+      } catch (err) {}
+    };
+    window.addEventListener("storage", onNote);
+    return () => window.removeEventListener("storage", onNote);
+  }, [playerCode]);
 
   const cls = CLASSES[className];
   const profBonus = PROF_BONUS[level - 1];
