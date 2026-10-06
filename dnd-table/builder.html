@@ -170,7 +170,103 @@ SPELLS AND ITEMS
   { "name": "Ashen Grasp", "level": 2, "school": "Necromancy", "classes": ["Warden", "Warlock"], "castingTime": "Action", "range": "60 feet", "duration": "1 minute", "concentration": true, "ritual": false, "components": "VSM", "material": "a pinch of ash worth 10+ GP, which the spell consumes", "text": "Full spell text." }
 ]
 components is the letters V (Verbal), S (Somatic) and M (Material) the spell needs, such as "V", "VS" or "VSM". material is the Material component exactly as the spell words it, including "worth 50+ GP" and "which the spell consumes" when it says so. The Combat Resolver reads these when the DM turns on spell components: a Verbal spell cannot be cast while Silenced, a Somatic or Material component needs a free hand, a Component Pouch or Spellcasting Focus stands in for any Material component that has no cost, and a component with a cost has to be owned (and is used up if the spell consumes it).
-level 0 is a cantrip. A spell a character casts in a fight also needs an entry in "abilities" (see below) with grantedBy type "spell".
+level 0 is a cantrip. A spell a character casts in a fight needs a "record" (see SPELL RECORDS below) so the Combat Resolver can run it.
+
+SPELL RECORDS: HOW A SPELL RUNS IN THE COMBAT RESOLVER
+Every spell follows the same steps when it is cast: how it is cast (a spell slot, or as a Ritual), what it costs (a consumed component, gold), who or what it targets, any choice or version the caster picks, how it resolves (attack roll, saving throw, automatic, healing, or simply applied, and anything that depends on the target's Hit Points), every statistic it changes, and how long it lasts. For the app to run those steps, give every spell a "record", and "extras" when the spell needs them, next to its text:
+  { "name": "Ashen Grasp", ..., "text": "Full spell text.", "record": { ... }, "extras": { ... } }
+A spell with no record is still cast: it spends its slot and shows its text, and the table does the rest by hand. Ask yourself for every spell: does it change any statistic of its target or its caster? If yes, that change must be in the record. Use only what the spell's text says.
+
+The "record" object (include every field; use null, [] or "" when a field does not apply):
+- "act": "action" | "bonus" | "reaction" | "long". Use "long" when the casting time is 1 minute or more.
+- "castMinutes": number of minutes when act is "long", else 0.
+- "trig": for a Reaction spell, which of these events lets it be cast, comma separated: "targeted" (you are targeted by an attack, before the roll), "hit" (an attack roll hits you), "miss", "damage" (you take damage), "cast" (a creature you see casts a spell). If none of those fit, write the trigger in the text's own words. Else "".
+- "range": {"kind": "self" | "touch" | "feet" | "sight" | "unlimited" | "special", "feet": number} (feet is 0 unless kind is "feet"; 1 mile = 5280).
+- "area": null, or {"shape": "sphere" | "cone" | "line" | "cube" | "cylinder" | "emanation" | "wall" | "square" | "hemisphere", "size": feet (radius for sphere/cylinder/emanation, length for cone/line/wall, side for cube/square), "width": feet or 0, "height": feet or 0}.
+- "targets": {"n": number or "any" (use "any" for everything in an area or "any number"), "perSlot": extra targets per slot level above the spell's level (0 if none), "self": "only" (always and only the caster) | "may" (caster can be a target) | "no", "kind": "creature" | "object" | "creature or object" | "point" | "none", "size": null or the LARGEST size allowed ("Tiny","Small","Medium","Large","Huge","Gargantuan"), "types": [] or the only creature types allowed (e.g. ["Humanoid"]), "notTypes": [] or creature types the spell has no effect on (e.g. ["Undead","Construct"]), "willing": true if the text says a willing creature}.
+- "k": the main thing the app resolves:
+  - "attack": the caster makes a spell attack roll.
+  - "save": each target makes a saving throw.
+  - "auto": damage with no attack roll and no save.
+  - "heal": restores Hit Points.
+  - "apply": no roll; puts effects, conditions or Temporary Hit Points on the target(s) or the caster.
+  - "info": the spell does nothing the app can put on a creature (pure utility, illusion, travel, information, creation). Use this only when none of the others fit.
+- "atk": "melee" | "ranged" | null (for k = attack).
+- "save": the ability name ("Dexterity"...) or null. If targets choose or the ability varies, pick the one in the text and explain in "other".
+- "dmg": list of [dice, type], e.g. [["8d6","Fire"]]. Several entries when the spell deals more than one type. [] if none. If the caster chooses the type, write "$1" as the type and list the types in "choices" (see the extras).
+- "half": true if a successful save takes half damage, else false.
+- "cantrip": true if this is a cantrip whose damage dice increase at character levels 5, 11 and 17.
+- "heal": dice string for Hit Points restored ("2d8", "70"), or "". "healMod": true if the spellcasting ability modifier is added.
+- "temp": dice string for Temporary Hit Points given ("2d4+4"), or "".
+- "addMod": true if the spellcasting ability modifier is added to the damage (e.g. Spiritual Weapon), else false.
+- "onHit", "onFail", "onSuccess", "onUse": each is null or {"conds": [...], "effs": [...]}.
+  - onHit: applied to the target when the attack hits. onFail / onSuccess: applied on a failed / successful save. onUse: applied when cast (k = apply or heal), with no roll.
+  - a cond is {"name": one of Blinded, Charmed, Deafened, Frightened, Grappled, Incapacitated, Invisible, Paralyzed, Petrified, Poisoned, Prone, Restrained, Stunned, Unconscious, "repeat": "end" | "start" | null (the target repeats the save at the end / start of each of its turns to end it), "note": ""}.
+  - an eff is an object with any of the EFFECT KEYS below. Put every separate thing the spell does to the creature.
+- "selfEffs": effects placed on the caster in addition to what happens to targets ([] if none). When the caster is the only target, use targets.self = "only" and "onUse" instead.
+- "dur": duration in seconds (round = 6, minute = 60, hour = 3600, day = 86400). 0 for Instantaneous. For "until dispelled" use 0 and set "untilDispelled": true (else false).
+- "up": what a higher slot does, per slot level above the base, as an object with any of: {"dmg": "1d6", "heal": "1d8", "temp": "5", "targets": 1, "hpMax": 5, "dur": "text", "note": "text"}; null if nothing. "upEvery": 1 normally, 2 if the increase is per two slot levels.
+- "again": null, or "action" | "bonus" | "free": while the spell lasts, the caster can use its effect again on later turns (attack again, move it and deal damage again, repeat the damage) at that cost. Use "free" when damage recurs with no action (a creature starts its turn in the area, enters the area).
+- "movable": true if the text lets the caster move the effect to a new creature later without casting again (Hunter's Mark, Hex).
+- "summon": null | "summon" (brings a creature or spirit with a stat block into play) | "form" (the target or caster takes a creature's stat block).
+- "timing": list of {"when": "cast" | "hit" | "failed save" | "start of target's turn" | "end of target's turn" | "start of caster's turn" | "enters area" | "ends turn in area" | "moves" | "attacks" | "takes damage" | "other", "what": short plain-English statement} covering EVERY effect of the spell and when it happens. This list must be complete even where the structured fields cannot express it.
+- "notAutomated": plain English list of what the table must still do by hand because no field above can express it. "" if everything is covered.
+- "other": anything in the spell's rules that none of the fields above cover at all (special conditions, choices, exceptions, costs, things a map would need). "" if nothing.
+
+Effect keys (for "effs" and "selfEffs"). Use only these keys; anything else goes in "note":
+- "name": short label; default is the spell's name.
+- "ac": number added to AC (Shield of Faith: 2). "acMin": AC cannot be lower than this number. "acBase": base AC number to which the Dexterity modifier is added when not wearing armor (Mage Armor: 13).
+- "speed": feet added to Speed (negative to reduce). "speedMult": 2 doubled, 0.5 halved. "speedZero": true if Speed becomes 0.
+- "init": number added to Initiative.
+- "d20": number added to every D20 Test.
+- "atk": dice added to the creature's attack rolls ("1d4", or "-1d4" as a penalty). "save": dice added to its saving throws ("1d4" / "-1d4"). "check": dice added to ability checks, with "checkSkill": a skill name if only one skill.
+- "saveAdv": ability name it has Advantage on saves with. "saveDis": ability name it has Disadvantage on saves with. "checkDis": ability name it has Disadvantage on checks with. "checkAdv": ability name it has Advantage on checks with.
+- "atkAdv": true if its attack rolls have Advantage. "atkDis": true if its attack rolls have Disadvantage.
+- "advAgainst": true if attack rolls against it have Advantage. "disAgainst": true if attack rolls against it have Disadvantage.
+- "noInvisible": true if it cannot benefit from the Invisible condition.
+- "bonusDmg": dice of extra damage dealt to it, with "bonusType", and "fromCaster": true if only the caster's hits deal it (Hunter's Mark, Hex).
+- "dmgBonus": number or dice added to the damage of the creature's own weapon attacks (Divine Favor: "1d4" with "bonusType": "Radiant" goes here as "weaponDmg": "1d4", "weaponDmgType": "Radiant").
+- "resist": comma list of damage types it gains Resistance to. "immuneDmg": comma list of damage types it becomes Immune to. "vuln": comma list it becomes Vulnerable to.
+- "immune": one condition name it cannot have / is protected from. "condImmune": comma list when more than one.
+- "tempEachTurn": number of Temporary Hit Points gained at the start of each of its turns.
+- "hpMax": number added to its Hit Point maximum (Aid: 5).
+- "sizeStep": +1 (one size larger) or -1 (one size smaller).
+- "noReact": true if it cannot take Reactions. "noHeal": true if it cannot regain Hit Points.
+- "sense": short text of a sense gained ("Darkvision 150 ft."). "move": short text of a movement mode gained ("Fly Speed 60 ft.").
+- "note": short plain-English reminder for anything about this effect the keys cannot express.
+- "ward0": true. The first time the creature would drop to 0 Hit Points it drops to 1 instead, and this effect ends (Death Ward).
+- "sanctuary": true. A creature that targets it with an attack or harmful spell must first succeed on a Wisdom save against the caster's spell save DC or lose that attack (Sanctuary).
+- "images": 3. Illusory duplicates. Each time an attack hits, roll d6 per duplicate; on any 3+ a duplicate is hit and destroyed instead (Mirror Image).
+- "endsOnAct": true. The effect ends when the creature makes an attack roll, deals damage or casts a spell (Invisibility).
+- "endsOnDamage": true. The effect ends when the creature takes any damage.
+- "saveEnds": "end" or "start". The creature repeats the spell's saving throw at the end / start of each of its turns; a success ends this effect (Slow, Bane-like effects without a named condition).
+- "weaponAtk": number added to the creature's weapon attack rolls (Magic Weapon: 1), used with "dmgBonus".
+- "stable": true. A creature at 0 Hit Points becomes Stable (Spare the Dying).
+- "dashBonus": true. The creature can take the Dash action as a Bonus Action (Expeditious Retreat).
+- "protect": true. Aberrations, Celestials, Elementals, Fey, Fiends and Undead have Disadvantage on attack rolls against it (Protection from Evil and Good).
+- "extraAction": short text of an additional action it gains each turn (Haste).
+- "turnRoll": {"when": "end" or "start", "dice": "1d6", "text": "what the result means"}: a die rolled every turn of the creature (Blink).
+- A condition given with no save (Invisibility: Invisible) goes in "onUse" under "conds".
+- In any text value inside an effect, a damage type or a condition name you may write "$1" or "$2" to stand for the caster's first or second choice (see "choices" below).
+
+The "extras" object (include only the keys that apply):
+- "choices": up to two choices the caster makes when casting, each {"label": "Skill", "options": ["Acrobatics", "Animal Handling", ...]}. Give the full explicit list of options from the text (all 18 skills, the six abilities, the listed damage types, the listed commands...). Refer to the chosen option as "$1" (first choice) or "$2" in effect values and damage types. Examples: Guidance: effs [{"check": "1d4", "checkSkill": "$1"}]. Resistance: effs [{"resistType": "$1"}] ("resistType" = reduces that damage type by 1d4 once per turn). Chromatic Orb: dmg [["3d8", "$1"]]. Hex: effs [{"bonusDmg": "1d6", "bonusType": "Necrotic", "fromCaster": true, "checkDis": "$1"}].
+- "modes": when the spell has separate versions the caster picks between (Enlarge / Reduce; Blindness / Deafness; the options of Bestow Curse, Command, Contagion, Symbol, Control Water...): [{"name": "Enlarge", "set": { any record fields that differ for this mode: "k", "save", "dmg", "half", "onFail", "onUse", "onHit", "onSuccess", "selfEffs", "heal", "temp", "dur", "targets", "area" }}]. Every mode in the text gets an entry. The record itself should hold what is common to all modes.
+- "remove": the spell ends things on the target: {"conds": ["Blinded", "Deafened", "Paralyzed", "Poisoned"] (conditions it can end), "count": 1 or "all", "exhaustion": levels removed or 0, "effects": null | "curse" | "spells" | "any" (which lasting effects it can end), "maxLevel": for Dispel Magic the spell level ended automatically (3), else 0, "hpMaxRestore": true if it restores a reduced Hit Point maximum}.
+- "byHP": the effect depends on the target's current Hit Points: {"max": 100, "atOrBelow": { record fields that apply when its Hit Points are that or lower }, "above": { record fields that apply otherwise }} (Power Word Kill, Power Word Stun). If there are several bands (Divine Word), use "bands": [{"max": 20, "set": {...}}, {"max": 30, "set": {...}}, ...] instead.
+- "attacks": the spell makes several separate attack rolls or sends several darts that may go to the same or different targets: {"n": 3, "perSlot": 1 (more per slot level), "byLevel": true if a cantrip that gains one more at character levels 5, 11 and 17 (Eldritch Blast: n 1, byLevel true)}. Then the record's "dmg" is the damage of ONE attack or dart and the record's targets "n" is 1.
+- "askDM": the spell's result is information the DM provides: a short sentence saying what the DM must tell the caster (Augury, Divination, Identify, Legend Lore, Commune, Locate spells, Detect spells' later questions).
+- "cost": the Material component has a price: {"gp": number, "consumed": true or false}.
+- "summonCtl": for spells whose "summon" is "summon": {"commandAct": "bonus" | "action" | null (what it costs the caster to command it, null if it acts on its own or obeys verbal commands for free), "controlSecs": seconds the caster keeps control (0 if as long as the spell lasts), "actsAfterCaster": true if it shares the caster's Initiative / acts right after, false if it rolls its own, "count": number of creatures (1 if one), "statBlock": name of the stat block in the text if it names one ("Skeleton", "Zombie", "Otherworldly Steed"), else ""}.
+- "form": the target (or caster) takes on a stat block: {"on": "target" | "self", "limit": short text of what forms are allowed ("a Beast with Challenge Rating up to the target's level"), "tempHP": true if it gains Temporary Hit Points equal to the form's Hit Points, false if its Hit Points are replaced}.
+- "move": the spell moves creatures: {"kind": "teleport" | "push" | "pull" | "fly" | "fall", "feet": number, "who": "self" | "target" | "self and others", "others": number of willing creatures that can come along (0 if none)}.
+- "zone": for a spell that leaves an area in play that keeps affecting creatures: {"enter": true if it acts when a creature enters, "startTurn": true if at the start of a creature's turn there, "endTurn": true if at the end, "difficult": true if it is Difficult Terrain, "obscured": "lightly" | "heavily" | "", "oncePerTurn": true if a creature can be affected only once per turn}. Also set the record's "again" to "free" for these.
+- "viaWeapon": the spell is an attack made with a weapon the caster holds, using the spellcasting ability (True Strike): {"byLevel": true if it adds 1d6, 2d6 and 3d6 extra damage at character levels 5, 11 and 17, "type": the extra damage type}. The player then picks the weapon when casting.
+- "weaponBuff": the spell changes how a held weapon attacks while it lasts (Shillelagh): {"weapons": "Club|Quarterstaff" (weapon names, separated by |), "die": "1d8" (its new damage die), "byLevel": true if the die grows at levels 5, 11 and 17, "type": a damage type it may deal instead}.
+- "castRoll": a die rolled once when the spell is cast, shown to the table: {"dice": "1d4+1", "text": "what the number means"}.
+- "cannot": if, after all of this, part of the spell still cannot be expressed, one short sentence saying exactly what and why. Leave it out if nothing.
+A spell that ends things ("remove") needs no choice written for it: the caster is shown what the target really has and picks from that. A Ritual needs nothing here either: "ritual": true on the spell is enough, and the player is asked whether to cast it as a Ritual (10 minutes longer, no spell slot) or with a spell slot. A component with a price ("cost") is paid in gold when the spell is cast: once if it is kept, every time if the spell consumes it, and the spell cannot be cast without the gold.
+
 
 "items": [
   { "name": "Lantern of the Deep", "rarity": "Rare", "type": "Wondrous Item", "attunement": true, "description": "Full item text." }
@@ -475,11 +571,13 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 - Every class has armorProf and weaponProf written in the standard words ("Light, Medium, Heavy, Shields" and "Simple, Martial", or "Martial weapons with Finesse or Light property"), because the builder reads them to know what the character is proficient with. A weapon the character is not proficient with gets no Proficiency Bonus on its attack roll.
 - A class that casts with points has spellPoints, and a resource whose name matches its pool exactly.
 - Every spell has its components, and its material written out when it has one.
+- Every spell has a "record", and every statistic the spell changes is in it. Every "you choose" is in "choices" or "modes", every spell that ends a condition or effect has "remove", every costly component has "cost", every summoned or assumed creature has "summonCtl" or "form", and every lasting area has "zone".
 - Every "Hit Point maximum increases" is an effect with hitPointMaximum, not healing.
 - Every magic armor, shield and weapon has a type in the exact "Armor (...)" or "Weapon (...)" form, and a "bonus" when it has one.
 - Every feat is an object with a category, and every "choose a cantrip" or "choose a spell" in a feat is a spellChoices entry with the exact level, lists and schools the text allows.
 - Rules text is copied as written, and spell levels read "Level X School".
-</script>
+
+  </script>
   <script type="text/babel">
 const { useState, useMemo, useRef, useEffect } = React;
 
@@ -1442,7 +1540,7 @@ function checkPack(raw) {
     const name = pStr(pObj(sp).name, 60).trim(); if (!name) return;
     pack.spells.push({ name, level: Math.max(0, Math.min(9, parseInt(sp.level, 10) || 0)), school: pStr(sp.school, 20), classes: pArr(sp.classes).map((x) => pStr(x, 40)),
       castingTime: pStr(sp.castingTime, 60), range: pStr(sp.range, 60), duration: pStr(sp.duration, 60), concentration: !!sp.concentration, ritual: !!sp.ritual, text: pStr(sp.text, 3000),
-      components: (pStr(sp.components, 10).toUpperCase().match(/[VSM]/g) || []).filter((x, i, a) => a.indexOf(x) === i).join(""), material: pStr(sp.material, 240) });
+      components: (pStr(sp.components, 10).toUpperCase().match(/[VSM]/g) || []).filter((x, i, a) => a.indexOf(x) === i).join(""), material: pStr(sp.material, 240), record: packRecord(sp.record, 12000), extras: packRecord(sp.extras, 12000) });
   });
   pArr(raw.items).slice(0, 600).forEach((it) => {
     const name = pStr(pObj(it).name, 80).trim(); if (!name) return;
@@ -1488,7 +1586,7 @@ function mergePack(pack) {
   Object.keys(pack.feats).forEach((name) => { const def = typeof pack.feats[name] === "string" ? { category: "Any", text: pack.feats[name] } : pack.feats[name]; ORIGIN_FEATS[name] = def.text || ""; FEATS[name] = def; });
   pack.items.forEach((it) => { const k = MAGIC_ITEMS.findIndex((x) => x.name === it.name); if (k >= 0) MAGIC_ITEMS[k] = it; else MAGIC_ITEMS.push(it); });
   pack.spells.forEach((sp) => { const k = PACK_SPELLS.findIndex((x) => x.name === sp.name); if (k >= 0) PACK_SPELLS[k] = sp; else PACK_SPELLS.push(sp); });
-  pack.spells.forEach((sp) => registerSpell({ n: sp.name, l: sp.level, s: sp.school || "", c: sp.classes || [], t: sp.castingTime || "", r: sp.range || "", k: sp.components || "", mat: sp.material || "", d: sp.duration || "", x: sp.text || "", conc: sp.concentration ? 1 : 0, rit: sp.ritual ? 1 : 0, pack: true }));
+  pack.spells.forEach((sp) => registerSpell({ n: sp.name, l: sp.level, s: sp.school || "", c: sp.classes || [], t: sp.castingTime || "", r: sp.range || "", k: sp.components || "", mat: sp.material || "", d: sp.duration || "", x: sp.text || "", conc: sp.concentration ? 1 : 0, rit: sp.ritual ? 1 : 0, pack: true, ...(sp.record ? { f: sp.record, e: sp.extras || {} } : {}) }));
   pack.abilities.forEach((ab) => PACK_ABILITIES.push(ab));
 }
 function storedPacks() { try { const a = JSON.parse(lsGet(PACKS_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
@@ -1986,7 +2084,8 @@ function CharacterSheet() {
   const [currentHp, setCurrentHp] = useState(null);
   const [tempHp, setTempHp] = useState(0);
   const [hitDiceUsed, setHitDiceUsed] = useState(0);
-  const [xp, setXp] = useState(0); // Experience Points; the Combat Resolver adds to this when the DM gives them out
+  const [xp, setXp] = useState(0);
+  const [gold, setGold] = useState(0); // gold pieces: spells with a costly Material component spend it in the Combat Resolver // Experience Points; the Combat Resolver adds to this when the DM gives them out
 
   // Equipment / notes
   const [equipment, setEquipment] = useState("");
@@ -2541,7 +2640,7 @@ function CharacterSheet() {
           ? `${PACT_SLOTS[level].slots} Pact Magic slots of Level ${PACT_SLOTS[level].level}`
           : (getSpellSlots(className, level) || []).map((n, i) => `Level ${i + 1}: ${n}`).join(", ")
       } : null,
-      hitDie: cls ? cls.hitDie : null, hitDiceUsed, xp,
+      hitDie: cls ? cls.hitDie : null, hitDiceUsed, xp, gold,
       size: (((RULES && RULES.species || {})[species] || {}).size) || "Medium",
       equipment,
       items: Array.from(new Set(characterItems.map(i => i && i.name).filter(Boolean))),
@@ -2629,6 +2728,7 @@ function CharacterSheet() {
     setTempHp(parseInt(s.tempHp) || 0);
     setHitDiceUsed(parseInt(s.hitDiceUsed) || 0);
     setXp(Math.max(0, parseInt(data.xp) || 0));
+    setGold(Math.max(0, parseFloat(data.gold) || 0));
     setEquipment(String(s.equipment || ""));
     setNotes(String(s.notes || ""));
     setJournal(cleanJournal(s.journal, s.notes, s.equipment));
@@ -2680,7 +2780,7 @@ function CharacterSheet() {
     const onStorage = (e) => {
       if (e.key === CODE_KEY && e.newValue && cleanCode(e.newValue) !== playerCode) openPlayerCode(e.newValue, false);
       if (e.key === charKey(playerCode) && e.newValue) {
-        try { const d = JSON.parse(e.newValue); if (d && d.builder && typeof d.builder.currentHp === "number") setCurrentHp(d.builder.currentHp); if (d && typeof d.xp === "number") setXp(Math.max(0, d.xp)); } catch (err) {}
+        try { const d = JSON.parse(e.newValue); if (d && d.builder && typeof d.builder.currentHp === "number") setCurrentHp(d.builder.currentHp); if (d && typeof d.xp === "number") setXp(Math.max(0, d.xp)); if (d && typeof d.gold === "number") setGold(Math.max(0, d.gold)); } catch (err) {}
       }
     };
     window.addEventListener("storage", onStorage);
@@ -2916,7 +3016,7 @@ function CharacterSheet() {
       {/* CONTENT */}
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px 16px 60px" }}>
         {tab === "identity" && (
-          <IdentityTab {...{ xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
+          <IdentityTab {...{ gold, setGold, xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
         )}
         {tab === "abilities" && (
           <AbilitiesTab {...{ featBonuses, pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay, custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }} />
@@ -2984,7 +3084,7 @@ function fieldStyle(colors) {
 }
 
 const XP_LEVELS = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000]; // Experience Points needed for each level
-function IdentityTab({ xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }) {
+function IdentityTab({ gold, setGold, xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }) {
   const bg = bgEff;
   const [originOpen, setOriginOpen] = useState(false);
   const baseBg = BACKGROUNDS[background] || bgEff;
@@ -3040,6 +3140,11 @@ function IdentityTab({ xp, setXp, className, setClassName, subclassName, setSubc
           <div>
             <label style={{ fontSize: 12, opacity: 0.8 }}>Level</label>
             <input type="number" min={1} max={20} value={level} onChange={e => setLevel(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))} style={fieldStyle(colors)} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, opacity: 0.8 }}>Gold (GP)</label>
+            <input type="number" min={0} data-testid="gold-field" value={gold} onChange={e => setGold(Math.max(0, parseFloat(e.target.value) || 0))} style={fieldStyle(colors)} />
+            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>Spent when you cast a spell whose Material component has a cost.</div>
           </div>
           <div>
             <label style={{ fontSize: 12, opacity: 0.8 }}>Experience Points</label>
@@ -3815,10 +3920,15 @@ function sheetSpell(sp) {
     d: shortTime(sp.d) + (sp.conc ? "<*>" : ""), t: shortTime(sp.t) + (sp.rit ? " (R*)" : ""),
     sum: first.length > 118 ? first.slice(0, 115).replace(/\s+\S*$/, "") + "..." : first, up: String(sp.h || "").slice(0, 130) };
 }
+// A spell record from a Content Pack: kept only if it is a plain object of a sensible size with the fields the app reads.
+function packRecord(o, max) {
+  if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+  try { const j = JSON.stringify(o); if (j.length > max) return null; const r = JSON.parse(j); if (r.targets != null && typeof r.targets !== "object") r.targets = {}; if (r.range != null && typeof r.range !== "object") r.range = {}; ["dmg", "selfEffs", "timing"].forEach((k) => { if (r[k] != null && !Array.isArray(r[k])) r[k] = []; }); return r; } catch (e) { return null; }
+}
 function spellAction(sp, ctx, opts) {
   // A spell the app has no mechanics for is still cast: it spends its slot and posts its text for the table to resolve.
   const m = sp.m || { k: "info", act: /^bonus/i.test(sp.t || "") ? "bonus" : /^reaction/i.test(sp.t || "") ? "reaction" : /^action/i.test(sp.t || "") ? "action" : "" };
-  if (sp.f) return fullSpellAction(sp, ctx, opts); // the spell has a full record: everything it does, when, to whom and at what range
+  if (sp.f) { try { return fullSpellAction(sp, ctx, opts); } catch (e) { if (!sp.pack) throw e; } } // the spell has a full record: everything it does, when, to whom and at what range. A pack record that cannot be read falls back to the spell as text.
   const out = { name: sp.n, spell: true, slot: sp.l, desc: sp.x.slice(0, 1200) };
   if (/^reaction/i.test(String(sp.t || ""))) out.trig = String(sp.t).slice(0, 240); // when the Reaction can be taken: the Combat Resolver offers it at that moment
   if (sp.conc) { out.conc = true; const dm = /(\d+) (round|minute|hour|day)/i.exec(String(sp.d || "")); if (dm) out.concSecs = +dm[1] * { round: 6, minute: 60, hour: 3600, day: 86400 }[dm[2].toLowerCase()]; }
@@ -3865,7 +3975,8 @@ function spellAction(sp, ctx, opts) {
 // Every effect, when it happens, who it can target (count, size, creature type), range and area are all carried
 // onto the sheet, so the Combat Resolver can apply them now and a map can use the distances later.
 const FULL_EFF_KEYS = ["ac", "acMin", "acBase", "speed", "speedMult", "speedZero", "init", "d20", "atk", "save", "saveAdv", "saveDis", "checkAdv", "checkDis", "atkDis", "advAgainst", "disAgainst",
-  "noInvisible", "bonusDmg", "bonusType", "fromCaster", "resist", "immuneDmg", "vuln", "immune", "condImmune", "tempEachTurn", "hpMax", "sizeStep", "noReact", "noHeal", "sense", "move", "weaponDmg", "weaponDmgType"];
+  "noInvisible", "bonusDmg", "bonusType", "fromCaster", "resist", "resistType", "immuneDmg", "vuln", "immune", "condImmune", "tempEachTurn", "hpMax", "sizeStep", "noReact", "noHeal", "sense", "move", "weaponDmg", "weaponDmgType",
+  "ward0", "sanctuary", "images", "endsOnAct", "endsOnDamage", "saveEnds", "weaponAtk", "stable", "dashBonus", "protect", "extraAction", "turnRoll", "kill"];
 const FULL_ABILITIES = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"];
 const FULL_CONDS = ["Blinded", "Charmed", "Deafened", "Frightened", "Grappled", "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone", "Restrained", "Stunned", "Unconscious"];
 function fullEffect(e, sp, f) {
@@ -3873,10 +3984,11 @@ function fullEffect(e, sp, f) {
   FULL_EFF_KEYS.forEach((k) => { if (e[k] != null && e[k] !== "" && e[k] !== false) out[k] = e[k]; });
   if (e.atkAdv === true) out.atkAdv = true;
   const words = { saveAdv: "Advantage on saving throws", saveDis: "Disadvantage on saving throws", checkAdv: "Advantage on ability checks", checkDis: "Disadvantage on ability checks" };
-  Object.keys(words).forEach((k) => { if (out[k] && !FULL_ABILITIES.includes(out[k])) { notes.push(`${words[k]}: ${out[k]}`); delete out[k]; } }); // "all", or one the caster chooses
-  if (out.immune && !FULL_CONDS.includes(out.immune)) { notes.push(`Protected from ${out.immune}`); delete out.immune; }
-  if (e.check) { if (SKILL_ABILITY[e.checkSkill]) { out.check = String(e.check); out.checkSkill = e.checkSkill; } else notes.push(`${String(e.check)[0] === "-" ? "" : "+"}${e.check} to ${e.checkSkill || "ability"} checks`); }
-  if (e.dmgBonus) { if (/^-?\d+$/.test(String(e.dmgBonus))) out.dmgBonus = +e.dmgBonus; else if (!out.weaponDmg) { out.weaponDmg = String(e.dmgBonus); if (e.bonusType && !out.bonusDmg) out.weaponDmgType = e.bonusType; } }
+  const ph = (v) => /\$[12]/.test(String(v)); // "$1": filled in with what the caster chooses when casting
+  Object.keys(words).forEach((k) => { if (out[k] && !FULL_ABILITIES.includes(out[k]) && !ph(out[k])) { notes.push(`${words[k]}: ${out[k]}`); delete out[k]; } }); // "all", or one the caster chooses
+  if (out.immune && !FULL_CONDS.includes(out.immune) && !ph(out.immune)) { notes.push(`Protected from ${out.immune}`); delete out.immune; }
+  if (e.check) { if (SKILL_ABILITY[e.checkSkill] || ph(e.checkSkill)) { out.check = String(e.check); out.checkSkill = e.checkSkill; } else notes.push(`${String(e.check)[0] === "-" ? "" : "+"}${e.check} to ${e.checkSkill || "ability"} checks`); }
+  if (e.dmgBonus) { if (/^-?\d+$/.test(String(e.dmgBonus))) out.dmgBonus = +e.dmgBonus; else if (/^-\d+d\d+$/.test(String(e.dmgBonus))) out.dmgBonus = String(e.dmgBonus); else if (!out.weaponDmg) { out.weaponDmg = String(e.dmgBonus); if (e.bonusType && !out.bonusDmg) out.weaponDmgType = e.bonusType; } }
   if (e.note) notes.push(String(e.note));
   if (notes.length) out.note = notes.join(". ").slice(0, 300);
   if (f.dur > 0) out.left = f.dur;
@@ -3886,11 +3998,12 @@ function fullEffect(e, sp, f) {
 }
 function fullOutcome(o, sp, f) {
   if (!o) return null;
-  const conds = (o.conds || []).filter((c) => c && FULL_CONDS.includes(c.name)).map((c) => ({ name: c.name, ...(f.dur > 0 ? { left: f.dur } : {}), ...(c.repeat === "end" || c.repeat === "start" ? { when: c.repeat } : {}) }));
+  const conds = (o.conds || []).filter((c) => c && (FULL_CONDS.includes(c.name) || /^\$[12]$/.test(String(c.name)))).map((c) => ({ name: c.name, ...(f.dur > 0 ? { left: f.dur } : {}), ...(c.repeat === "end" || c.repeat === "start" ? { when: c.repeat } : {}) }));
   const effs = (o.effs || []).filter(Boolean).map((e) => fullEffect(e, sp, f));
   const out = {};
   if (conds.length) out.conds = conds.slice(0, 4);
   if (effs.length) out.effs = effs.slice(0, 4);
+  if (o.kill) out.kill = true;
   return Object.keys(out).length ? out : null;
 }
 function fullSpellAction(sp, ctx, opts) {
@@ -3915,6 +4028,7 @@ function fullSpellAction(sp, ctx, opts) {
   if (t.willing) out.tgt.willing = true;
   const mult = f.cantrip ? (ctx.LEVEL >= 17 ? 4 : ctx.LEVEL >= 11 ? 3 : ctx.LEVEL >= 5 ? 2 : 1) : 1;
   const isDice = (d) => /^\d+(d\d+)?([+-]\d+(d\d+)?)*$/.test(String(d || "").replace(/\s/g, ""));
+  const x = sp.e || {};
   let dmgList = (f.dmg || []).filter((d) => Array.isArray(d) && isDice(d[0])).map((d, i) => {
     let dice = String(d[0]).replace(/\s/g, ""); if (mult > 1) dice = dice.replace(/^(\d+)d/, (_, n) => `${n * mult}d`);
     if (f.addMod && i === 0) dice = evalDice(`${dice}+SPELLMOD`, ctx) || dice;
@@ -3957,6 +4071,34 @@ function fullSpellAction(sp, ctx, opts) {
   if (["action", "bonus", "free"].includes(f.again)) out.again = f.again;
   if (f.summon === "summon" || f.summon === "form") out.block = f.summon;
   if (f.notAutomated) out.hand = String(f.notAutomated).slice(0, 400); // what the table still does by hand, said plainly when it is cast
+  // ── the fuller protocol: ritual, cost, choices, modes, Hit Point bands, several attacks, removing, asking the DM, summoning, forms, movement, zones ──
+  if (sp.rit) out.ritual = true;
+  if (x.cost && +x.cost.gp > 0) { out.gp = +x.cost.gp; if (x.cost.consumed) out.gpConsumed = true; }
+  if (Array.isArray(x.choices) && x.choices.length && !x.remove) out.choices = x.choices.slice(0, 2).map((c) => ({ label: String(c.label || "Choice").slice(0, 30), options: (c.options || []).map((v) => String(v).slice(0, 40)).slice(0, 30) })).filter((c) => c.options.length);
+  if (x.viaWeapon) { // the spell is an attack made with a weapon the caster holds (True Strike)
+    out.type = "attack"; out.atk = ctx.SPELLATK; delete out.ranged; delete out.dmgList;
+    out.viaWeapon = { extra: x.viaWeapon.byLevel ? (ctx.LEVEL >= 17 ? "3d6" : ctx.LEVEL >= 11 ? "2d6" : ctx.LEVEL >= 5 ? "1d6" : "") : "", type: String(x.viaWeapon.type || "Radiant") };
+  }
+  if (x.weaponBuff && out.onUse && (out.onUse.effs || []).length) { // the spell changes how a held weapon attacks (Shillelagh)
+    const die = x.weaponBuff.byLevel ? (ctx.LEVEL >= 17 ? "2d6" : ctx.LEVEL >= 11 ? "1d12" : ctx.LEVEL >= 5 ? "1d10" : x.weaponBuff.die) : x.weaponBuff.die;
+    out.onUse = { ...out.onUse, effs: [{ ...out.onUse.effs[0], wpn: { re: String(x.weaponBuff.weapons || ""), die: String(die || ""), mod: ctx.SPELLMOD, type: String(x.weaponBuff.type || "") } }, ...out.onUse.effs.slice(1)] };
+  }
+  if (x.castRoll && x.castRoll.dice) out.castRoll = { dice: String(x.castRoll.dice), text: String(x.castRoll.text || "").slice(0, 120) };
+  if (x.attacks && +x.attacks.n > 0) { // separate attack rolls or darts, which can share a target
+    const n = +x.attacks.n + (x.attacks.byLevel ? (ctx.LEVEL >= 17 ? 3 : ctx.LEVEL >= 11 ? 2 : ctx.LEVEL >= 5 ? 1 : 0) : 0);
+    out.multi = true; out.targets = Math.min(20, n); delete out.self;
+    if (+x.attacks.perSlot > 0) out.targetsPerSlot = Math.min(10, +x.attacks.perSlot);
+  }
+  if (x.remove) out.remove = { conds: (x.remove.conds || []).slice(0, 14), count: x.remove.count === "all" ? "all" : 1, exhaustion: +x.remove.exhaustion || 0, effects: x.remove.effects || "", hpMax: !!x.remove.hpMaxRestore, maxLevel: +x.remove.maxLevel || 0 };
+  if (x.askDM) out.askDM = String(x.askDM).slice(0, 300);
+  if (x.summonCtl) { out.block = out.block || "summon"; out.sctl = { cmd: ["bonus", "action"].includes(x.summonCtl.commandAct) ? x.summonCtl.commandAct : "", secs: Math.max(0, +x.summonCtl.controlSecs || 0), after: x.summonCtl.actsAfterCaster !== false, stat: String(x.summonCtl.statBlock || "").slice(0, 60) }; }
+  if (x.form) { out.form = { on: x.form.on === "self" ? "self" : "target", limit: String(x.form.limit || "").slice(0, 200), tempHP: !!x.form.tempHP }; if (out.block === "form" && out.form.on === "target") delete out.block; }
+  if (x.move && x.move.kind) out.mv = { kind: String(x.move.kind).slice(0, 10), feet: Math.max(0, +x.move.feet || 0), who: String(x.move.who || "self").slice(0, 16), others: Math.max(0, +x.move.others || 0) };
+  if (x.zone) { out.zone = { enter: !!x.zone.enter, start: !!x.zone.startTurn, end: !!x.zone.endTurn, difficult: !!x.zone.difficult, obscured: String(x.zone.obscured || "").slice(0, 8), once: !!x.zone.oncePerTurn }; if (!out.again && lasts && ["attack", "save", "auto"].includes(out.type)) out.again = "free"; }
+  const variant = (set) => { const a = fullSpellAction({ ...sp, f: { ...f, ...set }, e: { cost: x.cost } }, ctx, opts); return a ? (({ name, spell, slot, desc, comp, mat, matCost, matConsumed, conc, concSecs, range, hand, ritual, gp, gpConsumed, ...keep }) => keep)(a) : null; };
+  if (Array.isArray(x.modes) && x.modes.length > 1) out.modes = x.modes.slice(0, 12).map((m) => ({ name: String(m.name || "Mode").slice(0, 40), a: variant(m.set || {}) })).filter((m) => m.a);
+  if (x.byHP && +x.byHP.max > 0) out.byHP = [{ max: +x.byHP.max, a: variant(x.byHP.atOrBelow || {}) }, { max: 0, a: variant(x.byHP.above || {}) }].filter((v) => v.a);
+  else if (x.byHP && Array.isArray(x.byHP.bands)) out.byHP = x.byHP.bands.slice(0, 8).map((v) => ({ max: +v.max || 0, a: variant(v.set || {}) })).filter((v) => v.a);
   const extra = (sp.l === 0 ? (o.cantripDamage || 0) : 0) + ((o.schoolDamage || {})[sp.s] || 0); // Potent Spellcasting, Empowered Evocation
   if (extra && out.dmgList) out.dmgList = [[evalDice(`${out.dmgList[0][0]}+${extra}`, ctx), out.dmgList[0][1]], ...out.dmgList.slice(1)];
   if (o.potentCantrip && sp.l === 0 && out.dmgList) { if (out.type === "save") out.halfOnSave = true; if (out.type === "attack") out.missHalf = true; }
