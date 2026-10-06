@@ -307,6 +307,8 @@ uses: { "max": "PROF", "recharge": "short" }
   If the use (or the spell slot) is only spent on one result, add "refundOn": "miss", "hit", "saveSuccess" or "saveFail". The app gives the use back when that result happens. For example, a feature that "isn't expended if the attack misses" has "refundOn": "miss".
 again: when something keeps working on later turns while it lasts (a summoned weapon that attacks each turn, a beam you can fire again), add "again": "bonus", "action" or "free" for what it takes to use it again. The Combat Resolver lists it under Active with a "Use again" button, asks for a target each time, and spends no slot or use. A spell written in a pack can carry "again" in the same way.
 targets not in the fight: nothing needs to be written for this. Anything that needs a target can also be used on "something else", which the player names.
+targetLimit: when the feature only works on some creatures, add "targetLimit" with any of: "maxSize": "Large" (the largest size it works on), "largerBy": 1 (the target can be at most that many sizes larger than the user; 0 means the user's own size or smaller), "types": ["Humanoid"] (only these creature types), "notTypes": ["Undead", "Construct"] (no effect on these). The Combat Resolver refuses a target that does not fit and says why.
+range and area: always record how far it reaches and the space it fills, even though the app does not measure distance yet: "range": { "kind": "self" | "touch" | "feet" | "sight" | "unlimited" | "special", "feet": 60 } and, when it fills a space, "area": { "shape": "sphere" | "cone" | "line" | "cube" | "cylinder" | "emanation" | "wall", "size": 20, "width": 0, "height": 0 } (size is the radius of a sphere, cylinder or emanation, the length of a cone, line or wall, the side of a cube). A map will use these later.
 trigger: for a feature used as a Reaction ("activation": "reaction"), add "trigger" so the Combat Resolver offers it at the right moment. Use one or more of these words, separated by commas: "targeted" (a creature targets you with an attack, before the roll), "hit" (an attack roll hits you), "miss" (an attack roll misses you), "damage" (you take damage), "cast" (a creature you can see casts a spell). Example: "trigger": "hit". If none of these fits, write the trigger in the source's own words, for example "trigger": "when a creature you can see within 30 feet fails a saving throw". The player can still use the Reaction from the sheet at any time.
 statBlock: when using the feature turns the character into a creature or brings one out (a beast form, a summoned spirit, a companion called for a time), add "statBlock": "form" (the character becomes it) or "statBlock": "summon" (it appears beside the character). Using the feature then asks which creature, and its stat block sits on the sheet's Stat Blocks tab until it is dismissed or its time runs out. Give the effect its duration so the app knows when that is. If the creature is new, describe its stat block in the feature's "text".
 
@@ -1288,6 +1290,16 @@ function compileAbility(ab0, ctx) {
   if (uses.pool) { out.pool = pStr(uses.pool, 40); out.cost = Math.max(1, evalFormula(uses.cost == null ? 1 : uses.cost, ctx) || 1); }
   if (["miss", "hit", "saveSuccess", "saveFail"].includes(uses.refundOn)) out.refundOn = uses.refundOn; // the use is given back on that result
   if (["action", "bonus", "free"].includes(ab.again)) out.again = ab.again; // while it lasts, it can be used again on later turns at no cost
+  { // who it can be used on, and how far: the Resolver checks size and creature type now, and keeps the distances for a map
+    const tl = pObj(ab.targetLimit), g = {};
+    if (["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"].includes(tl.maxSize)) g.size = tl.maxSize;
+    if (tl.largerBy != null && Number.isFinite(+tl.largerBy)) g.sizeOver = Math.max(0, Math.min(5, Math.round(+tl.largerBy)));
+    const ty = pArr(tl.types).map((x) => pStr(x, 16)).filter(Boolean), nt = pArr(tl.notTypes).map((x) => pStr(x, 16)).filter(Boolean);
+    if (ty.length) g.types = ty; if (nt.length) g.notTypes = nt;
+    if (Object.keys(g).length) out.tgt = { kind: "creature", self: "no", ...g };
+    const rg = pObj(ab.range); if (rg.kind) out.range = { kind: pStr(rg.kind, 12), feet: Math.max(0, +rg.feet || 0) };
+    const ar = pObj(ab.area); if (ar.shape) out.area = { shape: pStr(ar.shape, 12), size: +ar.size || 0, width: +ar.width || 0, height: +ar.height || 0 };
+  }
   if (typeof ab.trigger === "string" && ab.trigger.trim()) out.trigger = ab.trigger.trim().slice(0, 240); // when a Reaction can be taken
   if (ab.statBlock === "form" || ab.statBlock === "summon") out.block = ab.statBlock; // using it asks which creature, and shows its stat block
   else if (uses.max != null) {
@@ -2530,6 +2542,7 @@ function CharacterSheet() {
           : (getSpellSlots(className, level) || []).map((n, i) => `Level ${i + 1}: ${n}`).join(", ")
       } : null,
       hitDie: cls ? cls.hitDie : null, hitDiceUsed, xp,
+      size: (((RULES && RULES.species || {})[species] || {}).size) || "Medium",
       equipment,
       items: Array.from(new Set(characterItems.map(i => i && i.name).filter(Boolean))),
       origin: originCustom ? { custom: true, ...originCustom } : null,
@@ -3805,6 +3818,7 @@ function sheetSpell(sp) {
 function spellAction(sp, ctx, opts) {
   // A spell the app has no mechanics for is still cast: it spends its slot and posts its text for the table to resolve.
   const m = sp.m || { k: "info", act: /^bonus/i.test(sp.t || "") ? "bonus" : /^reaction/i.test(sp.t || "") ? "reaction" : /^action/i.test(sp.t || "") ? "action" : "" };
+  if (sp.f) return fullSpellAction(sp, ctx, opts); // the spell has a full record: everything it does, when, to whom and at what range
   const out = { name: sp.n, spell: true, slot: sp.l, desc: sp.x.slice(0, 1200) };
   if (/^reaction/i.test(String(sp.t || ""))) out.trig = String(sp.t).slice(0, 240); // when the Reaction can be taken: the Combat Resolver offers it at that moment
   if (sp.conc) { out.conc = true; const dm = /(\d+) (round|minute|hour|day)/i.exec(String(sp.d || "")); if (dm) out.concSecs = +dm[1] * { round: 6, minute: 60, hour: 3600, day: 86400 }[dm[2].toLowerCase()]; }
@@ -3841,6 +3855,110 @@ function spellAction(sp, ctx, opts) {
   const o = opts || {};
   const extra = (sp.l === 0 ? (o.cantripDamage || 0) : 0) + ((o.schoolDamage || {})[sp.s] || 0); // Potent Spellcasting, Empowered Evocation
   if (extra && out.dmgList) out.dmgList = [[evalDice(`${out.dmgList[0][0]}+${extra}`, ctx), out.dmgList[0][1]]];
+  if (o.potentCantrip && sp.l === 0 && out.dmgList) { if (out.type === "save") out.halfOnSave = true; if (out.type === "attack") out.missHalf = true; }
+  if (opts && opts.once) { out.slot = 0; out.usesMax = 1; out.recharge = "long"; } // a feat's free casting
+  else if (o.points && sp.l > 0) { out.pool = o.points.pool; out.pointCosts = o.points.costs; out.cost = o.points.costs[sp.l - 1] || 1; out.maxLvl = o.points.maxLevel || sp.l; } // a class that spends points, not slots
+  return out;
+}
+
+// ── Spells with a full record (spells.js "f") ──
+// Every effect, when it happens, who it can target (count, size, creature type), range and area are all carried
+// onto the sheet, so the Combat Resolver can apply them now and a map can use the distances later.
+const FULL_EFF_KEYS = ["ac", "acMin", "acBase", "speed", "speedMult", "speedZero", "init", "d20", "atk", "save", "saveAdv", "saveDis", "checkAdv", "checkDis", "atkDis", "advAgainst", "disAgainst",
+  "noInvisible", "bonusDmg", "bonusType", "fromCaster", "resist", "immuneDmg", "vuln", "immune", "condImmune", "tempEachTurn", "hpMax", "sizeStep", "noReact", "noHeal", "sense", "move", "weaponDmg", "weaponDmgType"];
+const FULL_ABILITIES = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"];
+const FULL_CONDS = ["Blinded", "Charmed", "Deafened", "Frightened", "Grappled", "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone", "Restrained", "Stunned", "Unconscious"];
+function fullEffect(e, sp, f) {
+  const out = { name: String((e && e.name) || sp.n).slice(0, 40) }, notes = [];
+  FULL_EFF_KEYS.forEach((k) => { if (e[k] != null && e[k] !== "" && e[k] !== false) out[k] = e[k]; });
+  if (e.atkAdv === true) out.atkAdv = true;
+  const words = { saveAdv: "Advantage on saving throws", saveDis: "Disadvantage on saving throws", checkAdv: "Advantage on ability checks", checkDis: "Disadvantage on ability checks" };
+  Object.keys(words).forEach((k) => { if (out[k] && !FULL_ABILITIES.includes(out[k])) { notes.push(`${words[k]}: ${out[k]}`); delete out[k]; } }); // "all", or one the caster chooses
+  if (out.immune && !FULL_CONDS.includes(out.immune)) { notes.push(`Protected from ${out.immune}`); delete out.immune; }
+  if (e.check) { if (SKILL_ABILITY[e.checkSkill]) { out.check = String(e.check); out.checkSkill = e.checkSkill; } else notes.push(`${String(e.check)[0] === "-" ? "" : "+"}${e.check} to ${e.checkSkill || "ability"} checks`); }
+  if (e.dmgBonus) { if (/^-?\d+$/.test(String(e.dmgBonus))) out.dmgBonus = +e.dmgBonus; else if (!out.weaponDmg) { out.weaponDmg = String(e.dmgBonus); if (e.bonusType && !out.bonusDmg) out.weaponDmgType = e.bonusType; } }
+  if (e.note) notes.push(String(e.note));
+  if (notes.length) out.note = notes.join(". ").slice(0, 300);
+  if (f.dur > 0) out.left = f.dur;
+  if (sp.conc) out.conc = true;
+  if (f.movable) out.movable = true;
+  return out;
+}
+function fullOutcome(o, sp, f) {
+  if (!o) return null;
+  const conds = (o.conds || []).filter((c) => c && FULL_CONDS.includes(c.name)).map((c) => ({ name: c.name, ...(f.dur > 0 ? { left: f.dur } : {}), ...(c.repeat === "end" || c.repeat === "start" ? { when: c.repeat } : {}) }));
+  const effs = (o.effs || []).filter(Boolean).map((e) => fullEffect(e, sp, f));
+  const out = {};
+  if (conds.length) out.conds = conds.slice(0, 4);
+  if (effs.length) out.effs = effs.slice(0, 4);
+  return Object.keys(out).length ? out : null;
+}
+function fullSpellAction(sp, ctx, opts) {
+  const f = sp.f, o = opts || {}, t = f.targets || {};
+  const out = { name: sp.n, spell: true, slot: sp.l, desc: sp.x.slice(0, 1200) };
+  out.activation = f.act === "long" ? "action" : (["action", "bonus", "reaction"].includes(f.act) ? f.act : "action");
+  if (f.act === "long") out.castMin = Math.max(1, +f.castMinutes || 1); // takes longer than a round to cast
+  if (out.activation === "reaction") out.trig = String(f.trig || sp.t || "").slice(0, 240);
+  if (sp.conc) { out.conc = true; if (f.dur > 0) out.concSecs = f.dur; }
+  if (sp.k) {
+    out.comp = sp.k;
+    if (sp.mat) { out.mat = String(sp.mat).replace(/^\(/, "").slice(0, 240); if (/\d[\d,]*\+? ?(GP|SP|CP)/i.test(sp.mat)) out.matCost = true; if (/consume/i.test(sp.mat)) out.matConsumed = true; }
+  }
+  // range, area and who can be targeted: checked where the Resolver can, and kept for a map
+  const r = f.range || {};
+  out.range = { kind: String(r.kind || "special"), feet: Math.max(0, +r.feet || 0) };
+  if (f.area && f.area.shape) out.area = { shape: String(f.area.shape), size: +f.area.size || 0, width: +f.area.width || 0, height: +f.area.height || 0 };
+  out.tgt = { kind: String(t.kind || "creature"), n: t.n === "any" ? "any" : Math.max(0, +t.n || 0), self: String(t.self || "no") };
+  if (t.size) out.tgt.size = t.size;
+  if ((t.types || []).length) out.tgt.types = t.types.slice(0, 8);
+  if ((t.notTypes || []).length) out.tgt.notTypes = t.notTypes.slice(0, 8);
+  if (t.willing) out.tgt.willing = true;
+  const mult = f.cantrip ? (ctx.LEVEL >= 17 ? 4 : ctx.LEVEL >= 11 ? 3 : ctx.LEVEL >= 5 ? 2 : 1) : 1;
+  const isDice = (d) => /^\d+(d\d+)?([+-]\d+(d\d+)?)*$/.test(String(d || "").replace(/\s/g, ""));
+  let dmgList = (f.dmg || []).filter((d) => Array.isArray(d) && isDice(d[0])).map((d, i) => {
+    let dice = String(d[0]).replace(/\s/g, ""); if (mult > 1) dice = dice.replace(/^(\d+)d/, (_, n) => `${n * mult}d`);
+    if (f.addMod && i === 0) dice = evalDice(`${dice}+SPELLMOD`, ctx) || dice;
+    return [dice, String(d[1] || "")];
+  });
+  const oHit = fullOutcome(f.onHit, sp, f), oFail = fullOutcome(f.onFail, sp, f), oSucc = fullOutcome(f.onSuccess, sp, f);
+  let oUse = fullOutcome(f.onUse, sp, f);
+  if (f.temp && isDice(f.temp)) oUse = { ...(oUse || {}), temp: String(f.temp).replace(/\s/g, "") };
+  const told = (f.timing || []).map((x) => x && x.what).filter(Boolean).join(" ").slice(0, 280);
+  const lasts = f.dur > 0 || !!sp.conc || !!f.untilDispelled;
+  const mark = { name: sp.n.slice(0, 40), note: told || sp.x.slice(0, 200), ...(f.dur > 0 ? { left: f.dur } : {}), ...(sp.conc ? { conc: true } : {}) }; // shown under Active with its time left
+  const asApply = () => {
+    if (oUse) { out.type = "apply"; out.onUse = oUse; if (t.kind !== "creature" && t.kind !== "creature or object") out.self = true; return; }
+    if (lasts) { out.type = "apply"; out.onUse = { effs: [mark] }; out.self = true; return; } // nothing lands on a creature, but it is running and has a clock
+    out.type = "info";
+  };
+  if (f.k === "attack") { out.type = "attack"; out.atk = ctx.SPELLATK; if (f.atk !== "melee") out.ranged = true; if (dmgList.length) out.dmgList = dmgList; if (oHit) out.onHit = oHit; }
+  else if (f.k === "save" && FULL_ABILITIES.includes(f.save)) {
+    out.type = "save"; out.saveAbility = f.save; out.dc = ctx.SPELLDC;
+    if (dmgList.length) out.dmgList = dmgList;
+    if (f.half) out.halfOnSave = true;
+    if (oFail) out.onFail = oFail;
+    if (oSucc) out.onSuccess = oSucc;
+  }
+  else if (f.k === "auto" && dmgList.length) { out.type = "auto"; out.dmgList = dmgList; if (oUse) out.onHit = oUse; }
+  else if (f.k === "heal" && (isDice(f.heal) || f.heal === "all")) { out.type = "heal"; out.healDice = f.heal === "all" ? "999" : (f.healMod ? evalDice(`${f.heal}+SPELLMOD`, ctx) : String(f.heal).replace(/\s/g, "")); }
+  else asApply();
+  const selfEffs = (f.selfEffs || []).filter(Boolean).map((e) => fullEffect(e, sp, f));
+  if (selfEffs.length) out.selfEffs = selfEffs.slice(0, 4);
+  if (t.self === "only" && out.type !== "info") out.self = true;
+  else if (t.n === "any") out.targets = "any";
+  else if (+t.n > 1) out.targets = Math.min(20, +t.n);
+  if (+t.perSlot > 0) out.targetsPerSlot = Math.min(10, +t.perSlot);
+  const up = f.up || null;
+  if (up) {
+    const d = out.type === "heal" ? up.heal : up.dmg;
+    if (d && /^\d+d\d+$/.test(String(d))) { out.up = String(d); if (+f.upEvery === 2) out.upEvery = 2; }
+    if (+up.hpMax > 0) out.upEff = { hpMax: +up.hpMax };
+  }
+  if (["action", "bonus", "free"].includes(f.again)) out.again = f.again;
+  if (f.summon === "summon" || f.summon === "form") out.block = f.summon;
+  if (f.notAutomated) out.hand = String(f.notAutomated).slice(0, 400); // what the table still does by hand, said plainly when it is cast
+  const extra = (sp.l === 0 ? (o.cantripDamage || 0) : 0) + ((o.schoolDamage || {})[sp.s] || 0); // Potent Spellcasting, Empowered Evocation
+  if (extra && out.dmgList) out.dmgList = [[evalDice(`${out.dmgList[0][0]}+${extra}`, ctx), out.dmgList[0][1]], ...out.dmgList.slice(1)];
   if (o.potentCantrip && sp.l === 0 && out.dmgList) { if (out.type === "save") out.halfOnSave = true; if (out.type === "attack") out.missHalf = true; }
   if (opts && opts.once) { out.slot = 0; out.usesMax = 1; out.recharge = "long"; } // a feat's free casting
   else if (o.points && sp.l > 0) { out.pool = o.points.pool; out.pointCosts = o.points.costs; out.cost = o.points.costs[sp.l - 1] || 1; out.maxLvl = o.points.maxLevel || sp.l; } // a class that spends points, not slots
