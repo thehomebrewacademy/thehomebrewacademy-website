@@ -40,6 +40,20 @@ STEP 2. Read all of it. For every option, work out two things:
      CHOICE: the player picks one option from a list when they gain it (a fighting style, a land type, a damage type). It gets "options".
      TEXT ONLY: it has no number and no roll the app could apply (a language, a ribbon). It needs no ability; its text on the class or species is enough.
 
+CONSISTENCY: THE SAME BOOK MUST ALWAYS GIVE THE SAME PACK
+Different people will each convert the same book and then play together, so two conversions of the same content must match. Follow these rules exactly, every time, and never use your own judgment where a rule decides:
+  1. Names are copied exactly as printed: same words, same capital letters, same punctuation. Never shorten, translate, merge or "improve" a name. The pack's "name" is the book's title exactly as printed on its cover.
+  2. One printed feature, trait, spell, feat or item is one entry. Never split one into several entries and never join several into one. A feature that offers several ways to use it stays one entry with "versions" (see below).
+  3. Entries go in the order the book prints them. Keys inside an entry go in the order this prompt lists them.
+  4. Rules text is copied word for word. Never paraphrase, summarize or correct it.
+  5. Record only what the text states. Never add a mechanic the text does not give, and never leave out one it does. If the text does not say, leave the field out.
+  6. When something could be written in more than one way, use the FIRST of these that fits: a condition from the condition list; an effect key from the effect list; a "note" inside an effect. Use a "note" only when no key fits.
+  7. Numbers are written the way the text gives them: a fixed number as a number, a number that depends on the character as a formula with the words this prompt lists (STR, PROF, LEVEL and so on). Never work a formula out to a number yourself.
+  8. Durations use the unit in the text (rounds, minutes, hours, days). "Until the end of your next turn" is 1 round.
+  9. Do not include anything the user did not ask for, and do not skip anything they did.
+  10. If you are not sure how to write something, write it as text only and list it in your reply after the file, so the user can check it. Never guess.
+The Character Builder shows a short check code for every pack it loads. Two people whose packs show the same code have the same content.
+
 STEP 3. Output ONE JSON file and nothing else, in a single code block, so the user can save it as a .json file. It must be valid JSON: double quotes, no comments, no trailing commas. If the content is too long for one reply, tell the user, then continue the same file in the next reply so the pieces join into one file.
 
 STEP 4. After the file, list anything you could not express in this format, so the user knows what stays a table ruling.
@@ -261,10 +275,14 @@ The "extras" object (include only the keys that apply):
 - "form": the target (or caster) takes on a stat block: {"on": "target" | "self", "limit": short text of what forms are allowed ("a Beast with Challenge Rating up to the target's level"), "tempHP": true if it gains Temporary Hit Points equal to the form's Hit Points, false if its Hit Points are replaced}.
 - "move": the spell moves creatures: {"kind": "teleport" | "push" | "pull" | "fly" | "fall", "feet": number, "who": "self" | "target" | "self and others", "others": number of willing creatures that can come along (0 if none)}.
 - "zone": for a spell that leaves an area in play that keeps affecting creatures: {"enter": true if it acts when a creature enters, "startTurn": true if at the start of a creature's turn there, "endTurn": true if at the end, "difficult": true if it is Difficult Terrain, "obscured": "lightly" | "heavily" | "", "oncePerTurn": true if a creature can be affected only once per turn}. Also set the record's "again" to "free" for these.
+- "creates": the spell makes things that stay around (food, berries, a light, an illusion, a ward, a duplicate): [{"name": "Food (45 pounds)", "secs": 86400 (how long it lasts in seconds, 0 if it does not expire), "note": "what it does, in the text's own terms"}]. Each one is listed for the caster with its clock. A lasting spell that affects no creature and targets an object, a point or nothing is listed this way without you writing "creates".
+- "message": true when the caster says or sends words to the target (Message, Sending). The caster types them and only the sender, the recipient and the DM see them.
+- "escape": {"ability": "Strength", "skill": "Athletics" or "", "dc": a number, or 0 to use the caster's spell save DC}: an affected creature can take an action to make that check and end the condition or effect on itself.
 - "viaWeapon": the spell is an attack made with a weapon the caster holds, using the spellcasting ability (True Strike): {"byLevel": true if it adds 1d6, 2d6 and 3d6 extra damage at character levels 5, 11 and 17, "type": the extra damage type}. The player then picks the weapon when casting.
 - "weaponBuff": the spell changes how a held weapon attacks while it lasts (Shillelagh): {"weapons": "Club|Quarterstaff" (weapon names, separated by |), "die": "1d8" (its new damage die), "byLevel": true if the die grows at levels 5, 11 and 17, "type": a damage type it may deal instead}.
 - "castRoll": a die rolled once when the spell is cast, shown to the table: {"dice": "1d4+1", "text": "what the number means"}.
 - "cannot": if, after all of this, part of the spell still cannot be expressed, one short sentence saying exactly what and why. Leave it out if nothing.
+MAP FEATURES. Everything with a range, an area, a created thing, an object or a spot as its target, or forced movement is something the map will place later. Always fill "range", "area" and "targets" exactly, even though the app does not measure distance yet: that is what lets it be placed on the map later with no rewrite. Until then the caster picks the creatures in the area by hand, anything that needs a save is rolled at once, a spell that works on an object or a spot asks the caster to type what it is cast on, and an area that stays in play ("zone") can be applied to more creatures later.
 A spell that ends things ("remove") needs no choice written for it: the caster is shown what the target really has and picks from that. A Ritual needs nothing here either: "ritual": true on the spell is enough, and the player is asked whether to cast it as a Ritual (10 minutes longer, no spell slot) or with a spell slot. A component with a price ("cost") is paid in gold when the spell is cast: once if it is kept, every time if the spell consumes it, and the spell cannot be cast without the gold.
 
 
@@ -405,6 +423,44 @@ again: when something keeps working on later turns while it lasts (a summoned we
 targets not in the fight: nothing needs to be written for this. Anything that needs a target can also be used on "something else", which the player names.
 targetLimit: when the feature only works on some creatures, add "targetLimit" with any of: "maxSize": "Large" (the largest size it works on), "largerBy": 1 (the target can be at most that many sizes larger than the user; 0 means the user's own size or smaller), "types": ["Humanoid"] (only these creature types), "notTypes": ["Undead", "Construct"] (no effect on these). The Combat Resolver refuses a target that does not fit and says why.
 range and area: always record how far it reaches and the space it fills, even though the app does not measure distance yet: "range": { "kind": "self" | "touch" | "feet" | "sight" | "unlimited" | "special", "feet": 60 } and, when it fills a space, "area": { "shape": "sphere" | "cone" | "line" | "cube" | "cylinder" | "emanation" | "wall", "size": 20, "width": 0, "height": 0 } (size is the radius of a sphere, cylinder or emanation, the length of a cone, line or wall, the side of a cube). A map will use these later.
+choices: when the user picks something each time the feature is used (a damage type, a skill, an ability), add "choices": [ { "label": "Damage type", "options": ["Fire", "Cold"] } ] (up to two). Write "$1" (first choice) or "$2" wherever the chosen word belongs: a damage "type", a condition "name", or the value of an effect key that takes a word (advantageOnSaves, checkDisadvantage, reduceDamageType, immuneTo, a checkBonus "skill", an entry of resistDamage). The Combat Resolver asks for the choice before the feature is used. This is different from "options" below, which is picked once when the feature is gained.
+versions: when one feature can be used in several different ways and the user picks one each time (a maneuver list, a breath that is a cone or a line, a stance), add "versions": [ { "name": "Guard", ...the ability fields that differ for this version... }, { "name": "Strike", ... } ]. Each version may give its own roll, attack, save, damage, heal, onHit, onFail, onSuccess, onUse, target and targets. Everything not given is taken from the feature itself, and all versions share the feature's uses. The Combat Resolver asks which version before it is used.
+hitPointBands: when what happens depends on the target's current Hit Points, add "hitPointBands": [ { "max": 100, ...fields for a target with that many Hit Points or fewer... }, { "max": 0, ...fields for any other target... } ]. An outcome may contain "dies": true.
+attacks: when one use makes several separate attack rolls that can go at the same or different creatures, add "attacks": 3 (a number or formula). "damage" is then the damage of one attack.
+removes: when the feature ends things on its target, add "removes": { "conditions": ["Poisoned", "Charmed"], "count": 1 or "all", "exhaustion": 1, "effects": "curse" | "spells" | "any", "hitPointMaximum": true }. Leave out what does not apply. The user is shown what the target really has and picks from that.
+cost: when using it costs gold, add "cost": { "gp": 50, "consumed": true }. The gold must be on hand and is taken when it is used (once only if not consumed).
+creates: when using it makes things that stay around, add "creates": [ { "name": "Spirit Lantern", "duration": { "amount": 1, "unit": "hours" }, "note": "what it does" } ]. Leave "duration" out if it does not expire.
+castOn: true when it is used on an object or a spot, not a creature. The user types what it is used on.
+message: true when the user sends words to the target. The user types them.
+escape: when an affected creature can take an action to make a check and free itself, add "escape": { "ability": "Strength", "skill": "Athletics", "dc": "8+PROF+WIS" }.
+resources: every feature that spends a shared pool ("uses": { "pool": "Superiority Dice", "cost": 1 }) is shown under that pool on the sheet, with the pool's count large above them. So a feature that offers a list of separate named options, each its own printed entry (maneuvers, invocations, Channel Divinity options), is written as one ability per option, all spending the same pool, each with a first sentence in "text" that says what it does. Use "versions" only when one printed feature has several ways to use it.
+askDM: when the result is information the DM gives, add "askDM": "what the DM must tell the user". The DM is asked and the answer goes in the log.
+saveAdvantageIf: when the target has Advantage on the save in some circumstance, add "saveAdvantageIf": "the circumstance". The roller gets a Roll with Advantage button.
+rollWhenUsed: when a die is rolled once on use and only needs showing, add "rollWhenUsed": { "dice": "1d4+1", "text": "what the number means" }.
+More effect keys (inside an "effects" entry), each exactly as written here:
+  "attackDisadvantage": true          Disadvantage on its attack rolls
+  "advantageOnChecks": "Strength"     Advantage on checks with that ability
+  "disadvantageOnSaves": "Dexterity"  Disadvantage on saves with that ability
+  "sizeChange": 1 or -1               one size larger or smaller
+  "speedZero": true                   Speed becomes 0
+  "noReactions": true, "noHealing": true, "cannotCastSpells": true, "cannotTakeActions": true
+  "acMinimum": 16, "acBase": 13       AC can't be lower than / base AC before Dexterity
+  "immuneDamage": ["Fire"], "vulnerableTo": ["Cold"], "conditionImmunities": ["Charmed", "Frightened"]
+  "weaponAttackBonus": 1              added to its weapon attack rolls
+  "weaponDamage": { "dice": "1d4", "type": "Radiant" }   extra damage on its weapon hits
+  "duplicates": 3                     illusory duplicates that can be hit in its place
+  "dropTo1Instead": true              the first time it would drop to 0 Hit Points it drops to 1 and the effect ends
+  "healEachTurn": "1"                 Hit Points regained at the start of each of its turns
+  "damageEachTurn": { "dice": "2d4", "type": "Acid", "when": "start" or "end", "once": true if only on its next turn }
+  "repeatSaveEachTurn": "end" or "start"   it saves again each turn and a success ends the effect
+  "repeatSaveOnDamage": true          it saves again each time it takes damage
+  "endsWhenItActs": true              ends when it attacks, deals damage or casts a spell
+  "endsOnDamage": true                ends when it takes damage
+  "endsAfterNextAttack": true         ends after its next attack roll
+  "endsWhenNextAttacked": true        ends after the next attack roll against it
+  "outOfPlay": true                   it is elsewhere while this lasts: skipped in the turn order, cannot be targeted
+  "stable": true, "dashAsBonusAction": true
+In a condition's "repeatSave", "onDamage": true means the save is also made each time the creature takes damage.
 trigger: for a feature used as a Reaction ("activation": "reaction"), add "trigger" so the Combat Resolver offers it at the right moment. Use one or more of these words, separated by commas: "targeted" (a creature targets you with an attack, before the roll), "hit" (an attack roll hits you), "miss" (an attack roll misses you), "damage" (you take damage), "cast" (a creature you can see casts a spell). Example: "trigger": "hit". If none of these fits, write the trigger in the source's own words, for example "trigger": "when a creature you can see within 30 feet fails a saving throw". The player can still use the Reaction from the sheet at any time.
 statBlock: when using the feature turns the character into a creature or brings one out (a beast form, a summoned spirit, a companion called for a time), add "statBlock": "form" (the character becomes it) or "statBlock": "summon" (it appears beside the character). Using the feature then asks which creature, and its stat block sits on the sheet's Stat Blocks tab until it is dismissed or its time runs out. Give the effect its duration so the app knows when that is. If the creature is new, describe its stat block in the feature's "text".
 
@@ -1276,10 +1332,11 @@ function durationSeconds(d) {
   const n = parseFloat(d.amount) * (UNIT_SECONDS[d.unit] || 0);
   return n > 0 ? Math.round(n) : 0;
 }
+const isPh = (v) => /^\$[12]$/.test(String(v || "")); // "$1" or "$2": filled in with what the user chooses when using it
 function compileOutcome(o, ctx) {
   if (!o || typeof o !== "object") return null;
   const conds = pArr(o.conditions).map((k) => {
-    if (!k || !CONDITION_NAMES.includes(k.name)) return null;
+    if (!k || !(CONDITION_NAMES.includes(k.name) || isPh(k.name))) return null;
     const c = { name: k.name };
     const left = durationSeconds(k.duration); if (left) c.left = left;
     const r = k.repeatSave;
@@ -1288,6 +1345,7 @@ function compileOutcome(o, ctx) {
       if (r.turn === "source") c.turn = "source";
       if (ABILITIES.includes(r.ability)) c.abil = r.ability;
     }
+    if (r && r.onDamage) c.onDamage = true; // the save is made again each time it takes damage
     return c;
   }).filter(Boolean);
   const effs = pArr(o.effects).map((e) => {
@@ -1301,19 +1359,19 @@ function compileOutcome(o, ctx) {
     });
     if (+e.speedMultiplier > 0 && +e.speedMultiplier !== 1) out.speedMult = +e.speedMultiplier;
     [["attackRolls", "atk"], ["savingThrows", "save"]].forEach(([from, to]) => { if (e[from] != null) { const d = signedDice(e[from], ctx); if (d) out[to] = d; } });
-    if (ABILITIES.includes(e.advantageOnSaves)) out.saveAdv = e.advantageOnSaves;
+    if (ABILITIES.includes(e.advantageOnSaves) || isPh(e.advantageOnSaves)) out.saveAdv = e.advantageOnSaves;
     const sm = pObj(e.saveModifier);
     if (ABILITIES.includes(sm.ability)) { const n = evalFormula(sm.amount, ctx); if (Number.isFinite(n) && n) { out.saveAbil = sm.ability; out.saveAbilMod = n; } }
-    if (ABILITIES.includes(e.checkDisadvantage)) out.checkDis = e.checkDisadvantage;
+    if (ABILITIES.includes(e.checkDisadvantage) || isPh(e.checkDisadvantage)) out.checkDis = e.checkDisadvantage;
     const cb = pObj(e.checkBonus);
-    if (SKILL_ABILITY[cb.skill]) { const d = evalDice(cb.dice, ctx); if (d) { out.check = d; out.checkSkill = cb.skill; } }
+    if (SKILL_ABILITY[cb.skill] || isPh(cb.skill)) { const d = evalDice(cb.dice, ctx); if (d) { out.check = d; out.checkSkill = cb.skill; } }
     if (e.attacksAgainstHaveAdvantage) out.advAgainst = true;
     if (e.movable) out.movable = true; // the user can move it to another creature without using the feature again
     if (e.cannotBeInvisible) out.noInvisible = true;
     const xd = pObj(e.extraDamageFromUser);
     if (xd.dice) { const d = evalDice(xd.dice, ctx); if (d) { out.bonusDmg = d; out.bonusType = pStr(xd.type, 20); out.fromCaster = true; } }
-    if (CONDITION_NAMES.includes(e.immuneTo)) out.immune = e.immuneTo;
-    if (RESIST_TYPES.includes(e.reduceDamageType)) out.resistType = e.reduceDamageType;
+    if (CONDITION_NAMES.includes(e.immuneTo) || isPh(e.immuneTo)) out.immune = e.immuneTo;
+    if (RESIST_TYPES.includes(e.reduceDamageType) || isPh(e.reduceDamageType)) out.resistType = e.reduceDamageType;
     if (e.sense) out.sense = pStr(e.sense, 60);
     if (e.movement) out.move = pStr(e.movement, 60);
     const rd = pArr(e.resistDamage).map((t) => pStr(t, 20)).filter(Boolean);
@@ -1324,6 +1382,17 @@ function compileOutcome(o, ctx) {
     if (/^d(4|6|8|10|12)$/.test(String(e.inspirationDie || ""))) out.inspire = e.inspirationDie;
     if (e.spellSaveDC != null) { const n = evalFormula(e.spellSaveDC, ctx); if (Number.isFinite(n) && n) out.dcBonus = n; }
     if (e.spellAttackAdvantage) out.spellAtkAdv = true;
+    // the same effects the built-in spells use, under plain names
+    [["attackDisadvantage", "atkDis"], ["speedZero", "speedZero"], ["noReactions", "noReact"], ["noHealing", "noHeal"], ["dropTo1Instead", "ward0"], ["endsWhenItActs", "endsOnAct"], ["endsOnDamage", "endsOnDamage"], ["endsAfterNextAttack", "endsOnAttack"], ["endsWhenNextAttacked", "endsWhenAttacked"], ["cannotCastSpells", "noCast"], ["cannotTakeActions", "noAct"], ["repeatSaveOnDamage", "saveOnDamage"], ["outOfPlay", "away"], ["stable", "stable"], ["dashAsBonusAction", "dashBonus"]].forEach(([from, to]) => { if (e[from]) out[to] = true; });
+    if (ABILITIES.includes(e.advantageOnChecks) || isPh(e.advantageOnChecks)) out.checkAdv = e.advantageOnChecks;
+    if (ABILITIES.includes(e.disadvantageOnSaves) || isPh(e.disadvantageOnSaves)) out.saveDis = e.disadvantageOnSaves;
+    if (e.repeatSaveEachTurn === "start" || e.repeatSaveEachTurn === "end") out.saveEnds = e.repeatSaveEachTurn;
+    if (+e.sizeChange === 1 || +e.sizeChange === -1) out.sizeStep = +e.sizeChange;
+    [["acMinimum", "acMin"], ["acBase", "acBase"], ["weaponAttackBonus", "weaponAtk"], ["duplicates", "images"]].forEach(([from, to]) => { if (e[from] != null) { const n = evalFormula(e[from], ctx); if (Number.isFinite(n) && n) out[to] = n; } });
+    [["immuneDamage", "immuneDmg"], ["vulnerableTo", "vuln"], ["conditionImmunities", "condImmune"]].forEach(([from, to]) => { const l = pArr(e[from]).map((t) => pStr(t, 20)).filter(Boolean); if (l.length) out[to] = l.join(", "); });
+    const wd = pObj(e.weaponDamage); if (wd.dice) { const d = evalDice(wd.dice, ctx); if (d) { out.weaponDmg = d; if (wd.type) out.weaponDmgType = pStr(wd.type, 20); } }
+    if (e.healEachTurn != null) { const d = evalDice(e.healEachTurn, ctx); if (d && d !== "0") out.healEachTurn = d; }
+    const td = pObj(e.damageEachTurn); if (td.dice) { const d = evalDice(td.dice, ctx); if (d) out.turnDmg = { dice: d, type: pStr(td.type, 20), when: td.when === "start" ? "start" : "end", ...(td.once ? { once: true } : {}) }; }
     if (e.note) out.note = pStr(e.note, 300);
     return out;
   }).filter(Boolean);
@@ -1331,7 +1400,8 @@ function compileOutcome(o, ctx) {
   if (conds.length) out.conds = conds;
   if (effs.length) out.effs = effs;
   if (o.tempHP != null) { const t = evalDice(o.tempHP, ctx); if (t && t !== "0") out.temp = t; }
-  return conds.length || effs.length || out.temp ? out : null;
+  if (o.dies) out.kill = true;
+  return conds.length || effs.length || out.temp || out.kill ? out : null;
 }
 // Works one ability out for one character. ctx holds that character's numbers. Throws with a reason if it can't.
 function compileAbility(ab0, ctx) {
@@ -1400,11 +1470,32 @@ function compileAbility(ab0, ctx) {
   }
   if (typeof ab.trigger === "string" && ab.trigger.trim()) out.trigger = ab.trigger.trim().slice(0, 240); // when a Reaction can be taken
   if (ab.statBlock === "form" || ab.statBlock === "summon") out.block = ab.statBlock; // using it asks which creature, and shows its stat block
-  else if (uses.max != null) {
+  if (!uses.pool && uses.max != null) {
     const max = evalFormula(uses.max, ctx);
     if (!Number.isFinite(max)) throw new Error("uses.max can't be read");
     if (max > 0) { out.usesMax = max; out.recharge = uses.recharge === "short" ? "short" : "long"; }
   }
+  // ── the same protocol the spells follow: a choice, a version, Hit Point bands, several attacks, ending things, a cost, a question for the DM ──
+  const chs = pArr(ab.choices).slice(0, 2).map((c) => ({ label: pStr(pObj(c).label, 30) || "Choice", options: pArr(pObj(c).options).map((v) => pStr(v, 40)).filter(Boolean).slice(0, 30) })).filter((c) => c.options.length);
+  if (chs.length) out.choices = chs;
+  const variant = (set) => { const { versions, hitPointBands, uses: u2, name: n2, atLevel, choices, ...own } = pObj(set); const { versions: o0, hitPointBands: h0, uses: u0, atLevel: a0, ...base } = ab;
+    const a = compileAbility({ ...base, ...own, name }, ctx); const { name: n3, desc, activation, ...keep } = a; return keep; };
+  const opts = pArr(ab.versions).slice(0, 12).filter((o) => pStr(pObj(o).name, 40).trim());
+  if (opts.length > 1) out.modes = opts.map((o) => ({ name: pStr(o.name, 40).trim(), a: variant(o) }));
+  const bands = pArr(ab.hitPointBands).slice(0, 8);
+  if (bands.length) out.byHP = bands.map((b) => ({ max: Math.max(0, parseInt(pObj(b).max, 10) || 0), a: variant(b) }));
+  if (ab.attacks != null) { const n = evalFormula(ab.attacks, ctx); if (Number.isFinite(n) && n > 1) { out.multi = true; out.targets = Math.min(20, n); delete out.self; } }
+  const rm = pObj(ab.removes);
+  if (Object.keys(rm).length) out.remove = { conds: pArr(rm.conditions).map((x) => pStr(x, 20)).filter((x) => CONDITION_NAMES.includes(x)), count: rm.count === "all" ? "all" : 1, exhaustion: Math.max(0, parseInt(rm.exhaustion, 10) || 0), effects: ["curse", "spells", "any"].includes(rm.effects) ? rm.effects : "", hpMax: !!rm.hitPointMaximum, maxLevel: 0 };
+  const cost = pObj(ab.cost); if (+cost.gp > 0) { out.gp = +cost.gp; if (cost.consumed) out.gpConsumed = true; }
+  if (ab.askDM) out.askDM = pStr(ab.askDM, 300);
+  const made = pArr(ab.creates).slice(0, 4).map((c) => ({ name: pStr(pObj(c).name, 60), note: pStr(pObj(c).note, 240), left: durationSeconds(pObj(c).duration) || 0 })).filter((c) => c.name); if (made.length) out.creates = made;
+  if (ab.castOn) out.castOn = true;
+  if (ab.message) out.message = true;
+  const esc = pObj(ab.escape); if (ABILITIES.includes(esc.ability)) { const dc = esc.dc == null ? 0 : evalFormula(esc.dc, ctx); out.escape = { ability: esc.ability, skill: pStr(esc.skill, 20), dc: Number.isFinite(dc) ? dc : 0 }; }
+  if (ab.saveAdvantageIf) out.advIf = pStr(ab.saveAdvantageIf, 160);
+  const cr = pObj(ab.rollWhenUsed); if (cr.dice) { const d = evalDice(cr.dice, ctx); if (d) out.castRoll = { dice: d, text: pStr(cr.text, 120) }; }
+  if (out.type === "info" && (out.modes || out.byHP)) out.type = "apply";
   return out;
 }
 function actionSummary(a) {
@@ -1682,6 +1773,10 @@ function ContentPacksTab({ colors, fontDisplay, sheetActions }) {
     reloadHere();
   };
   const countText = (c) => Object.entries(c).filter(([, n]) => n).map(([k, n]) => `${n} ${k}`).join(", ") || "nothing";
+  // A short code worked out from a pack's content alone (not its batch or the order of its keys), so two tables can compare packs.
+  const packCode = (p) => { const canon = (v) => Array.isArray(v) ? `[${v.map(canon).join(",")}]` : v && typeof v === "object" ? `{${Object.keys(v).filter((k) => k !== "batch").sort().map((k) => JSON.stringify(k) + ":" + canon(v[k])).join(",")}}` : JSON.stringify(v == null ? null : v);
+    const s = canon(p); let h1 = 0x811c9dc5, h2 = 0x1b873593; for (let i = 0; i < s.length; i++) { const ch = s.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 16777619) >>> 0; h2 = Math.imul(h2 + ch, 2246822519) >>> 0; h2 ^= h2 >>> 13; }
+    const t = (h1.toString(36).toUpperCase().padStart(6, "0") + (h2 >>> 0).toString(36).toUpperCase().padStart(6, "0")); return `${t.slice(0, 4)}-${t.slice(4, 8)}`; };
   return (
     <div>
       <Section title="Add Your Own Content" colors={colors} fontDisplay={fontDisplay}>
@@ -1727,7 +1822,7 @@ function ContentPacksTab({ colors, fontDisplay, sheetActions }) {
                 <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderTop: `1px solid ${colors.brass}22` }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14 }}>{p.name}{p.author ? ` by ${p.author}` : ""}</div>
-                    <div style={{ fontSize: 12, opacity: 0.75 }}>{inst ? countText(inst.counts) : "switched off"}</div>
+                    <div style={{ fontSize: 12, opacity: 0.75 }}>{inst ? countText(inst.counts) : "switched off"} · <span data-testid="pack-code" title="Two people whose packs show the same check code have the same content">check code {packCode(p)}</span></div>
                   </div>
                   <button style={{ ...ghost, padding: "5px 12px", fontSize: 12 }} onClick={() => removePack(p.name)}>Remove</button>
                 </div>); })}
@@ -3976,7 +4071,7 @@ function spellAction(sp, ctx, opts) {
 // onto the sheet, so the Combat Resolver can apply them now and a map can use the distances later.
 const FULL_EFF_KEYS = ["ac", "acMin", "acBase", "speed", "speedMult", "speedZero", "init", "d20", "atk", "save", "saveAdv", "saveDis", "checkAdv", "checkDis", "atkDis", "advAgainst", "disAgainst",
   "noInvisible", "bonusDmg", "bonusType", "fromCaster", "resist", "resistType", "immuneDmg", "vuln", "immune", "condImmune", "tempEachTurn", "hpMax", "sizeStep", "noReact", "noHeal", "sense", "move", "weaponDmg", "weaponDmgType",
-  "ward0", "sanctuary", "images", "endsOnAct", "endsOnDamage", "saveEnds", "weaponAtk", "stable", "dashBonus", "protect", "extraAction", "turnRoll", "kill"];
+  "ward0", "sanctuary", "images", "endsOnAct", "endsOnDamage", "saveEnds", "endsOnAttack", "endsWhenAttacked", "noCast", "noAct", "saveOnDamage", "away", "healEachTurn", "turnDmg", "weaponAtk", "stable", "dashBonus", "protect", "extraAction", "turnRoll", "kill"];
 const FULL_ABILITIES = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"];
 const FULL_CONDS = ["Blinded", "Charmed", "Deafened", "Frightened", "Grappled", "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone", "Restrained", "Stunned", "Unconscious"];
 function fullEffect(e, sp, f) {
@@ -3998,7 +4093,7 @@ function fullEffect(e, sp, f) {
 }
 function fullOutcome(o, sp, f) {
   if (!o) return null;
-  const conds = (o.conds || []).filter((c) => c && (FULL_CONDS.includes(c.name) || /^\$[12]$/.test(String(c.name)))).map((c) => ({ name: c.name, ...(f.dur > 0 ? { left: f.dur } : {}), ...(c.repeat === "end" || c.repeat === "start" ? { when: c.repeat } : {}) }));
+  const conds = (o.conds || []).filter((c) => c && (FULL_CONDS.includes(c.name) || /^\$[12]$/.test(String(c.name)))).map((c) => ({ name: c.name, ...(f.dur > 0 ? { left: f.dur } : {}), ...(c.repeat === "end" || c.repeat === "start" ? { when: c.repeat } : {}), ...(c.onDamage ? { onDamage: true } : {}) }));
   const effs = (o.effs || []).filter(Boolean).map((e) => fullEffect(e, sp, f));
   const out = {};
   if (conds.length) out.conds = conds.slice(0, 4);
@@ -4042,6 +4137,7 @@ function fullSpellAction(sp, ctx, opts) {
   const mark = { name: sp.n.slice(0, 40), note: told || sp.x.slice(0, 200), ...(f.dur > 0 ? { left: f.dur } : {}), ...(sp.conc ? { conc: true } : {}) }; // shown under Active with its time left
   const asApply = () => {
     if (oUse) { out.type = "apply"; out.onUse = oUse; if (t.kind !== "creature" && t.kind !== "creature or object") out.self = true; return; }
+    if (lasts && ["object", "point", "none"].includes(t.kind) && t.self !== "only") { out.type = "info"; out.creates = [{ name: mark.name, note: mark.note.slice(0, 240), left: f.dur > 0 ? f.dur : 0 }]; return; } // it makes a thing with a place and a clock, not an effect on the caster
     if (lasts) { out.type = "apply"; out.onUse = { effs: [mark] }; out.self = true; return; } // nothing lands on a creature, but it is running and has a clock
     out.type = "info";
   };
@@ -4054,7 +4150,7 @@ function fullSpellAction(sp, ctx, opts) {
     if (oSucc) out.onSuccess = oSucc;
   }
   else if (f.k === "auto" && dmgList.length) { out.type = "auto"; out.dmgList = dmgList; if (oUse) out.onHit = oUse; }
-  else if (f.k === "heal" && (isDice(f.heal) || f.heal === "all")) { out.type = "heal"; out.healDice = f.heal === "all" ? "999" : (f.healMod ? evalDice(`${f.heal}+SPELLMOD`, ctx) : String(f.heal).replace(/\s/g, "")); }
+  else if (f.k === "heal" && (isDice(f.heal) || f.heal === "all")) { out.type = "heal"; out.healDice = f.heal === "all" ? "999" : (f.healMod ? evalDice(`${f.heal}+SPELLMOD`, ctx) : String(f.heal).replace(/\s/g, "")); if (oUse) out.onUse = oUse; }
   else asApply();
   const selfEffs = (f.selfEffs || []).filter(Boolean).map((e) => fullEffect(e, sp, f));
   if (selfEffs.length) out.selfEffs = selfEffs.slice(0, 4);
@@ -4083,6 +4179,12 @@ function fullSpellAction(sp, ctx, opts) {
     const die = x.weaponBuff.byLevel ? (ctx.LEVEL >= 17 ? "2d6" : ctx.LEVEL >= 11 ? "1d12" : ctx.LEVEL >= 5 ? "1d10" : x.weaponBuff.die) : x.weaponBuff.die;
     out.onUse = { ...out.onUse, effs: [{ ...out.onUse.effs[0], wpn: { re: String(x.weaponBuff.weapons || ""), die: String(die || ""), mod: ctx.SPELLMOD, type: String(x.weaponBuff.type || "") } }, ...out.onUse.effs.slice(1)] };
   }
+  if (x.saveAdvIf) out.advIf = String(x.saveAdvIf).slice(0, 160);
+  if (x.weaponBuff && x.weaponBuff.weapons) out.needItem = { re: String(x.weaponBuff.weapons) };
+  if (Array.isArray(x.creates) && x.creates.length) out.creates = x.creates.slice(0, 4).map((c) => ({ name: String(c.name || sp.n).slice(0, 60), note: String(c.note || "").slice(0, 240), left: Math.max(0, +c.secs || 0) }));
+  if (["object", "point", "creature or object"].includes(t.kind) && (out.type === "info" || t.kind !== "creature or object")) out.castOn = true; // it works on a thing or a spot: the caster says which
+  if (x.message) out.message = true;
+  if (x.escape && x.escape.ability) out.escape = { ability: String(x.escape.ability), skill: String(x.escape.skill || ""), dc: +x.escape.dc || 0 };
   if (x.castRoll && x.castRoll.dice) out.castRoll = { dice: String(x.castRoll.dice), text: String(x.castRoll.text || "").slice(0, 120) };
   if (x.attacks && +x.attacks.n > 0) { // separate attack rolls or darts, which can share a target
     const n = +x.attacks.n + (x.attacks.byLevel ? (ctx.LEVEL >= 17 ? 3 : ctx.LEVEL >= 11 ? 2 : ctx.LEVEL >= 5 ? 1 : 0) : 0);
@@ -4094,7 +4196,7 @@ function fullSpellAction(sp, ctx, opts) {
   if (x.summonCtl) { out.block = out.block || "summon"; out.sctl = { cmd: ["bonus", "action"].includes(x.summonCtl.commandAct) ? x.summonCtl.commandAct : "", secs: Math.max(0, +x.summonCtl.controlSecs || 0), after: x.summonCtl.actsAfterCaster !== false, stat: String(x.summonCtl.statBlock || "").slice(0, 60) }; }
   if (x.form) { out.form = { on: x.form.on === "self" ? "self" : "target", limit: String(x.form.limit || "").slice(0, 200), tempHP: !!x.form.tempHP }; if (out.block === "form" && out.form.on === "target") delete out.block; }
   if (x.move && x.move.kind) out.mv = { kind: String(x.move.kind).slice(0, 10), feet: Math.max(0, +x.move.feet || 0), who: String(x.move.who || "self").slice(0, 16), others: Math.max(0, +x.move.others || 0) };
-  if (x.zone) { out.zone = { enter: !!x.zone.enter, start: !!x.zone.startTurn, end: !!x.zone.endTurn, difficult: !!x.zone.difficult, obscured: String(x.zone.obscured || "").slice(0, 8), once: !!x.zone.oncePerTurn }; if (!out.again && lasts && ["attack", "save", "auto"].includes(out.type)) out.again = "free"; }
+  if (x.zone) { out.zone = { enter: !!x.zone.enter, start: !!x.zone.startTurn, end: !!x.zone.endTurn, difficult: !!x.zone.difficult, obscured: String(x.zone.obscured || "").slice(0, 8), once: !!x.zone.oncePerTurn }; if (!out.again && lasts && out.type !== "info") out.again = "free"; }
   const variant = (set) => { const a = fullSpellAction({ ...sp, f: { ...f, ...set }, e: { cost: x.cost } }, ctx, opts); return a ? (({ name, spell, slot, desc, comp, mat, matCost, matConsumed, conc, concSecs, range, hand, ritual, gp, gpConsumed, ...keep }) => keep)(a) : null; };
   if (Array.isArray(x.modes) && x.modes.length > 1) out.modes = x.modes.slice(0, 12).map((m) => ({ name: String(m.name || "Mode").slice(0, 40), a: variant(m.set || {}) })).filter((m) => m.a);
   if (x.byHP && +x.byHP.max > 0) out.byHP = [{ max: +x.byHP.max, a: variant(x.byHP.atOrBelow || {}) }, { max: 0, a: variant(x.byHP.above || {}) }].filter((v) => v.a);

@@ -827,7 +827,8 @@ function dropCondition(c, cond) {
 function condSaveText(info, list, self) {
   if (!info || !info.dc || !info.abil) return '';
   const other = info.turnOf && info.turnOf !== self.id ? list.find(x => x.id === info.turnOf) : null;
-  return `DC ${info.dc} ${info.abil} save at the ${info.when === 'start' ? 'start' : 'end'} of ${other ? other.name + "'s" : 'its'} turn`;
+  if (!info.when) return `DC ${info.dc} ${info.abil} save each time it takes damage`;
+  return `DC ${info.dc} ${info.abil} save at the ${info.when === 'start' ? 'start' : 'end'} of ${other ? other.name + "'s" : 'its'} turn${info.onDamage ? ' and each time it takes damage' : ''}`;
 }
 
 // ── RULES DATA (2024 rules) ──────────────────────────────────────────────────
@@ -918,6 +919,10 @@ function passTime(list, seconds, longRest) {
     let out = changed ? {...c, effects: kept} : c;
     if (c.conc && (longRest || (+c.conc.left > 0 && +c.conc.left - seconds <= 0))) { const {conc, ...rest} = out; out = rest; ended.push([c.name, c.conc.name, longRest ? 'Concentration ends on a Long Rest' : 'Concentration: its time ran out']); }
     else if (c.conc && +c.conc.left > 0) out = {...out, conc: {...c.conc, left: +c.conc.left - seconds}};
+    if ((c.made || []).some(b => +b.left > 0)) {
+      const keep = []; c.made.forEach(b => { if (!(+b.left > 0)) keep.push(b); else if (+b.left - seconds <= 0) ended.push([c.name, b.name, 'Its time ran out']); else keep.push({...b, left: +b.left - seconds}); });
+      out = {...out, made: keep};
+    }
     if ((c.blocks || []).some(b => +b.left > 0)) {
       const keep = []; c.blocks.forEach(b => { if (!(+b.left > 0)) keep.push(b); else if (+b.left - seconds <= 0) ended.push([c.name, b.name, 'Its time ran out']); else keep.push({...b, left: +b.left - seconds}); });
       out = {...out, blocks: keep};
@@ -945,7 +950,7 @@ function dueCondSaves(list, turnId, when) {
     if (c.pending) return;
     (c.conditions || []).forEach(cond => {
       const info = condInfoOf(c, cond);
-      if (!info || !info.dc || !info.abil || (info.when === 'start' ? 'start' : 'end') !== when) return;
+      if (!info || !info.dc || !info.abil || !info.when || (info.when === 'start' ? 'start' : 'end') !== when) return;
       if ((info.turnOf && live(info.turnOf) ? info.turnOf : c.id) !== turnId) return;
       due.push({targetId: c.id, cond});
     });
@@ -1028,6 +1033,9 @@ function cleanEffect(e) {
   if (Number.isFinite(+e.weaponAtk) && +e.weaponAtk) out.weaponAtk = Math.max(-5, Math.min(5, Math.round(+e.weaponAtk)));
   if (e.extraAction) out.extraAction = String(e.extraAction).slice(0, 160);
   if (e.wpn && typeof e.wpn === 'object' && /^[A-Za-z |]{1,60}$/.test(String(e.wpn.re || '')) && DMG_RE.test(String(e.wpn.die || ''))) out.wpn = {re: String(e.wpn.re), die: String(e.wpn.die), mod: Math.max(-5, Math.min(15, Math.round(+e.wpn.mod || 0))), type: String(e.wpn.type || '').slice(0, 20)};
+  ['endsOnAttack','endsWhenAttacked','noCast','noAct','saveOnDamage','away'].forEach(k => { if (e[k]) out[k] = true; });
+  if (e.healEachTurn && DMG_RE.test(String(e.healEachTurn).replace(/\s/g, ''))) out.healEachTurn = String(e.healEachTurn).replace(/\s/g, '');
+  if (e.turnDmg && typeof e.turnDmg === 'object' && DMG_RE.test(String(e.turnDmg.dice || '').replace(/\s/g, ''))) out.turnDmg = {dice: String(e.turnDmg.dice).replace(/\s/g, ''), type: String(e.turnDmg.type || '').slice(0, 20), when: e.turnDmg.when === 'start' ? 'start' : 'end', ...(e.turnDmg.once ? {once: true} : {})};
   if (e.turnRoll && typeof e.turnRoll === 'object' && DMG_RE.test(String(e.turnRoll.dice || ''))) out.turnRoll = {when: e.turnRoll.when === 'start' ? 'start' : 'end', dice: String(e.turnRoll.dice), text: String(e.turnRoll.text || '').slice(0, 240)};
   if (+e.dc > 0) out.dc = Math.min(40, Math.round(+e.dc));
   if (ABILITIES.includes(e.abil)) out.abil = e.abil;
@@ -1059,6 +1067,7 @@ function cleanOutcome(o) {
     if (!k || !CONDITIONS.includes(k.name)) return null;
     const c = {name: k.name};
     if (+k.left > 0) c.left = Math.min(MAX_SECONDS, Math.round(+k.left));
+    if (k.onDamage) c.onDamage = true;
     if (k.when === 'start' || k.when === 'end') {
       c.when = k.when;
       if (k.turn === 'source') c.turn = 'source';
@@ -1144,6 +1153,12 @@ function cleanAction(a, i) {
   if (a.mv && typeof a.mv === 'object') out.mv = {kind: String(a.mv.kind || '').slice(0, 10), feet: Math.max(0, +a.mv.feet || 0), who: String(a.mv.who || 'self').slice(0, 16), others: Math.max(0, +a.mv.others || 0)};
   if (a.viaWeapon && typeof a.viaWeapon === 'object') out.viaWeapon = {extra: DMG_RE.test(String(a.viaWeapon.extra || '')) ? String(a.viaWeapon.extra) : '', type: String(a.viaWeapon.type || 'Radiant').slice(0, 20)};
   if (a.castRoll && typeof a.castRoll === 'object' && DMG_RE.test(String(a.castRoll.dice || '').replace(/\s/g, ''))) out.castRoll = {dice: String(a.castRoll.dice).replace(/\s/g, ''), text: String(a.castRoll.text || '').slice(0, 120)};
+  if (a.advIf) out.advIf = String(a.advIf).slice(0, 160);
+  if (Array.isArray(a.creates)) { const cr = a.creates.slice(0, 4).map(x => x && x.name ? {name: String(x.name).slice(0, 60), note: String(x.note || '').slice(0, 240), left: Math.max(0, Math.min(MAX_SECONDS, +x.left || 0))} : null).filter(Boolean); if (cr.length) out.creates = cr; }
+  if (a.castOn) out.castOn = true;
+  if (a.message) out.message = true;
+  if (a.escape && typeof a.escape === 'object' && ABILITIES.includes(a.escape.ability)) out.escape = {ability: a.escape.ability, skill: String(a.escape.skill || '').slice(0, 20), dc: Math.max(0, Math.min(40, +a.escape.dc || 0))};
+  if (a.needItem && typeof a.needItem === 'object' && /^[A-Za-z |]{1,60}$/.test(String(a.needItem.re || ''))) out.needItem = {re: String(a.needItem.re)};
   if (a.zone && typeof a.zone === 'object') out.zone = {enter: !!a.zone.enter, start: !!a.zone.start, end: !!a.zone.end, difficult: !!a.zone.difficult, obscured: String(a.zone.obscured || '').slice(0, 8), once: !!a.zone.once};
   if (!String(i).includes('v')) { // variants of this same spell: one per mode, or per band of the target's Hit Points
     if (Array.isArray(a.modes)) { const ms = a.modes.slice(0, 12).map((m, j) => { const va = m && m.a ? cleanAction({...m.a, name: a.name}, i + 'v' + j) : null; return va ? {name: String(m.name || 'Mode').slice(0, 40), a: va} : null; }).filter(Boolean); if (ms.length > 1) out.modes = ms; }
@@ -1171,7 +1186,7 @@ function cleanAction(a, i) {
     const o = cleanOutcome(a[k]);
     if (o) { out[k] = o; bits.push(`${{onHit:'On a hit', onFail:'On a failed save', onSuccess:'On a successful save', onUse:'Applies'}[k]}: ${outcomeText(o)}`); }
   });
-  if (a.type === 'apply' && !out.onUse) return null;
+  if (a.type === 'apply' && !out.onUse && !out.modes && !out.byHP) return null;
   if (out.targets) bits.push(out.targets === 'any' ? 'any number of targets' : `up to ${out.targets} targets`);
   if (out.pool) bits.push(`costs ${out.cost} ${out.pool}`);
   if (+a.usesMax > 0) { out.usesMax = Math.min(99, Math.round(+a.usesMax)); out.recharge = a.recharge === 'short' ? 'short' : 'long'; }
@@ -1269,6 +1284,14 @@ function describeEffect(e) { // what an effect does, in words
   if (e.dashBonus) parts.push('can Dash as a Bonus Action');
   if (e.extraAction) parts.push(e.extraAction);
   if (e.wpn) parts.push(`attacks with its ${e.wpn.re.split('|').join(' or ')} use the spellcasting ability and deal ${e.wpn.die} damage${e.wpn.type ? ` (${e.wpn.type} or the weapon's own type)` : ''}`);
+  if (e.healEachTurn) parts.push(`regains ${e.healEachTurn} Hit Points at the start of each of its turns`);
+  if (e.turnDmg) parts.push(`takes ${e.turnDmg.dice} ${e.turnDmg.type} damage at the ${e.turnDmg.when} of ${e.turnDmg.once ? 'its next turn' : 'each of its turns'}`.replace('  ', ' '));
+  if (e.endsOnAttack) parts.push('ends after its next attack roll');
+  if (e.endsWhenAttacked) parts.push('ends after the next attack roll against it');
+  if (e.noCast) parts.push("can't cast spells");
+  if (e.noAct) parts.push("can't take actions or Bonus Actions");
+  if (e.saveOnDamage) parts.push('repeats the save each time it takes damage');
+  if (e.away) parts.push('not in play: skipped in the turn order and cannot be targeted');
   if (e.turnRoll) parts.push(`roll ${e.turnRoll.dice} at the ${e.turnRoll.when} of each turn`);
   if (e.weaponDmg) parts.push(`its weapon attacks deal an extra ${e.weaponDmg} ${e.weaponDmgType || ''}`.trim());
   if (e.dmgBonus && /d/.test(String(e.dmgBonus))) parts.push(`${String(e.dmgBonus)[0] === '-' ? '' : '+'}${e.dmgBonus} weapon damage`);
@@ -1715,7 +1738,7 @@ function App() {
   }, [combatants]);
   useEffect(() => {
     if (!isDM) return;
-    const held = c => combatants.some(x => (x.effects || []).some(e => e.concBy === c.id) || (x.conditions || []).some(k => ((x.condInfo || {})[k] || {}).concBy === c.id)) || (c.blocks || []).some(b => b.conc && b.conc === c.conc.name) || combatants.some(x => (x.blocks || []).some(b => b.concBy === c.id && b.conc === c.conc.name));
+    const held = c => combatants.some(x => (x.effects || []).some(e => e.concBy === c.id) || (x.conditions || []).some(k => ((x.condInfo || {})[k] || {}).concBy === c.id)) || (c.blocks || []).some(b => b.conc && b.conc === c.conc.name) || (c.made || []).some(b => b.conc && b.conc === c.conc.name) || combatants.some(x => (x.blocks || []).some(b => b.concBy === c.id && b.conc === c.conc.name));
     const mark = combatants.filter(c => c.conc && !c.conc.held && held(c)), over = combatants.filter(c => c.conc && c.conc.held && !held(c));
     if (!mark.length && !over.length) return;
     setCombatants(prev => prev.map(c => mark.some(m => m.id === c.id) && c.conc ? {...c, conc: {...c.conc, held: true}} : over.some(m => m.id === c.id) ? (({conc, ...rest}) => rest)(c) : c));
@@ -1758,7 +1781,9 @@ function App() {
   const [modePick, setModePick] = useState({});     // which version of a spell with several: {actionId: index}
   const [removePick, setRemovePick] = useState(null); // choosing what a spell ends on its target: {targetId, name, options, n}
   const [dmAnswer, setDmAnswer] = useState({});
-  const [weaponPick, setWeaponPick] = useState({}); // the weapon a spell is cast through: {actionId: weapon action id}     // the DM's typed answers to spells that ask a question
+  const [weaponPick, setWeaponPick] = useState({});
+  const [castOn, setCastOn] = useState('');   // what or where a spell that works on objects or places is cast
+  const [msgText, setMsgText] = useState(''); // the words sent by a spell that carries a message // the weapon a spell is cast through: {actionId: weapon action id}     // the DM's typed answers to spells that ask a question
   const [askLater, setAskLater] = useState('');     // the set of asks this person chose to deal with later
   const [turnSecs, setTurnSecs] = useState(0);      // table rule: seconds a player has for a turn (0 = no timer)
   const [turnStart, setTurnStart] = useState(Date.now());
@@ -1973,6 +1998,7 @@ function App() {
     setRound(1);
   };
 
+  const isAway = c => ((c && c.effects) || []).some(e => e.away);
   const nextTurn = () => {
     if (!inPlay.some(c => c.currentHP > 0)) return;
     let work = combatants; const entries = [], due = [];
@@ -1991,7 +2017,7 @@ function App() {
         entries.push(stamp({type:'round',text:`Round ${newRound}`}));
       }
       safety++;
-    } while (inPlay[idx].currentHP <= 0 && safety <= inPlay.length);
+    } while ((inPlay[idx].currentHP <= 0 || isAway(inPlay[idx])) && safety <= inPlay.length);
     // A new round takes 6 seconds off everything that is timed
     if (wrapped) { const t = passTime(work, ROUND_SECONDS); work = t.list; entries.push(...endedEntries(t.ended)); }
     const upId = inPlay[idx].id;
@@ -2002,6 +2028,12 @@ function App() {
       const turnFx = (cid, when) => { const c = work.find(x => x.id === cid); if (!c || c.currentHP <= 0) return;
         const asks = (c.effects || []).filter(e => e.saveEnds === when && +e.dc > 0).map(e => plain({id: newId(), kind: 'save', by: myId, targetId: c.id, actorId: '', actorName: e.byName || 'The spell', action: {name: `${e.name} (repeat)`, dc: e.dc, saveAbility: e.abil || 'Wisdom', endEff: e.id}}));
         if (asks.length) setPrompts(prev => [...prev, ...asks.filter(a => !prev.some(q => q.action && q.action.endEff === a.action.endEff))]);
+        if (when === 'start') (c.effects || []).filter(e => e.healEachTurn).forEach(e => { const r = parseDamage(e.healEachTurn), cur = work.find(x => x.id === cid), gain = Math.max(0, Math.min(r.total, totalHP(cur) - cur.currentHP)); if (cur.currentHP <= 0 || effs(cur).some(x => x.noHeal)) return;
+          work = work.map(x => x.id === cid ? {...x, currentHP: x.currentHP + gain} : x); entries.push(stamp({type:'heal', forId: cid, by: '', html:`<strong>${esc(c.name)}</strong> regains <span class="log-heal-val">+${gain} HP</span><div class="log-detail">${esc(e.name)}</div>`})); });
+        (c.effects || []).filter(e => e.turnDmg && e.turnDmg.when === when).forEach(e => { const cur = work.find(x => x.id === cid), r = parseDamage(e.turnDmg.dice), adj = adjustDamage(cur, [{amount: r.total, type: e.turnDmg.type, dice: e.turnDmg.dice}], turnKey, false), temp = +cur.tempHP || 0, soak = Math.min(temp, adj.total);
+          work = work.map(x => x.id !== cid ? x : {...x, tempHP: temp - soak, currentHP: Math.max(0, x.currentHP - (adj.total - soak)), effects: e.turnDmg.once ? (x.effects || []).filter(y => y.id !== e.id) : x.effects});
+          entries.push(stamp({type:'attack', forId: cid, by: '', html:`<strong>${esc(c.name)}</strong> · ${esc(e.name)}<br/><span class="log-dmg">${adj.total} damage</span> <span class="log-detail">${esc(e.turnDmg.type)}</span><div class="log-dice">${esc(e.turnDmg.dice)} = ${r.total}${adj.notes.length ? ' · ' + adj.notes.join(' · ') : ''}</div>`}));
+          if (adj.total > 0 && cur.conc) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: cid, actorId: '', actorName: 'Damage', action: {name: `Concentration on ${cur.conc.name}`, dc: Math.min(30, Math.max(10, Math.floor(adj.total / 2))), saveAbility: 'Constitution', concSave: cur.conc.name}})]); });
         (c.effects || []).filter(e => e.turnRoll && e.turnRoll.when === when).forEach(e => { const r = parseDamage(e.turnRoll.dice); entries.push(stamp({type:'roll', forId: c.id, by: '', html:`<strong>${esc(c.name)}</strong> · ${esc(e.name)}<br/><span class="log-result">🎲 ${r.total}</span><div class="log-detail">${esc(e.turnRoll.text)}</div>`})); }); };
       turnFx(activeId, 'end'); turnFx(upId, 'start');
     }
@@ -2041,6 +2073,11 @@ function App() {
     if (adj.usedEffects.length) setCombatants(prev => prev.map(c => c.id !== tgt.id ? c : {...c, effects: (c.effects || []).map(e => adj.usedEffects.includes(e.id) ? {...e, usedAt: turnKey} : e)}));
     if (adj.total > 0) updateHP(tgt.id, -adj.total);
     if (adj.total > 0) endByFlag(tgt, 'endsOnDamage', 'It took damage.');
+    if (adj.total > 0) { // a save that is made again each time it takes damage
+      const again = [...(tgt.effects || []).filter(e => e.saveOnDamage && +e.dc > 0).map(e => plain({id: newId(), kind: 'save', by: myId, targetId: tgt.id, actorId: '', actorName: e.byName || 'The spell', action: {name: `${e.name} (repeat)`, dc: e.dc, saveAbility: e.abil || 'Wisdom', endEff: e.id}})),
+        ...(tgt.conditions || []).filter(k => (condInfoOf(tgt, k) || {}).onDamage && (condInfoOf(tgt, k) || {}).dc).map(k => plain({id: newId(), kind: 'repeat', targetId: tgt.id, cond: k}))];
+      if (again.length) setPrompts(prev => [...prev, ...again.filter(a => !prev.some(q => q.targetId === a.targetId && ((a.cond && q.cond === a.cond) || (a.action && q.action && q.action.endEff === a.action.endEff))))]);
+    }
     if (adj.total > 0 && combatStarted) { const by = actingRef.current; setCombatants(prev => prev.map(c => c.id === tgt.id ? {...c, fight: {...(c.fight || {}), taken: (+((c.fight || {}).taken) || 0) + adj.total}} : c.id === by ? {...c, fight: {...(c.fight || {}), dealt: (+((c.fight || {}).dealt) || 0) + adj.total}} : c)); }
     const concDC = Math.min(30, Math.max(10, Math.floor(adj.total / 2)));
     const concNote = adj.total > 0 && tgt.conc ? `<div class="log-detail" style="color:#fff176">${esc(tgt.name)} is asked for a DC ${concDC} Constitution saving throw to maintain Concentration on ${esc(tgt.conc.name)}.</div>` : '';
@@ -2073,14 +2110,17 @@ function App() {
       if (action.conc && actor) info.concBy = actor.id;
       if (k.left) info.left = k.left;
       const dc = k.dc || action.dc, abil = k.abil || action.saveAbility;
-      if (k.when && dc && abil) { info.dc = dc; info.abil = abil; info.when = k.when; if (k.turn === 'source' && actor && actor.id !== tgt.id) info.turnOf = actor.id; }
+      if ((k.when || k.onDamage) && dc && abil) { info.dc = dc; info.abil = abil; if (k.when) info.when = k.when; if (k.onDamage) info.onDamage = true; if (k.turn === 'source' && actor && actor.id !== tgt.id) info.turnOf = actor.id; }
+      if (action.escape) info.escape = {...action.escape, dc: action.escape.dc || +action.dc || (((actor && actor.sheet) || {}).spell || {}).dc || 13};
       addCondition(tgt.id, k.name, info);
       notes.push(`Condition: ${k.name}${k.left ? ` for ${timeText(k.left)}` : ''}`);
     });
     (outcome.effs || []).forEach(e => {
       const {fromCaster, ...rest} = e;
       const eff = {...rest, id: newId(), by: myId, byName: actor ? actor.name : 'DM'};
-      if (eff.sanctuary || eff.saveEnds) { eff.dc = +action.dc || (((actor && actor.sheet) || {}).spell || {}).dc || 13; eff.abil = action.saveAbility || 'Wisdom'; }
+      if (action.rerun && action.zone) eff.fromZone = true;
+      if (action.escape) eff.escape = {...action.escape, dc: action.escape.dc || +action.dc || (((actor && actor.sheet) || {}).spell || {}).dc || 13};
+      if (eff.sanctuary || eff.saveEnds || eff.saveOnDamage) { eff.dc = +action.dc || (((actor && actor.sheet) || {}).spell || {}).dc || 13; eff.abil = action.saveAbility || 'Wisdom'; }
       if (action.conc && actor) { eff.concBy = actor.id; eff.conc = true; }
       if (actor) eff.casterId = actor.id; // so the caster's sheet can list what it has out
       if (fromCaster && actor) { eff.src = actor.id; eff.srcName = actor.name; }
@@ -2108,6 +2148,7 @@ function App() {
     const saveAbility = action.saveAbility;
     const saveMod = tgt.saves?.[saveAbility] ?? mod(tgt.scores?.[saveAbility]??10);
     const t = d20Test(tgt, 'save', {ability: saveAbility, conditions: ((action.onFail || {}).conds || []).map(k => k.name)});
+    if (action.advNow) t.adv.push(action.advIf || 'the circumstances');
     const roll = keep || roll20(testMode(t));
     const sec = x => isDM && !tgt.owner ? `<span class="dm-secret">${x}</span>` : x; // the DM's own numbers can be kept from players
     let saveTotal = roll.total + saveMod + t.bonus;
@@ -2294,7 +2335,7 @@ function App() {
   const endConcentration = (casterId, why) => {
     const caster = combatants.find(c => c.id === casterId); if (!caster || !caster.conc) return;
     setCombatants(prev => reorder(prev.map(c => {
-      let out = c.id === casterId ? (({conc, ...rest}) => ({...rest, ...(rest.blocks ? {blocks: rest.blocks.filter(b => b.conc !== caster.conc.name)} : {})}))(c) : c;
+      let out = c.id === casterId ? (({conc, ...rest}) => ({...rest, ...(rest.blocks ? {blocks: rest.blocks.filter(b => b.conc !== caster.conc.name)} : {}), ...(rest.made ? {made: rest.made.filter(b => b.conc !== caster.conc.name)} : {})}))(c) : c;
       if ((out.effects || []).some(e => e.concBy === casterId)) out = {...out, effects: out.effects.filter(e => e.concBy !== casterId)};
       if (c.id !== casterId && (out.blocks || []).some(b => b.concBy === casterId && b.conc === caster.conc.name)) out = {...out, blocks: out.blocks.filter(b => !(b.concBy === casterId && b.conc === caster.conc.name))};
       (out.conditions || []).forEach(k => { if ((condInfoOf(out, k) || {}).concBy === casterId) out = dropCondition(out, k); });
@@ -2432,7 +2473,18 @@ function App() {
     }
     if (chosen.length) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail">Chosen: ${chosen.map(esc).join(', ')}</div>`})]);
     if (action.spell || ['attack','save','auto'].includes(action.type)) endByFlag(active, 'endsOnAct', 'It attacked, dealt damage or cast a spell.');
+    if (action.type === 'attack') { endByFlag(active, 'endsOnAttack', 'It made its next attack roll.'); targetIds.map(id => inPlay.find(c => c.id === id)).filter(Boolean).forEach(t => endByFlag(t, 'endsWhenAttacked', 'The next attack roll against it was made.')); }
+    { const mins = (asRitual ? 10 : 0) + (action.spell ? (+action.castMin || 0) : 0); // casting that takes minutes: outside a fight the DM is asked to move the clock
+      if (mins > 0 && !combatStarted) setPrompts(prev => [...prev, plain({id: newId(), kind: 'time', targetId: active.id, by: myId, spell: String(action.name).replace(/ \(Level \d slot\)$/, '').slice(0, 60), secs: mins * 60, ritual: asRitual})]); }
     if (action.mv && action.mv.kind) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail">Movement: ${esc(action.mv.kind)}${action.mv.feet ? ` up to ${action.mv.feet} feet` : ''} (${esc(action.mv.who)}${action.mv.others ? `, with up to ${action.mv.others} willing creature${action.mv.others > 1 ? 's' : ''}` : ''}). Move the tokens on your map.</div>`})]);
+    { const onWhat = action.castOn ? castOn.trim().slice(0, 80) : '', nm = String(action.name).replace(/ \(Level \d slot\)$/, '');
+      if (onWhat) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(nm)}<div class="log-detail">Cast on: ${esc(onWhat)}. This is a map feature: its place is kept by the table until the map is here.</div>`})]);
+      if (action.creates) { const made = action.creates.map(x => plain({id: newId(), name: x.name, note: x.note || '', left: x.left || 0, src: nm, on: onWhat, conc: action.conc ? (action.concAs || nm) : ''}));
+        setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, made: [...(c.made || []), ...made].slice(-12)}));
+        setLog(prev => [...prev, stamp({type:'roll', forId: active.id, html:`<strong>${esc(active.name)}</strong> · ${esc(nm)}<div class="log-detail">Created: ${made.map(m => esc(m.name) + (m.left ? ` (${timeText(m.left)})` : '')).join(', ')}${onWhat ? ` · on ${esc(onWhat)}` : ''}</div>`})]); }
+      if (action.message && msgText.trim()) { const to = targetIds.map(id => inPlay.find(c => c.id === id)).filter(Boolean);
+        setLog(prev => [...prev, stamp({type:'roll', forId: (to[0] || {}).id || '', by: myId, priv: [active.id, ...to.map(t => t.id)], html:`<strong>${esc(active.name)}</strong> to <strong>${to.map(t => esc(t.name)).join(', ') || 'the recipient'}</strong> · ${esc(nm)}<div class="log-detail">"${esc(msgText.trim().slice(0, 300))}"</div><div class="log-dice">Only the sender, the recipient and the DM see this.</div>`})]); }
+      if (castOn) setCastOn(''); if (msgText) setMsgText(''); }
     if (action.castRoll) { const r = parseDamage(action.castRoll.dice); setLog(prev => [...prev, stamp({type:'roll', forId: active.id, html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<br/><span class="log-result">${r.total}</span> ${esc(action.castRoll.text)}<div class="log-dice">${esc(action.castRoll.dice)}</div>`})]); }
     if (action.askDM) setPrompts(prev => [...prev, plain({id: newId(), kind: 'askdm', targetId: active.id, by: myId, spell: String(action.name).slice(0, 60), text: action.askDM, who: active.name})]);
     if (action.slot && !asRitual) { // a levelled spell spends a slot
@@ -2617,7 +2669,7 @@ function App() {
       const {name, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc} = action;
       const dc = action.dc + (action.spell ? sumEff(active, 'dcBonus') : 0); // Innate Sorcery raises a spell's DC
       setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: target.id, actorId: active.id, actorName: active.name,
-        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc, conc: !!action.conc, form: action.form || null, concSecs: action.concSecs || 0, rolled: sharedDamage,
+        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc, conc: !!action.conc, form: action.form || null, escape: action.escape || null, rerun: !!action.rerun, zone: action.zone || null, advIf: action.advIf || '', concSecs: action.concSecs || 0, rolled: sharedDamage,
           refund: action.refundOn && target === picked[0] ? {on: action.refundOn, pool: action.pool, cost: action.cost, usesMax: action.usesMax, id: action.id, slotLvl: castLvl} : null}})]);
       entries.push({
         type:'roll',
@@ -2829,6 +2881,8 @@ function App() {
   const answerDM = (q, c) => { const t = String(dmAnswer[q.id] || '').trim().slice(0, 400); if (!t) return;
     removePrompt(q.id); setDmAnswer(prev => { const {[q.id]: _, ...rest} = prev; return rest; });
     setTimeout(() => setLog(prev => [...prev, stamp({type:'roll', forId: c.id, by: myId, html:`<strong>${esc(q.spell)}</strong> · ${esc(c.name)}<div class="log-detail">The DM answers: ${esc(t)}</div>`})]), 450); };
+  const tryEscape = (c, es, cond, eff) => { const total = rollTest(c, 'check', es.ability, es.skill || '', es.dc, `Escape ${cond || (eff && eff.name) || ''} (takes an action)`);
+    if (total != null && total >= es.dc) { if (cond) removeCondition(c.id, cond); (c.effects || []).filter(e => e.escape && (!eff || e.id === eff.id || cond)).forEach(e => removeEffect(c.id, e.id)); } };
   const removeEffect = (id, effId) => setCombatants(prev => reorder(prev.map(c => c.id === id ? {...c, effects: (c.effects || []).filter(e => e.id !== effId)} : c)));
 
   // ── TIME, RESTS AND ENDING AN ENCOUNTER (DM) ────────────────────────────────
@@ -3515,8 +3569,12 @@ function App() {
                   {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" data-testid="again-btn" onClick={() => { setSelectedAction('run-' + r.id); }}>Use again</button>
                     <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, running: (x.running || []).filter(y => y.id !== r.id)}))}>End</button></span>}</div>)}
                 {c.conc && <div className="pp-arow" data-testid="active-conc"><span><strong>Concentrating on {c.conc.name}</strong>{+c.conc.left > 0 ? ` · ${timeText(c.conc.left)} left` : ''}</span>{ctl && <button className="pp-chip on" onClick={() => endConcentration(c.id)}>End</button>}</div>}
-                {(c.conditions || []).map(k => <div key={k} className="pp-arow"><span><strong>{k}</strong> <span className="pp-muted">condition{(() => { const i = condInfoOf(c, k); return i && +i.left > 0 ? ` · ${timeText(i.left)} left` : ''; })()}</span></span></div>)}
-                {(c.effects || []).map(e => <div key={e.id} className="pp-arow" title={[describeEffect(e), e.note].filter(Boolean).join('. ')}><span><strong>{e.name}</strong> <span className="pp-muted">on you{e.byName && e.casterId !== c.id && e.byName !== c.name ? ` from ${e.byName}` : ''}{+e.left > 0 ? ` · ${timeText(e.left)} left` : ''}{describeEffect(e) ? ` · ${describeEffect(e)}` : ''}</span></span>{ctl && <button className="pp-chip on" onClick={() => removeEffect(c.id, e.id)}>End</button>}</div>)}
+                {(c.made || []).map(b => <div key={b.id} className="pp-arow" data-testid="active-made" title={b.note}><span><strong>{b.name}</strong> <span className="pp-muted">created{b.src && b.src !== b.name ? ` by ${b.src}` : ''}{b.on ? ` · on ${b.on}` : ''}{+b.left > 0 ? ` · ${timeText(b.left)} left` : ''}{b.note ? ` · ${b.note}` : ''}</span></span>{ctl && <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).filter(y => y.id !== b.id)}))}>End</button>}</div>)}
+                {(c.conditions || []).map(k => { const i = condInfoOf(c, k), es = i && i.escape; return <div key={k} className="pp-arow"><span><strong>{k}</strong> <span className="pp-muted">condition{i && +i.left > 0 ? ` · ${timeText(i.left)} left` : ''}</span></span>
+                  {ctl && es && <button className="pp-chip on" data-testid="escape-btn" title="Takes an action" onClick={() => tryEscape(c, es, k, null)}>Try to escape: {es.ability}{es.skill ? ` (${es.skill})` : ''} DC {es.dc}</button>}</div>; })}
+                {(c.effects || []).map(e => <div key={e.id} className="pp-arow" title={[describeEffect(e), e.note].filter(Boolean).join('. ')}><span><strong>{e.name}</strong> <span className="pp-muted">on you{e.byName && e.casterId !== c.id && e.byName !== c.name ? ` from ${e.byName}` : ''}{+e.left > 0 ? ` · ${timeText(e.left)} left` : ''}{describeEffect(e) ? ` · ${describeEffect(e)}` : ''}</span></span>{ctl && <span style={{display: 'inline-flex', gap: 6}}>
+                  {e.escape && !(c.conditions || []).some(k => (condInfoOf(c, k) || {}).escape) && <button className="pp-chip on" data-testid="escape-btn" title="Takes an action" onClick={() => tryEscape(c, e.escape, null, e)}>Try to escape: {e.escape.ability}{e.escape.skill ? ` (${e.escape.skill})` : ''} DC {e.escape.dc}</button>}
+                  <button className="pp-chip on" data-testid={e.fromZone ? 'effect-reject' : 'effect-end'} title={e.fromZone ? 'You were not in the area: take it off and tell the table' : undefined} onClick={() => { removeEffect(c.id, e.id); if (e.fromZone) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> rejects <span class="log-result">${esc(e.name)}</span><div class="log-detail">Not in its area. The DM has the last word.</div>`})]); }}>{e.fromZone ? 'Reject' : 'End'}</button></span>}</div>)}
                 {inPlay.filter(x => x.id !== c.id).flatMap(x => (x.effects || []).filter(e => e.casterId === c.id || e.concBy === c.id || e.src === c.id).map(e => ({x, e}))).map(({x, e}) => (
                   <div key={e.id} className={`pp-arow ${isMovable(e) ? 'hot' : ''}`} data-testid="active-out"><span><strong>{e.name}</strong> <span className="pp-muted">on {x.name}{+e.left > 0 ? ` · ${timeText(e.left)} left` : ''}</span></span>
                     {ctl && <span style={{display: 'inline-flex', gap: 6}}>
@@ -3629,6 +3687,18 @@ function App() {
 
         {sheetTab === 'features' && (
         <div data-testid="paper-features">
+          {Object.entries(sh.pools || {}).map(([pn, q]) => { const spend = actions.filter(a => a.pool === pn && !a.pointCosts); return (
+            <div key={pn} className="pp-card" data-testid="resource-group" style={{marginBottom: 10}}>
+              <div style={{display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap'}}>
+                <span data-testid="resource-count" style={{fontSize: '1.9rem', fontWeight: 700, lineHeight: 1}}>{poolLeft(c, pn)}<span style={{fontSize: '1rem', fontWeight: 400}}> / {q.max}</span></span>
+                <span className="pp-h3" style={{margin: 0}}>{pn}{q.die ? ` (${q.die})` : ''}</span>
+                <span className="pp-muted" style={{fontSize: 13}}>back on a {q.recharge === 'short' ? 'Short or Long Rest' : 'Long Rest'}</span>
+                {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" aria-label={`Spend one ${pn}`} onClick={() => adjustPool(c.id, pn, -1)}>−</button><button className="pp-chip on" aria-label={`Give back one ${pn}`} onClick={() => adjustPool(c.id, pn, 1)}>+</button></span>}
+              </div>
+              {spend.length === 0 && <div className="pp-muted" style={{fontSize: 13}}>Nothing on this sheet spends it by itself.</div>}
+              {spend.map(a => <div key={a.id} className="pp-arow" data-testid="resource-use"><span><strong>{a.name}</strong> <span className="pp-muted">{[`costs ${a.cost || 1}`, ACTIVATIONS[a.activation] || '', (String(a.desc || '').match(/[^.!?]+[.!?]*/) || [''])[0].trim().slice(0, 140)].filter(Boolean).join(' · ')}</span></span>
+                {ctl && <button className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} disabled={poolLeft(c, pn) < (a.cost || 1)} onClick={() => sel(a)}>Use</button>}</div>)}
+            </div>); })}
           {feats.length === 0 && <div className="pp-center pp-muted">No features listed.</div>}
           {feats.map((f, i) => (
             <div key={i} className="pp-entry" data-testid="feature-entry">
@@ -3658,6 +3728,9 @@ function App() {
     if (sh.spell) { out.push(chip('Spell Save DC', sh.spell.dc, '')); out.push(chip('Spell Attack', signed(sh.spell.attack), '')); }
     return out;
   };
+  // What a spell or feature will put on the map once there is one: its reach, its shape, what it makes or moves.
+  const mapText = a => { const ar = a.area, r = a.range || {}, bits = [ar && ar.shape ? `${ar.size ? ar.size + '-foot ' : ''}${ar.shape}${ar.width ? `, ${ar.width} feet wide` : ''}${ar.height ? `, ${ar.height} feet high` : ''}` : '', ar && ar.shape && r.kind === 'feet' ? `placed within ${r.feet} feet` : '', a.creates ? 'what it creates has a place' : '', a.castOn ? 'cast on an object or a spot' : '', a.mv ? `moves creatures (${a.mv.kind})` : ''].filter(Boolean);
+    return bits.length ? `${bits.join('; ')}. Until the map is here${ar && ar.shape ? ', pick the creatures in the area by hand' : ', the table keeps track of where it is'}.` : ''; };
   const zoneText = a => { const z = a.zone || {}, ar = a.area; return [ar && ar.shape ? `${ar.size ? ar.size + '-foot ' : ''}${ar.shape}` : '', z.enter && 'acts when a creature enters', z.start && 'acts at the start of a turn there', z.end && 'acts at the end of a turn there', z.difficult && 'Difficult Terrain', z.obscured && `${z.obscured === 'heavily' ? 'Heavily' : 'Lightly'} Obscured`, z.once && 'once per turn for each creature'].filter(Boolean).join(', ') || 'stays where it was placed'; };
   const sheetPreview = form.sheetData ? sheetToFields(form.sheetData) : null;
   // A version or Hit Point band replaces how the spell resolves, so the common record's own outcome is set aside first.
@@ -3681,7 +3754,8 @@ function App() {
   const needsTargetNow = selAction && !['selfheal','info'].includes(selAction.type) && !selAction.self;
   const actorNow = viewed && canControl(viewed) && (!combatStarted || (active && viewed.id === active.id) || (selAction && selAction.activation === 'reaction')) ? viewed : null;
   // Why the chosen action cannot be done right now, in words, or '' when it can.
-  const cannotWhy = !selAction ? 'Nothing chosen' : !actorNow ? 'Not your turn (a Reaction can be used at any time)' : blockReason(viewed, selAction) ? blockReason(viewed, selAction)
+  const effectBlock = (c, a) => { if (!c || !a) return ''; const nc = a.spell && effs(c).find(e => e.noCast), na = ['action', 'bonus'].includes(a.activation || 'action') && effs(c).find(e => e.noAct); return nc ? `${c.name} can't cast spells (${nc.name}).` : na ? `${c.name} can't take actions (${na.name}).` : ''; };
+  const cannotWhy = !selAction ? 'Nothing chosen' : !actorNow ? 'Not your turn (a Reaction can be used at any time)' : effectBlock(viewed, selAction) ? effectBlock(viewed, selAction) : blockReason(viewed, selAction) ? blockReason(viewed, selAction)
     : (needsTargetNow && freeT == null && !inPlay.find(c => c.id === targetId)) ? 'Pick a target'
     : (needsTargetNow && freeT == null && targetIds.map(id => targetProblem(selAction, viewed, inPlay.find(c => c.id === id))).find(Boolean)) ? targetIds.map(id => targetProblem(selAction, viewed, inPlay.find(c => c.id === id))).find(Boolean) : (limited(selAction) && usesLeft(viewed, selAction) <= 0) ? 'No uses left'
     : (selAction.modes && modePick[selAction.id] == null) ? 'Choose which version to use'
@@ -3694,6 +3768,7 @@ function App() {
   const armedQ = isArmed ? prompts.find(q => q.id === armed.promptId) : null, armedT = armedQ ? inPlay.find(c => c.id === armedQ.targetId) : null;
   const waitLeft = armedQ && armedQ.react && !armedQ.answer && armedT && !(armedT.turn || {}).r ? Math.max(0, Math.min(REACT_MS, REACT_MS - (nowTick - (+armedQ.at || 0)))) : 0;
   const go = () => {
+    if (!isArmed && selAction && selAction.needItem && viewed && !actions.some(x => x.weapon && new RegExp('^(' + selAction.needItem.re + ')', 'i').test(x.name)) && !window.confirm(`${viewed.name} has no ${selAction.needItem.re.split('|').join(' or ')} among its weapons. Cast ${selAction.name} anyway?`)) return;
     if (stepWanted && !isArmed) { declareAttack(); return; }
     if (waitLeft > 0) return;
     if (isDM && dmChoose && selAction && selAction.type === 'attack' && viewed && !viewed.owner) setDmAsk({kind: 'attack', label: `${viewed.name}: attack roll with ${selAction.name}`, mod: +selAction.atk || 0, total: ''});
@@ -3748,7 +3823,7 @@ function App() {
     else { setTargeting(false); setConfirmT(''); }
   }, [selectedAction, viewed && viewed.id]);
   const endTargeting = () => { setTargeting(false); setConfirmT(''); setFreeAsk(null); setMoveT(null); setPane('sheet'); };
-  const pickCard = (c) => { if (moveT) { if (c.id !== moveT.fromId && c.id !== moveT.casterId) setConfirmT(c.id); return; } if (viewed && c.id === viewed.id && !selfOk) return; if (selMax > 1) toggleTarget(c.id); else setConfirmT(c.id); };
+  const pickCard = (c) => { if (moveT) { if (c.id !== moveT.fromId && c.id !== moveT.casterId) setConfirmT(c.id); return; } if (viewed && c.id === viewed.id && !selfOk) return; if (isAway(c)) return; if (selMax > 1) toggleTarget(c.id); else setConfirmT(c.id); };
   // An effect its caster can move to another creature without casting again (Hunter's Mark, Hex, or one a Content Pack marks "movable").
   const isMovable = e => !!e && (e.movable || /^(Hunter's Mark|Hex)$/i.test(e.name || ''));
   const startMove = (caster, from, e) => { setSelectedAction(null); setTimeout(() => { setMoveT({fromId: from.id, effId: e.id, name: e.name, casterId: caster.id}); setConfirmT(''); setTargeting(true); setLeftTab('order'); setPane('order'); }, 0); };
@@ -3778,13 +3853,13 @@ function App() {
   // What is waiting on this person: Reactions they can take, and rolls they are asked to make. These pop up in the middle of the screen.
   const myAskIds = [...flowPrompts.filter(({q, c}) => canControl(c) && ((q.kind === 'incoming' && q.react && !q.answer) || (q.kind === 'confirm' && !q.answer) || (q.kind === 'offer' && reactionsFor(c, q.ev).length > 0))).map(x => x.q.id),
     ...openPrompts.filter(({c}) => canControl(c)).map(x => x.q.id)];
-  const sidePrompts = prompts.filter(q => q.kind === 'askdm' || q.kind === 'form').map(q => ({q, c: combatants.find(x => x.id === q.targetId)})).filter(x => x.c);
-  sidePrompts.forEach(({q, c}) => { if ((q.kind === 'askdm' && isDM) || (q.kind === 'form' && canControl(c))) myAskIds.push(q.id); });
+  const sidePrompts = prompts.filter(q => q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time').map(q => ({q, c: combatants.find(x => x.id === q.targetId)})).filter(x => x.c);
+  sidePrompts.forEach(({q, c}) => { if (((q.kind === 'askdm' || q.kind === 'time') && isDM) || (q.kind === 'form' && canControl(c))) myAskIds.push(q.id); });
   const askKey = myAskIds.join(','), askPop = myAskIds.length > 0 && askLater !== askKey && !targeting;
   const targets = inPlay.filter(c => viewed && c.id !== viewed.id && c.currentHP > 0);
   // Who can be picked for the chosen action: yourself too when it allows that, and creatures at 0 Hit Points for things that help.
   const selfOk = !!(selAction && !selAction.self && (selAction.tgt ? selAction.tgt.self === 'may' : ['heal','apply'].includes(selAction.type)));
-  const pickTargets = inPlay.filter(c => viewed && (c.id !== viewed.id || selfOk) && (c.currentHP > 0 || (selAction && ['heal','apply'].includes(selAction.type))));
+  const pickTargets = inPlay.filter(c => viewed && !isAway(c) && (c.id !== viewed.id || selfOk) && (c.currentHP > 0 || (selAction && ['heal','apply'].includes(selAction.type))));
   const rosterMatches = useMemo(() => {
     const q = rosterSearch.trim().toLowerCase();
     return q ? MONSTERS.filter(m => m.n.toLowerCase().includes(q) || m.t.toLowerCase().includes(q)) : MONSTERS;
@@ -3946,7 +4021,13 @@ function App() {
                 <span className="p-btns">{react}{noR}</span>
               </div>);
           })}
-          {sidePrompts.map(({q, c}) => q.kind === 'askdm' ? (
+          {sidePrompts.map(({q, c}) => q.kind === 'time' ? (
+            <div key={q.id} className={`prompt-item ${isDM ? 'yours' : ''}`} data-testid="prompt-time">
+              <span><strong>{c.name}</strong> is casting <strong>{q.spell}</strong>{q.ritual ? ' as a Ritual' : ''}, which takes {timeText(q.secs)}.</span>
+              {isDM ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="time-go" onClick={() => { removePrompt(q.id); setTimeout(() => advanceTime(q.secs, `${timeText(q.secs)} pass: ${c.name} casts ${q.spell}${q.ritual ? ' as a Ritual' : ''}`), 450); }}>Move time forward {timeText(q.secs)}</button>
+                  <button className="btn btn-ghost btn-sm" data-testid="time-skip" onClick={() => removePrompt(q.id)}>Not now</button></span>
+                : <span className="prompt-wait">The DM is asked to move time forward</span>}
+            </div>) : q.kind === 'askdm' ? (
             <div key={q.id} className={`prompt-item ${isDM ? 'yours' : ''}`} data-testid="prompt-askdm">
               <span><strong>{c.name}</strong> cast <strong>{q.spell}</strong>. {q.text}</span>
               {isDM ? <span className="p-btns"><input aria-label="The DM's answer" data-testid="askdm-input" placeholder="What the spell reveals" maxLength={400} value={dmAnswer[q.id] || ''} onChange={e => setDmAnswer({...dmAnswer, [q.id]: e.target.value})} onKeyDown={e => { if (e.key === 'Enter') answerDM(q, c); }} style={{minWidth: 220, flex: 1}}/>
@@ -3961,9 +4042,10 @@ function App() {
             </div>))}
           {openPrompts.map(({q, c, text, dc}) => (
             <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`}>
-              <span><strong>{c.name}</strong>: {text} · DC {dc}</span>
+              <span><strong>{c.name}</strong>: {text} · DC {dc}{q.action && q.action.advIf ? <span className="prompt-wait" data-testid="adv-if"> · Advantage if: {q.action.advIf}</span> : null}</span>
               {canControl(c)
                 ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="prompt-roll" onClick={()=>askSave(q, c)}>🎲 Roll {c.name}'s {q.kind === 'check' ? 'check' : 'save'}</button>
+                    {q.action && q.action.advIf && <button className="btn btn-ghost btn-sm" data-testid="prompt-roll-adv" onClick={()=>askSave({...q, action: {...q.action, advNow: true}}, c)}>🎲 Roll with Advantage</button>}
                     {isDM && q.kind === 'save' && <><button className="btn btn-ghost btn-sm" data-testid="rule-fail" onClick={()=>resolvePrompt(q, 'fail')}>Cause to fail</button><button className="btn btn-ghost btn-sm" data-testid="rule-pass" onClick={()=>resolvePrompt(q, 'pass')}>Cause to succeed</button></>}</span>
                 : <span className="prompt-wait">Waiting for {c.owner ? 'its player' : 'the DM'}</span>}
             </div>
@@ -4286,7 +4368,20 @@ function App() {
                     <div className="buff-note" style={{margin:0}}>This spell's Material component costs {selAction.gp} GP{selAction.gpConsumed ? ', used up each time it is cast' : (viewed.paid || {})[String(selAction.name)] ? ': already bought, nothing to pay' : ': paid once, then kept'}. {viewed.name} has <input type="number" min="0" aria-label="Gold on hand" data-testid="gold-input" value={+viewed.gold || 0} disabled={!canControl(viewed)} onChange={e => { const n = Math.max(0, parseInt(e.target.value, 10) || 0); setCombatants(prev => prev.map(c => c.id !== viewed.id ? c : {...c, gold: n, goldAt: Date.now()})); }} style={{width: 80}}/> GP. {!selAction.gpConsumed && !(viewed.paid || {})[String(selAction.name)] && canControl(viewed) && <button className="btn btn-ghost btn-sm" data-testid="gold-own" onClick={() => setCombatants(prev => prev.map(c => c.id !== viewed.id ? c : {...c, paid: {...(c.paid || {}), [String(selAction.name)]: true}}))}>I already have it</button>}</div>
                   </div>
                 )}
+                {selAction && selAction.castOn && (
+                  <div className="manual-roll" data-testid="caston-box">
+                    <span className="label">Cast on</span>
+                    <input aria-label="What or where it is cast" data-testid="caston-input" placeholder="What or where? (a door, the cart, the cave floor)" maxLength={80} value={castOn} onChange={e => setCastOn(e.target.value)} style={{width:'100%'}}/>
+                  </div>
+                )}
+                {selAction && selAction.message && (
+                  <div className="manual-roll" data-testid="message-box">
+                    <span className="label">Message</span>
+                    <input aria-label="The message" data-testid="message-input" placeholder="What it says" maxLength={300} value={msgText} onChange={e => setMsgText(e.target.value)} style={{width:'100%'}}/>
+                  </div>
+                )}
                 {selAction && selAction.zone && <div className="buff-note" data-testid="zone-line" style={{marginTop:8}}>Area in play: {zoneText(selAction)}. Until there is a map, apply it to a creature by choosing that creature as the target{selAction.again ? ' and using it again from Active' : ''}.</div>}
+                {selAction && mapText(selAction) && <div className="buff-note" data-testid="map-line" style={{marginTop:8}}>🗺 Map feature: {mapText(selAction)}</div>}
                 {/* Advantage */}
                 {selAction && selAction.type==='attack' && (
                   <div className="manual-roll">
@@ -4565,7 +4660,7 @@ function App() {
             {log.map((entry, i) => (
               entry.type==='round'
                 ? <div key={entry.id||i} className="log-round">{entry.text}</div>
-                : entry.dmOnly && !isDM ? null
+                : (entry.dmOnly && !isDM) || (entry.priv && !isDM && !entry.priv.some(id => canControl(combatants.find(c => c.id === id)))) ? null
                 : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result ${entry.void ? 'void' : ''}`}>
                     <button className={`log-star ${stars.some(x => x.id === entry.id) ? 'on' : ''}`} data-testid="log-star" title="Star this to keep it for after the fight" aria-label="Star this entry" onClick={() => toggleStar(entry)}>{stars.some(x => x.id === entry.id) ? '★' : '☆'}</button>
                     <div className="log-html" dangerouslySetInnerHTML={{__html:sanitizeLogHtml(entry.html)}}/>

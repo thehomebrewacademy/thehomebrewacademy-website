@@ -305,7 +305,8 @@
     M.push(
       lin("Dragonborn", color, `Damage Resistance: ${type}`, { statics: { resist: [type] } }),
       lin("Dragonborn", color, `Breath Weapon (${type})`, { activation: "action", target: "creature", targets: "any", roll: "save", save: { ability: "Dexterity", dc: "8+CON+PROF" },
-        damage: [{ dice: byLevel({ 1: "1d10", 5: "2d10", 11: "3d10", 17: "4d10" }), type }], halfOnSave: true, uses: { max: "PROF", recharge: "long" } })
+        damage: [{ dice: byLevel({ 1: "1d10", 5: "2d10", 11: "3d10", 17: "4d10" }), type }], halfOnSave: true, uses: { max: "PROF", recharge: "long" }, range: { kind: "self", feet: 0 },
+        versions: [{ name: "15-foot Cone", area: { shape: "cone", size: 15 } }, { name: "30-foot Line", area: { shape: "line", size: 30, width: 5 } }] })
     );
   });
 
