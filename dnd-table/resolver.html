@@ -331,6 +331,12 @@
     .econ { border: 1px solid var(--pp-border); background: var(--pp-border); color: var(--pp-main); border-radius: 14px; padding: 2px 12px; font-family: 'Cinzel', serif; font-size: 12px; font-weight: 700; cursor: pointer; }
     .econ.used { background: transparent; color: var(--pp-muted); border-color: var(--pp-line); text-decoration: line-through; font-weight: 400; }
     .econ.off { opacity: 0.45; }
+    .econ-tile { display: inline-flex; align-items: center; gap: 6px; border: 2px solid var(--pp-border); border-radius: 10px; padding: 4px 10px; background: var(--pp-border); color: var(--pp-main); font-family: 'Cinzel', serif; font-weight: 700; font-size: 13px; cursor: pointer; }
+    .econ-tile .ico { font-size: 18px; line-height: 1; }
+    .econ-tile.used { background: transparent; color: var(--pp-muted); border-style: dashed; font-weight: 400; }
+    .econ-tile.used .lbl { text-decoration: line-through; }
+    .econ-tile.sel { outline: 3px solid var(--gold); }
+    .econ-tile .mark { border: 1px solid currentColor; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; line-height: 16px; text-align: center; background: transparent; color: inherit; cursor: pointer; padding: 0; }
     .left-tabs { display: flex; border-bottom: 1px solid var(--brass); }
     .left-tabs button { flex: 1; background: transparent; border: none; color: var(--text-muted); font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase; padding: 9px 4px; cursor: pointer; }
     .left-tabs button.on { color: var(--brass-light); border-bottom: 2px solid var(--brass-light); }
@@ -1152,7 +1158,7 @@ function cleanAction(a, i) {
   if (a.multi) out.multi = true;
   if (a.remove && typeof a.remove === 'object') out.remove = {conds: (Array.isArray(a.remove.conds) ? a.remove.conds : []).filter(k => CONDITIONS.includes(k)), count: a.remove.count === 'all' ? 'all' : 1, exhaustion: Math.max(0, Math.min(6, +a.remove.exhaustion || 0)), effects: ['curse','spells','any'].includes(a.remove.effects) ? a.remove.effects : '', hpMax: !!a.remove.hpMax, maxLevel: Math.max(0, Math.min(9, +a.remove.maxLevel || 0))};
   if (a.askDM) out.askDM = String(a.askDM).slice(0, 300);
-  if (a.sctl && typeof a.sctl === 'object') out.sctl = {cmd: ['bonus','action'].includes(a.sctl.cmd) ? a.sctl.cmd : '', secs: Math.max(0, Math.min(MAX_SECONDS, +a.sctl.secs || 0)), after: a.sctl.after !== false, stat: String(a.sctl.stat || '').slice(0, 60)};
+  if (a.sctl && typeof a.sctl === 'object') out.sctl = {cmd: ['bonus','action'].includes(a.sctl.cmd) ? a.sctl.cmd : '', secs: Math.max(0, Math.min(MAX_SECONDS, +a.sctl.secs || 0)), after: a.sctl.after !== false, ...(Array.isArray(a.sctl.ac) ? {ac: [+a.sctl.ac[0] || 10, +a.sctl.ac[1] || 0]} : {}), ...(Array.isArray(a.sctl.hp) ? {hp: [+a.sctl.hp[0] || 1, +a.sctl.hp[1] || 0, +a.sctl.hp[2] || 0]} : {}), stat: String(a.sctl.stat || '').slice(0, 60)};
   if (a.form && typeof a.form === 'object') out.form = {on: a.form.on === 'self' ? 'self' : 'target', limit: String(a.form.limit || '').slice(0, 200), tempHP: !!a.form.tempHP};
   if (a.mv && typeof a.mv === 'object') out.mv = {kind: String(a.mv.kind || '').slice(0, 10), feet: Math.max(0, +a.mv.feet || 0), who: String(a.mv.who || 'self').slice(0, 16), others: Math.max(0, +a.mv.others || 0)};
   if (a.viaWeapon && typeof a.viaWeapon === 'object') out.viaWeapon = {extra: DMG_RE.test(String(a.viaWeapon.extra || '')) ? String(a.viaWeapon.extra) : '', type: String(a.viaWeapon.type || 'Radiant').slice(0, 20)};
@@ -1160,6 +1166,10 @@ function cleanAction(a, i) {
   if (a.advIf) out.advIf = String(a.advIf).slice(0, 160);
   if (Array.isArray(a.creates)) { const cr = a.creates.slice(0, 4).map(x => x && x.name ? {name: String(x.name).slice(0, 60), note: String(x.note || '').slice(0, 300), left: Math.max(0, Math.min(MAX_SECONDS, +x.left || 0)), kind: x.kind === 'item' ? 'item' : 'effect', ...(+x.count > 0 ? {count: Math.min(99, Math.round(+x.count))} : {}), ...(x.spoil ? {spoil: String(x.spoil).slice(0, 40)} : {}), ...(x.use && typeof x.use === 'object' ? {use: {heal: DMG_RE.test(String(x.use.heal || '')) ? String(x.use.heal) : '', act: ['action','bonus'].includes(x.use.act) ? x.use.act : 'action', effName: String(x.use.effName || '').slice(0, 40), effLeft: Math.max(0, Math.min(MAX_SECONDS, +x.use.effLeft || 0)), effNote: String(x.use.effNote || '').slice(0, 200)}} : {})} : null).filter(Boolean); if (cr.length) out.creates = cr; }
   if (a.castOn) out.castOn = true;
+  if (a.storeSpell && typeof a.storeSpell === 'object') out.storeSpell = {max: Math.max(1, Math.min(9, +a.storeSpell.max || 3)), bySlot: !!a.storeSpell.bySlot};
+  if (DMG_RE.test(String(a.upTurn || ''))) out.upTurn = String(a.upTurn);
+  if (+a.areaPerSlot > 0) out.areaPerSlot = Math.min(1000, +a.areaPerSlot);
+  if (Array.isArray(a.effBySlot)) { const l = a.effBySlot.slice(0, 6).map(x => Array.isArray(x) && +x[0] > 0 && x[1] && typeof x[1] === 'object' ? [Math.min(9, +x[0]), cleanEffect({name: 'x', ...x[1]})] : null).filter(x => x && x[1]); if (l.length) out.effBySlot = l.sort((x, y) => x[0] - y[0]); }
   if (a.sight) out.sight = true;
   if (+a.upFlat > 0) out.upFlat = Math.min(100, +a.upFlat); if (+a.upTemp > 0) out.upTemp = Math.min(100, +a.upTemp);
   if (+a.durPerSlot > 0) out.durPerSlot = Math.min(MAX_SECONDS, +a.durPerSlot); if (+a.baseSecs > 0) out.baseSecs = Math.min(MAX_SECONDS, +a.baseSecs);
@@ -1404,8 +1414,8 @@ function d20Test(c, kind, ctx) {
 const testMode = t => t.adv.length && !t.dis.length ? 1 : t.dis.length && !t.adv.length ? -1 : 0;
 function modeText(t) {
   const m = testMode(t);
-  if (m === 1) return `Advantage (${esc(t.adv.join(', '))})`;
-  if (m === -1) return `Disadvantage (${esc(t.dis.join(', '))})`;
+  if (m === 1) return `⏫ Advantage (${esc(t.adv.join(', '))})`;
+  if (m === -1) return `⏬ Disadvantage (${esc(t.dis.join(', '))})`;
   return t.adv.length ? `Advantage and Disadvantage cancel (${esc([...t.adv, ...t.dis].join(', '))})` : '';
 }
 // Damage after Immunity, Resistance, Vulnerability and the Resistance cantrip. parts: [{amount, type}]
@@ -1794,6 +1804,9 @@ function App() {
   const [removePick, setRemovePick] = useState(null); // choosing what a spell ends on its target: {targetId, name, options, n}
   const [dmAnswer, setDmAnswer] = useState({});
   const [weaponPick, setWeaponPick] = useState({});
+  const [actOnly, setActOnly] = useState(null); // the sheet lists only what this part of the turn can do: 'action' | 'bonus' | 'reaction' | 'extra'
+  const [dmgTwice, setDmgTwice] = useState(0);   // the next damage roll is rolled twice: 1 keeps the higher, -1 the lower
+  const [storePick, setStorePick] = useState({}); // the spell put inside another spell: {actionId: stored action id}
   const [forced, setForced] = useState(null); // an action used although something says it can't be: {id, why}
   const forcedRef = useRef(null);
   const [openFlag, setOpenFlag] = useState({});
@@ -2074,7 +2087,8 @@ function App() {
 
   // ── RESOLVE ACTION ──────────────────────────────────────────────────────────
   const turnKey = `${round}:${activeId}`;
-  const rollDamageParts = (action, crit, lowAs3) => {
+  const dmgTwiceRef = useRef(0);
+  const rollDamageOnce = (action, crit, lowAs3) => {
     const list = action.dmgList && action.dmgList.length ? action.dmgList : [[action.dmg, action.dmgType]];
     return list.map(([expr, type]) => {
       let e = String(expr || '0');
@@ -2083,6 +2097,10 @@ function App() {
       return {amount: r.total, type: type || '', dice: r.parts.join(' + ')};
     });
   };
+  const rollDamageParts = (action, crit, lowAs3) => { const a = rollDamageOnce(action, crit, lowAs3); if (!dmgTwiceRef.current) return a;
+    const mode = dmgTwiceRef.current, b = rollDamageOnce(action, crit, lowAs3), sum = l => l.reduce((n, pt) => n + pt.amount, 0), keepA = mode === 1 ? sum(a) >= sum(b) : sum(a) <= sum(b), kept = keepA ? a : b;
+    dmgTwiceRef.current = 0; setDmgTwice(0);
+    return kept.map((pt, i) => i ? pt : {...pt, dice: `${mode === 1 ? '⏫' : '⏬'} rolled twice (${sum(a)} and ${sum(b)}), kept the ${mode === 1 ? 'higher' : 'lower'} · ${pt.dice}`}); };
   // Applies rolled damage to a creature, honouring Immunity, Resistance, Vulnerability and Temporary Hit Points.
   const dealDamage = (tgt, parts, halve, ignoreRes) => {
     const dealt = halve ? parts.map(pt => ({...pt, amount: Math.floor(pt.amount / 2)})) : parts;
@@ -2425,6 +2443,10 @@ function App() {
     if (out.name === a.name) out = {...out, name: `${a.name} (Level ${lvl} slot)`};
     if (a.upFlat && a.healDice) out = {...out, healDice: `${a.healDice}+${a.upFlat * extra}`};
     if (a.upTemp && a.onUse && a.onUse.temp) out = {...out, onUse: {...out.onUse, temp: `${a.onUse.temp}+${a.upTemp * extra}`}};
+    const eachEff = fn => { ['onHit','onFail','onSuccess','onUse'].forEach(k => { if (out[k] && out[k].effs) out = {...out, [k]: {...out[k], effs: out[k].effs.map(fn)}}; }); };
+    if (a.upTurn) { const [n, d] = a.upTurn.split('d').map(Number); eachEff(e => e.turnDmg ? {...e, turnDmg: {...e.turnDmg, dice: `${e.turnDmg.dice}+${n * extra}d${d}`}} : e); }
+    if (a.effBySlot) { const hit = a.effBySlot.filter(x => lvl >= x[0]).pop(); if (hit) { const {name, ...over} = hit[1]; eachEff((e, i) => i === 0 ? {...e, ...over} : e); } }
+    if (a.areaPerSlot && a.area) out = {...out, area: {...a.area, size: (+a.area.size || 0) + a.areaPerSlot * extra}, areaGrew: true};
     if (a.durPerSlot) out = reDur(out, Math.min(MAX_SECONDS, (a.concSecs || a.holdSecs || a.baseSecs || 0) + a.durPerSlot * extra), false);
     if (a.durBySlot) { const hit = a.durBySlot.filter(x => lvl >= x[0]).pop(); if (hit) out = reDur(out, Math.min(MAX_SECONDS, hit[1]), !!hit[2]); }
     return out; };
@@ -2510,6 +2532,7 @@ function App() {
     if (action.mv && action.mv.kind) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail">Movement: ${esc(action.mv.kind)}${action.mv.feet ? ` up to ${action.mv.feet} feet` : ''} (${esc(action.mv.who)}${action.mv.others ? `, with up to ${action.mv.others} willing creature${action.mv.others > 1 ? 's' : ''}` : ''}). Move the tokens on your map.</div>`})]);
     if (!re && forcedWhy) { const why = forcedWhy; setForced(null);
       setLog(prev => [...prev, stamp({type:'roll', flag: String(why).slice(0, 300), html:`<strong>${esc(active.name)}</strong> uses <span class="log-result">${esc(action.name)}</span> anyway`})]); }
+    if (action.areaGrew && action.area) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail">With this slot its area is a ${action.area.size}-foot ${esc(action.area.shape)}.</div>`})]);
     if (action.mapNote || action.dmNote) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}${action.mapNote ? `<div class="log-detail">For the map: ${esc(action.mapNote)}</div>` : ''}${action.dmNote ? `<div class="log-detail">The DM decides: ${esc(action.dmNote)}</div>` : ''}`})]);
     { const onWhat = action.castOn ? castOn.trim().slice(0, 80) : '', nm = String(action.name).replace(/ \(Level \d slot\)$/, '');
       if (onWhat) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(nm)}<div class="log-detail">Cast on: ${esc(onWhat)}. This is a map feature: its place is kept by the table until the map is here.</div>`})]);
@@ -2546,7 +2569,11 @@ function App() {
     if (ammoKind(action) && (ammoOn || active.ammoOn) && active.sheet) { const k = ammoKind(action), am = ammoOf(active, k); setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, ammo: {...(c.ammo || {}), [k]: {left: Math.max(0, am.left - 1), spent: am.spent + 1}}})); }
     if (action.selfEffs && action.selfEffs.length) applyOutcome(active, {effs: action.selfEffs}, action, active); // what the spell also puts on its caster
     if (action.hand) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail" style="color:#fff176">Still done by hand: ${esc(action.hand)}</div>`})]);
-    if (action.rerun) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, running: (c.running || []).map(r => r.id === action.runId ? {...r, usedAt: turnKey} : r)}));
+    if (action.rerun) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, running: (c.running || []).map(r => r.id === action.runId ? {...r, usedAt: turnKey} : r).filter(r => !(r.id === action.runId && r.once))}));
+    if (!re && action.storeSpell) { const st = actions.find(x => x.id === storePick[action.id]);
+      if (st) { const {id, slot, pool, cost, usesMax, pointCosts, maxLvl, comp, mat, matCost, matConsumed, gp, gpConsumed, conc, concSecs, again, ritual, castMin, fromSheet, up, upEff, detail, hand, ...keep} = st, gn = `${String(action.name).replace(/ \(Level \d slot\)$/, '')}: ${st.name}`.slice(0, 80);
+        setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, running: [...(c.running || []).filter(r => r.name !== gn), plain({id: newId(), name: gn, act: 'free', conc: '', usedAt: '', once: true, stored: true, a: (() => { const o = {...keep, name: gn}; ['onHit','onFail','onSuccess','onUse'].forEach(k => { if (o[k] && o[k].effs) o[k] = {...o[k], effs: o[k].effs.map(({conc, ...e}) => e)}; }); return o; })()})].slice(-6)}));
+        setLog(prev => [...prev, stamp({type:'roll', forId: active.id, html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail">Stored inside it: ${esc(st.name)}. It has no effect now. When the trigger happens, use "${esc(gn)}" from Active on the creature that set it off: it takes effect then with no spell slot, and lasts its full duration without Concentration.</div>`})]); } }
     else if (action.again && combatStarted) { // while it lasts it can be used again on later turns
       const nm = String(action.name || '').replace(/ \(Level \d slot\)$/, '');
       const {id, slot, pool, cost, usesMax, pointCosts, maxLvl, comp, mat, matCost, matConsumed, conc, concSecs, again, block, fromSheet, up, upEff, detail, ...keep} = action;
@@ -2775,7 +2802,7 @@ function App() {
     if (!re && action.remove && (action.self ? active : picked[0])) startRemove(action.self ? active : picked[0], action, (picks[action.id] || [])[0]);
     if (!re && action.form && action.type !== 'save') { const ft = action.form.on === 'self' ? active : picked[0]; if (ft) setBlockPick({cId: ft.id, kind: 'form', any: true, conc: action.conc ? String(action.name).replace(/ \(Level \d slot\)$/, '') : '', source: String(action.name).replace(/ \(Level \d slot\)$/, ''), left: action.concSecs || 0, tempHP: action.form.tempHP, limit: action.form.limit, by: active.id, q: ''}); }
     const blkName = String(action.name).replace(/ \(Level \d slot\)$/, ''), blk = action.block || (action.spell ? (SUMMON_RE.test(blkName) ? 'summon' : FORM_RE.test(blkName) ? 'form' : '') : '');
-    if (!re && blk && active.sheet && !(action.form && action.form.on === 'target')) setBlockPick({cId: active.id, kind: blk, conc: action.conc ? blkName : '', source: blkName, left: action.concSecs || (action.sctl && action.sctl.secs) || (((action.onUse || {}).effs || [])[0] || {}).left || 0, sctl: action.sctl || null, by: active.id, q: (action.sctl && action.sctl.stat) || ''});
+    if (!re && blk && active.sheet && !(action.form && action.form.on === 'target')) setBlockPick({cId: active.id, kind: blk, conc: action.conc ? blkName : '', source: blkName, left: action.concSecs || (action.sctl && action.sctl.secs) || (((action.onUse || {}).effs || [])[0] || {}).left || 0, sctl: action.sctl || null, by: active.id, q: (action.sctl && action.sctl.stat) || '', ...(action.sctl && action.sctl.ac ? {ac: String(action.sctl.ac[0] + action.sctl.ac[1] * (castLvl || action.slot || 0))} : {}), ...(action.sctl && action.sctl.hp ? {hp: String(action.sctl.hp[0] + action.sctl.hp[1] * Math.max(0, (castLvl || action.slot || 0) - (action.sctl.hp[2] || 0)))} : {})});
     setArmed(null);
     if (re) return;
     setSelectedAction(null);
@@ -2926,6 +2953,10 @@ function App() {
       if (x.id === c.id) o = {...o, made: (o.made || []).map(y => y.id !== b.id ? y : {...y, count: (+y.count || 1) - 1}).filter(y => !(y.id === b.id && y.count <= 0))};
       return o; })));
     setLog(prev => [...prev, stamp({type:'heal', forId: t.id, by: myId, html:`<strong>${esc(t.name)}</strong> uses <span class="log-result">${esc(b.name.replace(/ \(\d+\)$/, ''))}</span>${t.id !== c.id ? ` from ${esc(c.name)}` : ''}${heal ? `<br/><span class="log-heal-val">+${heal} HP</span>` : ''}<div class="log-detail">${esc(ACTIVATIONS[u.act] || 'Action')}${u.effName ? ` · ${esc(u.effName)}${u.effLeft ? ` for ${timeText(u.effLeft)}` : ''}` : ''}</div>`})]); };
+  const giveMade = (c, b, t) => { if (!t) return; const one = {...b, id: newId(), ...(b.count ? {count: 1} : {})};
+    setCombatants(prev => prev.map(x => x.id === c.id ? {...x, made: (x.made || []).map(y => y.id !== b.id ? y : {...y, count: (+y.count || 1) - 1}).filter(y => !(y.id === b.id && !(y.count > 0)))}
+      : x.id === t.id ? {...x, made: (() => { const have = (x.made || []).find(y => y.kind === 'item' && y.name === b.name && y.src === b.src && b.count); return have ? x.made.map(y => y === have ? {...y, count: (+y.count || 1) + 1} : y) : [...(x.made || []), plain(one)].slice(-12); })()} : x));
+    setLog(prev => [...prev, stamp({type:'roll', forId: t.id, by: myId, html:`<strong>${esc(c.name)}</strong> gives <span class="log-result">${esc(b.name)}</span> to <strong>${esc(t.name)}</strong>`})]); };
   const tryEscape = (c, es, cond, eff) => { const total = rollTest(c, 'check', es.ability, es.skill || '', es.dc, `Escape ${cond || (eff && eff.name) || ''} (takes an action)`);
     if (total != null && total >= es.dc) { if (cond) removeCondition(c.id, cond); (c.effects || []).filter(e => e.escape && (!eff || e.id === eff.id || cond)).forEach(e => removeEffect(c.id, e.id)); } };
   const removeEffect = (id, effId) => setCombatants(prev => reorder(prev.map(c => c.id === id ? {...c, effects: (c.effects || []).filter(e => e.id !== effId)} : c)));
@@ -3494,7 +3525,8 @@ function App() {
     const dim = (a) => limited(a) && usesLeft(c, a) <= 0 ? {opacity: 0.45} : {};
     const leftText = (a) => a.pool ? ` (${poolLeft(c, a.pool)} ${a.pool} left)` : a.usesMax ? ` (${usesLeft(c, a)}/${a.usesMax} left)` : '';
     const kindOf = (a) => ['action', 'bonus', 'reaction'].includes(a.activation) ? a.activation : 'other';
-    const shown = (a) => actFilter[kindOf(a)] !== false;
+    const extraOk = (a) => (a.type === 'attack' && a.weapon) || /^(Dash|Disengage|Hide|Utilize|Attack)\b/.test(a.name);
+    const shown = (a) => actFilter[kindOf(a)] !== false && (!actOnly || (actOnly === 'extra' ? extraOk(a) : kindOf(a) === actOnly));
     const attacks = actions.filter(a => a.weapon || a.unarmed);
     const spellActs = actions.filter(a => a.spell);
     const list = sh.spellList || [];
@@ -3599,23 +3631,38 @@ function App() {
                 const move = (by) => ctl && setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, turn: {...(x.turn || {}), moved: Math.max(0, Math.min(sp, (+((x.turn || {}).moved) || 0) + by))}}));
                 return (
                 <div className="econ-row" data-testid="econ-row">
-                  <button className={`econ ${turn.a ? 'used' : ''} ${mine ? '' : 'off'}`} data-testid="econ-action" title={mine ? 'Click to mark it used or unused' : 'Not your turn'} onClick={() => flip('a')}>Action{(+((c.passives || {}).attacks) || 1) > 1 && !turn.a ? '' : ''}</button>
-                  <button className={`econ ${turn.b ? 'used' : ''} ${mine ? '' : 'off'}`} data-testid="econ-bonus" title={mine ? 'Click to mark it used or unused' : 'Not your turn'} onClick={() => flip('b')}>Bonus Action</button>
-                  <button className={`econ ${turn.r ? 'used' : ''}`} data-testid="econ-reaction" title="It comes back at the start of your turn" onClick={() => flip('r')}>Reaction</button>
-                  <span className={`econ ${moved >= sp ? 'used' : ''} ${mine ? '' : 'off'}`} data-testid="econ-move" style={{cursor:'default'}}>Movement {Math.max(0, sp - moved)} ft. left</span>
+                  {[['a', 'action', 'Action', '⚔', 'econ-action'], ['b', 'bonus', 'Bonus Action', '◆', 'econ-bonus'], ...(effs(c).some(e => e.extraAction) ? [['x', 'extra', 'Extra Action', '⚡', 'econ-extra']] : []), ['r', 'reaction', 'Reaction', '↩', 'econ-reaction']].map(([k, kind, lbl, ico, tid]) => (
+                    <span key={k} role="button" tabIndex={0} className={`econ-tile econ ${turn[k] ? 'used' : ''} ${actOnly === kind ? 'sel' : ''}`} data-testid={tid} style={!mine && k !== 'r' ? {display: 'none'} : undefined} title={`Click to see what your ${lbl} can do${kind === 'extra' ? ': ' + (effs(c).find(e => e.extraAction) || {}).extraAction : ''}`} onClick={() => setActOnly(actOnly === kind ? null : kind)}>
+                      <span className="ico" aria-hidden="true">{ico}</span><span className="lbl">{lbl}</span>
+                      {ctl && <button className="mark" data-testid={tid + '-mark'} aria-label={turn[k] ? `Mark ${lbl} unused` : `Mark ${lbl} used`} title={turn[k] ? 'Used. Click to give it back' : 'Click to mark it used'} onClick={e => { e.stopPropagation(); flip(k); }}>{turn[k] ? '✕' : '✓'}</button>}
+                    </span>))}
+                  <span className={`econ-tile econ ${moved >= sp ? 'used' : ''}`} data-testid="econ-move" style={{cursor: 'default', ...(mine ? {} : {display: 'none'})}}><span className="ico" aria-hidden="true">➜</span><span className="lbl">Movement {Math.max(0, sp - moved)} ft. left</span></span>
                   {ctl && mine && <><button className="pp-chip on" aria-label="Move 5 feet" onClick={() => move(5)}>−5 ft.</button><button className="pp-chip on" aria-label="Take back 5 feet" onClick={() => move(-5)}>+5 ft.</button></>}
                   {!mine && <span className="pp-muted" style={{fontSize: 13}}>Not your turn: you have your Reaction.</span>}
+                  {actOnly && <button className="pp-chip on" data-testid="econ-all" onClick={() => setActOnly(null)}>Showing only {actOnly === 'extra' ? 'what the extra action allows' : ACTIVATIONS[actOnly] || actOnly}: show all</button>}
                   {ctl && canUndo() && undoRef.current.actorId === c.id && <button className="pp-chip on" data-testid="undo-btn" onClick={undoLast}>Take back {undoRef.current.name}</button>}
                 </div>); })()}
+          {Object.entries(sh.pools || {}).map(([pn, q]) => { const spend = actions.filter(a => a.pool === pn && !a.pointCosts); return (
+                <div key={pn} className="pp-card" data-testid="resource-group" style={{marginBottom: 10}}>
+                  <div style={{display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap'}}>
+                    <span data-testid="resource-count" style={{fontSize: '1.9rem', fontWeight: 700, lineHeight: 1}}>{poolLeft(c, pn)}<span style={{fontSize: '1rem', fontWeight: 400}}> / {q.max}</span></span>
+                    <span className="pp-h3" style={{margin: 0}}>{pn}{q.die ? ` (${q.die})` : ''}</span>
+                    <span className="pp-muted" style={{fontSize: 13}}>back on a {q.recharge === 'short' ? 'Short or Long Rest' : 'Long Rest'}</span>
+                    {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" aria-label={`Spend one ${pn}`} onClick={() => adjustPool(c.id, pn, -1)}>−</button><button className="pp-chip on" aria-label={`Give back one ${pn}`} onClick={() => adjustPool(c.id, pn, 1)}>+</button></span>}
+                  </div>
+                  {spend.length === 0 && <div className="pp-muted" style={{fontSize: 13}}>Nothing on this sheet spends it by itself.</div>}
+                  {spend.map(a => <div key={a.id} className="pp-arow" data-testid="resource-use"><span><strong>{a.name}</strong> <span className="pp-muted">{[`costs ${a.cost || 1}`, ACTIVATIONS[a.activation] || '', (String(a.desc || '').match(/[^.!?]+[.!?]*/) || [''])[0].trim().slice(0, 140)].filter(Boolean).join(' · ')}</span></span>
+                    {ctl && <button className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} disabled={poolLeft(c, pn) < (a.cost || 1)} onClick={() => sel(a)}>Use</button>}</div>)}
+                </div>); })}
               <div className="pp-card pp-active" data-testid="pp-active">
                 <div className="pp-h3" style={{margin: '0 0 4px', textAlign: 'left'}}>Active{runningOf(c).length || inPlay.some(x => (x.effects || []).some(e => e.casterId === c.id && isMovable(e))) ? ': use or move these on your turn' : ''}</div>
                 {(c.blocks || []).map(b => <div key={b.id} className="pp-arow" data-testid="active-block"><span><strong>{b.name}</strong> <span className="pp-muted">{b.kind === 'form' ? 'form' : 'summoned'}{b.source ? ` · ${b.source}` : ''}{+b.left > 0 ? ` · ${timeText(b.left)} left` : ''}</span></span><button className="pp-chip on" onClick={() => setSheetTab('blocks')}>Stat block</button></div>)}
-                {runningOf(c).map(r => <div key={r.id} className="pp-arow hot" data-testid="active-again"><span><strong>{r.name}</strong> <span className="pp-muted">{r.zone ? `area in play: ${r.zone} · apply it to a creature` : r.cmd ? 'command it' : 'can be used again each turn'} ({ACTIVATIONS[r.act] || 'no action'}){r.usedAt === turnKey ? ' · used this turn' : ''}</span></span>
-                  {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" data-testid="again-btn" onClick={() => { setSelectedAction('run-' + r.id); }}>Use again</button>
+                {runningOf(c).map(r => <div key={r.id} className="pp-arow hot" data-testid="active-again"><span><strong>{r.name}</strong> <span className="pp-muted">{r.stored ? 'stored spell: use it on whoever triggers it, once' : r.zone ? `area in play: ${r.zone} · apply it to a creature` : r.cmd ? 'command it' : 'can be used again each turn'} ({ACTIVATIONS[r.act] || 'no action'}){r.usedAt === turnKey ? ' · used this turn' : ''}</span></span>
+                  {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" data-testid="again-btn" onClick={() => { setSelectedAction('run-' + r.id); }}>{r.stored ? 'Trigger' : 'Use again'}</button>
                     <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, running: (x.running || []).filter(y => y.id !== r.id)}))}>End</button></span>}</div>)}
                 {c.conc && <div className="pp-arow" data-testid="active-conc"><span><strong>Concentrating on {c.conc.name}</strong>{+c.conc.left > 0 ? ` · ${timeText(c.conc.left)} left` : ''}</span>{ctl && <button className="pp-chip on" onClick={() => endConcentration(c.id)}>End</button>}</div>}
                 {(c.made || []).filter(b => b.kind === 'item').map(b => <div key={b.id} className="pp-arow" data-testid="made-item"><span><strong style={{cursor: 'pointer'}} title="Click for the full description" onClick={() => noteLog(c, b.name, [b.note, b.left > 0 ? (b.spoil ? `Spoils in ${timeText(b.left)}.` : `Lasts ${timeText(b.left)} more.`) : ''].filter(Boolean).join(' '))}>{b.name}{b.count > 0 ? ` × ${b.count}` : ''}</strong> <span className="pp-muted">item{b.src ? ` · made by ${b.src}` : ''}{+b.left > 0 ? (b.spoil ? ` · spoils in ${timeText(b.left)}` : ` · ${timeText(b.left)} left`) : ''}{b.spoiled ? ' · spoiled' : ''}</span></span>
-                  {ctl && <span style={{display: 'inline-flex', gap: 6}}>{b.use && <button className="pp-chip on" data-testid="made-use" title={`${ACTIVATIONS[b.use.act] || 'Action'}. It goes to the creature you have targeted, or to ${c.name}.`} onClick={() => useMade(c, b)}>Use one</button>}
+                  {ctl && <span style={{display: 'inline-flex', gap: 6}}>{inPlay.find(x => x.id === targetIds[0] && x.id !== c.id) && <button className="pp-chip on" data-testid="made-give" title="Hand it to the creature you have targeted" onClick={() => giveMade(c, b, inPlay.find(x => x.id === targetIds[0]))}>Give {b.count > 1 ? 'one' : 'it'} to {(inPlay.find(x => x.id === targetIds[0]) || {}).name}</button>}{b.use && <button className="pp-chip on" data-testid="made-use" title={`${ACTIVATIONS[b.use.act] || 'Action'}. It goes to the creature you have targeted, or to ${c.name}.`} onClick={() => useMade(c, b)}>Use one</button>}
                     <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).filter(y => y.id !== b.id)}))}>Drop</button></span>}</div>)}
                 {(c.made || []).filter(b => b.kind !== 'item' && b.kind !== 'dm').map(b => <div key={b.id} className="pp-arow" data-testid="active-made" title={b.note}><span><strong>{b.name}</strong> <span className="pp-muted">active effect you control{b.on ? ` · on ${b.on}` : ''}{+b.left > 0 ? ` · ${timeText(b.left)} left` : ''}{b.note ? ` · ${b.note}` : ''}</span></span>
                   {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" data-testid="made-move" title="Say where it is now. On the map this will be a click." onClick={() => { const w = window.prompt(`Where is ${b.name} now?`, b.on || ''); if (w != null) setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).map(y => y.id !== b.id ? y : {...y, on: w.slice(0, 80), loc: {text: w.slice(0, 80), x: null, y: null}})})); }}>Place</button>
@@ -3668,9 +3715,9 @@ function App() {
                 <span className="pp-muted">Show:</span>
                 {[['action', 'Action'], ['bonus', 'Bonus Action'], ['reaction', 'Reaction'], ['other', 'Other']].map(([k, t]) => <button key={k} data-testid={`filter-${k}`} aria-pressed={actFilter[k] !== false} className={`pp-chip ${actFilter[k] !== false ? 'on' : ''}`} onClick={() => setActFilter({...actFilter, [k]: actFilter[k] === false})}>{t}</button>)}
               </div>
-              {actFilter.action !== false && (
+              {actFilter.action !== false && (!actOnly || actOnly === 'action' || actOnly === 'extra') && (
                 <div className="pp-std" data-testid="std-actions">
-                  {STD_ACTIONS.map(s => <button key={s.n} className="pp-stdbtn" disabled={!ctl} title={s.d} data-testid={`std-${s.n}`} onClick={() => setStdAct({name: s.n})}><strong>{s.n}</strong><span className="pp-type">A</span></button>)}
+                  {STD_ACTIONS.filter(s => actOnly !== 'extra' || /^(Dash|Disengage|Hide|Utilize|Attack)$/.test(s.n)).map(s => <button key={s.n} className="pp-stdbtn" disabled={!ctl} title={s.d} data-testid={`std-${s.n}`} onClick={() => setStdAct({name: s.n})}><strong>{s.n}</strong><span className="pp-type">A</span></button>)}
                 </div>)}
               {others.filter(shown).map(a => (
                 <div key={a.id} className={rowCls(a, 'pp-action')} style={dim(a)} title={limited(a) ? 'Right-click to give back a use' : undefined} onClick={() => ctl && sel(a)} onContextMenu={back(a)}>
@@ -3738,18 +3785,6 @@ function App() {
 
         {sheetTab === 'features' && (
         <div data-testid="paper-features">
-          {Object.entries(sh.pools || {}).map(([pn, q]) => { const spend = actions.filter(a => a.pool === pn && !a.pointCosts); return (
-            <div key={pn} className="pp-card" data-testid="resource-group" style={{marginBottom: 10}}>
-              <div style={{display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap'}}>
-                <span data-testid="resource-count" style={{fontSize: '1.9rem', fontWeight: 700, lineHeight: 1}}>{poolLeft(c, pn)}<span style={{fontSize: '1rem', fontWeight: 400}}> / {q.max}</span></span>
-                <span className="pp-h3" style={{margin: 0}}>{pn}{q.die ? ` (${q.die})` : ''}</span>
-                <span className="pp-muted" style={{fontSize: 13}}>back on a {q.recharge === 'short' ? 'Short or Long Rest' : 'Long Rest'}</span>
-                {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" aria-label={`Spend one ${pn}`} onClick={() => adjustPool(c.id, pn, -1)}>−</button><button className="pp-chip on" aria-label={`Give back one ${pn}`} onClick={() => adjustPool(c.id, pn, 1)}>+</button></span>}
-              </div>
-              {spend.length === 0 && <div className="pp-muted" style={{fontSize: 13}}>Nothing on this sheet spends it by itself.</div>}
-              {spend.map(a => <div key={a.id} className="pp-arow" data-testid="resource-use"><span><strong>{a.name}</strong> <span className="pp-muted">{[`costs ${a.cost || 1}`, ACTIVATIONS[a.activation] || '', (String(a.desc || '').match(/[^.!?]+[.!?]*/) || [''])[0].trim().slice(0, 140)].filter(Boolean).join(' · ')}</span></span>
-                {ctl && <button className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} disabled={poolLeft(c, pn) < (a.cost || 1)} onClick={() => sel(a)}>Use</button>}</div>)}
-            </div>); })}
           {feats.length === 0 && <div className="pp-center pp-muted">No features listed.</div>}
           {feats.map((f, i) => (
             <div key={i} className="pp-entry" data-testid="feature-entry">
@@ -3792,6 +3827,11 @@ function App() {
   const reMod = (dice, delta, die) => { const m = /^(.*?)([+-]\d+)?$/.exec(String(dice || '').replace(/\s/g, '')) || [], n = (+m[2] || 0) + delta, head = die ? String(m[1] || '').replace(/^\d+d\d+/, die) : (m[1] || ''); return head + (n > 0 ? '+' + n : n < 0 ? String(n) : ''); };
   const spellModOf = c => c && (c.sheet || {}).spell ? (+c.sheet.spell.attack || 0) - (+c.pb || 2) : 0;
   const withMode = a0 => { let a = pickMode(a0); const c = viewed; if (!a || !c) return a;
+    if (a.needItem) { // Shillelagh and the like: the spell goes on one weapon, the one in hand first
+      const fit = actions.filter(x => x.weapon && new RegExp('^(' + a.needItem.re + ')', 'i').test(x.name)), held = handsOf(c), inHand = x => held.some(h => h && x.name.replace(/ \(.*$/, '') === String(h).replace(/ \(.*$/, ''));
+      const w = fit.find(x => x.id === weaponPick[a.id]) || fit.find(inHand) || null;
+      if (w && a.onUse && a.onUse.effs) { const base = w.name.replace(/ \(.*$/, '').replace(/[^A-Za-z ]/g, ''); a = {...a, itemName: base, itemHeld: inHand(w), onUse: {...a.onUse, effs: a.onUse.effs.map(e => e.wpn ? {...e, wpn: {...e.wpn, re: base}} : e)}}; }
+      else a = {...a, itemName: ''}; }
     if (a.viaWeapon) { // True Strike: the attack is made with the chosen weapon, using the spellcasting ability
       const w = actions.find(x => x.id === weaponPick[a.id] && x.weapon); if (!w) return a;
       const delta = spellModOf(c) - mod((c.scores || {})[w.abil] || 10), own = (w.dmgList || [])[0] || ['1', 'Bludgeoning'], type = (picks[a.id] || [])[0] === a.viaWeapon.type ? a.viaWeapon.type : own[1];
@@ -3808,17 +3848,23 @@ function App() {
   const effectBlock = (c, a) => { if (!c || !a) return ''; const nc = a.spell && effs(c).find(e => e.noCast), na = ['action', 'bonus'].includes(a.activation || 'action') && effs(c).find(e => e.noAct);
     if (nc) return `${c.name} can't cast spells (${nc.name}).`; if (na) return `${c.name} can't take actions (${na.name}).`;
     if (a.sight && hasCond(c, 'Blinded')) return `${c.name} is Blinded and ${a.name} needs a target it can see.`;
-    if (a.needItem && !(actions || []).some(x => x.weapon && new RegExp('^(' + a.needItem.re + ')', 'i').test(x.name))) return `${a.name} works on a ${a.needItem.re.split('|').join(' or ')} ${c.name} is holding, and ${c.name} has neither.`;
+    if (a.needItem && (a.itemName === '' || (a.itemName === undefined && !(actions || []).some(x => x.weapon && new RegExp('^(' + a.needItem.re + ')', 'i').test(x.name))))) return `No target available: ${a.name} works on a ${a.needItem.re.split('|').join(' or ')} ${c.name} is holding, and ${c.name} has neither.`;
+    if (a.needItem && a.itemName && a.itemHeld === false && handsOn && !c.handsIgnore) return `${a.name} works on a weapon ${c.name} is holding, and the ${a.itemName} is not in hand.`;
     return ''; };
   // Things that say an action can't be used. It is greyed out, and using it anyway asks first and is flagged in the log.
   const softOf = (c, a) => effectBlock(c, a) || blockReason(c, a) || '';
+  // Spells that can be put inside the chosen spell: prepared, of a level the slot allows, and aimed at one creature or an area.
+  const storeOptions = a => { const top = Math.max(a.storeSpell.max || 3, a.storeSpell.bySlot ? (castOptions(viewed || {}, a).includes(castLevel) ? castLevel : (castOptions(viewed || {}, a)[0] || 0)) : 0); return actions.filter(x => x.spell && x.id !== a.id && x.slot > 0 && x.slot <= top && !x.self && !x.storeSpell && !x.modes); };
+  // A choice is only asked for when the version in use really uses it.
+  const choiceNeeded = (a, i) => { const m = a.modes && modePick[a.id] != null ? a.modes[modePick[a.id]] : null; return !m || String((m.a || {}).tpl || '').includes('$' + (i + 1)); };
   const softWhy = selAction && viewed ? (softOf(viewed, selAction) || (needsTargetNow && freeT == null && targetIds.map(id => targetProblem(selAction, viewed, inPlay.find(c => c.id === id))).find(Boolean)) || '') : '';
   const cannotWhy = !selAction ? 'Nothing chosen' : !actorNow ? 'Not your turn (a Reaction can be used at any time)'
     : (needsTargetNow && freeT == null && !inPlay.find(c => c.id === targetId)) ? 'Pick a target'
     : (limited(selAction) && usesLeft(viewed, selAction) <= 0) ? 'No uses left'
     : (selAction.modes && modePick[selAction.id] == null) ? 'Choose which version to use'
     : (selAction.viaWeapon && !selAction.weapon) ? 'Choose the weapon it is cast with'
-    : (selAction.choices && selAction.choices.some((c, i) => !((picks[selAction.id] || [])[i]))) ? `Choose: ${selAction.choices.filter((c, i) => !((picks[selAction.id] || [])[i])).map(c => c.label).join(', ')}`
+    : (selAction.storeSpell && !storeOptions(selAction).some(x => x.id === storePick[selAction.id])) ? 'Choose the spell to store in it'
+    : (selAction.choices && selAction.choices.some((c, i) => choiceNeeded(selAction, i) && !((picks[selAction.id] || [])[i]))) ? `Choose: ${selAction.choices.filter((c, i) => choiceNeeded(selAction, i) && !((picks[selAction.id] || [])[i])).map(c => c.label).join(', ')}`
     : (selAction.slot > 0 && castOptions(viewed, selAction).length === 0 && !selAction.ritual) ? (selAction.pointCosts ? `Not enough ${selAction.pool}` : 'No spell slot left') : '';
   // An attack goes in steps when the table rule is on: declare it, roll it, the target sees the roll, then it applies.
   const stepWanted = !!(stepOn && freeT == null && selAction && selAction.type === 'attack' && !selAction.self && inPlay.find(c => c.id === targetIds[0]));
@@ -4415,6 +4461,23 @@ function App() {
                     </div>
                   </div>
                 )}
+                {selAction && selAction.needItem && (
+                  <div className="manual-roll" data-testid="item-box">
+                    <span className="label">Cast on</span>
+                    {actions.filter(x => x.weapon && new RegExp('^(' + selAction.needItem.re + ')', 'i').test(x.name)).length === 0 ? <div className="buff-note" data-testid="item-none" style={{margin: 0, color: '#ff8a80'}}>No target available: no {selAction.needItem.re.split('|').join(' or ')} among your weapons.</div>
+                    : <div className="advantage-row" style={{flexWrap: 'wrap'}}>{actions.filter(x => x.weapon && new RegExp('^(' + selAction.needItem.re + ')', 'i').test(x.name)).map(x => { const base = x.name.replace(/ \(.*$/, ''), held = handsOf(viewed).some(h => h && String(h).replace(/ \(.*$/, '') === base); return <div key={x.id} data-testid="item-pick" className={`adv-btn ${selAction.itemName === base.replace(/[^A-Za-z ]/g, '') ? 'active-adv' : ''}`} style={held ? {borderColor: 'var(--gold)'} : undefined} onClick={() => setWeaponPick({...weaponPick, [selAction.id]: x.id})}>{x.name}{held ? ' (in hand)' : ''}</div>; })}</div>}
+                  </div>
+                )}
+                {selAction && selAction.storeSpell && (
+                  <div className="manual-roll" data-testid="store-box">
+                    <span className="label">Spell to store</span>
+                    <select aria-label="Spell to store" data-testid="store-pick" value={storePick[selAction.id] || ''} onChange={e => setStorePick({...storePick, [selAction.id]: e.target.value})}
+                      style={{width:'100%', background:'#0F1923', border:'1px solid #3d5166', color:'var(--parchment)', padding:'6px 8px', borderRadius:4, fontFamily:"'Crimson Text', serif", fontSize:'0.9rem'}}>
+                      <option value="">Choose</option>
+                      {storeOptions(selAction).map(x => <option key={x.id} value={x.id}>{x.name} (Level {x.slot})</option>)}
+                    </select>
+                  </div>
+                )}
                 {selAction && selAction.viaWeapon && (
                   <div className="manual-roll" data-testid="weapon-box">
                     <span className="label">Weapon</span>
@@ -4426,7 +4489,7 @@ function App() {
                   </div>
                 )}
                 {selAction && selAction.buffBy && <div className="buff-note" data-testid="buff-line" style={{marginTop:8}}>{selAction.buffBy} is on this weapon: +{selAction.atk} to hit, {selAction.dmgList[0][0]} damage.</div>}
-                {selAction && (selAction.choices || []).map((ch, i) => (
+                {selAction && (selAction.choices || []).map((ch, i) => !choiceNeeded(selAction, i) ? null : (
                   <div className="manual-roll" key={'ch' + i} data-testid="choice-box">
                     <span className="label">{ch.label}</span>
                     <select aria-label={ch.label} data-testid={'choice-' + i} value={(picks[selAction.id] || [])[i] || ''} onChange={e => { const cur = [...(picks[selAction.id] || [])]; cur[i] = e.target.value; setPicks({...picks, [selAction.id]: cur}); }}
@@ -4460,11 +4523,17 @@ function App() {
                 {/* Advantage */}
                 {selAction && (
                   <div className="manual-roll" data-testid="next-roll">
-                    <span className="label">Next roll has</span>
+                    <span className="label">Next d20 roll</span>
                     <div className="advantage-row">
-                      <div className={`adv-btn ${advantage===1?'active-adv':''}`} onClick={()=>setAdvantage(advantage===1?0:1)}>Advantage</div>
+                      <div className={`adv-btn ${advantage===1?'active-adv':''}`} data-testid="adv-high" onClick={()=>setAdvantage(advantage===1?0:1)}>Roll twice, use highest</div>
                       <div className="adv-btn" onClick={()=>setAdvantage(0)} style={{border:advantage===0?'1px solid var(--brass)':'',color:advantage===0?'var(--parchment)':''}}>Normal</div>
-                      <div className={`adv-btn ${advantage===-1?'active-dis':''}`} onClick={()=>setAdvantage(advantage===-1?0:-1)}>Disadvantage</div>
+                      <div className={`adv-btn ${advantage===-1?'active-dis':''}`} data-testid="adv-low" onClick={()=>setAdvantage(advantage===-1?0:-1)}>Roll twice, use lowest</div>
+                    </div>
+                    <span className="label" style={{marginTop: 6}}>Next damage roll</span>
+                    <div className="advantage-row">
+                      <div className={`adv-btn ${dmgTwice===1?'active-adv':''}`} data-testid="dmg-high" onClick={()=>{ const v = dmgTwice===1?0:1; setDmgTwice(v); dmgTwiceRef.current = v; }}>Roll twice, use highest</div>
+                      <div className="adv-btn" onClick={()=>{ setDmgTwice(0); dmgTwiceRef.current = 0; }} style={{border:dmgTwice===0?'1px solid var(--brass)':'',color:dmgTwice===0?'var(--parchment)':''}}>Normal</div>
+                      <div className={`adv-btn ${dmgTwice===-1?'active-dis':''}`} data-testid="dmg-low" onClick={()=>{ const v = dmgTwice===-1?0:-1; setDmgTwice(v); dmgTwiceRef.current = v; }}>Roll twice, use lowest</div>
                     </div>
                   </div>
                 )}
@@ -4699,8 +4768,8 @@ function App() {
               <button className="btn btn-primary btn-sm" data-testid="dice-roll" disabled={!DMG_RE.test(normExpr(diceExpr))} onClick={()=>rollExpr(diceExpr)}>Roll</button>
             </div>
             <div className="dice-opts" data-testid="next-roll-dice">
-              <span>Next d20 Test from the sheet has:</span>
-              {[[1, 'Advantage'], [0, 'Normal'], [-1, 'Disadvantage']].map(([v, t]) => <button key={v} className={`die-btn ${advantage === v ? 'has' : ''}`} style={{padding:'4px 8px'}} aria-pressed={advantage === v} onClick={()=>setAdvantage(v)}>{t}</button>)}
+              <span>Next d20 roll from the sheet:</span>
+              {[[1, 'Roll twice, use highest'], [0, 'Normal'], [-1, 'Roll twice, use lowest']].map(([v, t]) => <button key={v} className={`die-btn ${advantage === v ? 'has' : ''}`} style={{padding:'4px 8px'}} aria-pressed={advantage === v} onClick={()=>setAdvantage(v)}>{t}</button>)}
             </div>
             <div className="dice-opts" data-testid="dice-adv">
               <span>d20:</span>

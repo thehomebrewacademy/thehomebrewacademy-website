@@ -286,6 +286,9 @@ The "extras" object (include only the keys that apply):
 - "zone": for a spell that leaves an area in play that keeps affecting creatures: {"enter": true if it acts when a creature enters, "startTurn": true if at the start of a creature's turn there, "endTurn": true if at the end, "difficult": true if it is Difficult Terrain, "obscured": "lightly" | "heavily" | "", "oncePerTurn": true if a creature can be affected only once per turn}. Also set the record's "again" to "free" for these.
 - "creates": the spell makes things that stay around (food, berries, a light, an illusion, a ward, a duplicate): [{"name": "Food (45 pounds)", "secs": 86400 (how long it lasts in seconds, 0 if it does not expire), "note": "what it does, in the text's own terms"}]. Each one is listed for the caster with its clock. A lasting spell that affects no creature and targets an object, a point or nothing is listed this way without you writing "creates".
 - In "creates", a physical thing the caster ends up carrying also takes "kind": "item", and may take "count", "spoil": "Spoiled Food" (what it becomes when its time ends) and "use": {"heal": "1", "act": "bonus" | "action", "effName": "Nourished", "effLeft": 86400, "effNote": "what it does"} for something used up one at a time. Anything else created is listed as an active effect the caster controls.
+- More that a higher slot can change: "upTurn": "1d6" (dice added to a "turnDmg" for each slot level above), "areaPerSlot": 20 (feet added to the area's size for each slot level above), "effBySlot": [[3, {"weaponAtk": 2, "dmgBonus": 2}], [6, {"weaponAtk": 3, "dmgBonus": 3}]] (effect values that replace the first effect's from that slot level up). For a summoned creature whose numbers grow with the slot, add to "summonCtl" "ac": [base, added per spell level] and "hp": [base, added per level, the level the adding starts from] (Summon Dragon: "ac": [14, 1], "hp": [50, 10, 5]).
+- "missHalf": true when an attack spell still deals half its damage on a miss.
+- A spell that lets the caster store another spell inside it has, in the record (or inside the version that does it), "storeSpell": {"max": the highest spell level it holds, "bySlot": true if a higher slot raises that}. The caster picks the stored spell when casting; it is kept on the caster's sheet and used once, when the trigger happens, with no spell slot and no Concentration.
 - "durBySlot": [[slot level, seconds, 1 if it no longer needs Concentration else 0], ...] when a higher slot makes the spell last longer (0 seconds = until dispelled). "durPerSlot": seconds added for each slot level above the spell's level. A flat amount more healing or Temporary Hit Points per slot level goes in the record's "up" as a plain number ("heal": "10", "temp": "5").
 - A spell or message that the DM has to act on over time ("askDM" or "message" with a duration of 10 minutes or more) is kept in the DM's panel with its clock until it ends or the DM cancels it. Nothing extra is written for this.
 - "message": true when the caster says or sends words to the target (Message, Sending). The caster types them and only the sender, the recipient and the DM see them.
@@ -4201,6 +4204,13 @@ function fullSpellAction(sp, ctx, opts) {
   if (x.message) out.message = true;
   if (/\b(?:that|whom|which) you can see\b|you can see within range/i.test(sp.x) && ["attack", "save", "auto", "apply", "heal"].includes(out.type) && !out.self) out.sight = true; // it needs a target the caster can see
   if ((x.askDM || x.message) && f.dur >= 600) { out.dmHold = true; if (f.dur > 0) out.holdSecs = f.dur; } // it stays in the DM's hands while it lasts
+  if (f.storeSpell) out.storeSpell = { max: +f.storeSpell.max || 3, bySlot: !!f.storeSpell.bySlot }; // another prepared spell is put inside this one
+  if (x.upTurn) out.upTurn = String(x.upTurn);
+  if (x.missHalf && out.type === "attack") out.missHalf = true; // half of the damage on a miss
+  if (+x.areaPerSlot > 0) out.areaPerSlot = +x.areaPerSlot;
+  if (Array.isArray(x.effBySlot)) out.effBySlot = x.effBySlot;
+  if (out.sctl && x.summonCtl && Array.isArray(x.summonCtl.ac)) out.sctl.ac = x.summonCtl.ac;
+  if (out.sctl && x.summonCtl && Array.isArray(x.summonCtl.hp)) out.sctl.hp = x.summonCtl.hp;
   if (+x.durPerSlot > 0) { out.durPerSlot = +x.durPerSlot; out.baseSecs = f.dur || 0; }
   if (Array.isArray(x.durBySlot)) out.durBySlot = x.durBySlot;
   if (x.mapNote) out.mapNote = String(x.mapNote).slice(0, 500);
