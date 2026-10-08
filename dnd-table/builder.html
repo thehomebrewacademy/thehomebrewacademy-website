@@ -288,6 +288,8 @@ The "extras" object (include only the keys that apply):
 - In "creates", a physical thing the caster ends up carrying also takes "kind": "item", and may take "count", "spoil": "Spoiled Food" (what it becomes when its time ends) and "use": {"heal": "1", "act": "bonus" | "action", "effName": "Nourished", "effLeft": 86400, "effNote": "what it does"} for something used up one at a time. Anything else created is listed as an active effect the caster controls.
 - More that a higher slot can change: "upTurn": "1d6" (dice added to a "turnDmg" for each slot level above), "areaPerSlot": 20 (feet added to the area's size for each slot level above), "effBySlot": [[3, {"weaponAtk": 2, "dmgBonus": 2}], [6, {"weaponAtk": 3, "dmgBonus": 3}]] (effect values that replace the first effect's from that slot level up). For a summoned creature whose numbers grow with the slot, add to "summonCtl" "ac": [base, added per spell level] and "hp": [base, added per level, the level the adding starts from] (Summon Dragon: "ac": [14, 1], "hp": [50, 10, 5]).
 - "missHalf": true when an attack spell still deals half its damage on a miss.
+- "secondary": a second effect with its own save that comes with an attack, hit or miss (Ice Knife's explosion): {"save": "Dexterity", "label": "explosion", "dmg": [["2d6", "Cold"]], "half": false}. The caster picks every creature caught in it; the first one picked takes the attack. "upSecondary": "1d6" when only that second damage grows with the slot.
+- A summoned creature whose stat block is printed in the spell and depends on the spell's level gets the whole stat block in "summonCtl" as "block": {"name": "Otherworldly Steed", "size": "Large", "type": "$1" (or a fixed type), "ac": [base, per spell level], "hp": [base, per spell level, the level the adding starts from], "speed": 60, "speedMore": [{"text": "Fly 60 ft.", "minLvl": 4}], "s": [Str, Dex, Con, Int, Wis, Cha], "res": "", "ci": "", "senses": "", "traits": [["Name", "text"]], "acts": [{"n": "Otherworldly Slam", "kind": "attack" | "save" | "heal" | "info", "act": "action" | "bonus", "only": "Fiend" (only for that chosen type), "dmg": "1d8+L" (L is the spell's level), "dtype": "Piercing" or {"Celestial": "Radiant", "Fey": "Psychic"} or "$2", "save": "Wisdom", "cond": "Frightened", "left": 6, "half": true, "heal": "2d8+L", "uses": 1 (per Long Rest), "d": "its text word for word"}]}. Attacks use the caster's spell attack modifier and saves the caster's spell save DC.
 - A spell that lets the caster store another spell inside it has, in the record (or inside the version that does it), "storeSpell": {"max": the highest spell level it holds, "bySlot": true if a higher slot raises that}. The caster picks the stored spell when casting; it is kept on the caster's sheet and used once, when the trigger happens, with no spell slot and no Concentration.
 - "durBySlot": [[slot level, seconds, 1 if it no longer needs Concentration else 0], ...] when a higher slot makes the spell last longer (0 seconds = until dispelled). "durPerSlot": seconds added for each slot level above the spell's level. A flat amount more healing or Temporary Hit Points per slot level goes in the record's "up" as a plain number ("heal": "10", "temp": "5").
 - A spell or message that the DM has to act on over time ("askDM" or "message" with a duration of 10 minutes or more) is kept in the DM's panel with its clock until it ends or the DM cancels it. Nothing extra is written for this.
@@ -445,6 +447,7 @@ hitPointBands: when what happens depends on the target's current Hit Points, add
 attacks: when one use makes several separate attack rolls that can go at the same or different creatures, add "attacks": 3 (a number or formula). "damage" is then the damage of one attack.
 removes: when the feature ends things on its target, add "removes": { "conditions": ["Poisoned", "Charmed"], "count": 1 or "all", "exhaustion": 1, "effects": "curse" | "spells" | "any", "hitPointMaximum": true }. Leave out what does not apply. The user is shown what the target really has and picks from that.
 cost: when using it costs gold, add "cost": { "gp": 50, "consumed": true }. The gold must be on hand and is taken when it is used (once only if not consumed).
+items: an activated ability granted by an item ("grantedBy": { "type": "item", "name": ... }) can also be used from the Inventory tab of the character sheet, next to that item.
 creates: when using it makes things that stay around, add "creates": [ { "name": "Spirit Lantern", "duration": { "amount": 1, "unit": "hours" }, "note": "what it does" } ]. Leave "duration" out if it does not expire. A thing with a place but no weight (a light, a ward, an illusion, an eye) is listed as an active effect the user controls. A physical thing the character carries gets "item": true, and may add "count": 10 (how many), "spoilsInto": "Spoiled Food" (what it becomes when its duration ends, instead of vanishing), and "whenUsed": { "activation": "bonus" or "action", "heal": "1", "effect": { "name": "Nourished", "duration": { "amount": 1, "unit": "days" }, "note": "what it does" } } for something eaten, drunk or used up one at a time.
 castOn: true when it is used on an object or a spot, not a creature. The user types what it is used on.
 message: true when the user sends words to the target. The user types them.
@@ -2593,6 +2596,7 @@ function CharacterSheet() {
       if (!isActivated(e)) return;
       try {
         const a = compileAbility(e, spellCtx);
+        if (pObj(e.grantedBy).type === "item") a.item = pStr(e.grantedBy.name, 80); // used from the Inventory tab too
         if (pObj(e.grantedBy).type === "spell") { // a pack spell brings its components along
           const sp = spellOf(e.grantedBy.name); a.spell = true;
           if (sp && sp.conc) a.conc = true;
@@ -4209,8 +4213,8 @@ function fullSpellAction(sp, ctx, opts) {
   if (x.missHalf && out.type === "attack") out.missHalf = true; // half of the damage on a miss
   if (+x.areaPerSlot > 0) out.areaPerSlot = +x.areaPerSlot;
   if (Array.isArray(x.effBySlot)) out.effBySlot = x.effBySlot;
-  if (out.sctl && x.summonCtl && Array.isArray(x.summonCtl.ac)) out.sctl.ac = x.summonCtl.ac;
-  if (out.sctl && x.summonCtl && Array.isArray(x.summonCtl.hp)) out.sctl.hp = x.summonCtl.hp;
+  if (x.secondary && x.secondary.save) { out.secondary = { ...x.secondary, dc: ctx.SPELLDC }; out.targets = "any"; } // a second effect with its own save (Ice Knife)
+  if (x.upSecondary) out.upSecondary = String(x.upSecondary);
   if (+x.durPerSlot > 0) { out.durPerSlot = +x.durPerSlot; out.baseSecs = f.dur || 0; }
   if (Array.isArray(x.durBySlot)) out.durBySlot = x.durBySlot;
   if (x.mapNote) out.mapNote = String(x.mapNote).slice(0, 500);
@@ -4226,6 +4230,9 @@ function fullSpellAction(sp, ctx, opts) {
   if (x.remove) out.remove = { conds: (x.remove.conds || []).slice(0, 14), count: x.remove.count === "all" ? "all" : 1, exhaustion: +x.remove.exhaustion || 0, effects: x.remove.effects || "", hpMax: !!x.remove.hpMaxRestore, maxLevel: +x.remove.maxLevel || 0 };
   if (x.askDM) out.askDM = String(x.askDM).slice(0, 300);
   if (x.summonCtl) { out.block = out.block || "summon"; out.sctl = { cmd: ["bonus", "action"].includes(x.summonCtl.commandAct) ? x.summonCtl.commandAct : "", secs: Math.max(0, +x.summonCtl.controlSecs || 0), after: x.summonCtl.actsAfterCaster !== false, stat: String(x.summonCtl.statBlock || "").slice(0, 60) }; }
+  if (out.sctl && x.summonCtl && Array.isArray(x.summonCtl.ac)) out.sctl.ac = x.summonCtl.ac;
+  if (out.sctl && x.summonCtl && Array.isArray(x.summonCtl.hp)) out.sctl.hp = x.summonCtl.hp;
+  if (out.sctl && x.summonCtl && x.summonCtl.block) out.sctl.block = x.summonCtl.block; // its stat block is built from the slot level
   if (x.form) { out.form = { on: x.form.on === "self" ? "self" : "target", limit: String(x.form.limit || "").slice(0, 200), tempHP: !!x.form.tempHP }; if (out.block === "form" && out.form.on === "target") delete out.block; }
   if (x.move && x.move.kind) out.mv = { kind: String(x.move.kind).slice(0, 10), feet: Math.max(0, +x.move.feet || 0), who: String(x.move.who || "self").slice(0, 16), others: Math.max(0, +x.move.others || 0) };
   if (x.zone) { out.zone = { enter: !!x.zone.enter, start: !!x.zone.startTurn, end: !!x.zone.endTurn, difficult: !!x.zone.difficult, obscured: String(x.zone.obscured || "").slice(0, 8), once: !!x.zone.oncePerTurn }; if (!out.again && lasts && out.type !== "info") out.again = "free"; }
