@@ -33,12 +33,21 @@ STEP 1. Ask the user to upload or paste their content: a homebrew document, a so
 
 STEP 2. Read all of it. For every option, work out two things:
   a. The character option itself (what shows on the character sheet).
-  b. Every feature, trait, spell or item that DOES something. Each one becomes an entry in "abilities", so the sheet's numbers change and the Combat Resolver can run it. Sort each one into these kinds (one feature can be several at once):
-     PASSIVE: it changes a number or a defense all the time (Armor Class, Speed, Hit Points, a save, a Resistance, a sense, a spell that is always prepared). It gets "statics".
-     ACTIVATED: the character uses it or it triggers (an attack, a breath weapon, a heal, a buff, a reaction). It gets activation, target, roll and results.
-     RESOURCE: it gives a pool of uses that one or more features spend (Rage, Focus Points, Channel Divinity). It gets "resource".
-     CHOICE: the player picks one option from a list when they gain it (a fighting style, a land type, a damage type). It gets "options".
-     TEXT ONLY: it has no number and no roll the app could apply (a language, a ribbon). It needs no ability; its text on the class or species is enough.
+  b. Every feature, trait, spell or item that DOES something. Each one becomes an entry in "abilities" (a spell gets a "record" instead), so the sheet's numbers change and the Combat Resolver can run it.
+
+HOW TO IDENTIFY A FEATURE. Do not go by a feature's name or by what class it belongs to. Go by what its text says, and put it through these tests IN THIS ORDER. A feature can pass several tests; apply every one it passes. The same text must always land in the same place.
+  T1 POOL. Does the text give a number of uses, dice or points that MORE THAN ONE thing spends, or that grows with level ("you have four ... dice", "you have a number of ... points equal to")? -> one ability with "resource" only. Everything that spends it names it in "uses": { "pool": ... }. The sheet shows the pool's count large, with every ability that spends it listed under it.
+  T2 LIST OF SEPARATE ENTRIES. Does the feature point to a list where each item has its own heading and its own rules text, and the character learns or picks some of them? -> one ability PER LIST ITEM, each named exactly as its heading, each with its first sentence in "text" saying what it does, each spending the pool from T1 if the text says so. The picking itself is "options" on the parent feature (see T6).
+  T3 SEVERAL WAYS TO USE ONE ENTRY. Does ONE heading's text say "choose one of the following" or give alternative shapes, effects or modes each time it is used? -> one ability with "versions".
+  T4 A WORD CHOSEN ON USE. Does the user name a damage type, ability, skill or condition each time it is used, with everything else the same? -> "choices" with "$1" / "$2".
+  T5 ALWAYS ON. Does it change a number or a defense with no action and no limit (Armor Class, Speed, Hit Points, a save, a Resistance, a sense, a proficiency, a spell always prepared)? -> "statics". It is never an activated ability.
+  T6 CHOSEN WHEN GAINED. Does the player pick one option once, when the feature is gained or on a rest (a style, a land, a type)? -> "options" with "choices", and "changeOn" if the text lets it be swapped.
+  T7 USED. Does the character take an action, Bonus Action or Reaction, or does it trigger on an event? -> an activated ability: activation, target, roll, results, uses. A Reaction always gets "trigger".
+  T8 CREATURE. Does using it turn the character into a creature or bring one out? -> "statBlock".
+  T9 MAKES A THING. Does it leave an object, light, ward, illusion or consumable behind? -> "creates" (with "item": true for something carried).
+  T10 TEXT ONLY. None of the above: it has no number and no roll the app could apply. It needs no ability; its text on the class or species is enough.
+Then, for every activated ability, answer each of these from the text and fill the matching field. Leave a field out only when the text is silent:
+  who or what it targets and how many ("target", "targets", "targetLimit"); how far and what shape ("range", "area"); what is rolled ("roll", "attack", "save"); what it deals or restores ("damage", "heal", "tempHP"); every statistic it changes and for how long ("effects" with "duration"); every condition ("conditions"); what ends it early; what it costs ("uses", "cost"); whether it keeps working on later turns ("again"); whether the target can get out ("escape"); whether the DM must answer something ("askDM").
 
 CONSISTENCY: THE SAME BOOK MUST ALWAYS GIVE THE SAME PACK
 Different people will each convert the same book and then play together, so two conversions of the same content must match. Follow these rules exactly, every time, and never use your own judgment where a rule decides:
@@ -276,13 +285,17 @@ The "extras" object (include only the keys that apply):
 - "move": the spell moves creatures: {"kind": "teleport" | "push" | "pull" | "fly" | "fall", "feet": number, "who": "self" | "target" | "self and others", "others": number of willing creatures that can come along (0 if none)}.
 - "zone": for a spell that leaves an area in play that keeps affecting creatures: {"enter": true if it acts when a creature enters, "startTurn": true if at the start of a creature's turn there, "endTurn": true if at the end, "difficult": true if it is Difficult Terrain, "obscured": "lightly" | "heavily" | "", "oncePerTurn": true if a creature can be affected only once per turn}. Also set the record's "again" to "free" for these.
 - "creates": the spell makes things that stay around (food, berries, a light, an illusion, a ward, a duplicate): [{"name": "Food (45 pounds)", "secs": 86400 (how long it lasts in seconds, 0 if it does not expire), "note": "what it does, in the text's own terms"}]. Each one is listed for the caster with its clock. A lasting spell that affects no creature and targets an object, a point or nothing is listed this way without you writing "creates".
+- In "creates", a physical thing the caster ends up carrying also takes "kind": "item", and may take "count", "spoil": "Spoiled Food" (what it becomes when its time ends) and "use": {"heal": "1", "act": "bonus" | "action", "effName": "Nourished", "effLeft": 86400, "effNote": "what it does"} for something used up one at a time. Anything else created is listed as an active effect the caster controls.
+- "durBySlot": [[slot level, seconds, 1 if it no longer needs Concentration else 0], ...] when a higher slot makes the spell last longer (0 seconds = until dispelled). "durPerSlot": seconds added for each slot level above the spell's level. A flat amount more healing or Temporary Hit Points per slot level goes in the record's "up" as a plain number ("heal": "10", "temp": "5").
+- A spell or message that the DM has to act on over time ("askDM" or "message" with a duration of 10 minutes or more) is kept in the DM's panel with its clock until it ends or the DM cancels it. Nothing extra is written for this.
 - "message": true when the caster says or sends words to the target (Message, Sending). The caster types them and only the sender, the recipient and the DM see them.
 - "escape": {"ability": "Strength", "skill": "Athletics" or "", "dc": a number, or 0 to use the caster's spell save DC}: an affected creature can take an action to make that check and end the condition or effect on itself.
 - "viaWeapon": the spell is an attack made with a weapon the caster holds, using the spellcasting ability (True Strike): {"byLevel": true if it adds 1d6, 2d6 and 3d6 extra damage at character levels 5, 11 and 17, "type": the extra damage type}. The player then picks the weapon when casting.
 - "weaponBuff": the spell changes how a held weapon attacks while it lasts (Shillelagh): {"weapons": "Club|Quarterstaff" (weapon names, separated by |), "die": "1d8" (its new damage die), "byLevel": true if the die grows at levels 5, 11 and 17, "type": a damage type it may deal instead}.
 - "castRoll": a die rolled once when the spell is cast, shown to the table: {"dice": "1d4+1", "text": "what the number means"}.
 - "cannot": if, after all of this, part of the spell still cannot be expressed, one short sentence saying exactly what and why. Leave it out if nothing.
-MAP FEATURES. Everything with a range, an area, a created thing, an object or a spot as its target, or forced movement is something the map will place later. Always fill "range", "area" and "targets" exactly, even though the app does not measure distance yet: that is what lets it be placed on the map later with no rewrite. Until then the caster picks the creatures in the area by hand, anything that needs a save is rolled at once, a spell that works on an object or a spot asks the caster to type what it is cast on, and an area that stays in play ("zone") can be applied to more creatures later.
+MAP FEATURES. Everything with a range, an area, a created thing, an object or a spot as its target, or forced movement is something the map will place later, and the app tags it from "range", "area", "targets" and "zone" with no extra key. So always fill those four exactly, even though the app does not measure distance yet: that is what lets it be clicked and placed on the map later with no rewrite. Until then everything is entered by hand: the caster picks the creatures in the area, anything that needs a save is rolled at once, a spell that works on an object or a spot asks the caster to type what it is cast on, a created effect can be placed and re-placed by typing where it is, and an area that stays in play ("zone") can be applied to more creatures later (the affected player can reject it). If the text says the target must be one "that you can see", the app works that out from the text: write nothing for it.
+WHEN SOMETHING CANNOT BE DONE. Never write a rule that forbids a use (a missing component, a condition that stops casting, a wrong target). The app greys the option out, says why, and lets the table go ahead with a flag in the log. Your job is only to record the requirement (components, "targetLimit", "cost") exactly.
 A spell that ends things ("remove") needs no choice written for it: the caster is shown what the target really has and picks from that. A Ritual needs nothing here either: "ritual": true on the spell is enough, and the player is asked whether to cast it as a Ritual (10 minutes longer, no spell slot) or with a spell slot. A component with a price ("cost") is paid in gold when the spell is cast: once if it is kept, every time if the spell consumes it, and the spell cannot be cast without the gold.
 
 
@@ -429,11 +442,11 @@ hitPointBands: when what happens depends on the target's current Hit Points, add
 attacks: when one use makes several separate attack rolls that can go at the same or different creatures, add "attacks": 3 (a number or formula). "damage" is then the damage of one attack.
 removes: when the feature ends things on its target, add "removes": { "conditions": ["Poisoned", "Charmed"], "count": 1 or "all", "exhaustion": 1, "effects": "curse" | "spells" | "any", "hitPointMaximum": true }. Leave out what does not apply. The user is shown what the target really has and picks from that.
 cost: when using it costs gold, add "cost": { "gp": 50, "consumed": true }. The gold must be on hand and is taken when it is used (once only if not consumed).
-creates: when using it makes things that stay around, add "creates": [ { "name": "Spirit Lantern", "duration": { "amount": 1, "unit": "hours" }, "note": "what it does" } ]. Leave "duration" out if it does not expire.
+creates: when using it makes things that stay around, add "creates": [ { "name": "Spirit Lantern", "duration": { "amount": 1, "unit": "hours" }, "note": "what it does" } ]. Leave "duration" out if it does not expire. A thing with a place but no weight (a light, a ward, an illusion, an eye) is listed as an active effect the user controls. A physical thing the character carries gets "item": true, and may add "count": 10 (how many), "spoilsInto": "Spoiled Food" (what it becomes when its duration ends, instead of vanishing), and "whenUsed": { "activation": "bonus" or "action", "heal": "1", "effect": { "name": "Nourished", "duration": { "amount": 1, "unit": "days" }, "note": "what it does" } } for something eaten, drunk or used up one at a time.
 castOn: true when it is used on an object or a spot, not a creature. The user types what it is used on.
 message: true when the user sends words to the target. The user types them.
 escape: when an affected creature can take an action to make a check and free itself, add "escape": { "ability": "Strength", "skill": "Athletics", "dc": "8+PROF+WIS" }.
-resources: every feature that spends a shared pool ("uses": { "pool": "Superiority Dice", "cost": 1 }) is shown under that pool on the sheet, with the pool's count large above them. So a feature that offers a list of separate named options, each its own printed entry (maneuvers, invocations, Channel Divinity options), is written as one ability per option, all spending the same pool, each with a first sentence in "text" that says what it does. Use "versions" only when one printed feature has several ways to use it.
+resources: every ability that spends a shared pool ("uses": { "pool": "the pool's exact name", "cost": 1 }) is shown under that pool on the sheet, with the pool's count large above them (tests T1 and T2 above decide this; never decide it from the feature's name).
 askDM: when the result is information the DM gives, add "askDM": "what the DM must tell the user". The DM is asked and the answer goes in the log.
 saveAdvantageIf: when the target has Advantage on the save in some circumstance, add "saveAdvantageIf": "the circumstance". The roller gets a Roll with Advantage button.
 rollWhenUsed: when a die is rolled once on use and only needs showing, add "rollWhenUsed": { "dice": "1d4+1", "text": "what the number means" }.
@@ -1489,7 +1502,7 @@ function compileAbility(ab0, ctx) {
   if (Object.keys(rm).length) out.remove = { conds: pArr(rm.conditions).map((x) => pStr(x, 20)).filter((x) => CONDITION_NAMES.includes(x)), count: rm.count === "all" ? "all" : 1, exhaustion: Math.max(0, parseInt(rm.exhaustion, 10) || 0), effects: ["curse", "spells", "any"].includes(rm.effects) ? rm.effects : "", hpMax: !!rm.hitPointMaximum, maxLevel: 0 };
   const cost = pObj(ab.cost); if (+cost.gp > 0) { out.gp = +cost.gp; if (cost.consumed) out.gpConsumed = true; }
   if (ab.askDM) out.askDM = pStr(ab.askDM, 300);
-  const made = pArr(ab.creates).slice(0, 4).map((c) => ({ name: pStr(pObj(c).name, 60), note: pStr(pObj(c).note, 240), left: durationSeconds(pObj(c).duration) || 0 })).filter((c) => c.name); if (made.length) out.creates = made;
+  const made = pArr(ab.creates).slice(0, 4).map((c0) => { const c = pObj(c0), u = pObj(c.whenUsed), ue = pObj(u.effect); return { name: pStr(c.name, 60), note: pStr(c.note, 300), left: durationSeconds(c.duration) || 0, kind: c.item ? "item" : "effect", ...(+c.count > 0 ? { count: +c.count } : {}), ...(c.spoilsInto ? { spoil: pStr(c.spoilsInto, 40) } : {}), ...(Object.keys(u).length ? { use: { heal: u.heal != null ? (evalDice(u.heal, ctx) || "") : "", act: u.activation === "bonus" ? "bonus" : "action", effName: pStr(ue.name, 40), effLeft: durationSeconds(ue.duration) || 0, effNote: pStr(ue.note, 200) } } : {}) }; }).filter((c) => c.name); if (made.length) out.creates = made;
   if (ab.castOn) out.castOn = true;
   if (ab.message) out.message = true;
   const esc = pObj(ab.escape); if (ABILITIES.includes(esc.ability)) { const dc = esc.dc == null ? 0 : evalFormula(esc.dc, ctx); out.escape = { ability: esc.ability, skill: pStr(esc.skill, 20), dc: Number.isFinite(dc) ? dc : 0 }; }
@@ -4137,7 +4150,7 @@ function fullSpellAction(sp, ctx, opts) {
   const mark = { name: sp.n.slice(0, 40), note: told || sp.x.slice(0, 200), ...(f.dur > 0 ? { left: f.dur } : {}), ...(sp.conc ? { conc: true } : {}) }; // shown under Active with its time left
   const asApply = () => {
     if (oUse) { out.type = "apply"; out.onUse = oUse; if (t.kind !== "creature" && t.kind !== "creature or object") out.self = true; return; }
-    if (lasts && ["object", "point", "none"].includes(t.kind) && t.self !== "only") { out.type = "info"; out.creates = [{ name: mark.name, note: mark.note.slice(0, 240), left: f.dur > 0 ? f.dur : 0 }]; return; } // it makes a thing with a place and a clock, not an effect on the caster
+    if (lasts && ["object", "point", "none"].includes(t.kind) && t.self !== "only") { out.type = "info"; out.creates = [{ name: mark.name, note: mark.note.slice(0, 240), left: f.dur > 0 ? f.dur : 0, kind: "effect" }]; return; } // it makes a thing with a place and a clock, not an effect on the caster
     if (lasts) { out.type = "apply"; out.onUse = { effs: [mark] }; out.self = true; return; } // nothing lands on a creature, but it is running and has a clock
     out.type = "info";
   };
@@ -4163,6 +4176,8 @@ function fullSpellAction(sp, ctx, opts) {
     const d = out.type === "heal" ? up.heal : up.dmg;
     if (d && /^\d+d\d+$/.test(String(d))) { out.up = String(d); if (+f.upEvery === 2) out.upEvery = 2; }
     if (+up.hpMax > 0) out.upEff = { hpMax: +up.hpMax };
+    if (out.type === "heal" && /^\d+$/.test(String(up.heal || ""))) out.upFlat = +up.heal; // a flat amount more for each slot level
+    if (/^\d+$/.test(String(up.temp || "")) && out.onUse && out.onUse.temp) out.upTemp = +up.temp;
   }
   if (["action", "bonus", "free"].includes(f.again)) out.again = f.again;
   if (f.summon === "summon" || f.summon === "form") out.block = f.summon;
@@ -4181,9 +4196,16 @@ function fullSpellAction(sp, ctx, opts) {
   }
   if (x.saveAdvIf) out.advIf = String(x.saveAdvIf).slice(0, 160);
   if (x.weaponBuff && x.weaponBuff.weapons) out.needItem = { re: String(x.weaponBuff.weapons) };
-  if (Array.isArray(x.creates) && x.creates.length) out.creates = x.creates.slice(0, 4).map((c) => ({ name: String(c.name || sp.n).slice(0, 60), note: String(c.note || "").slice(0, 240), left: Math.max(0, +c.secs || 0) }));
+  if (Array.isArray(x.creates) && x.creates.length) out.creates = x.creates.slice(0, 4).map((c) => ({ name: String(c.name || sp.n).slice(0, 60), note: String(c.note || "").slice(0, 300), left: Math.max(0, +c.secs || 0), kind: c.kind === "item" ? "item" : "effect", ...(+c.count > 0 ? { count: +c.count } : {}), ...(c.spoil ? { spoil: String(c.spoil) } : {}), ...(c.use ? { use: c.use } : {}) }));
   if (["object", "point", "creature or object"].includes(t.kind) && (out.type === "info" || t.kind !== "creature or object")) out.castOn = true; // it works on a thing or a spot: the caster says which
   if (x.message) out.message = true;
+  if (/\b(?:that|whom|which) you can see\b|you can see within range/i.test(sp.x) && ["attack", "save", "auto", "apply", "heal"].includes(out.type) && !out.self) out.sight = true; // it needs a target the caster can see
+  if ((x.askDM || x.message) && f.dur >= 600) { out.dmHold = true; if (f.dur > 0) out.holdSecs = f.dur; } // it stays in the DM's hands while it lasts
+  if (+x.durPerSlot > 0) { out.durPerSlot = +x.durPerSlot; out.baseSecs = f.dur || 0; }
+  if (Array.isArray(x.durBySlot)) out.durBySlot = x.durBySlot;
+  if (x.mapNote) out.mapNote = String(x.mapNote).slice(0, 500);
+  if (x.dmNote) out.dmNote = String(x.dmNote).slice(0, 500);
+  if (f.area || x.zone || x.move || out.castOn || out.creates || ["object", "point", "creature or object"].includes(t.kind)) out.map = { target: f.area ? "area" : String(t.kind || "creature"), auto: !!x.zone }; // what the map will place or click, once there is one
   if (x.escape && x.escape.ability) out.escape = { ability: String(x.escape.ability), skill: String(x.escape.skill || ""), dc: +x.escape.dc || 0 };
   if (x.castRoll && x.castRoll.dice) out.castRoll = { dice: String(x.castRoll.dice), text: String(x.castRoll.text || "").slice(0, 120) };
   if (x.attacks && +x.attacks.n > 0) { // separate attack rolls or darts, which can share a target

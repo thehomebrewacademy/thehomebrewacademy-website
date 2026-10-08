@@ -314,6 +314,10 @@
     .end-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
     .end-table th, .end-table td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #2C3E50; vertical-align: top; }
     .log-entry.void { opacity: 0.5; }
+    .log-entry.flagged { border-left: 4px solid #e53935; }
+    .log-flag { background: #7a1c1c; color: #fff; border-radius: 4px; padding: 4px 8px; margin-bottom: 4px; cursor: pointer; font-weight: 700; }
+    .log-flag .why { display: block; font-weight: 400; margin-top: 3px; }
+    .action-btn.blocked { opacity: 0.45; filter: grayscale(0.7); }
     .log-entry.void .log-html { text-decoration: line-through; }
     .log-ov { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
     .hand-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
@@ -920,7 +924,7 @@ function passTime(list, seconds, longRest) {
     if (c.conc && (longRest || (+c.conc.left > 0 && +c.conc.left - seconds <= 0))) { const {conc, ...rest} = out; out = rest; ended.push([c.name, c.conc.name, longRest ? 'Concentration ends on a Long Rest' : 'Concentration: its time ran out']); }
     else if (c.conc && +c.conc.left > 0) out = {...out, conc: {...c.conc, left: +c.conc.left - seconds}};
     if ((c.made || []).some(b => +b.left > 0)) {
-      const keep = []; c.made.forEach(b => { if (!(+b.left > 0)) keep.push(b); else if (+b.left - seconds <= 0) ended.push([c.name, b.name, 'Its time ran out']); else keep.push({...b, left: +b.left - seconds}); });
+      const keep = []; c.made.forEach(b => { if (!(+b.left > 0)) keep.push(b); else if (+b.left - seconds <= 0) { if (b.spoil) { const {left, use, spoil, ...rest} = b; keep.push({...rest, name: b.spoil, note: 'No longer fit to eat.', spoiled: true}); ended.push([c.name, b.name, `It has become ${b.spoil}`]); } else ended.push([c.name, b.name, 'Its time ran out']); } else keep.push({...b, left: +b.left - seconds}); });
       out = {...out, made: keep};
     }
     if ((c.blocks || []).some(b => +b.left > 0)) {
@@ -1154,8 +1158,16 @@ function cleanAction(a, i) {
   if (a.viaWeapon && typeof a.viaWeapon === 'object') out.viaWeapon = {extra: DMG_RE.test(String(a.viaWeapon.extra || '')) ? String(a.viaWeapon.extra) : '', type: String(a.viaWeapon.type || 'Radiant').slice(0, 20)};
   if (a.castRoll && typeof a.castRoll === 'object' && DMG_RE.test(String(a.castRoll.dice || '').replace(/\s/g, ''))) out.castRoll = {dice: String(a.castRoll.dice).replace(/\s/g, ''), text: String(a.castRoll.text || '').slice(0, 120)};
   if (a.advIf) out.advIf = String(a.advIf).slice(0, 160);
-  if (Array.isArray(a.creates)) { const cr = a.creates.slice(0, 4).map(x => x && x.name ? {name: String(x.name).slice(0, 60), note: String(x.note || '').slice(0, 240), left: Math.max(0, Math.min(MAX_SECONDS, +x.left || 0))} : null).filter(Boolean); if (cr.length) out.creates = cr; }
+  if (Array.isArray(a.creates)) { const cr = a.creates.slice(0, 4).map(x => x && x.name ? {name: String(x.name).slice(0, 60), note: String(x.note || '').slice(0, 300), left: Math.max(0, Math.min(MAX_SECONDS, +x.left || 0)), kind: x.kind === 'item' ? 'item' : 'effect', ...(+x.count > 0 ? {count: Math.min(99, Math.round(+x.count))} : {}), ...(x.spoil ? {spoil: String(x.spoil).slice(0, 40)} : {}), ...(x.use && typeof x.use === 'object' ? {use: {heal: DMG_RE.test(String(x.use.heal || '')) ? String(x.use.heal) : '', act: ['action','bonus'].includes(x.use.act) ? x.use.act : 'action', effName: String(x.use.effName || '').slice(0, 40), effLeft: Math.max(0, Math.min(MAX_SECONDS, +x.use.effLeft || 0)), effNote: String(x.use.effNote || '').slice(0, 200)}} : {})} : null).filter(Boolean); if (cr.length) out.creates = cr; }
   if (a.castOn) out.castOn = true;
+  if (a.sight) out.sight = true;
+  if (+a.upFlat > 0) out.upFlat = Math.min(100, +a.upFlat); if (+a.upTemp > 0) out.upTemp = Math.min(100, +a.upTemp);
+  if (+a.durPerSlot > 0) out.durPerSlot = Math.min(MAX_SECONDS, +a.durPerSlot); if (+a.baseSecs > 0) out.baseSecs = Math.min(MAX_SECONDS, +a.baseSecs);
+  if (Array.isArray(a.durBySlot)) { const d = a.durBySlot.slice(0, 8).map(x => Array.isArray(x) && +x[0] > 0 ? [Math.min(9, +x[0]), Math.max(0, +x[1] || 0), x[2] ? 1 : 0] : null).filter(Boolean).sort((x, y) => x[0] - y[0]); if (d.length) out.durBySlot = d; }
+  if (a.dmHold) { out.dmHold = true; if (+a.holdSecs > 0) out.holdSecs = Math.min(MAX_SECONDS, +a.holdSecs); }
+  if (a.mapNote) out.mapNote = String(a.mapNote).slice(0, 500);
+  if (a.dmNote) out.dmNote = String(a.dmNote).slice(0, 500);
+  if (a.map && typeof a.map === 'object') out.map = {target: String(a.map.target || '').slice(0, 20), auto: !!a.map.auto};
   if (a.message) out.message = true;
   if (a.escape && typeof a.escape === 'object' && ABILITIES.includes(a.escape.ability)) out.escape = {ability: a.escape.ability, skill: String(a.escape.skill || '').slice(0, 20), dc: Math.max(0, Math.min(40, +a.escape.dc || 0))};
   if (a.needItem && typeof a.needItem === 'object' && /^[A-Za-z |]{1,60}$/.test(String(a.needItem.re || ''))) out.needItem = {re: String(a.needItem.re)};
@@ -1782,6 +1794,9 @@ function App() {
   const [removePick, setRemovePick] = useState(null); // choosing what a spell ends on its target: {targetId, name, options, n}
   const [dmAnswer, setDmAnswer] = useState({});
   const [weaponPick, setWeaponPick] = useState({});
+  const [forced, setForced] = useState(null); // an action used although something says it can't be: {id, why}
+  const forcedRef = useRef(null);
+  const [openFlag, setOpenFlag] = useState({});
   const [castOn, setCastOn] = useState('');   // what or where a spell that works on objects or places is cast
   const [msgText, setMsgText] = useState(''); // the words sent by a spell that carries a message // the weapon a spell is cast through: {actionId: weapon action id}     // the DM's typed answers to spells that ask a question
   const [askLater, setAskLater] = useState('');     // the set of asks this person chose to deal with later
@@ -2039,6 +2054,8 @@ function App() {
     }
     if (work.some(c => c.id === upId && c.prowessUsed)) work = work.map(c => c.id === upId ? {...c, prowessUsed: false} : c);
     const up = work.find(c => c.id === upId) || inPlay[idx];
+    { const ec = (up.conditions || []).map(k => ({k, es: (condInfoOf(up, k) || {}).escape})).find(x => x.es), ee = (up.effects || []).find(e => e.escape), es = ec ? ec.es : ee ? ee.escape : null;
+      if (es && up.currentHP > 0) setPrompts(prev => prev.some(q => q.kind === 'escape' && q.targetId === up.id) ? prev : [...prev, plain({id: newId(), kind: 'escape', targetId: up.id, cond: ec ? ec.k : '', effId: !ec && ee ? ee.id : '', what: ec ? ec.k : ee.name, es})]); }
     const hero = ((up.effects) || []).filter(e => +e.tempEachTurn > 0);
     if (hero.length) {
       const n = Math.max(...hero.map(e => +e.tempEachTurn));
@@ -2149,6 +2166,7 @@ function App() {
     const saveMod = tgt.saves?.[saveAbility] ?? mod(tgt.scores?.[saveAbility]??10);
     const t = d20Test(tgt, 'save', {ability: saveAbility, conditions: ((action.onFail || {}).conds || []).map(k => k.name)});
     if (action.advNow) t.adv.push(action.advIf || 'the circumstances');
+    if (!ruled && !keep && advantage && canControl(tgt)) { (advantage === 1 ? t.adv : t.dis).push('chosen'); setAdvantage(0); }
     const roll = keep || roll20(testMode(t));
     const sec = x => isDM && !tgt.owner ? `<span class="dm-secret">${x}</span>` : x; // the DM's own numbers can be kept from players
     let saveTotal = roll.total + saveMod + t.bonus;
@@ -2398,7 +2416,19 @@ function App() {
     ? [1,2,3,4,5,6,7,8,9].filter(l => l >= a.slot && l <= (a.maxLvl || a.slot) && a.pointCosts[l - 1] > 0 && poolLeft(c, a.pool) >= a.pointCosts[l - 1])
     : [1,2,3,4,5,6,7,8,9].filter(l => l >= a.slot && slotsLeft(c, l) > 0);
   // A spell cast with a higher slot: its damage or healing grows by "up" for each level above its own.
-  const upcast = (a, lvl) => {
+  // A higher slot can also add a flat amount, or make the spell last longer (and sometimes drop Concentration).
+  const reDur = (a, secs, noConc) => { const fix = o => !o ? o : {...o, ...(o.effs ? {effs: o.effs.map(e => { const {left, conc, ...r} = e; return {...r, ...(secs > 0 && (left || e.conc) ? {left: secs} : {}), ...(conc && !noConc ? {conc: true} : {})}; })} : {}), ...(o.conds ? {conds: o.conds.map(k => { const {left, ...r} = k; return {...r, ...(secs > 0 && left ? {left: secs} : {})}; })} : {})};
+    const out = {...a, onHit: fix(a.onHit), onFail: fix(a.onFail), onSuccess: fix(a.onSuccess), onUse: fix(a.onUse), concSecs: secs, ...(a.holdSecs ? {holdSecs: secs} : {}), ...(a.creates ? {creates: a.creates.map(x => ({...x, left: secs}))} : {})};
+    ['onHit','onFail','onSuccess','onUse'].forEach(k => { if (!out[k]) delete out[k]; });
+    if (noConc) { delete out.conc; delete out.concAs; } return out; };
+  const upcast = (a, lvl) => { let out = upcast0(a, lvl); const extra = lvl - a.slot; if (!(extra > 0)) return out;
+    if (out.name === a.name) out = {...out, name: `${a.name} (Level ${lvl} slot)`};
+    if (a.upFlat && a.healDice) out = {...out, healDice: `${a.healDice}+${a.upFlat * extra}`};
+    if (a.upTemp && a.onUse && a.onUse.temp) out = {...out, onUse: {...out.onUse, temp: `${a.onUse.temp}+${a.upTemp * extra}`}};
+    if (a.durPerSlot) out = reDur(out, Math.min(MAX_SECONDS, (a.concSecs || a.holdSecs || a.baseSecs || 0) + a.durPerSlot * extra), false);
+    if (a.durBySlot) { const hit = a.durBySlot.filter(x => lvl >= x[0]).pop(); if (hit) out = reDur(out, Math.min(MAX_SECONDS, hit[1]), !!hit[2]); }
+    return out; };
+  const upcast0 = (a, lvl) => {
     const extra = lvl - a.slot;
     if (extra > 0 && a.upEff && a.onUse && a.onUse.effs) return {...a, name: `${a.name} (Level ${lvl} slot)`, onUse: {...a.onUse, effs: a.onUse.effs.map(e => e.hpMax ? {...e, hpMax: e.hpMax + a.upEff.hpMax * extra} : e)}};
     if (!(extra > 0) || !a.up) return a;
@@ -2459,7 +2489,8 @@ function App() {
     if (limited(action) && usesLeft(active, action) <= 0) return;
     if (!spendEconomy(active, action, !!re)) return;
     undoRef.current = {combatants, logIds: new Set(log.map(e => e.id)), promptIds: new Set(prompts.map(q => q.id)), name: action.name, actorId: active.id, key: `${round}:${activeId}`}; setUndoTick(n => n + 1);
-    if (blockReason(active, action)) return;
+    const forcedWhy = !re ? forcedRef.current : null; if (!re) forcedRef.current = null;
+    if (blockReason(active, action) && !forcedWhy) return;
     if (compMode === 'full' && action.spell && action.matCost && action.matConsumed && active.sheet && active.ownActions) { // the spell uses up its costly component
       setCompOwned(active.id, action.name, false);
       setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<br/><div class="log-dice">Material component consumed: ${esc(action.mat || '')}</div>`})]);
@@ -2477,13 +2508,18 @@ function App() {
     { const mins = (asRitual ? 10 : 0) + (action.spell ? (+action.castMin || 0) : 0); // casting that takes minutes: outside a fight the DM is asked to move the clock
       if (mins > 0 && !combatStarted) setPrompts(prev => [...prev, plain({id: newId(), kind: 'time', targetId: active.id, by: myId, spell: String(action.name).replace(/ \(Level \d slot\)$/, '').slice(0, 60), secs: mins * 60, ritual: asRitual})]); }
     if (action.mv && action.mv.kind) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail">Movement: ${esc(action.mv.kind)}${action.mv.feet ? ` up to ${action.mv.feet} feet` : ''} (${esc(action.mv.who)}${action.mv.others ? `, with up to ${action.mv.others} willing creature${action.mv.others > 1 ? 's' : ''}` : ''}). Move the tokens on your map.</div>`})]);
+    if (!re && forcedWhy) { const why = forcedWhy; setForced(null);
+      setLog(prev => [...prev, stamp({type:'roll', flag: String(why).slice(0, 300), html:`<strong>${esc(active.name)}</strong> uses <span class="log-result">${esc(action.name)}</span> anyway`})]); }
+    if (action.mapNote || action.dmNote) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}${action.mapNote ? `<div class="log-detail">For the map: ${esc(action.mapNote)}</div>` : ''}${action.dmNote ? `<div class="log-detail">The DM decides: ${esc(action.dmNote)}</div>` : ''}`})]);
     { const onWhat = action.castOn ? castOn.trim().slice(0, 80) : '', nm = String(action.name).replace(/ \(Level \d slot\)$/, '');
       if (onWhat) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(nm)}<div class="log-detail">Cast on: ${esc(onWhat)}. This is a map feature: its place is kept by the table until the map is here.</div>`})]);
-      if (action.creates) { const made = action.creates.map(x => plain({id: newId(), name: x.name, note: x.note || '', left: x.left || 0, src: nm, on: onWhat, conc: action.conc ? (action.concAs || nm) : ''}));
+      if (action.creates) { const made = action.creates.map(x => plain({...x, id: newId(), src: nm, on: onWhat, loc: {text: onWhat, x: null, y: null}, conc: action.conc ? (action.concAs || nm) : ''}));
         setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, made: [...(c.made || []), ...made].slice(-12)}));
         setLog(prev => [...prev, stamp({type:'roll', forId: active.id, html:`<strong>${esc(active.name)}</strong> · ${esc(nm)}<div class="log-detail">Created: ${made.map(m => esc(m.name) + (m.left ? ` (${timeText(m.left)})` : '')).join(', ')}${onWhat ? ` · on ${esc(onWhat)}` : ''}</div>`})]); }
       if (action.message && msgText.trim()) { const to = targetIds.map(id => inPlay.find(c => c.id === id)).filter(Boolean);
         setLog(prev => [...prev, stamp({type:'roll', forId: (to[0] || {}).id || '', by: myId, priv: [active.id, ...to.map(t => t.id)], html:`<strong>${esc(active.name)}</strong> to <strong>${to.map(t => esc(t.name)).join(', ') || 'the recipient'}</strong> · ${esc(nm)}<div class="log-detail">"${esc(msgText.trim().slice(0, 300))}"</div><div class="log-dice">Only the sender, the recipient and the DM see this.</div>`})]); }
+      if (action.dmHold) { const secs = action.concSecs || (((action.onUse || {}).effs || [])[0] || {}).left || action.holdSecs || 0, to = targetIds.map(id => inPlay.find(c => c.id === id)).filter(Boolean).map(t => t.name).join(', ');
+        setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, made: [...(c.made || []), plain({id: newId(), kind: 'dm', name: nm, note: [action.message && msgText.trim() ? `Message${to ? ' for ' + to : ''}: "${msgText.trim().slice(0, 300)}"` : '', action.askDM || ''].filter(Boolean).join(' · ').slice(0, 500), left: secs, src: nm, conc: action.conc ? (action.concAs || nm) : ''})].slice(-12)})); }
       if (castOn) setCastOn(''); if (msgText) setMsgText(''); }
     if (action.castRoll) { const r = parseDamage(action.castRoll.dice); setLog(prev => [...prev, stamp({type:'roll', forId: active.id, html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<br/><span class="log-result">${r.total}</span> ${esc(action.castRoll.text)}<div class="log-dice">${esc(action.castRoll.dice)}</div>`})]); }
     if (action.askDM) setPrompts(prev => [...prev, plain({id: newId(), kind: 'askdm', targetId: active.id, by: myId, spell: String(action.name).slice(0, 60), text: action.askDM, who: active.name})]);
@@ -2752,6 +2788,7 @@ function App() {
     const base = kind === 'save' ? ((c.saves || {})[ability] ?? mod(score))
       : (skill && c.sheet && c.sheet.skills && Number.isFinite(+c.sheet.skills[skill])) ? +c.sheet.skills[skill] : mod(score);
     const t = d20Test(c, kind, {ability, skill});
+    if (advantage === 1 && canControl(c)) t.adv.push('chosen'); if (advantage === -1 && canControl(c)) t.dis.push('chosen'); if (advantage) setAdvantage(0);
     const label = kind === 'save' ? `${ability} saving throw` : skill ? `${ability} (${skill}) check` : `${ability} check`;
     let body, total = null;
     if (t.autoFail) body = `<strong style="color:var(--danger)">Fails automatically (${esc(t.autoFail)})</strong>`;
@@ -2881,6 +2918,14 @@ function App() {
   const answerDM = (q, c) => { const t = String(dmAnswer[q.id] || '').trim().slice(0, 400); if (!t) return;
     removePrompt(q.id); setDmAnswer(prev => { const {[q.id]: _, ...rest} = prev; return rest; });
     setTimeout(() => setLog(prev => [...prev, stamp({type:'roll', forId: c.id, by: myId, html:`<strong>${esc(q.spell)}</strong> · ${esc(c.name)}<div class="log-detail">The DM answers: ${esc(t)}</div>`})]), 450); };
+  // Eating, drinking or otherwise using up one of a created item: it goes to the targeted creature, or to the holder.
+  const useMade = (c, b) => { const t = inPlay.find(x => x.id === targetIds[0]) || c, u = b.use || {}, heal = u.heal ? parseDamage(u.heal).total : 0;
+    if (heal) updateHP(t.id, heal, true);
+    setCombatants(prev => reorder(prev.map(x => { let o = x;
+      if (x.id === t.id && u.effName) o = {...o, effects: [...(o.effects || []).filter(e => e.name !== u.effName), plain({id: newId(), name: u.effName, note: u.effNote || '', ...(u.effLeft ? {left: u.effLeft} : {}), by: myId, byName: c.name})]};
+      if (x.id === c.id) o = {...o, made: (o.made || []).map(y => y.id !== b.id ? y : {...y, count: (+y.count || 1) - 1}).filter(y => !(y.id === b.id && y.count <= 0))};
+      return o; })));
+    setLog(prev => [...prev, stamp({type:'heal', forId: t.id, by: myId, html:`<strong>${esc(t.name)}</strong> uses <span class="log-result">${esc(b.name.replace(/ \(\d+\)$/, ''))}</span>${t.id !== c.id ? ` from ${esc(c.name)}` : ''}${heal ? `<br/><span class="log-heal-val">+${heal} HP</span>` : ''}<div class="log-detail">${esc(ACTIVATIONS[u.act] || 'Action')}${u.effName ? ` · ${esc(u.effName)}${u.effLeft ? ` for ${timeText(u.effLeft)}` : ''}` : ''}</div>`})]); };
   const tryEscape = (c, es, cond, eff) => { const total = rollTest(c, 'check', es.ability, es.skill || '', es.dc, `Escape ${cond || (eff && eff.name) || ''} (takes an action)`);
     if (total != null && total >= es.dc) { if (cond) removeCondition(c.id, cond); (c.effects || []).filter(e => e.escape && (!eff || e.id === eff.id || cond)).forEach(e => removeEffect(c.id, e.id)); } };
   const removeEffect = (id, effId) => setCombatants(prev => reorder(prev.map(c => c.id === id ? {...c, effects: (c.effects || []).filter(e => e.id !== effId)} : c)));
@@ -3445,7 +3490,7 @@ function App() {
     const sh = c.sheet || {}, ctl = canControl(c);
     const sel = (a) => setSelectedAction(a.id === selectedAction ? null : a.id);
     const back = (a) => (e) => restoreUse(c, a, e);
-    const rowCls = (a, extra) => `action-btn ${extra || ''} ${selectedAction === a.id ? 'selected' : ''}`;
+    const rowCls = (a, extra) => `action-btn ${extra || ''} ${selectedAction === a.id ? 'selected' : ''} ${softOf(c, a) ? 'blocked' : ''}`;
     const dim = (a) => limited(a) && usesLeft(c, a) <= 0 ? {opacity: 0.45} : {};
     const leftText = (a) => a.pool ? ` (${poolLeft(c, a.pool)} ${a.pool} left)` : a.usesMax ? ` (${usesLeft(c, a)}/${a.usesMax} left)` : '';
     const kindOf = (a) => ['action', 'bonus', 'reaction'].includes(a.activation) ? a.activation : 'other';
@@ -3569,7 +3614,13 @@ function App() {
                   {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" data-testid="again-btn" onClick={() => { setSelectedAction('run-' + r.id); }}>Use again</button>
                     <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, running: (x.running || []).filter(y => y.id !== r.id)}))}>End</button></span>}</div>)}
                 {c.conc && <div className="pp-arow" data-testid="active-conc"><span><strong>Concentrating on {c.conc.name}</strong>{+c.conc.left > 0 ? ` · ${timeText(c.conc.left)} left` : ''}</span>{ctl && <button className="pp-chip on" onClick={() => endConcentration(c.id)}>End</button>}</div>}
-                {(c.made || []).map(b => <div key={b.id} className="pp-arow" data-testid="active-made" title={b.note}><span><strong>{b.name}</strong> <span className="pp-muted">created{b.src && b.src !== b.name ? ` by ${b.src}` : ''}{b.on ? ` · on ${b.on}` : ''}{+b.left > 0 ? ` · ${timeText(b.left)} left` : ''}{b.note ? ` · ${b.note}` : ''}</span></span>{ctl && <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).filter(y => y.id !== b.id)}))}>End</button>}</div>)}
+                {(c.made || []).filter(b => b.kind === 'item').map(b => <div key={b.id} className="pp-arow" data-testid="made-item"><span><strong style={{cursor: 'pointer'}} title="Click for the full description" onClick={() => noteLog(c, b.name, [b.note, b.left > 0 ? (b.spoil ? `Spoils in ${timeText(b.left)}.` : `Lasts ${timeText(b.left)} more.`) : ''].filter(Boolean).join(' '))}>{b.name}{b.count > 0 ? ` × ${b.count}` : ''}</strong> <span className="pp-muted">item{b.src ? ` · made by ${b.src}` : ''}{+b.left > 0 ? (b.spoil ? ` · spoils in ${timeText(b.left)}` : ` · ${timeText(b.left)} left`) : ''}{b.spoiled ? ' · spoiled' : ''}</span></span>
+                  {ctl && <span style={{display: 'inline-flex', gap: 6}}>{b.use && <button className="pp-chip on" data-testid="made-use" title={`${ACTIVATIONS[b.use.act] || 'Action'}. It goes to the creature you have targeted, or to ${c.name}.`} onClick={() => useMade(c, b)}>Use one</button>}
+                    <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).filter(y => y.id !== b.id)}))}>Drop</button></span>}</div>)}
+                {(c.made || []).filter(b => b.kind !== 'item' && b.kind !== 'dm').map(b => <div key={b.id} className="pp-arow" data-testid="active-made" title={b.note}><span><strong>{b.name}</strong> <span className="pp-muted">active effect you control{b.on ? ` · on ${b.on}` : ''}{+b.left > 0 ? ` · ${timeText(b.left)} left` : ''}{b.note ? ` · ${b.note}` : ''}</span></span>
+                  {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" data-testid="made-move" title="Say where it is now. On the map this will be a click." onClick={() => { const w = window.prompt(`Where is ${b.name} now?`, b.on || ''); if (w != null) setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).map(y => y.id !== b.id ? y : {...y, on: w.slice(0, 80), loc: {text: w.slice(0, 80), x: null, y: null}})})); }}>Place</button>
+                    <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).filter(y => y.id !== b.id)}))}>End</button></span>}</div>)}
+                {(c.made || []).filter(b => b.kind === 'dm').map(b => <div key={b.id} className="pp-arow" data-testid="made-dm"><span><strong>{b.name}</strong> <span className="pp-muted">with the DM{+b.left > 0 ? ` · ${timeText(b.left)} left` : ''}</span></span></div>)}
                 {(c.conditions || []).map(k => { const i = condInfoOf(c, k), es = i && i.escape; return <div key={k} className="pp-arow"><span><strong>{k}</strong> <span className="pp-muted">condition{i && +i.left > 0 ? ` · ${timeText(i.left)} left` : ''}</span></span>
                   {ctl && es && <button className="pp-chip on" data-testid="escape-btn" title="Takes an action" onClick={() => tryEscape(c, es, k, null)}>Try to escape: {es.ability}{es.skill ? ` (${es.skill})` : ''} DC {es.dc}</button>}</div>; })}
                 {(c.effects || []).map(e => <div key={e.id} className="pp-arow" title={[describeEffect(e), e.note].filter(Boolean).join('. ')}><span><strong>{e.name}</strong> <span className="pp-muted">on you{e.byName && e.casterId !== c.id && e.byName !== c.name ? ` from ${e.byName}` : ''}{+e.left > 0 ? ` · ${timeText(e.left)} left` : ''}{describeEffect(e) ? ` · ${describeEffect(e)}` : ''}</span></span>{ctl && <span style={{display: 'inline-flex', gap: 6}}>
@@ -3729,7 +3780,7 @@ function App() {
     return out;
   };
   // What a spell or feature will put on the map once there is one: its reach, its shape, what it makes or moves.
-  const mapText = a => { const ar = a.area, r = a.range || {}, bits = [ar && ar.shape ? `${ar.size ? ar.size + '-foot ' : ''}${ar.shape}${ar.width ? `, ${ar.width} feet wide` : ''}${ar.height ? `, ${ar.height} feet high` : ''}` : '', ar && ar.shape && r.kind === 'feet' ? `placed within ${r.feet} feet` : '', a.creates ? 'what it creates has a place' : '', a.castOn ? 'cast on an object or a spot' : '', a.mv ? `moves creatures (${a.mv.kind})` : ''].filter(Boolean);
+  const mapText = a => { const ar = a.area, r = a.range || {}, bits = [ar && ar.shape ? `${ar.size ? ar.size + '-foot ' : ''}${ar.shape}${ar.width ? `, ${ar.width} feet wide` : ''}${ar.height ? `, ${ar.height} feet high` : ''}` : '', ar && ar.shape && r.kind === 'feet' ? `placed within ${r.feet} feet` : '', a.creates && a.creates.some(x => x.kind !== 'item') ? 'what it creates has a place (set it with Place)' : '', a.castOn ? 'cast on an object or a spot, typed for now and clicked on the map later' : '', a.mv ? `moves creatures (${a.mv.kind})` : ''].filter(Boolean);
     return bits.length ? `${bits.join('; ')}. Until the map is here${ar && ar.shape ? ', pick the creatures in the area by hand' : ', the table keeps track of where it is'}.` : ''; };
   const zoneText = a => { const z = a.zone || {}, ar = a.area; return [ar && ar.shape ? `${ar.size ? ar.size + '-foot ' : ''}${ar.shape}` : '', z.enter && 'acts when a creature enters', z.start && 'acts at the start of a turn there', z.end && 'acts at the end of a turn there', z.difficult && 'Difficult Terrain', z.obscured && `${z.obscured === 'heavily' ? 'Heavily' : 'Lightly'} Obscured`, z.once && 'once per turn for each creature'].filter(Boolean).join(', ') || 'stays where it was placed'; };
   const sheetPreview = form.sheetData ? sheetToFields(form.sheetData) : null;
@@ -3754,10 +3805,17 @@ function App() {
   const needsTargetNow = selAction && !['selfheal','info'].includes(selAction.type) && !selAction.self;
   const actorNow = viewed && canControl(viewed) && (!combatStarted || (active && viewed.id === active.id) || (selAction && selAction.activation === 'reaction')) ? viewed : null;
   // Why the chosen action cannot be done right now, in words, or '' when it can.
-  const effectBlock = (c, a) => { if (!c || !a) return ''; const nc = a.spell && effs(c).find(e => e.noCast), na = ['action', 'bonus'].includes(a.activation || 'action') && effs(c).find(e => e.noAct); return nc ? `${c.name} can't cast spells (${nc.name}).` : na ? `${c.name} can't take actions (${na.name}).` : ''; };
-  const cannotWhy = !selAction ? 'Nothing chosen' : !actorNow ? 'Not your turn (a Reaction can be used at any time)' : effectBlock(viewed, selAction) ? effectBlock(viewed, selAction) : blockReason(viewed, selAction) ? blockReason(viewed, selAction)
+  const effectBlock = (c, a) => { if (!c || !a) return ''; const nc = a.spell && effs(c).find(e => e.noCast), na = ['action', 'bonus'].includes(a.activation || 'action') && effs(c).find(e => e.noAct);
+    if (nc) return `${c.name} can't cast spells (${nc.name}).`; if (na) return `${c.name} can't take actions (${na.name}).`;
+    if (a.sight && hasCond(c, 'Blinded')) return `${c.name} is Blinded and ${a.name} needs a target it can see.`;
+    if (a.needItem && !(actions || []).some(x => x.weapon && new RegExp('^(' + a.needItem.re + ')', 'i').test(x.name))) return `${a.name} works on a ${a.needItem.re.split('|').join(' or ')} ${c.name} is holding, and ${c.name} has neither.`;
+    return ''; };
+  // Things that say an action can't be used. It is greyed out, and using it anyway asks first and is flagged in the log.
+  const softOf = (c, a) => effectBlock(c, a) || blockReason(c, a) || '';
+  const softWhy = selAction && viewed ? (softOf(viewed, selAction) || (needsTargetNow && freeT == null && targetIds.map(id => targetProblem(selAction, viewed, inPlay.find(c => c.id === id))).find(Boolean)) || '') : '';
+  const cannotWhy = !selAction ? 'Nothing chosen' : !actorNow ? 'Not your turn (a Reaction can be used at any time)'
     : (needsTargetNow && freeT == null && !inPlay.find(c => c.id === targetId)) ? 'Pick a target'
-    : (needsTargetNow && freeT == null && targetIds.map(id => targetProblem(selAction, viewed, inPlay.find(c => c.id === id))).find(Boolean)) ? targetIds.map(id => targetProblem(selAction, viewed, inPlay.find(c => c.id === id))).find(Boolean) : (limited(selAction) && usesLeft(viewed, selAction) <= 0) ? 'No uses left'
+    : (limited(selAction) && usesLeft(viewed, selAction) <= 0) ? 'No uses left'
     : (selAction.modes && modePick[selAction.id] == null) ? 'Choose which version to use'
     : (selAction.viaWeapon && !selAction.weapon) ? 'Choose the weapon it is cast with'
     : (selAction.choices && selAction.choices.some((c, i) => !((picks[selAction.id] || [])[i]))) ? `Choose: ${selAction.choices.filter((c, i) => !((picks[selAction.id] || [])[i])).map(c => c.label).join(', ')}`
@@ -3768,7 +3826,10 @@ function App() {
   const armedQ = isArmed ? prompts.find(q => q.id === armed.promptId) : null, armedT = armedQ ? inPlay.find(c => c.id === armedQ.targetId) : null;
   const waitLeft = armedQ && armedQ.react && !armedQ.answer && armedT && !(armedT.turn || {}).r ? Math.max(0, Math.min(REACT_MS, REACT_MS - (nowTick - (+armedQ.at || 0)))) : 0;
   const go = () => {
-    if (!isArmed && selAction && selAction.needItem && viewed && !actions.some(x => x.weapon && new RegExp('^(' + selAction.needItem.re + ')', 'i').test(x.name)) && !window.confirm(`${viewed.name} has no ${selAction.needItem.re.split('|').join(' or ')} among its weapons. Cast ${selAction.name} anyway?`)) return;
+    if (!isArmed && softWhy && !(forced && forced.id === selAction.id)) { // it can't be done by the rules: ask, and flag it if they go ahead
+      if (!window.confirm(`${softWhy}\n\n${selAction.spell ? 'Cast' : 'Use'} ${selAction.name} anyway? It will be flagged in the log.`)) return;
+      forcedRef.current = softWhy; setForced({id: selAction.id, why: softWhy}); }
+    else if (softWhy) forcedRef.current = softWhy;
     if (stepWanted && !isArmed) { declareAttack(); return; }
     if (waitLeft > 0) return;
     if (isDM && dmChoose && selAction && selAction.type === 'attack' && viewed && !viewed.owner) setDmAsk({kind: 'attack', label: `${viewed.name}: attack roll with ${selAction.name}`, mod: +selAction.atk || 0, total: ''});
@@ -3853,8 +3914,8 @@ function App() {
   // What is waiting on this person: Reactions they can take, and rolls they are asked to make. These pop up in the middle of the screen.
   const myAskIds = [...flowPrompts.filter(({q, c}) => canControl(c) && ((q.kind === 'incoming' && q.react && !q.answer) || (q.kind === 'confirm' && !q.answer) || (q.kind === 'offer' && reactionsFor(c, q.ev).length > 0))).map(x => x.q.id),
     ...openPrompts.filter(({c}) => canControl(c)).map(x => x.q.id)];
-  const sidePrompts = prompts.filter(q => q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time').map(q => ({q, c: combatants.find(x => x.id === q.targetId)})).filter(x => x.c);
-  sidePrompts.forEach(({q, c}) => { if (((q.kind === 'askdm' || q.kind === 'time') && isDM) || (q.kind === 'form' && canControl(c))) myAskIds.push(q.id); });
+  const sidePrompts = prompts.filter(q => q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time' || q.kind === 'escape').map(q => ({q, c: combatants.find(x => x.id === q.targetId)})).filter(x => x.c);
+  sidePrompts.forEach(({q, c}) => { if (((q.kind === 'askdm' || q.kind === 'time') && isDM) || ((q.kind === 'form' || q.kind === 'escape') && canControl(c))) myAskIds.push(q.id); });
   const askKey = myAskIds.join(','), askPop = myAskIds.length > 0 && askLater !== askKey && !targeting;
   const targets = inPlay.filter(c => viewed && c.id !== viewed.id && c.currentHP > 0);
   // Who can be picked for the chosen action: yourself too when it allows that, and creatures at 0 Hit Points for things that help.
@@ -4021,7 +4082,13 @@ function App() {
                 <span className="p-btns">{react}{noR}</span>
               </div>);
           })}
-          {sidePrompts.map(({q, c}) => q.kind === 'time' ? (
+          {sidePrompts.map(({q, c}) => q.kind === 'escape' ? (
+            <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`} data-testid="prompt-escape">
+              <span><strong>{c.name}</strong> is held by <strong>{q.what}</strong>. It can take an action to try to get free: {q.es.ability}{q.es.skill ? ` (${q.es.skill})` : ''} check, DC {q.es.dc}.</span>
+              {canControl(c) ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="escape-go" onClick={() => { removePrompt(q.id); setTimeout(() => tryEscape(c, q.es, q.cond || null, q.effId ? (c.effects || []).find(e => e.id === q.effId) : null), 450); }}>🎲 Try to escape</button>
+                  <button className="btn btn-ghost btn-sm" data-testid="escape-skip" onClick={() => removePrompt(q.id)}>Not now</button></span>
+                : <span className="prompt-wait">Waiting for {c.owner ? 'its player' : 'the DM'}</span>}
+            </div>) : q.kind === 'time' ? (
             <div key={q.id} className={`prompt-item ${isDM ? 'yours' : ''}`} data-testid="prompt-time">
               <span><strong>{c.name}</strong> is casting <strong>{q.spell}</strong>{q.ritual ? ' as a Ritual' : ''}, which takes {timeText(q.secs)}.</span>
               {isDM ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="time-go" onClick={() => { removePrompt(q.id); setTimeout(() => advanceTime(q.secs, `${timeText(q.secs)} pass: ${c.name} casts ${q.spell}${q.ritual ? ' as a Ritual' : ''}`), 450); }}>Move time forward {timeText(q.secs)}</button>
@@ -4168,6 +4235,13 @@ function App() {
                 <div className="buff-note" style={{margin:'2px 0'}}>A player's character always waits for you to accept it before it joins.</div>
               </div>
             )}
+            {isDM && leftTab === 'dm' && combatants.some(c => (c.made || []).some(b => b.kind === 'dm')) && (
+              <div className="manual-roll" data-testid="held-panel">
+                <span className="label">In your hands</span>
+                {combatants.flatMap(c => (c.made || []).filter(b => b.kind === 'dm').map(b => ({c, b}))).map(({c, b}) => <div key={b.id} className="buff-note" data-testid="held-item" style={{margin: '4px 0'}}><strong>{b.name}</strong> from {c.name}{+b.left > 0 ? ` · ${timeText(b.left)} left` : ''}<br/>{b.note}
+                  <div style={{marginTop: 4}}><button className="btn btn-ghost btn-sm" data-testid="held-end" onClick={() => { setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).filter(y => y.id !== b.id)})); setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(b.name)}</strong> from ${esc(c.name)} is ended by the DM`})]); }}>End or cancel it</button></div></div>)}
+              </div>
+            )}
             {isDM && leftTab === 'dm' && (
               <div className="manual-roll" data-testid="call-panel">
                 <span className="label">Call for a Roll</span>
@@ -4312,8 +4386,8 @@ function App() {
                 {selAction && canControl(viewed) && (
                   <div className="do-row" data-testid="do-row">
                     <button className="btn btn-primary" data-testid="do-action" disabled={!!cannotWhy || (isArmed && waitLeft > 0)} onClick={go}>{isArmed && waitLeft > 0 ? `Waiting for ${armedT ? armedT.name : 'the target'} (${Math.ceil(waitLeft / 1000)})` : isArmed ? '🎲 Roll to hit' : `${selAction.spell ? 'Cast' : selAction.type === 'attack' ? 'Attack with' : 'Use'} ${selAction.name}`}</button>
-                    {cannotWhy && <span className="do-why" data-testid="do-why">{cannotWhy}</span>}
-                    {/is not in hand\.$/.test(cannotWhy || '') && viewed && canControl(viewed) && <button className="btn btn-ghost btn-sm" data-testid="hold-it" onClick={() => holdItem(viewed, selAction.name.replace(/ \(two hands\)$/, ''))}>Hold it</button>}
+                    {(cannotWhy || softWhy) && <span className="do-why" data-testid="do-why">{cannotWhy || softWhy}</span>}
+                    {/is not in hand\.$/.test(softWhy || '') && viewed && canControl(viewed) && <button className="btn btn-ghost btn-sm" data-testid="hold-it" onClick={() => holdItem(viewed, selAction.name.replace(/ \(two hands\)$/, ''))}>Hold it</button>}
                     {isArmed && !cannotWhy && <span className="do-roll" data-testid="roll-preview">{rollPreview()}</span>}
                     <button className="btn btn-ghost btn-sm" onClick={()=>{ if (isArmed) cancelArmed(); else setSelectedAction(null); }}>Cancel</button>
                   </div>
@@ -4381,11 +4455,12 @@ function App() {
                   </div>
                 )}
                 {selAction && selAction.zone && <div className="buff-note" data-testid="zone-line" style={{marginTop:8}}>Area in play: {zoneText(selAction)}. Until there is a map, apply it to a creature by choosing that creature as the target{selAction.again ? ' and using it again from Active' : ''}.</div>}
+                {selAction && selAction.type === 'attack' && !isArmed && inPlay.find(c => c.id === targetIds[0]) && /Advantage|Disadvantage/.test(rollPreview()) && <div className="buff-note" data-testid="mode-note" style={{marginTop:8}}>{rollPreview()}</div>}
                 {selAction && mapText(selAction) && <div className="buff-note" data-testid="map-line" style={{marginTop:8}}>🗺 Map feature: {mapText(selAction)}</div>}
                 {/* Advantage */}
-                {selAction && selAction.type==='attack' && (
-                  <div className="manual-roll">
-                    <span className="label">Roll modifier</span>
+                {selAction && (
+                  <div className="manual-roll" data-testid="next-roll">
+                    <span className="label">Next roll has</span>
                     <div className="advantage-row">
                       <div className={`adv-btn ${advantage===1?'active-adv':''}`} onClick={()=>setAdvantage(advantage===1?0:1)}>Advantage</div>
                       <div className="adv-btn" onClick={()=>setAdvantage(0)} style={{border:advantage===0?'1px solid var(--brass)':'',color:advantage===0?'var(--parchment)':''}}>Normal</div>
@@ -4406,7 +4481,7 @@ function App() {
                 <div className="action-grid">
                   {actions.filter(a => /^multiattack/i.test(a.name)).map(a => <div key={a.id} className="buff-note" data-testid="multiattack-note" style={{gridColumn: '1 / -1', margin: 0}}><strong>Multiattack.</strong> {a.desc || a.detail} Click each attack below in turn.</div>)}
                   {actions.filter(a => !/^multiattack/i.test(a.name)).map(a=>(
-                    <div key={a.id} className={`action-btn ${selectedAction===a.id?'selected':''}`}
+                    <div key={a.id} className={`action-btn ${selectedAction===a.id?'selected':''} ${softOf(viewed, a) ? 'blocked' : ''}`} title={softOf(viewed, a) || undefined}
                       style={limited(a) && usesLeft(viewed, a) <= 0 ? {opacity:0.45} : {}}
                       onClick={()=>setSelectedAction(a.id===selectedAction?null:a.id)} onContextMenu={e => restoreUse(viewed, a, e)}>
                       <div className="a-name">{a.name}{a.pool ? ` (${poolLeft(viewed, a.pool)} ${a.pool} left)` : a.usesMax ? ` (${usesLeft(viewed, a)}/${a.usesMax} left)` : ''}</div>
@@ -4623,6 +4698,10 @@ function App() {
               <input aria-label="Dice to roll" placeholder="Click dice, or type 2d6+3" value={diceExpr} onChange={e=>setDiceExpr(e.target.value)} onKeyDown={e=>{ if (e.key==='Enter') rollExpr(diceExpr); }}/>
               <button className="btn btn-primary btn-sm" data-testid="dice-roll" disabled={!DMG_RE.test(normExpr(diceExpr))} onClick={()=>rollExpr(diceExpr)}>Roll</button>
             </div>
+            <div className="dice-opts" data-testid="next-roll-dice">
+              <span>Next d20 Test from the sheet has:</span>
+              {[[1, 'Advantage'], [0, 'Normal'], [-1, 'Disadvantage']].map(([v, t]) => <button key={v} className={`die-btn ${advantage === v ? 'has' : ''}`} style={{padding:'4px 8px'}} aria-pressed={advantage === v} onClick={()=>setAdvantage(v)}>{t}</button>)}
+            </div>
             <div className="dice-opts" data-testid="dice-adv">
               <span>d20:</span>
               {[[1, 'Advantage'], [0, 'Normal'], [-1, 'Disadvantage']].map(([v, t]) => <button key={v} className={`die-btn ${(diceOpts.adv || 0) === v ? 'has' : ''}`} style={{padding:'4px 8px'}} aria-pressed={(diceOpts.adv || 0) === v} onClick={()=>setDiceOpts({...diceOpts, adv: v})}>{t}</button>)}
@@ -4661,7 +4740,8 @@ function App() {
               entry.type==='round'
                 ? <div key={entry.id||i} className="log-round">{entry.text}</div>
                 : (entry.dmOnly && !isDM) || (entry.priv && !isDM && !entry.priv.some(id => canControl(combatants.find(c => c.id === id)))) ? null
-                : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result ${entry.void ? 'void' : ''}`}>
+                : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result ${entry.void ? 'void' : ''} ${entry.flag ? 'flagged' : ''}`}>
+                    {entry.flag && <div className="log-flag" data-testid="log-flag" role="button" title="Click for the reason" onClick={() => setOpenFlag({...openFlag, [entry.id]: !openFlag[entry.id]})}>❗ Used against the rules{openFlag[entry.id] && <span className="why" data-testid="log-flag-why">Error: {entry.flag}</span>}</div>}
                     <button className={`log-star ${stars.some(x => x.id === entry.id) ? 'on' : ''}`} data-testid="log-star" title="Star this to keep it for after the fight" aria-label="Star this entry" onClick={() => toggleStar(entry)}>{stars.some(x => x.id === entry.id) ? '★' : '☆'}</button>
                     <div className="log-html" dangerouslySetInnerHTML={{__html:sanitizeLogHtml(entry.html)}}/>
                     {entry.void && <div className="log-detail" style={{color:'#fff176'}}>Overridden by the DM. See the new result below.</div>}
