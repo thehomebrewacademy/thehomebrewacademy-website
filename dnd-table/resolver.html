@@ -317,6 +317,8 @@
     .log-entry.flagged { border-left: 4px solid #e53935; }
     .log-flag { background: #7a1c1c; color: #fff; border-radius: 4px; padding: 4px 8px; margin-bottom: 4px; cursor: pointer; font-weight: 700; }
     .log-flag .why { display: block; font-weight: 400; margin-top: 3px; }
+    .pp-o-btn { padding: 0; cursor: pointer; vertical-align: middle; width: 14px; height: 14px; } .pp-o-btn:not(.full):not(.ex) { background: transparent; } .pp-o-btn:disabled { cursor: default; }
+    .roll-switch-row { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
     .roll-switch { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-right: 10px; }
     .pp-death { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 150px; }
     .action-btn.blocked { opacity: 0.45; filter: grayscale(0.7); }
@@ -786,11 +788,13 @@ function reactEvents(name, trigger, text) {
   return out;
 }
 const SPELL_NAMES = new Set((window.HBA_SPELLS || []).map(x => String(x.n || '').toLowerCase()));
+let ROLL_R1 = false, ROLL_LOW3 = false; // the roll switch: reroll each 1 once; a 1 or 2 on a damage die counts as 3
 let NEXT_D20 = 0, FUDGE_DONE = null; // the DM can say what the next d20 shows
 function roll20(advantage=0) { // 0=normal, 1=advantage, -1=disadvantage
   if (NEXT_D20) { const n = NEXT_D20; NEXT_D20 = 0; if (FUDGE_DONE) FUDGE_DONE(); return {total:n, rolls:[n]}; }
-  if (advantage === 0) { const r = rollD(20); return {total:r, rolls:[r]}; }
-  const r1 = rollD(20), r2 = rollD(20);
+  const d = () => { const r = rollD(20); return ROLL_R1 && r === 1 ? rollD(20) : r; };
+  if (advantage === 0) { const r = d(); return {total:r, rolls:[r]}; }
+  const r1 = d(), r2 = d();
   return advantage === 1
     ? {total:Math.max(r1,r2), rolls:[r1,r2], kept: r1>=r2?r1:r2}
     : {total:Math.min(r1,r2), rolls:[r1,r2], kept: r1<=r2?r1:r2};
@@ -806,7 +810,8 @@ function parseDamage(expr, allowNegative, lowAs3) { // lowAs3: Great Weapon Figh
     if (g.includes('d')) {
       const [c,s] = g.split('d').map(Number);
       let {total:t, rolls} = rollDice(Math.min(c, 100), Math.max(1, s));
-      if (lowAs3 && s >= 3) { rolls = rolls.map(r => Math.max(3, r)); t = rolls.reduce((a, b) => a + b, 0); }
+      if (ROLL_R1 && s > 1 && rolls.includes(1)) { rolls = rolls.map(r => r === 1 ? rollD(s) : r); t = rolls.reduce((a, b) => a + b, 0); }
+      if ((lowAs3 || ROLL_LOW3) && s >= 3) { rolls = rolls.map(r => Math.max(3, r)); t = rolls.reduce((a, b) => a + b, 0); }
       parts.push(`${c}d${s}=[${rolls.join(',')}]`);
       total += sign * t;
     } else {
@@ -1803,6 +1808,7 @@ function App() {
   const [viewId, setViewId] = useState(null);
   const [selectedAction, setSelectedAction] = useState(null);
   const [advantage, setAdvantage] = useState(0); // -1 dis, 0 normal, 1 adv
+  const [rollMods, setRollMods] = useState({hi: false, lo: false, r1: false, low3: false}); // the roll switch buttons that are lit
   const [log, setLogRaw] = useState([]);
   const setLog = u => { if (deferRef.current) deferRef.current.push(['l', u]); else setLogRaw(u); };
   const [showAddModal, setShowAddModal] = useState(false);
@@ -2204,9 +2210,18 @@ function App() {
   const dmgTwiceRef = useRef(0);
   // The roll switch: the next roll of any kind is rolled twice and the higher or lower is kept, then it goes back to Normal.
   const setRollSwitch = v => { setAdvantage(v); dmgTwiceRef.current = v; };
-  const useRollSwitch = () => { if (advantage || dmgTwiceRef.current) { setAdvantage(0); dmgTwiceRef.current = 0; setDmgTwice(0); } };
-  const rollSwitch = (where) => <span className="roll-switch" data-testid={'roll-switch-' + where}><span className="pp-muted" style={{fontSize: 12}} title="Applies to the next roll of any kind (attack, damage, check, save, initiative, Death Saving Throw, the dice roller), then goes back to Normal">Next roll:</span>
-    {[[1, 'Roll 2x, pick highest'], [0, 'Normal'], [-1, 'Roll 2x, pick lowest']].map(([v, t]) => <button key={v} className={`die-btn ${advantage === v ? 'has' : ''}`} data-testid={v === 1 ? 'roll-high' : v === -1 ? 'roll-low' : 'roll-normal'} style={{padding: '3px 8px'}} aria-pressed={advantage === v} onClick={() => setRollSwitch(v)}>{t}</button>)}</span>;
+  const toggleRollMod = k => { const m = {...rollMods, [k]: !rollMods[k]}; setRollMods(m); ROLL_R1 = m.r1; ROLL_LOW3 = m.low3; if (k === 'hi' || k === 'lo') setRollSwitch((m.hi ? 1 : 0) - (m.lo ? 1 : 0)); };
+  const clearRollMods = () => { setRollMods({hi: false, lo: false, r1: false, low3: false}); ROLL_R1 = false; ROLL_LOW3 = false; setRollSwitch(0); setDmgTwice(0); };
+  const useRollSwitch = () => { if (advantage || dmgTwiceRef.current) { setAdvantage(0); dmgTwiceRef.current = 0; setDmgTwice(0); } if (rollMods.hi || rollMods.lo || rollMods.r1) { setRollMods(m => ({...m, hi: false, lo: false, r1: false})); ROLL_R1 = false; } };
+  const useLow3 = () => { if (ROLL_LOW3 || ROLL_R1) { ROLL_LOW3 = false; ROLL_R1 = false; setRollMods(m => ({...m, low3: false, r1: false})); } };
+  useEffect(() => { if (advantage === 0 && !dmgTwiceRef.current && (rollMods.hi !== rollMods.lo)) setRollMods(m => ({...m, hi: false, lo: false})); }, [advantage]);
+  const rollSwitch = (where) => { const b = (k, t, tip, id) => <button key={k} className={`die-btn ${rollMods[k] ? 'has' : ''}`} data-testid={id} style={{padding: '2px 7px'}} aria-pressed={!!rollMods[k]} title={tip + (rollMods[k] ? '. Click again to cancel.' : '')} onClick={() => toggleRollMod(k)}>{t}</button>;
+    return <span className="roll-switch" data-testid={'roll-switch-' + where}>
+      <span className="roll-switch-row"><span className="pp-muted" style={{fontSize: 12}} title="Each lit button applies to the next roll of any kind (attack, damage, check, save, initiative, Death Saving Throw, the dice roller), then turns off">Next roll:</span>
+        {b('hi', '2x ⏫ Highest', 'Roll twice and keep the higher', 'roll-high')}{b('lo', '2x ⏬ Lowest', 'Roll twice and keep the lower', 'roll-low')}
+        {rollMods.hi && rollMods.lo && <span className="pp-muted" style={{fontSize: 11}} data-testid="roll-cancel-out">cancel out</span>}</span>
+      <span className="roll-switch-row">{b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once', 'roll-r1')}{b('low3', '1 & 2 = 3', 'On the next damage roll, a 1 or a 2 on a die counts as a 3', 'roll-low3')}
+        <button className="die-btn" data-testid="roll-clear" style={{padding: '2px 7px'}} title="Turn every button here off" onClick={clearRollMods}>Clear all</button></span></span>; };
   const rollDamageOnce = (action, crit, lowAs3) => {
     const list = action.dmgList && action.dmgList.length ? action.dmgList : [[action.dmg, action.dmgType]];
     return list.map(([expr, type]) => {
@@ -2216,9 +2231,9 @@ function App() {
       return {amount: r.total, type: type || '', dice: r.parts.join(' + ')};
     });
   };
-  const rollDamageParts = (action, crit, lowAs3) => { const a = rollDamageOnce(action, crit, lowAs3); if (!dmgTwiceRef.current) return a;
+  const rollDamageParts = (action, crit, lowAs3) => { const a = rollDamageOnce(action, crit, lowAs3); if (!dmgTwiceRef.current) { useLow3(); return a; }
     const mode = dmgTwiceRef.current; setAdvantage(0); const b = rollDamageOnce(action, crit, lowAs3), sum = l => l.reduce((n, pt) => n + pt.amount, 0), keepA = mode === 1 ? sum(a) >= sum(b) : sum(a) <= sum(b), kept = keepA ? a : b;
-    dmgTwiceRef.current = 0; setDmgTwice(0);
+    dmgTwiceRef.current = 0; setDmgTwice(0); useLow3(); setRollMods(m => ({...m, hi: false, lo: false}));
     return kept.map((pt, i) => i ? pt : {...pt, dice: `${mode === 1 ? '⏫' : '⏬'} rolled twice (${sum(a)} and ${sum(b)}), kept the ${mode === 1 ? 'higher' : 'lower'} · ${pt.dice}`}); };
   // Applies rolled damage to a creature, honouring Immunity, Resistance, Vulnerability and Temporary Hit Points.
   const dealDamage = (tgt, parts, halve, ignoreRes) => {
@@ -3051,6 +3066,12 @@ function App() {
     if (!change.death) { change.death = next; if (next.s >= 3) { change = {death: {s: 0, f: 0}, stable: true}; out += ', and now Stable'; } if (next.f >= 3) { change = {...change, dead: true}; out += ', and the third failure: dead'; } }
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, ...change} : x));
     setLog(prev => [...prev, stamp({type: n >= 10 ? 'save-pass' : 'save-fail', forId: c.id, html:`<strong>${esc(c.name)}</strong> · Death Saving Throw<br/><span class="log-result">🎲 ${n}</span> ${esc(out)}<div class="log-dice">${r.rolls.join('/')}${modeText(t) ? ' · ' + modeText(t) : ''}</div>`})]); };
+  const setDeathMark = (c, key, i) => { // a click on a circle sets that many marks; a click on the last filled one clears it
+    const ds = {...(c.death || {s: 0, f: 0})}; if (c.stable && key === 's') ds.s = 3; ds[key] = ds[key] > i ? i : i + 1;
+    const change = {death: ds, stable: ds.s >= 3 ? true : false, dead: ds.f >= 3};
+    if (ds.s >= 3) change.death = {...ds, s: 3};
+    setCombatants(prev => prev.map(x => x.id === c.id ? {...x, ...change} : x));
+    setLog(prev => [...prev, stamp({type: 'info', forId: c.id, html: `<strong>${esc(c.name)}</strong> · Death Saving Throws set by hand: ${ds.s} success${ds.s === 1 ? '' : 'es'}, ${ds.f} failure${ds.f === 1 ? '' : 's'}${change.dead ? ' · dead' : change.stable ? ' · Stable' : ''}`})]); };
   const setTempHP = (id, n) => setCombatants(prev => prev.map(c => c.id === id ? {...c, tempHP: Math.max(0, n)} : c));
 
   const addCondition = (id, cond, info) => {
@@ -3363,7 +3384,7 @@ function App() {
   };
   const exprOf = ({dice, mod}) => { const d = Object.keys(dice).map(Number).filter(s => dice[s] > 0).sort((a, b) => a - b).map(s => `${dice[s]}d${s}`).join('+'); return d + (mod ? (mod > 0 ? (d ? '+' : '') : '-') + Math.abs(mod) : ''); };
   const bumpDie = (sides, by) => { const pl = poolOf(diceExpr); pl.dice[sides] = Math.max(0, Math.min(99, (pl.dice[sides] || 0) + by)); setDiceExpr(exprOf(pl)); };
-  const rollOnce = (expr, reroll, adv) => { // every die shown; a 1 is rerolled once when asked; each d20 is rolled twice with Advantage or Disadvantage
+  const rollOnce = (expr, reroll, adv, low3) => { // every die shown; a 1 is rerolled once when asked; each d20 is rolled twice with Advantage or Disadvantage
     let total = 0; const parts = [];
     (expr.match(/[+-]?[^+-]+/g) || []).forEach(t => {
       const sign = t[0] === '-' ? -1 : 1, body = t.replace(/^[+-]/, ''), m = /^(\d+)d(\d+)$/.exec(body);
@@ -3371,7 +3392,8 @@ function App() {
       const shown = [];
       for (let i = 0; i < Math.min(100, +m[1]); i++) { let r = rollD(Math.max(1, +m[2]));
         if (adv && +m[2] === 20) { const r2 = rollD(20), keep = adv > 0 ? Math.max(r, r2) : Math.min(r, r2); shown.push(`${r}|${r2} keep ${keep}`); total += sign * keep; continue; }
-        if (reroll && r === 1 && +m[2] > 1) { const r2 = rollD(+m[2]); shown.push(`1→${r2}`); r = r2; } else shown.push(String(r)); total += sign * r; }
+        if (reroll && r === 1 && +m[2] > 1) { const r2 = rollD(+m[2]); shown.push(`1→${r2}`); r = r2; } else shown.push(String(r));
+        if (low3 && +m[2] >= 3 && r < 3) { shown[shown.length - 1] += '→3'; r = 3; } total += sign * r; }
       parts.push(`${sign < 0 ? '-' : ''}${m[1]}d${m[2]}=[${shown.join(',')}]`);
     });
     return {total, parts};
@@ -3379,10 +3401,10 @@ function App() {
   const rollExpr = (exprRaw) => {
     const expr = normExpr(exprRaw);
     if (!DMG_RE.test(expr)) return;
-    const tw = advantage === 1 ? 'high' : advantage === -1 ? 'low' : ''; useRollSwitch();
-    const a = rollOnce(expr, diceOpts.reroll, 0), b = tw ? rollOnce(expr, diceOpts.reroll, 0) : null;
+    const tw = advantage === 1 ? 'high' : advantage === -1 ? 'low' : '', r1 = ROLL_R1, low3 = ROLL_LOW3; useRollSwitch(); useLow3();
+    const a = rollOnce(expr, r1, 0, low3), b = tw ? rollOnce(expr, r1, 0, low3) : null;
     const keepB = b && (tw === 'high' ? b.total > a.total : b.total < a.total), kept = keepB ? b : a;
-    const notes = [diceOpts.adv && /d20/.test(expr) ? (diceOpts.adv > 0 ? 'Advantage on each d20' : 'Disadvantage on each d20') : '', diceOpts.reroll ? 'Rerolled each 1 once' : '', b ? `${tw === 'high' ? '⏫' : '⏬'} Rolled twice (${a.total} and ${b.total}), kept the ${tw === 'high' ? 'higher' : 'lower'}: ${a.total} and ${b.total}` : ''].filter(Boolean);
+    const notes = [diceOpts.adv && /d20/.test(expr) ? (diceOpts.adv > 0 ? 'Advantage on each d20' : 'Disadvantage on each d20') : '', r1 ? 'Rerolled each 1 once' : '', low3 ? 'Each 1 or 2 counted as 3' : '', b ? `${tw === 'high' ? '⏫' : '⏬'} Rolled twice (${a.total} and ${b.total}), kept the ${tw === 'high' ? 'higher' : 'lower'}: ${a.total} and ${b.total}` : ''].filter(Boolean);
     setLog(prev => [...prev, stamp({type:'roll', ...(isDM && hideRolls ? {dmOnly: true} : {}), html:`<strong>${esc(whoAmI())}</strong> rolls ${esc(expr)}<br/><span class="log-result">🎲 ${kept.total}</span><div class="log-dice">${kept.parts.join(' + ')}</div>${b ? `<div class="log-dice">Other roll: ${(keepB ? a : b).parts.join(' + ')}</div>` : ''}${notes.length ? `<div class="log-dice">${notes.join('. ')}.</div>` : ''}`})]);
   };
 
@@ -3827,8 +3849,8 @@ function App() {
               {c.currentHP <= 0 && !c.dead ? (() => { const ds = c.death || {s: 0, f: 0}, stable = isStable(c); return (
               <div className="pp-death" data-testid="death-tracker">
                 <div className="pp-h3" style={{margin: 0}}>{stable ? 'Stable' : 'Death Saving Throws'}</div>
-                <div><span className="pp-muted">Successes</span> {[0, 1, 2].map(i => <span key={i} className={`pp-o ${ds.s > i ? 'full' : ''}`} style={{marginLeft: 3}}/>)}</div>
-                <div><span className="pp-muted">Failures</span> {[0, 1, 2].map(i => <span key={i} className={`pp-o ${ds.f > i ? 'ex' : ''}`} style={{marginLeft: 3}}/>)}</div>
+                <div><span className="pp-muted">Successes</span> {[0, 1, 2].map(i => <button key={i} type="button" disabled={!ctl} className={`pp-o pp-o-btn ${(stable ? 3 : ds.s) > i ? 'full' : ''}`} data-testid={`death-s-${i}`} title="Click to add or remove a success" style={{marginLeft: 3}} onClick={() => setDeathMark(c, 's', i)}/>)}</div>
+                <div><span className="pp-muted">Failures</span> {[0, 1, 2].map(i => <button key={i} type="button" disabled={!ctl} className={`pp-o pp-o-btn ${ds.f > i ? 'ex' : ''}`} data-testid={`death-f-${i}`} title="Click to add or remove a failure" style={{marginLeft: 3}} onClick={() => setDeathMark(c, 'f', i)}/>)}</div>
                 {ctl && !stable && <button className="pp-chip on" data-testid="death-roll" onClick={() => rollDeathSave(c)}>🎲 Roll a Death Saving Throw</button>}
               </div>); })() : c.dead ? <div className="pp-death" data-testid="death-dead"><div className="pp-h3" style={{margin: 0}}>Dead</div></div> :
               <div className="pp-heart"><svg viewBox="0 0 100 92" aria-hidden="true"><path d="M50 88 C20 62 4 46 4 27 C4 13 15 4 27 4 C37 4 45 9 50 18 C55 9 63 4 73 4 C85 4 96 13 96 27 C96 46 80 62 50 88 Z"/></svg>
@@ -5055,10 +5077,7 @@ function App() {
               <button className="btn btn-primary btn-sm" data-testid="dice-roll" disabled={!DMG_RE.test(normExpr(diceExpr))} onClick={()=>rollExpr(diceExpr)}>Roll</button>
             </div>
             <div className="dice-opts" data-testid="dice-adv">{rollSwitch('dice')}</div>
-            <div className="dice-opts">
-              <label title="Each die that shows a 1 is rolled again, once"><input type="checkbox" data-testid="dice-reroll" checked={diceOpts.reroll} onChange={e=>setDiceOpts({...diceOpts, reroll: e.target.checked})}/> Reroll 1s</label>
-              <button className="btn btn-ghost btn-sm" data-testid="dice-clear" onClick={()=>setDiceExpr('')}>Clear</button>
-            </div>
+            <div className="dice-opts"><button className="btn btn-ghost btn-sm" data-testid="dice-clear" onClick={()=>setDiceExpr('')}>Clear dice</button></div>
           </div>
           <div className="panel-header">Active Effects</div>
           <div className="cond-box" data-testid="cond-panel">
