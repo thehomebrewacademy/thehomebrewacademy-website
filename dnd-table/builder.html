@@ -288,6 +288,11 @@ The "extras" object (include only the keys that apply):
 - In "creates", a physical thing the caster ends up carrying also takes "kind": "item", and may take "count", "spoil": "Spoiled Food" (what it becomes when its time ends) and "use": {"heal": "1", "act": "bonus" | "action", "effName": "Nourished", "effLeft": 86400, "effNote": "what it does"} for something used up one at a time. Anything else created is listed as an active effect the caster controls.
 - More that a higher slot can change: "upTurn": "1d6" (dice added to a "turnDmg" for each slot level above), "areaPerSlot": 20 (feet added to the area's size for each slot level above), "effBySlot": [[3, {"weaponAtk": 2, "dmgBonus": 2}], [6, {"weaponAtk": 3, "dmgBonus": 3}]] (effect values that replace the first effect's from that slot level up). For a summoned creature whose numbers grow with the slot, add to "summonCtl" "ac": [base, added per spell level] and "hp": [base, added per level, the level the adding starts from] (Summon Dragon: "ac": [14, 1], "hp": [50, 10, 5]).
 - "missHalf": true when an attack spell still deals half its damage on a miss.
+- "auto": {"failTypes": ["Plant"], "passTypes": [], "passCR": true}: creatures that fail or succeed the save without rolling (passCR: any creature whose Challenge Rating is not 0 succeeds).
+- "castNote": one short sentence shown when it is cast, for something that is part of casting and needs no roll.
+- "fixedDc": a number, when the save has its own DC instead of the spell save DC.
+- "targetsBySlot": [[8, 3], [9, 6]] when a higher slot sets the number of targets outright.
+- New effect keys for spells, with the same meanings as the ability effects listed further below: "noBonus", "atkDisVs", "maxHeal", "noHpMaxDown", "healAt0" (with "healEachTurn"), "breakConc", "turnOfCaster" (with "turnDmg"), "endsOnDamageBy": "caster", "noAgain": "Spell Name" (in an onSuccess effect with "left": a creature that succeeds can't be targeted by it again for that long), "restShrink": 1, "onEnd": {"cond": "Incapacitated", "left": 6, "speedZero": true}, "retaliate": {"dice", "type"} or {"save", "cond", "types", "left"}, "atkDmg": {"dice", "type"}, "failDmg" (on an effect with "saveEnds"). A cond may add "endsOnDamageBy": "caster", "failDmg": {"dice", "type"}, "failCond": "Unconscious", "tally": 3, and "secs" when it lasts a different time from the spell. Any numeric effect value may be "SPELLMOD".
 - "secondary": a second effect with its own save that comes with an attack, hit or miss (Ice Knife's explosion): {"save": "Dexterity", "label": "explosion", "dmg": [["2d6", "Cold"]], "half": false}. The caster picks every creature caught in it; the first one picked takes the attack. "upSecondary": "1d6" when only that second damage grows with the slot.
 - A summoned creature whose stat block is printed in the spell and depends on the spell's level gets the whole stat block in "summonCtl" as "block": {"name": "Otherworldly Steed", "size": "Large", "type": "$1" (or a fixed type), "ac": [base, per spell level], "hp": [base, per spell level, the level the adding starts from], "speed": 60, "speedMore": [{"text": "Fly 60 ft.", "minLvl": 4}], "s": [Str, Dex, Con, Int, Wis, Cha], "res": "", "ci": "", "senses": "", "traits": [["Name", "text"]], "acts": [{"n": "Otherworldly Slam", "kind": "attack" | "save" | "heal" | "info", "act": "action" | "bonus", "only": "Fiend" (only for that chosen type), "dmg": "1d8+L" (L is the spell's level), "dtype": "Piercing" or {"Celestial": "Radiant", "Fey": "Psychic"} or "$2", "save": "Wisdom", "cond": "Frightened", "left": 6, "half": true, "heal": "2d8+L", "uses": 1 (per Long Rest), "d": "its text word for word"}]}. Attacks use the caster's spell attack modifier and saves the caster's spell save DC.
 - A spell that lets the caster store another spell inside it has, in the record (or inside the version that does it), "storeSpell": {"max": the highest spell level it holds, "bySlot": true if a higher slot raises that}. The caster picks the stored spell when casting; it is kept on the caster's sheet and used once, when the trigger happens, with no spell slot and no Concentration.
@@ -468,6 +473,14 @@ More effect keys (inside an "effects" entry), each exactly as written here:
   "weaponAttackBonus": 1              added to its weapon attack rolls
   "weaponDamage": { "dice": "1d4", "type": "Radiant" }   extra damage on its weapon hits
   "duplicates": 3                     illusory duplicates that can be hit in its place
+  "cannotTakeBonusActions": true, "disadvantageAttackingUser": true (Disadvantage on attack rolls against whoever gave the effect), "maximumHealing": true (regains the most possible from any healing), "hitPointMaximumProtected": true, "breaksConcentration": true
+  "endsOnDamageFromUserSide": true    ends only if the user or the user's allies damage it (also allowed on a condition)
+  "penaltyShrinksEachLongRest": 1     with a negative "d20Tests", the penalty shrinks by that much each Long Rest
+  "whenItEnds": { "condition": "Incapacitated", "duration": { "amount": 1, "unit": "rounds" }, "speedZero": true }   what the creature is left with when the effect ends
+  "hitBack": { "dice": "2d8", "type": "Fire" } or { "save": "Constitution", "condition": "Blinded", "creatureTypes": ["Fiend", "Undead"] }   what happens to a creature that hits it with a melee attack
+  "extraDamageOnAttacks": { "dice": "2d8", "type": "Fire" }   extra damage on every attack it makes
+  "damageOnUsersTurn": true           with "damageEachTurn": the damage comes on the user's turn instead of the creature's
+  "onlyAtZeroHitPoints": true         with "healEachTurn": only when it starts its turn at 0 Hit Points
   "dropTo1Instead": true              the first time it would drop to 0 Hit Points it drops to 1 and the effect ends
   "healEachTurn": "1"                 Hit Points regained at the start of each of its turns
   "damageEachTurn": { "dice": "2d4", "type": "Acid", "when": "start" or "end", "once": true if only on its next turn }
@@ -479,7 +492,7 @@ More effect keys (inside an "effects" entry), each exactly as written here:
   "endsWhenNextAttacked": true        ends after the next attack roll against it
   "outOfPlay": true                   it is elsewhere while this lasts: skipped in the turn order, cannot be targeted
   "stable": true, "dashAsBonusAction": true
-In a condition's "repeatSave", "onDamage": true means the save is also made each time the creature takes damage.
+In a condition's "repeatSave", "onDamage": true means the save is also made each time the creature takes damage. "onFailBecomes": "Unconscious" means a failed repeat save turns it into that condition. "countTo": 3 means the repeat saves are counted: that many successes end it, that many failures give "onFailBecomes". "damageOnFail": { "dice": "4d10", "type": "Psychic" } is dealt on each failed repeat save.
 trigger: for a feature used as a Reaction ("activation": "reaction"), add "trigger" so the Combat Resolver offers it at the right moment. Use one or more of these words, separated by commas: "targeted" (a creature targets you with an attack, before the roll), "hit" (an attack roll hits you), "miss" (an attack roll misses you), "damage" (you take damage), "cast" (a creature you can see casts a spell). Example: "trigger": "hit". If none of these fits, write the trigger in the source's own words, for example "trigger": "when a creature you can see within 30 feet fails a saving throw". The player can still use the Reaction from the sheet at any time.
 statBlock: when using the feature turns the character into a creature or brings one out (a beast form, a summoned spirit, a companion called for a time), add "statBlock": "form" (the character becomes it) or "statBlock": "summon" (it appears beside the character). Using the feature then asks which creature, and its stat block sits on the sheet's Stat Blocks tab until it is dismissed or its time runs out. Give the effect its duration so the app knows when that is. If the creature is new, describe its stat block in the feature's "text".
 
@@ -1365,6 +1378,10 @@ function compileOutcome(o, ctx) {
       if (ABILITIES.includes(r.ability)) c.abil = r.ability;
     }
     if (r && r.onDamage) c.onDamage = true; // the save is made again each time it takes damage
+    if (r && CONDITION_NAMES.includes(r.onFailBecomes)) c.failCond = r.onFailBecomes; // a failed repeat save makes it worse
+    if (r && +r.countTo > 0) c.tally = Math.min(5, +r.countTo); // that many successes end it, that many failures make it worse
+    if (r && pObj(r.damageOnFail).dice) { const d = evalDice(r.damageOnFail.dice, ctx); if (d) c.failDmg = { dice: d, type: pStr(r.damageOnFail.type, 20) }; }
+    if (k.endsOnDamageFromUserSide) c.endsOnDamageBy = "caster";
     return c;
   }).filter(Boolean);
   const effs = pArr(o.effects).map((e) => {
@@ -1410,6 +1427,12 @@ function compileOutcome(o, ctx) {
     [["acMinimum", "acMin"], ["acBase", "acBase"], ["weaponAttackBonus", "weaponAtk"], ["duplicates", "images"]].forEach(([from, to]) => { if (e[from] != null) { const n = evalFormula(e[from], ctx); if (Number.isFinite(n) && n) out[to] = n; } });
     [["immuneDamage", "immuneDmg"], ["vulnerableTo", "vuln"], ["conditionImmunities", "condImmune"]].forEach(([from, to]) => { const l = pArr(e[from]).map((t) => pStr(t, 20)).filter(Boolean); if (l.length) out[to] = l.join(", "); });
     const wd = pObj(e.weaponDamage); if (wd.dice) { const d = evalDice(wd.dice, ctx); if (d) { out.weaponDmg = d; if (wd.type) out.weaponDmgType = pStr(wd.type, 20); } }
+    [["cannotTakeBonusActions", "noBonus"], ["disadvantageAttackingUser", "atkDisVs"], ["maximumHealing", "maxHeal"], ["hitPointMaximumProtected", "noHpMaxDown"], ["onlyAtZeroHitPoints", "healAt0"], ["breaksConcentration", "breakConc"], ["damageOnUsersTurn", "turnOfCaster"]].forEach(([from, to]) => { if (e[from]) out[to] = true; });
+    if (e.endsOnDamageFromUserSide) out.endsOnDamageBy = "caster";
+    if (+e.penaltyShrinksEachLongRest > 0) out.restShrink = +e.penaltyShrinksEachLongRest;
+    const we = pObj(e.whenItEnds); if (CONDITION_NAMES.includes(we.condition)) out.onEnd = { cond: we.condition, left: durationSeconds(we.duration) || 6, ...(we.speedZero ? { speedZero: true } : {}) };
+    const hb = pObj(e.hitBack); if (hb.dice || hb.condition) { const o = {}; if (hb.dice) { const d = evalDice(hb.dice, ctx); if (d) { o.dice = d; o.type = pStr(hb.type, 20); } } if (CONDITION_NAMES.includes(hb.condition)) o.cond = hb.condition; if (ABILITIES.includes(hb.save)) o.save = hb.save; if (Array.isArray(hb.creatureTypes)) o.types = hb.creatureTypes.map((x) => pStr(x, 20)); if (o.dice || o.cond) out.retaliate = o; }
+    const xa = pObj(e.extraDamageOnAttacks); if (xa.dice) { const d = evalDice(xa.dice, ctx); if (d) out.atkDmg = { dice: d, type: pStr(xa.type, 20) }; }
     if (e.healEachTurn != null) { const d = evalDice(e.healEachTurn, ctx); if (d && d !== "0") out.healEachTurn = d; }
     const td = pObj(e.damageEachTurn); if (td.dice) { const d = evalDice(td.dice, ctx); if (d) out.turnDmg = { dice: d, type: pStr(td.type, 20), when: td.when === "start" ? "start" : "end", ...(td.once ? { once: true } : {}) }; }
     if (e.note) out.note = pStr(e.note, 300);
@@ -4091,7 +4114,7 @@ function spellAction(sp, ctx, opts) {
 // onto the sheet, so the Combat Resolver can apply them now and a map can use the distances later.
 const FULL_EFF_KEYS = ["ac", "acMin", "acBase", "speed", "speedMult", "speedZero", "init", "d20", "atk", "save", "saveAdv", "saveDis", "checkAdv", "checkDis", "atkDis", "advAgainst", "disAgainst",
   "noInvisible", "bonusDmg", "bonusType", "fromCaster", "resist", "resistType", "immuneDmg", "vuln", "immune", "condImmune", "tempEachTurn", "hpMax", "sizeStep", "noReact", "noHeal", "sense", "move", "weaponDmg", "weaponDmgType",
-  "ward0", "sanctuary", "images", "endsOnAct", "endsOnDamage", "saveEnds", "endsOnAttack", "endsWhenAttacked", "noCast", "noAct", "saveOnDamage", "away", "healEachTurn", "turnDmg", "weaponAtk", "stable", "dashBonus", "protect", "extraAction", "turnRoll", "kill"];
+  "ward0", "sanctuary", "images", "endsOnAct", "endsOnDamage", "saveEnds", "endsOnAttack", "endsWhenAttacked", "noCast", "noAct", "saveOnDamage", "away", "healEachTurn", "turnDmg", "noBonus", "atkDisVs", "maxHeal", "noHpMaxDown", "healAt0", "breakConc", "turnOfCaster", "endsOnDamageBy", "noAgain", "restShrink", "onEnd", "retaliate", "atkDmg", "failDmg", "weaponAtk", "stable", "dashBonus", "protect", "extraAction", "turnRoll", "kill"];
 const FULL_ABILITIES = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"];
 const FULL_CONDS = ["Blinded", "Charmed", "Deafened", "Frightened", "Grappled", "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone", "Restrained", "Stunned", "Unconscious"];
 function fullEffect(e, sp, f) {
@@ -4113,7 +4136,7 @@ function fullEffect(e, sp, f) {
 }
 function fullOutcome(o, sp, f) {
   if (!o) return null;
-  const conds = (o.conds || []).filter((c) => c && (FULL_CONDS.includes(c.name) || /^\$[12]$/.test(String(c.name)))).map((c) => ({ name: c.name, ...(f.dur > 0 ? { left: f.dur } : {}), ...(c.repeat === "end" || c.repeat === "start" ? { when: c.repeat } : {}), ...(c.onDamage ? { onDamage: true } : {}) }));
+  const conds = (o.conds || []).filter((c) => c && (FULL_CONDS.includes(c.name) || /^\$[12]$/.test(String(c.name)))).map((c) => ({ name: c.name, ...(f.dur > 0 ? { left: f.dur } : {}), ...(c.repeat === "end" || c.repeat === "start" ? { when: c.repeat } : {}), ...(c.onDamage ? { onDamage: true } : {}), ...(c.endsOnDamageBy ? { endsOnDamageBy: "caster" } : {}), ...(c.failDmg ? { failDmg: c.failDmg } : {}), ...(c.failCond ? { failCond: c.failCond } : {}), ...(+c.tally > 0 ? { tally: +c.tally } : {}), ...(+c.secs > 0 ? { left: +c.secs } : {}) }));
   const effs = (o.effs || []).filter(Boolean).map((e) => fullEffect(e, sp, f));
   const out = {};
   if (conds.length) out.conds = conds.slice(0, 4);
@@ -4210,6 +4233,11 @@ function fullSpellAction(sp, ctx, opts) {
   if ((x.askDM || x.message) && f.dur >= 600) { out.dmHold = true; if (f.dur > 0) out.holdSecs = f.dur; } // it stays in the DM's hands while it lasts
   if (f.storeSpell) out.storeSpell = { max: +f.storeSpell.max || 3, bySlot: !!f.storeSpell.bySlot }; // another prepared spell is put inside this one
   if (x.upTurn) out.upTurn = String(x.upTurn);
+  if (x.auto) out.auto = x.auto; // some creatures fail or pass the save without rolling
+  if (Array.isArray(x.targetsBySlot)) out.targetsBySlot = x.targetsBySlot;
+  if (x.castNote) out.castNote = String(x.castNote).slice(0, 240);
+  if (+x.fixedDc > 0 && out.type === "save") out.dc = +x.fixedDc; // a save with its own DC
+  ["onHit", "onFail", "onSuccess", "onUse"].forEach((k) => { if (out[k] && out[k].effs) out[k] = { ...out[k], effs: out[k].effs.map((e) => { const o = { ...e }; Object.keys(o).forEach((q) => { if (typeof o[q] === "string" && /SPELLMOD/.test(o[q]) && q !== "note" && q !== "name") { const n = evalFormula(o[q], ctx); if (Number.isFinite(n)) o[q] = n; } }); return o; }) }; }); // a value that is the caster's spellcasting modifier
   if (x.missHalf && out.type === "attack") out.missHalf = true; // half of the damage on a miss
   if (+x.areaPerSlot > 0) out.areaPerSlot = +x.areaPerSlot;
   if (Array.isArray(x.effBySlot)) out.effBySlot = x.effBySlot;

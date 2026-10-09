@@ -911,12 +911,14 @@ function timeText(sec) {
 }
 // Takes time off every timed effect. Returns the new list and what ended: [creature, effect, why].
 // A Long Rest also ends Concentration, clears Temporary Hit Points and removes one level of Exhaustion.
+function withOnEnd(c, gone) { let out = c; (gone || []).filter(e => e && e.onEnd).forEach(e => { const k = e.onEnd.cond; out = {...out, conditions: Array.from(new Set([...(out.conditions || []), k])), condInfo: {...(out.condInfo || {}), [k]: {src: String(e.name || '').slice(0, 40), left: e.onEnd.left}}, ...(e.onEnd.speedZero ? {effects: [...(out.effects || []), {id: 'end' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: `${e.name} ends`, speedZero: true, left: e.onEnd.left}]} : {})}; }); return out; }
 function passTime(list, seconds, longRest) {
   const ended = [];
   const next = list.map(c => {
-    let changed = false; const kept = [];
+    let changed = false; const kept = [], endedFx = [];
     (c.effects || []).forEach(e => {
-      if (longRest && e.conc) { ended.push([c.name, e.name, 'Concentration ends on a Long Rest']); changed = true; return; }
+      if (longRest && e.conc) { ended.push([c.name, e.name, 'Concentration ends on a Long Rest']); changed = true; if (e.onEnd) endedFx.push(e); return; }
+      if (longRest && e.restShrink && +e.d20 < 0) { const d = Math.min(0, +e.d20 + e.restShrink); changed = true; if (d >= 0) ended.push([c.name, e.name, 'The penalty is gone after the Long Rest']); else { kept.push({...e, d20: d}); ended.push([c.name, '', `${e.name}: the penalty is now ${d}`]); } return; }
       if (longRest && e.name === 'Exhaustion' && e.lvl) {
         const l = (+e.lvl || 1) - 1; changed = true;
         if (l <= 0) ended.push([c.name, e.name, 'A Long Rest removes one level']);
@@ -925,9 +927,9 @@ function passTime(list, seconds, longRest) {
       }
       if (!(+e.left > 0)) { kept.push(e); return; }
       const left = +e.left - seconds; changed = true;
-      if (left <= 0) ended.push([c.name, e.name, 'Its time ran out']); else kept.push({...e, left});
+      if (left <= 0) { ended.push([c.name, e.name, 'Its time ran out']); if (e.onEnd) endedFx.push(e); } else kept.push({...e, left});
     });
-    let out = changed ? {...c, effects: kept} : c;
+    let out = changed ? withOnEnd({...c, effects: kept}, endedFx) : c;
     if (c.conc && (longRest || (+c.conc.left > 0 && +c.conc.left - seconds <= 0))) { const {conc, ...rest} = out; out = rest; ended.push([c.name, c.conc.name, longRest ? 'Concentration ends on a Long Rest' : 'Concentration: its time ran out']); }
     else if (c.conc && +c.conc.left > 0) out = {...out, conc: {...c.conc, left: +c.conc.left - seconds}};
     if ((c.made || []).some(b => +b.left > 0)) {
@@ -968,10 +970,11 @@ function dueCondSaves(list, turnId, when) {
   });
   return due;
 }
-function rollCondSave(c, cond) {
+function rollCondSave(c, cond, adv) {
   const info = condInfoOf(c, cond);
   const saveMod = (c.saves && c.saves[info.abil] != null) ? +c.saves[info.abil] : mod((c.scores && c.scores[info.abil]) || 10);
   const t = d20Test(c, 'save', {ability: info.abil, conditions: [cond]});
+  if (adv === 1) t.adv.push('chosen'); if (adv === -1) t.dis.push('chosen');
   const roll = roll20(testMode(t));
   let total = roll.total + saveMod + t.bonus, inspired = '', usedEffect = '';
   const insp = !t.autoFail && total < info.dc ? (c.effects || []).find(x => x.inspire) : null;
@@ -1044,7 +1047,14 @@ function cleanEffect(e) {
   if (Number.isFinite(+e.weaponAtk) && +e.weaponAtk) out.weaponAtk = Math.max(-5, Math.min(5, Math.round(+e.weaponAtk)));
   if (e.extraAction) out.extraAction = String(e.extraAction).slice(0, 160);
   if (e.wpn && typeof e.wpn === 'object' && /^[A-Za-z |]{1,60}$/.test(String(e.wpn.re || '')) && DMG_RE.test(String(e.wpn.die || ''))) out.wpn = {re: String(e.wpn.re), die: String(e.wpn.die), mod: Math.max(-5, Math.min(15, Math.round(+e.wpn.mod || 0))), type: String(e.wpn.type || '').slice(0, 20)};
-  ['endsOnAttack','endsWhenAttacked','noCast','noAct','saveOnDamage','away'].forEach(k => { if (e[k]) out[k] = true; });
+  ['endsOnAttack','endsWhenAttacked','noCast','noAct','saveOnDamage','away','noBonus','atkDisVs','maxHeal','noHpMaxDown','healAt0','breakConc','turnOfCaster'].forEach(k => { if (e[k]) out[k] = true; });
+  if (e.endsOnDamageBy === 'caster') out.endsOnDamageBy = 'caster';
+  if (e.noAgain) out.noAgain = String(e.noAgain).slice(0, 60);
+  if (+e.restShrink > 0) out.restShrink = Math.min(10, +e.restShrink);
+  if (e.onEnd && typeof e.onEnd === 'object' && CONDITIONS.includes(e.onEnd.cond)) out.onEnd = {cond: e.onEnd.cond, left: Math.max(0, Math.min(MAX_SECONDS, +e.onEnd.left || 6)), ...(e.onEnd.speedZero ? {speedZero: true} : {})};
+  if (e.retaliate && typeof e.retaliate === 'object') { const r = e.retaliate, o = {}; if (DMG_RE.test(String(r.dice || ''))) { o.dice = String(r.dice); o.type = String(r.type || '').slice(0, 20); } if (CONDITIONS.includes(r.cond)) o.cond = r.cond; if (ABILITIES.includes(r.save)) o.save = r.save; if (Array.isArray(r.types)) o.types = r.types.slice(0, 8).map(String); if (+r.left > 0) o.left = Math.min(MAX_SECONDS, +r.left); if (o.dice || o.cond) out.retaliate = o; }
+  if (e.failDmg && typeof e.failDmg === 'object' && DMG_RE.test(String(e.failDmg.dice || ''))) out.failDmg = {dice: String(e.failDmg.dice), type: String(e.failDmg.type || '').slice(0, 20)};
+  if (e.atkDmg && typeof e.atkDmg === 'object' && DMG_RE.test(String(e.atkDmg.dice || ''))) out.atkDmg = {dice: String(e.atkDmg.dice), type: String(e.atkDmg.type || '').slice(0, 20)};
   if (e.healEachTurn && DMG_RE.test(String(e.healEachTurn).replace(/\s/g, ''))) out.healEachTurn = String(e.healEachTurn).replace(/\s/g, '');
   if (e.turnDmg && typeof e.turnDmg === 'object' && DMG_RE.test(String(e.turnDmg.dice || '').replace(/\s/g, ''))) out.turnDmg = {dice: String(e.turnDmg.dice).replace(/\s/g, ''), type: String(e.turnDmg.type || '').slice(0, 20), when: e.turnDmg.when === 'start' ? 'start' : 'end', ...(e.turnDmg.once ? {once: true} : {})};
   if (e.turnRoll && typeof e.turnRoll === 'object' && DMG_RE.test(String(e.turnRoll.dice || ''))) out.turnRoll = {when: e.turnRoll.when === 'start' ? 'start' : 'end', dice: String(e.turnRoll.dice), text: String(e.turnRoll.text || '').slice(0, 240)};
@@ -1064,6 +1074,7 @@ function creatureType(c) { // "Humanoid", "Beast", "Undead"... Player characters
 }
 // Why this creature cannot be the target of this action, or ''. Size and creature type are checked; range waits for the map.
 function targetProblem(a, user, t) {
+  if (a && t && (t.effects || []).some(e => e.noAgain && e.noAgain === String(a.name).replace(/ \(Level \d slot\)$/, ''))) return `${t.name} can't be affected by ${String(a.name).replace(/ \(Level \d slot\)$/, '')} again yet.`;
   const g = a && a.tgt; if (!g || !t) return '';
   if (g.size && SIZES.includes(g.size) && sizeIndex(t) > SIZES.indexOf(g.size)) return `${t.name} is ${sizeOf(t)}: ${a.name} only works on a creature that is ${g.size} or smaller.`;
   if (+g.sizeOver >= 0 && g.sizeOver != null && sizeIndex(t) > sizeIndex(user) + (+g.sizeOver)) return `${t.name} is ${sizeOf(t)}: too large. The target can be no more than ${+g.sizeOver === 0 ? 'your own size' : `${g.sizeOver} size${+g.sizeOver === 1 ? '' : 's'} larger than you`}.`;
@@ -1079,6 +1090,10 @@ function cleanOutcome(o) {
     const c = {name: k.name};
     if (+k.left > 0) c.left = Math.min(MAX_SECONDS, Math.round(+k.left));
     if (k.onDamage) c.onDamage = true;
+    if (k.endsOnDamageBy === 'caster') c.endsOnDamageBy = 'caster';
+    if (k.failDmg && DMG_RE.test(String(k.failDmg.dice || ''))) c.failDmg = {dice: String(k.failDmg.dice), type: String(k.failDmg.type || '').slice(0, 20)};
+    if (CONDITIONS.includes(k.failCond)) c.failCond = k.failCond;
+    if (+k.tally > 0) c.tally = Math.min(5, +k.tally);
     if (k.when === 'start' || k.when === 'end') {
       c.when = k.when;
       if (k.turn === 'source') c.turn = 'source';
@@ -1167,6 +1182,9 @@ function cleanAction(a, i) {
   if (a.advIf) out.advIf = String(a.advIf).slice(0, 160);
   if (Array.isArray(a.creates)) { const cr = a.creates.slice(0, 4).map(x => x && x.name ? {name: String(x.name).slice(0, 60), note: String(x.note || '').slice(0, 300), left: Math.max(0, Math.min(MAX_SECONDS, +x.left || 0)), kind: x.kind === 'item' ? 'item' : 'effect', ...(+x.count > 0 ? {count: Math.min(99, Math.round(+x.count))} : {}), ...(x.spoil ? {spoil: String(x.spoil).slice(0, 40)} : {}), ...(x.use && typeof x.use === 'object' ? {use: {heal: DMG_RE.test(String(x.use.heal || '')) ? String(x.use.heal) : '', act: ['action','bonus'].includes(x.use.act) ? x.use.act : 'action', effName: String(x.use.effName || '').slice(0, 40), effLeft: Math.max(0, Math.min(MAX_SECONDS, +x.use.effLeft || 0)), effNote: String(x.use.effNote || '').slice(0, 200)}} : {})} : null).filter(Boolean); if (cr.length) out.creates = cr; }
   if (a.castOn) out.castOn = true;
+  if (a.auto && typeof a.auto === 'object') out.auto = {failTypes: (a.auto.failTypes || []).slice(0, 8).map(String), passTypes: (a.auto.passTypes || []).slice(0, 8).map(String), passCR: !!a.auto.passCR};
+  if (Array.isArray(a.targetsBySlot)) out.targetsBySlot = a.targetsBySlot.slice(0, 6).filter(x => Array.isArray(x) && +x[0] > 0 && +x[1] > 0).map(x => [+x[0], Math.min(20, +x[1])]);
+  if (a.castNote) out.castNote = String(a.castNote).slice(0, 240);
   if (a.secondary && typeof a.secondary === 'object' && ABILITIES.includes(a.secondary.save) && Array.isArray(a.secondary.dmg)) out.secondary = {save: a.secondary.save, label: String(a.secondary.label || 'second effect').slice(0, 30), dmg: a.secondary.dmg.filter(d => Array.isArray(d) && DMG_RE.test(String(d[0]))).slice(0, 3).map(d => [String(d[0]), String(d[1] || '').slice(0, 20)]), half: !!a.secondary.half, dc: Math.max(0, Math.min(40, +a.secondary.dc || 0))};
   if (DMG_RE.test(String(a.upSecondary || ''))) out.upSecondary = String(a.upSecondary);
   if (a.item) out.item = String(a.item).slice(0, 80);
@@ -1310,7 +1328,17 @@ function describeEffect(e) { // what an effect does, in words
   if (e.dashBonus) parts.push('can Dash as a Bonus Action');
   if (e.extraAction) parts.push(e.extraAction);
   if (e.wpn) parts.push(`attacks with its ${e.wpn.re.split('|').join(' or ')} use the spellcasting ability and deal ${e.wpn.die} damage${e.wpn.type ? ` (${e.wpn.type} or the weapon's own type)` : ''}`);
-  if (e.healEachTurn) parts.push(`regains ${e.healEachTurn} Hit Points at the start of each of its turns`);
+  if (e.healEachTurn) parts.push(`regains ${e.healEachTurn} Hit Points at the start of each of its turns${e.healAt0 ? ' if it is at 0 Hit Points' : ''}`);
+  if (e.noBonus) parts.push("can't take Bonus Actions");
+  if (e.atkDisVs) parts.push(`Disadvantage on attack rolls against ${e.byName || 'the caster'}`);
+  if (e.maxHeal) parts.push('regains the most Hit Points possible from any healing');
+  if (e.noHpMaxDown) parts.push("its Hit Point maximum can't be reduced");
+  if (e.endsOnDamageBy) parts.push(`ends if ${e.byName || 'the caster'} or an ally of theirs deals it damage`);
+  if (e.noAgain) parts.push(`can't be affected by ${e.noAgain} again while this lasts`);
+  if (e.restShrink) parts.push(`the penalty shrinks by ${e.restShrink} with each Long Rest`);
+  if (e.onEnd) parts.push(`when it ends: ${e.onEnd.cond} for ${timeText(e.onEnd.left)}`);
+  if (e.retaliate) parts.push(`a creature that hits it with a melee attack ${e.retaliate.dice ? `takes ${e.retaliate.dice} ${e.retaliate.type}` : ''}${e.retaliate.cond ? `${e.retaliate.save ? `makes a ${e.retaliate.save} save or ` : ''}has the ${e.retaliate.cond} condition` : ''}`.replace('  ', ' '));
+  if (e.atkDmg) parts.push(`its attacks deal an extra ${e.atkDmg.dice} ${e.atkDmg.type}`.trim());
   if (e.turnDmg) parts.push(`takes ${e.turnDmg.dice} ${e.turnDmg.type} damage at the ${e.turnDmg.when} of ${e.turnDmg.once ? 'its next turn' : 'each of its turns'}`.replace('  ', ' '));
   if (e.endsOnAttack) parts.push('ends after its next attack roll');
   if (e.endsWhenAttacked) parts.push('ends after the next attack roll against it');
@@ -1388,6 +1416,7 @@ function d20Test(c, kind, ctx) {
       if (e.spellAtkAdv && ctx.spell) adv.push(e.name);
     });
     es.forEach(e => { if (e.atkDis) dis.push(e.name); if (e.weaponAtk && ctx.weapon) addFlat(e.weaponAtk, e.name); }); // Sap, Magic Weapon
+    if (ctx.target) es.forEach(e => { if (e.atkDisVs && e.casterId === ctx.target.id) dis.push(e.name); });
     if (ctx.target) ((ctx.target.effects) || []).forEach(e => { if (e.disAgainst) dis.push(e.name); if (e.advFrom && e.advFrom === c.id) adv.push(e.name); }); // Dodge, Vex
     if (hasCond(c, 'Invisible')) adv.push('Invisible');
     const t = ctx.target;
@@ -2012,7 +2041,7 @@ function App() {
     const b = effectiveInitBonus(c), t = parseInt(typed, 10);
     let v, how;
     if (Number.isFinite(t)) { v = t; how = 'entered by hand'; }
-    else { const r = roll20((c.passives || {}).initiativeAdvantage ? 1 : 0); v = r.total + b; how = `${r.rolls.join('/')} ${signed(b)}${(c.passives || {}).initiativeAdvantage ? ' with Advantage' : ''}`; }
+    else { const sw = advantage; if (sw) useRollSwitch(); const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0)); v = r.total + b; how = `${r.rolls.join('/')} ${signed(b)}${(c.passives || {}).initiativeAdvantage ? ' with Advantage' : ''}`; }
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, initiative: v, initFor: initCall} : x.after === c.id ? {...x, initiative: v, initFor: initCall} : x));
     setLog(prev => [...prev, stamp({type:'roll', ...(isDM && !c.owner && hideRolls ? {dmOnly: true} : {}), html:`<strong>${esc(c.name)}</strong> · Initiative<br/><span class="log-result">🎲 ${v}</span><div class="log-dice">${esc(how)}</div>`})]);
   };
@@ -2060,15 +2089,15 @@ function App() {
     due.push(...dueCondSaves(work, upId, 'start'));
     if (due.length) setPrompts(prev => [...prev, ...due.filter(d => !prev.some(q => q.kind === 'repeat' && q.targetId === d.targetId && q.cond === d.cond)).map(d => ({id: newId(), kind: 'repeat', ...d}))]);
     { // effects with their own repeat save, and effects that roll a die every turn
-      const turnFx = (cid, when) => { const c = work.find(x => x.id === cid); if (!c || c.currentHP <= 0) return;
+      const turnFx = (cid, when) => { const c0 = work.find(x => x.id === cid); if (!c0) return; if (c0.currentHP <= 0 && !(c0.effects || []).some(e => e.healAt0)) return; const c = c0;
         const asks = (c.effects || []).filter(e => e.saveEnds === when && +e.dc > 0).map(e => plain({id: newId(), kind: 'save', by: myId, targetId: c.id, actorId: '', actorName: e.byName || 'The spell', action: {name: `${e.name} (repeat)`, dc: e.dc, saveAbility: e.abil || 'Wisdom', endEff: e.id}}));
         if (asks.length) setPrompts(prev => [...prev, ...asks.filter(a => !prev.some(q => q.action && q.action.endEff === a.action.endEff))]);
-        if (when === 'start') (c.effects || []).filter(e => e.healEachTurn).forEach(e => { const r = parseDamage(e.healEachTurn), cur = work.find(x => x.id === cid), gain = Math.max(0, Math.min(r.total, totalHP(cur) - cur.currentHP)); if (cur.currentHP <= 0 || effs(cur).some(x => x.noHeal)) return;
+        if (when === 'start') (c.effects || []).filter(e => e.healEachTurn).forEach(e => { const r = parseDamage(e.healEachTurn), cur = work.find(x => x.id === cid), gain = Math.max(0, Math.min(r.total, totalHP(cur) - cur.currentHP)); if ((e.healAt0 ? cur.currentHP > 0 : cur.currentHP <= 0) || effs(cur).some(x => x.noHeal)) return;
           work = work.map(x => x.id === cid ? {...x, currentHP: x.currentHP + gain} : x); entries.push(stamp({type:'heal', forId: cid, by: '', html:`<strong>${esc(c.name)}</strong> regains <span class="log-heal-val">+${gain} HP</span><div class="log-detail">${esc(e.name)}</div>`})); });
-        (c.effects || []).filter(e => e.turnDmg && e.turnDmg.when === when).forEach(e => { const cur = work.find(x => x.id === cid), r = parseDamage(e.turnDmg.dice), adj = adjustDamage(cur, [{amount: r.total, type: e.turnDmg.type, dice: e.turnDmg.dice}], turnKey, false), temp = +cur.tempHP || 0, soak = Math.min(temp, adj.total);
-          work = work.map(x => x.id !== cid ? x : {...x, tempHP: temp - soak, currentHP: Math.max(0, x.currentHP - (adj.total - soak)), effects: e.turnDmg.once ? (x.effects || []).filter(y => y.id !== e.id) : x.effects});
-          entries.push(stamp({type:'attack', forId: cid, by: '', html:`<strong>${esc(c.name)}</strong> · ${esc(e.name)}<br/><span class="log-dmg">${adj.total} damage</span> <span class="log-detail">${esc(e.turnDmg.type)}</span><div class="log-dice">${esc(e.turnDmg.dice)} = ${r.total}${adj.notes.length ? ' · ' + adj.notes.join(' · ') : ''}</div>`}));
-          if (adj.total > 0 && cur.conc) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: cid, actorId: '', actorName: 'Damage', action: {name: `Concentration on ${cur.conc.name}`, dc: Math.min(30, Math.max(10, Math.floor(adj.total / 2))), saveAbility: 'Constitution', concSave: cur.conc.name}})]); });
+        [...(c.effects || []).filter(e => e.turnDmg && e.turnDmg.when === when && !e.turnOfCaster), ...work.filter(x => x.id !== cid && x.currentHP > 0).flatMap(x => (x.effects || []).filter(e => e.turnDmg && e.turnOfCaster && e.casterId === cid && e.turnDmg.when === when).map(e => ({...e, _on: x.id})))].forEach(e0 => { const e = e0, cidT = e0._on || cid, c = work.find(x => x.id === cidT); const cur = work.find(x => x.id === cidT), r = parseDamage(e.turnDmg.dice), adj = adjustDamage(cur, [{amount: r.total, type: e.turnDmg.type, dice: e.turnDmg.dice}], turnKey, false), temp = +cur.tempHP || 0, soak = Math.min(temp, adj.total);
+          work = work.map(x => x.id !== cidT ? x : {...x, tempHP: temp - soak, currentHP: Math.max(0, x.currentHP - (adj.total - soak)), effects: e.turnDmg.once ? (x.effects || []).filter(y => y.id !== e.id) : x.effects});
+          entries.push(stamp({type:'attack', forId: cidT, by: '', html:`<strong>${esc(c.name)}</strong> · ${esc(e.name)}<br/><span class="log-dmg">${adj.total} damage</span> <span class="log-detail">${esc(e.turnDmg.type)}</span><div class="log-dice">${esc(e.turnDmg.dice)} = ${r.total}${adj.notes.length ? ' · ' + adj.notes.join(' · ') : ''}</div>`}));
+          if (adj.total > 0 && cur.conc) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: cidT, actorId: '', actorName: 'Damage', action: {name: `Concentration on ${cur.conc.name}`, dc: Math.min(30, Math.max(10, Math.floor(adj.total / 2))), saveAbility: 'Constitution', concSave: cur.conc.name}})]); });
         (c.effects || []).filter(e => e.turnRoll && e.turnRoll.when === when).forEach(e => { const r = parseDamage(e.turnRoll.dice); entries.push(stamp({type:'roll', forId: c.id, by: '', html:`<strong>${esc(c.name)}</strong> · ${esc(e.name)}<br/><span class="log-result">🎲 ${r.total}</span><div class="log-detail">${esc(e.turnRoll.text)}</div>`})); }); };
       turnFx(activeId, 'end'); turnFx(upId, 'start');
     }
@@ -2120,6 +2149,10 @@ function App() {
     if (adj.usedEffects.length) setCombatants(prev => prev.map(c => c.id !== tgt.id ? c : {...c, effects: (c.effects || []).map(e => adj.usedEffects.includes(e.id) ? {...e, usedAt: turnKey} : e)}));
     if (adj.total > 0) updateHP(tgt.id, -adj.total);
     if (adj.total > 0) endByFlag(tgt, 'endsOnDamage', 'It took damage.');
+    if (adj.total > 0) { const by = combatants.find(c => c.id === actingRef.current), mine = x => by && x && (x === by.id || (combatants.find(c => c.id === x) && sideOf(combatants.find(c => c.id === x)) === sideOf(by)));
+      const gone = (tgt.effects || []).filter(e => e.endsOnDamageBy && mine(e.casterId)), gc = (tgt.conditions || []).filter(k => (condInfoOf(tgt, k) || {}).endsOnDamageBy && mine((condInfoOf(tgt, k) || {}).by));
+      gone.forEach(e => removeEffect(tgt.id, e.id)); gc.forEach(k => removeCondition(tgt.id, k));
+      if (gone.length || gc.length) setLog(prev => [...prev, stamp({type:'roll', forId: tgt.id, html:`<strong>${esc(tgt.name)}</strong>: <span class="log-result">${[...gone.map(e => e.name), ...gc].map(esc).join(', ')}</span> ends<div class="log-detail">${esc(by ? by.name : 'Its caster')}'s side damaged it.</div>`})]); }
     if (adj.total > 0) { // a save that is made again each time it takes damage
       const again = [...(tgt.effects || []).filter(e => e.saveOnDamage && +e.dc > 0).map(e => plain({id: newId(), kind: 'save', by: myId, targetId: tgt.id, actorId: '', actorName: e.byName || 'The spell', action: {name: `${e.name} (repeat)`, dc: e.dc, saveAbility: e.abil || 'Wisdom', endEff: e.id}})),
         ...(tgt.conditions || []).filter(k => (condInfoOf(tgt, k) || {}).onDamage && (condInfoOf(tgt, k) || {}).dc).map(k => plain({id: newId(), kind: 'repeat', targetId: tgt.id, cond: k}))];
@@ -2155,6 +2188,8 @@ function App() {
       if (why) { notes.push(`Immune to ${k.name} (${why})`); return; }
       const info = {src: String(action.name || '').slice(0, 40)};
       if (action.conc && actor) info.concBy = actor.id;
+      if (actor) info.by = actor.id;
+      ['endsOnDamageBy','failDmg','failCond','tally'].forEach(f => { if (k[f]) info[f] = k[f]; });
       if (k.left) info.left = k.left;
       const dc = k.dc || action.dc, abil = k.abil || action.saveAbility;
       if ((k.when || k.onDamage) && dc && abil) { info.dc = dc; info.abil = abil; if (k.when) info.when = k.when; if (k.onDamage) info.onDamage = true; if (k.turn === 'source' && actor && actor.id !== tgt.id) info.turnOf = actor.id; }
@@ -2163,11 +2198,12 @@ function App() {
       notes.push(`Condition: ${k.name}${k.left ? ` for ${timeText(k.left)}` : ''}`);
     });
     (outcome.effs || []).forEach(e => {
+      if (+e.hpMax < 0 && effs(tgt).some(x => x.noHpMaxDown)) { notes.push(`${e.name}: its Hit Point maximum can't be reduced`); return; }
       const {fromCaster, ...rest} = e;
       const eff = {...rest, id: newId(), by: myId, byName: actor ? actor.name : 'DM'};
       if (action.rerun && action.zone) eff.fromZone = true;
       if (action.escape) eff.escape = {...action.escape, dc: action.escape.dc || +action.dc || (((actor && actor.sheet) || {}).spell || {}).dc || 13};
-      if (eff.sanctuary || eff.saveEnds || eff.saveOnDamage) { eff.dc = +action.dc || (((actor && actor.sheet) || {}).spell || {}).dc || 13; eff.abil = action.saveAbility || 'Wisdom'; }
+      if (eff.sanctuary || eff.saveEnds || eff.saveOnDamage || eff.retaliate) { eff.dc = +action.dc || (((actor && actor.sheet) || {}).spell || {}).dc || 13; eff.abil = action.saveAbility || 'Wisdom'; }
       if (action.conc && actor) { eff.concBy = actor.id; eff.conc = true; }
       if (actor) eff.casterId = actor.id; // so the caster's sheet can list what it has out
       if (fromCaster && actor) { eff.src = actor.id; eff.srcName = actor.name; }
@@ -2180,6 +2216,7 @@ function App() {
       notes.push(`${e.name}${e.left ? ` for ${timeText(e.left)}` : ''}${e.conc ? ' (Concentration)' : ''}`);
     });
     if (outcome.kill) { updateHP(tgt.id, -99999); notes.push('It dies'); }
+    if ((outcome.effs || []).some(e => e.breakConc) && tgt.conc) { setTimeout(() => endConcentration(tgt.id, `${action.name || 'A spell'} broke it.`), 300); notes.push('Its Concentration is broken'); }
     if (outcome.temp) { // Temporary Hit Points: they don't stack, the higher amount stays
       const r = parseDamage(outcome.temp);
       setCombatants(prev => prev.map(c => c.id === tgt.id ? {...c, tempHP: Math.max(+c.tempHP || 0, r.total)} : c));
@@ -2287,6 +2324,9 @@ function App() {
     if (q.kind === 'save' && q.action) {
       if (q.action.concSave && !(tgt.conc && tgt.conc.name === q.action.concSave)) return; // it stopped concentrating on that already
       const actor = combatants.find(c => c.id === q.actorId) || null;
+      const au = q.action.auto || {}, ty = creatureType(tgt), crv = parseFloat(((String(tgt.sub || '').match(/CR ([\d/.]+)/) || [])[1] || '').replace(/^1\/(\d)$/, (m, d) => String(1 / d))) || 0;
+      const why = !ruled && ((au.failTypes || []).includes(ty) ? `fails automatically: it is a ${ty}` : (au.passTypes || []).includes(ty) ? `succeeds automatically: it is a ${ty}` : au.passCR && crv > 0 ? 'succeeds automatically: its Challenge Rating is not 0' : '');
+      if (why) { ruled = /fails/.test(why) ? 'fail' : 'pass'; setLog(prev => [...prev, stamp({type: ruled === 'fail' ? 'save-fail' : 'save-pass', forId: tgt.id, html:`<strong>${esc(tgt.name)}</strong> ${esc(why)} (${esc(q.action.name)})`})]); }
       const tr = track(() => resolveSave(q.action, q.actorName || 'Someone', actor, tgt, ruled));
       const {roll: svRoll, ...svRest} = tr.res;
       offerReactions('damage', tr.d.filter(d => d.hp < 0 && d.id !== q.actorId).map(d => d.id), `${q.actorName || 'Something'} damaged`, actor);
@@ -2299,13 +2339,21 @@ function App() {
       }
       setLog(prev => [...prev, stamp(entry)]);
       if (q.action.endEff && entry.type === 'save-pass') removeEffect(tgt.id, q.action.endEff); // a repeat save that ends the effect
+      { const fe = q.action.endEff && entry.type === 'save-fail' ? (tgt.effects || []).find(e => e.id === q.action.endEff && e.failDmg) : null; if (fe) { const dr = parseDamage(fe.failDmg.dice); setLog(prev => [...prev, stamp({type:'attack', forId: tgt.id, html:`<strong>${esc(tgt.name)}</strong> fails against ${esc(fe.name)}<br/>${dealDamage(tgt, [{amount: dr.total, type: fe.failDmg.type, dice: `${fe.failDmg.dice} = ${dr.total}`}]).html}`})]); } }
       if (q.action.form && entry.type === 'save-fail' && actor) setPrompts(prev => [...prev, plain({id: newId(), kind: 'form', targetId: actor.id, subjectId: tgt.id, by: q.by || '', spell: String(q.action.name).replace(/ \(Level \d slot\)$/, ''), conc: !!q.action.conc, left: q.action.concSecs || 0, tempHP: !!q.action.form.tempHP, limit: q.action.form.limit || ''})]);
     } else if (q.kind === 'check') { rollTest(tgt, 'check', q.ability, q.skill || '', q.dc, q.name);
     } else if (q.kind === 'repeat' && (tgt.conditions || []).includes(q.cond) && condInfoOf(tgt, q.cond)) {
-      const r = rollCondSave(tgt, q.cond);
+      const r = rollCondSave(tgt, q.cond, canControl(tgt) ? advantage : 0); if (canControl(tgt)) useRollSwitch();
+      const info = condInfoOf(tgt, q.cond) || {};
       if (r.usedEffect) removeEffect(tgt.id, r.usedEffect);
-      if (r.passed) removeCondition(tgt.id, q.cond);
       setLog(prev => [...prev, r.entry]);
+      if (info.tally) { const won = (+info.won || 0) + (r.passed ? 1 : 0), lost = (+info.lost || 0) + (r.passed ? 0 : 1); // three of a kind decides it
+        if (won >= info.tally) removeCondition(tgt.id, q.cond);
+        else if (lost >= info.tally) { removeCondition(tgt.id, q.cond); if (info.failCond) addCondition(tgt.id, info.failCond, {src: info.src || ''}); setLog(prev => [...prev, stamp({type:'save-fail', forId: tgt.id, html:`<strong>${esc(tgt.name)}</strong> has failed ${info.tally} times${info.failCond ? `: it has the <span class="log-result">${esc(info.failCond)}</span> condition` : ''}`})]); }
+        else setCombatants(prev => prev.map(c => c.id !== tgt.id ? c : {...c, condInfo: {...(c.condInfo || {}), [q.cond]: {...((c.condInfo || {})[q.cond] || {}), won, lost}}})); }
+      else if (r.passed) removeCondition(tgt.id, q.cond);
+      else { if (info.failDmg) { const dr = parseDamage(info.failDmg.dice); const res = dealDamage(tgt, [{amount: dr.total, type: info.failDmg.type, dice: `${info.failDmg.dice} = ${dr.total}`}]); setLog(prev => [...prev, stamp({type:'attack', forId: tgt.id, html:`<strong>${esc(tgt.name)}</strong> fails against ${esc(q.cond)}<br/>${res.html}`})]); }
+        if (info.failCond && info.failCond !== q.cond) { removeCondition(tgt.id, q.cond); addCondition(tgt.id, info.failCond, {...info, failCond: undefined}); setLog(prev => [...prev, stamp({type:'save-fail', forId: tgt.id, html:`<strong>${esc(tgt.name)}</strong> now has the <span class="log-result">${esc(info.failCond)}</span> condition`})]); } }
     }
   };
   // ── ACTION, BONUS ACTION, REACTION: what a creature has used this turn ──
@@ -2384,7 +2432,7 @@ function App() {
     const caster = combatants.find(c => c.id === casterId); if (!caster || !caster.conc) return;
     setCombatants(prev => reorder(prev.map(c => {
       let out = c.id === casterId ? (({conc, ...rest}) => ({...rest, ...(rest.blocks ? {blocks: rest.blocks.filter(b => b.conc !== caster.conc.name)} : {}), ...(rest.made ? {made: rest.made.filter(b => b.conc !== caster.conc.name)} : {})}))(c) : c;
-      if ((out.effects || []).some(e => e.concBy === casterId)) out = {...out, effects: out.effects.filter(e => e.concBy !== casterId)};
+      if ((out.effects || []).some(e => e.concBy === casterId)) out = withOnEnd({...out, effects: out.effects.filter(e => e.concBy !== casterId)}, out.effects.filter(e => e.concBy === casterId));
       if (c.id !== casterId && (out.blocks || []).some(b => b.concBy === casterId && b.conc === caster.conc.name)) out = {...out, blocks: out.blocks.filter(b => !(b.concBy === casterId && b.conc === caster.conc.name))};
       (out.conditions || []).forEach(k => { if ((condInfoOf(out, k) || {}).concBy === casterId) out = dropCondition(out, k); });
       return out;
@@ -2457,6 +2505,7 @@ function App() {
     if (a.upTemp && a.onUse && a.onUse.temp) out = {...out, onUse: {...out.onUse, temp: `${a.onUse.temp}+${a.upTemp * extra}`}};
     const eachEff = fn => { ['onHit','onFail','onSuccess','onUse'].forEach(k => { if (out[k] && out[k].effs) out = {...out, [k]: {...out[k], effs: out[k].effs.map(fn)}}; }); };
     if (a.upSecondary && out.secondary && out.secondary.dmg.length) { const [n, d] = a.upSecondary.split('d').map(Number); out = {...out, secondary: {...out.secondary, dmg: out.secondary.dmg.map((x, i) => i ? x : [`${x[0]}+${n * extra}d${d}`, x[1]])}}; }
+    if (a.up && /^\d+d\d+$/.test(a.up)) { const [n, d] = a.up.split('d').map(Number); eachEff(e => e.failDmg ? {...e, failDmg: {...e.failDmg, dice: `${e.failDmg.dice}+${n * extra}d${d}`}} : e); }
     if (a.upTurn) { const [n, d] = a.upTurn.split('d').map(Number); eachEff(e => e.turnDmg ? {...e, turnDmg: {...e.turnDmg, dice: `${e.turnDmg.dice}+${n * extra}d${d}`}} : e); }
     if (a.effBySlot) { const hit = a.effBySlot.filter(x => lvl >= x[0]).pop(); if (hit) { const {name, ...over} = hit[1]; eachEff((e, i) => i === 0 ? {...e, ...over} : e); } }
     if (a.areaPerSlot && a.area) out = {...out, area: {...a.area, size: (+a.area.size || 0) + a.areaPerSlot * extra}, areaGrew: true};
@@ -2493,7 +2542,7 @@ function App() {
   const adjustPool = (id, name, by) => setCombatants(prev => prev.map(c => c.id !== id ? c : {...c, poolUsed: {...(c.poolUsed || {}), [name]: Math.max(0, Math.min((((c.sheet || {}).pools || {})[name] || {}).max || 0, (+((c.poolUsed || {})[name]) || 0) - by))}}));
   const adjustSlot = (id, lvl, by) => setCombatants(prev => prev.map(c => c.id !== id ? c : {...c, slotsUsed: {...(c.slotsUsed || {}), [lvl]: Math.max(0, Math.min((((c.sheet || {}).slotMax) || [])[lvl - 1] || 0, (+((c.slotsUsed || {})[lvl]) || 0) - by))}}));
   // How many creatures this action can take at once (a spell with a higher slot may add one per level).
-  const maxTargets = (a, lvl) => !a ? 1 : a.self ? 1 : a.targets === 'any' ? 99 : (a.targets || 1) + (a.targetsPerSlot && lvl > a.slot ? (lvl - a.slot) * (a.targetsPerSlot === true ? 1 : +a.targetsPerSlot || 1) : 0);
+  const maxTargets = (a, lvl) => !a ? 1 : a.self ? 1 : (a.targetsBySlot && a.targetsBySlot.filter(x => lvl >= x[0]).length) ? a.targetsBySlot.filter(x => lvl >= x[0]).pop()[1] : a.targets === 'any' ? 99 : (a.targets || 1) + (a.targetsPerSlot && lvl > a.slot ? (lvl - a.slot) * (a.targetsPerSlot === true ? 1 : +a.targetsPerSlot || 1) : 0);
 
   const resolve = (arg) => {
     const re = arg && arg.replay ? arg : null; // a replay: the same attack again with the result the DM ruled
@@ -2558,6 +2607,7 @@ function App() {
       if (action.dmHold) { const secs = action.concSecs || (((action.onUse || {}).effs || [])[0] || {}).left || action.holdSecs || 0, to = targetIds.map(id => inPlay.find(c => c.id === id)).filter(Boolean).map(t => t.name).join(', ');
         setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, made: [...(c.made || []), plain({id: newId(), kind: 'dm', name: nm, note: [action.message && msgText.trim() ? `Message${to ? ' for ' + to : ''}: "${msgText.trim().slice(0, 300)}"` : '', action.askDM || ''].filter(Boolean).join(' · ').slice(0, 500), left: secs, src: nm, conc: action.conc ? (action.concAs || nm) : ''})].slice(-12)})); }
       if (castOn) setCastOn(''); if (msgText) setMsgText(''); }
+    if (action.castNote) setLog(prev => [...prev, stamp({type:'roll', forId: active.id, html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail">${esc(action.castNote)}</div>`})]);
     if (action.castRoll) { const r = parseDamage(action.castRoll.dice); setLog(prev => [...prev, stamp({type:'roll', forId: active.id, html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<br/><span class="log-result">${r.total}</span> ${esc(action.castRoll.text)}<div class="log-dice">${esc(action.castRoll.dice)}</div>`})]); }
     if (action.askDM) setPrompts(prev => [...prev, plain({id: newId(), kind: 'askdm', targetId: active.id, by: myId, spell: String(action.name).slice(0, 60), text: action.askDM, who: active.name})]);
     if (action.slot && !asRitual) { // a levelled spell spends a slot
@@ -2662,7 +2712,7 @@ function App() {
       const isCrit = hit && (nat20 || !!autoCrit);
       if (!stepInfo) stepInfo = {hit, crit: hit && isCrit, total, roll};
       // one-shot effects used up by this attack roll: Sap on the attacker, Vex on the target
-      effs(active).filter(e => e.atkDis).forEach(e => removeEffect(active.id, e.id));
+      effs(active).filter(e => e.atkDis && e.name === 'Sap').forEach(e => removeEffect(active.id, e.id));
       if (target) effs(target).filter(e => e.advFrom === active.id).forEach(e => removeEffect(target.id, e.id));
       if ((action.refundOn === 'miss' && !hit) || (action.refundOn === 'hit' && hit)) { refund(active.id, action, castLvl); featNotes.push('The use is not spent on this result'); }
       let masteryHtml = '';
@@ -2716,7 +2766,11 @@ function App() {
         ((target.effects) || []).forEach(e => {
           if (e.bonusDmg && e.src === active.id && DMG_RE.test(String(e.bonusDmg))) parts.push(...rollDamageParts({dmgList:[[e.bonusDmg, e.bonusType || '']]}, isCrit).map(pt => ({...pt, dice: `${esc(e.name)} ${pt.dice}`})));
         });
+        effs(active).filter(e => e.atkDmg).forEach(e => parts.push(...rollDamageParts({dmgList: [[e.atkDmg.dice, e.atkDmg.type || (parts[0] || {}).type || '']]}, isCrit).map(pt => ({...pt, dice: `${esc(e.name)} ${pt.dice}`}))));
         dmgHtml = (parts.length ? dealDamage(target, parts, false, feat.irresistible ? ['Bludgeoning','Piercing','Slashing'] : null).html : '') + applyOutcome(target, action.onHit, action, active);
+        if (!action.ranged) effs(target).filter(e => e.retaliate && (!e.retaliate.types || e.retaliate.types.includes(creatureType(active)))).forEach(e => { const rt = e.retaliate; // Fire Shield, Holy Aura: hitting it in melee costs the attacker
+          if (rt.dice && !rt.save) { const rp = parseDamage(rt.dice); dmgHtml += `<div class="log-detail">${esc(e.name)}: ${esc(active.name)} takes</div>` + dealDamage(active, [{amount: rp.total, type: rt.type, dice: `${rt.dice} = ${rp.total}`}]).html; }
+          if (rt.save) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: active.id, actorId: target.id, actorName: target.name, action: {name: e.name, dc: +e.dc || (((combatants.find(c => c.id === e.casterId) || {}).sheet || {}).spell || {}).dc || 13, saveAbility: rt.save, ...(rt.dice ? {dmgList: [[rt.dice, rt.type]]} : {}), ...(rt.cond ? {onFail: {conds: [{name: rt.cond, left: rt.left || 60}]}} : {})}})]); });
       }
       entries.push({
         type: isCrit && hit ? 'crit' : hit ? 'hit' : 'miss',
@@ -2749,7 +2803,7 @@ function App() {
       const {name, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc} = action;
       const dc = action.dc + (action.spell ? sumEff(active, 'dcBonus') : 0); // Innate Sorcery raises a spell's DC
       setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: target.id, actorId: active.id, actorName: active.name,
-        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc, conc: !!action.conc, form: action.form || null, escape: action.escape || null, rerun: !!action.rerun, zone: action.zone || null, advIf: action.advIf || '', concSecs: action.concSecs || 0, rolled: sharedDamage,
+        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc, conc: !!action.conc, form: action.form || null, escape: action.escape || null, auto: action.auto || null, rerun: !!action.rerun, zone: action.zone || null, advIf: action.advIf || '', concSecs: action.concSecs || 0, rolled: sharedDamage,
           refund: action.refundOn && target === picked[0] ? {on: action.refundOn, pool: action.pool, cost: action.cost, usesMax: action.usesMax, id: action.id, slotLvl: castLvl} : null}})]);
       entries.push({
         type:'roll',
@@ -2763,7 +2817,7 @@ function App() {
       const healTarget = action.type==='selfheal' ? active.id : ((target && target.id) || active.id);
       const healTargetName = action.type==='selfheal' ? actorName : (target ? esc(target.name) : actorName);
       const feat = active.passives || {};
-      const maxed = feat.supremeHealing ? String(action.healDice).replace(/(\d+)d(\d+)/g, (_, c, sd) => String(c * sd)) : action.healDice; // Supreme Healing: every die is its highest number
+      const maxed = feat.supremeHealing || effs(inPlay.find(c => c.id === healTarget) || {}).some(e => e.maxHeal) ? String(action.healDice).replace(/(\d+)d(\d+)/g, (_, c, sd) => String(c * sd)) : action.healDice; // Supreme Healing: every die is its highest number
       let {total:ht, parts} = parseDamage(maxed);
       if (feat.discipleOfLife && castLvl) { ht += 2 + castLvl; parts = [...parts, `Disciple of Life +${2 + castLvl}`]; }
       if (healTarget !== active.id && castLvl) healedOthers = true;
@@ -2988,7 +3042,7 @@ function App() {
     setLog(prev => [...prev, stamp({type:'roll', forId: t.id, by: myId, html:`<strong>${esc(c.name)}</strong> gives <span class="log-result">${esc(b.name)}</span> to <strong>${esc(t.name)}</strong>`})]); };
   const tryEscape = (c, es, cond, eff) => { const total = rollTest(c, 'check', es.ability, es.skill || '', es.dc, `Escape ${cond || (eff && eff.name) || ''} (takes an action)`);
     if (total != null && total >= es.dc) { if (cond) removeCondition(c.id, cond); (c.effects || []).filter(e => e.escape && (!eff || e.id === eff.id || cond)).forEach(e => removeEffect(c.id, e.id)); } };
-  const removeEffect = (id, effId) => setCombatants(prev => reorder(prev.map(c => c.id === id ? {...c, effects: (c.effects || []).filter(e => e.id !== effId)} : c)));
+  const removeEffect = (id, effId) => setCombatants(prev => reorder(prev.map(c => c.id === id ? withOnEnd({...c, effects: (c.effects || []).filter(e => e.id !== effId)}, (c.effects || []).filter(e => e.id === effId)) : c)));
 
   // ── TIME, RESTS AND ENDING AN ENCOUNTER (DM) ────────────────────────────────
   // What a rest gives back to one creature: spell slots, shared pools and each feature's own uses.
@@ -3636,9 +3690,11 @@ function App() {
                     <span className="pp-sn">{SKILL_SHORT[sk] || sk}</span><span className="pp-sa">{SKILL_ABILITY[sk].slice(0, 3).toUpperCase()}</span>
                   </div>); })}
               </div>
-              <div className="pp-carry"><strong>Carry</strong> {str * 15} lb. &nbsp; <strong>Jump</strong> {str} ft. long, {Math.max(0, 3 + mod(str))} ft. high</div>
+              <div className="pp-carry"><strong>Jump</strong> {str} ft. long, {Math.max(0, 3 + mod(str))} ft. high</div>
               <div className="pp-h3">Important Items</div>
-              {(sh.importantItems || []).length ? sh.importantItems.map(n => <div key={n} className="pp-center">{n}</div>) : <div className="pp-center pp-muted">Mark items with the diamond in the builder's Inventory</div>}
+              {(() => { const withUse = Array.from(new Set(actions.filter(a => a.item).map(a => a.item))), names = Array.from(new Set([...(sh.importantItems || []), ...withUse]));
+                return names.length ? names.map(n => <div key={n} className="pp-center" data-testid="important-item">{n}{ctl && actions.filter(a => a.item === n).map(a => <button key={a.id} className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} style={{marginLeft: 6}} onClick={() => sel(a)}>{a.name === n ? 'Use' : a.name}{leftText(a)}</button>)}</div>)
+                  : <div className="pp-center pp-muted">Items that do something, and items marked with the diamond in the builder's Inventory, show here</div>; })()}
               <div className="pp-h3">Languages</div>
               <div className="pp-center">{(sh.languages || []).join(', ') || 'Common'}</div>
               <div className="pp-h3">Tool Proficiencies</div>
@@ -3787,6 +3843,11 @@ function App() {
           const madeItems = (c.made || []).filter(b => b.kind === 'item');
           return (
         <div data-testid="paper-inventory">
+          {(() => { const sz = {Tiny: 7.5, Small: 15, Medium: 15, Large: 30, Huge: 60, Gargantuan: 120}[sizeOf(c)] || 15, cap = Math.floor(((c.scores || {}).Strength || 10) * sz), wt = full.reduce((t, it) => t + (parseFloat(String(it.weight || '').replace(/[^\d.]/g, '')) || 0), 0);
+            return <div className="pp-card" data-testid="inv-money" style={{display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10}}>
+              <span><strong>Money</strong> {ctl ? <input type="number" min="0" aria-label="Gold pieces" data-testid="inv-gold" value={+c.gold || 0} onChange={e => { const n = Math.max(0, parseInt(e.target.value, 10) || 0); setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, gold: n, goldAt: Date.now()})); }} style={{width: 90}}/> : (+c.gold || 0)} GP</span>
+              <span data-testid="inv-carry"><strong>Carrying capacity</strong> {cap} lb.{wt ? ` · carrying ${Math.round(wt * 10) / 10} lb.` : ''}</span>
+            </div>; })()}
           {hi && <div className="buff-note" data-testid="inv-hint" style={{margin: '0 0 8px'}}>Highlighted: what {selAction ? selAction.name : 'the spell'} can be cast on. <button className="pp-chip on" onClick={() => setInvHi('')}>Clear</button></div>}
           {madeItems.length > 0 && <div className="pp-h2">Made by spells</div>}
           {madeItems.map(b => <div key={b.id} className="pp-entry" data-testid="inv-made"><div className="pp-ename">{b.name}{b.count > 0 ? ` × ${b.count}` : ''}<span className="pp-tag">{[b.src, +b.left > 0 ? (b.spoil ? `spoils in ${timeText(b.left)}` : `${timeText(b.left)} left`) : '', b.spoiled ? 'spoiled' : ''].filter(Boolean).join(' · ')}</span>
@@ -3863,7 +3924,6 @@ function App() {
       chip('Prof', `+${c.pb || 2}`, ''),
     ];
     if (sh.pp != null) out.push(chip('Passive Perception', sh.pp, ''));
-    if (c.sheet && +c.gold > 0) out.push(chip('Gold', `${+c.gold} GP`, ''));
     if (sh.spell) { out.push(chip('Spell Save DC', sh.spell.dc, '')); out.push(chip('Spell Attack', signed(sh.spell.attack), '')); }
     return out;
   };
@@ -3901,8 +3961,8 @@ function App() {
   const needsTargetNow = selAction && !['selfheal','info'].includes(selAction.type) && !selAction.self;
   const actorNow = viewed && canControl(viewed) && (!combatStarted || (active && viewed.id === active.id) || (selAction && selAction.activation === 'reaction')) ? viewed : null;
   // Why the chosen action cannot be done right now, in words, or '' when it can.
-  const effectBlock = (c, a) => { if (!c || !a) return ''; const nc = a.spell && effs(c).find(e => e.noCast), na = ['action', 'bonus'].includes(a.activation || 'action') && effs(c).find(e => e.noAct);
-    if (nc) return `${c.name} can't cast spells (${nc.name}).`; if (na) return `${c.name} can't take actions (${na.name}).`;
+  const effectBlock = (c, a) => { if (!c || !a) return ''; const nc = a.spell && effs(c).find(e => e.noCast), na = (['action', 'bonus'].includes(a.activation || 'action') && effs(c).find(e => e.noAct)) || (a.activation === 'bonus' && effs(c).find(e => e.noBonus));
+    if (nc) return `${c.name} can't cast spells (${nc.name}).`; if (na) return `${c.name} can't take ${na.noBonus && !na.noAct ? 'Bonus Actions' : 'actions'} (${na.name}).`;
     if (a.sight && hasCond(c, 'Blinded')) return `${c.name} is Blinded and ${a.name} needs a target it can see.`;
     if (a.needItem && (a.itemName === '' || (a.itemName === undefined && !itemFits(c, a).length))) return `No target available: ${a.name} works on a ${a.needItem.re.split('|').join(' or ')} ${c.name} is holding, and ${c.name} has neither.`;
     if (a.needItem && a.itemName && a.itemHeld === false && handsOn && !c.handsIgnore) return `${a.name} works on a weapon ${c.name} is holding, and the ${a.itemName} is not in hand.`;
@@ -3985,6 +4045,10 @@ function App() {
     if (selAction && needsTarget && viewed && canControl(viewed) && !armed) { setTargetIds([]); setConfirmT(''); setTargeting(true); setLeftTab('order'); setPane('order'); }
     else { setTargeting(false); setConfirmT(''); }
   }, [selectedAction, viewed && viewed.id]);
+  useEffect(() => { // Shillelagh and the like: when nothing in hand or equipped will do, the Inventory tab opens with what will
+    if (!selAction || !selAction.needItem || !viewed || !canControl(viewed)) return;
+    const fit = itemFits(viewed, selAction); if (fit.length && !fit.some(x => !x.inv)) { setInvHi(selAction.needItem.re); setSheetTab('inventory'); }
+  }, [selectedAction]);
   const endTargeting = () => { setTargeting(false); setConfirmT(''); setFreeAsk(null); setMoveT(null); setPane('sheet'); };
   const pickCard = (c) => { if (moveT) { if (c.id !== moveT.fromId && c.id !== moveT.casterId) setConfirmT(c.id); return; } if (viewed && c.id === viewed.id && !selfOk) return; if (isAway(c)) return; if (selMax > 1) toggleTarget(c.id); else setConfirmT(c.id); };
   // An effect its caster can move to another creature without casting again (Hunter's Mark, Hex, or one a Content Pack marks "movable").
