@@ -318,6 +318,7 @@
     .log-flag { background: #7a1c1c; color: #fff; border-radius: 4px; padding: 4px 8px; margin-bottom: 4px; cursor: pointer; font-weight: 700; }
     .log-flag .why { display: block; font-weight: 400; margin-top: 3px; }
     .roll-switch { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-right: 10px; }
+    .pp-death { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 150px; }
     .action-btn.blocked { opacity: 0.45; filter: grayscale(0.7); }
     .log-entry.void .log-html { text-decoration: line-through; }
     .log-ov { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
@@ -917,6 +918,7 @@ function passTime(list, seconds, longRest) {
   const next = list.map(c => {
     let changed = false; const kept = [], endedFx = [];
     (c.effects || []).forEach(e => {
+      if (longRest && e.untilLongRest) { ended.push([c.name, e.name, 'It ends on a Long Rest']); changed = true; return; }
       if (longRest && e.conc) { ended.push([c.name, e.name, 'Concentration ends on a Long Rest']); changed = true; if (e.onEnd) endedFx.push(e); return; }
       if (longRest && e.restShrink && +e.d20 < 0) { const d = Math.min(0, +e.d20 + e.restShrink); changed = true; if (d >= 0) ended.push([c.name, e.name, 'The penalty is gone after the Long Rest']); else { kept.push({...e, d20: d}); ended.push([c.name, '', `${e.name}: the penalty is now ${d}`]); } return; }
       if (longRest && e.name === 'Exhaustion' && e.lvl) {
@@ -930,6 +932,7 @@ function passTime(list, seconds, longRest) {
       if (left <= 0) { ended.push([c.name, e.name, 'Its time ran out']); if (e.onEnd) endedFx.push(e); } else kept.push({...e, left});
     });
     let out = changed ? withOnEnd({...c, effects: kept}, endedFx) : c;
+    if (longRest && c.castCounts) out = {...out, castCounts: {}};
     if (c.conc && (longRest || (+c.conc.left > 0 && +c.conc.left - seconds <= 0))) { const {conc, ...rest} = out; out = rest; ended.push([c.name, c.conc.name, longRest ? 'Concentration ends on a Long Rest' : 'Concentration: its time ran out']); }
     else if (c.conc && +c.conc.left > 0) out = {...out, conc: {...c.conc, left: +c.conc.left - seconds}};
     if ((c.made || []).some(b => +b.left > 0)) {
@@ -1046,18 +1049,32 @@ function cleanEffect(e) {
   if (e.saveEnds === 'end' || e.saveEnds === 'start') out.saveEnds = e.saveEnds;
   if (Number.isFinite(+e.weaponAtk) && +e.weaponAtk) out.weaponAtk = Math.max(-5, Math.min(5, Math.round(+e.weaponAtk)));
   if (e.extraAction) out.extraAction = String(e.extraAction).slice(0, 160);
-  if (e.wpn && typeof e.wpn === 'object' && /^[A-Za-z |]{1,60}$/.test(String(e.wpn.re || '')) && DMG_RE.test(String(e.wpn.die || ''))) out.wpn = {re: String(e.wpn.re), die: String(e.wpn.die), mod: Math.max(-5, Math.min(15, Math.round(+e.wpn.mod || 0))), type: String(e.wpn.type || '').slice(0, 20)};
-  ['endsOnAttack','endsWhenAttacked','noCast','noAct','saveOnDamage','away','noBonus','atkDisVs','maxHeal','noHpMaxDown','healAt0','breakConc','turnOfCaster'].forEach(k => { if (e[k]) out[k] = true; });
+  if (e.wpn && typeof e.wpn === 'object' && /^[A-Za-z |]{0,60}$/.test(String(e.wpn.re || '')) && (DMG_RE.test(String(e.wpn.die || '')) || +e.wpn.bonus)) out.wpn = {re: String(e.wpn.re || ''), die: DMG_RE.test(String(e.wpn.die || '')) ? String(e.wpn.die) : '', mod: Math.max(-5, Math.min(15, Math.round(+e.wpn.mod || 0))), type: String(e.wpn.type || '').slice(0, 20), ...(+e.wpn.bonus ? {bonus: Math.max(-5, Math.min(5, Math.round(+e.wpn.bonus)))} : {}), ...(e.wpn.useMod === false ? {keepMod: true} : {})};
+  ['noOA','noStand','noAttack','endsAt0','seeInvisible','noSlow','actOrBonus','noInvisibleVs','unlessSight','shakeOff','endsOnSpell','untilLongRest','oneAtATime','lifeBond','deathAdv','endsOnAttack','endsWhenAttacked','noCast','noAct','saveOnDamage','away','noBonus','atkDisVs','maxHeal','noHpMaxDown','healAt0','breakConc','turnOfCaster'].forEach(k => { if (e[k]) out[k] = true; });
   if (e.endsOnDamageBy === 'caster') out.endsOnDamageBy = 'caster';
   if (e.noAgain) out.noAgain = String(e.noAgain).slice(0, 60);
+  if (ABILITIES.includes(e.atkDisAbil)) out.atkDisAbil = e.atkDisAbil;
+  if (e.checkAdvSkill) out.checkAdvSkill = String(e.checkAdvSkill).slice(0, 30);
+  if (e.saveAdvVs) out.saveAdvVs = String(e.saveAdvVs).slice(0, 60);
+  if (e.minRoll && typeof e.minRoll === 'object' && +e.minRoll.value > 0) out.minRoll = {abil: String(e.minRoll.abil || ''), kind: e.minRoll.kind === 'save' ? 'save' : 'check', value: Math.min(20, +e.minRoll.value)};
+  if (e.immuneSpell) out.immuneSpell = String(e.immuneSpell).slice(0, 60);
+  if (e.bondTo) out.bondTo = true;
+  if (e.atkDmg && typeof e.atkDmg === 'object' && Array.isArray(e.atkDmg.types)) out.atkDmgTypes = true;
+  if (e.castFail && typeof e.castFail === 'object') out.castFail = {comp: String(e.castFail.comp || 'S').slice(0, 3), dc: Math.max(1, Math.min(20, +e.castFail.dc || 11))};
+  if (+e.ppMod) out.ppMod = Math.max(-20, Math.min(20, +e.ppMod));
+  if (e.punish && typeof e.punish === 'object' && DMG_RE.test(String(e.punish.dice || ''))) out.punish = {dice: String(e.punish.dice), type: String(e.punish.type || '').slice(0, 20)};
+  if (e.turnSave && typeof e.turnSave === 'object' && ABILITIES.includes(e.turnSave.abil)) out.turnSave = {abil: e.turnSave.abil, when: e.turnSave.when === 'end' ? 'end' : 'start', text: String(e.turnSave.text || '').slice(0, 160)};
+  if (e.condImmuneFrom && typeof e.condImmuneFrom === 'object') out.condImmuneFrom = {conds: (e.condImmuneFrom.conds || []).filter(k => CONDITIONS.includes(k)), types: (e.condImmuneFrom.types || []).slice(0, 10).map(String)};
+  if (Array.isArray(e.disAgainstTypes)) out.disAgainstTypes = e.disAgainstTypes.slice(0, 10).map(String);
+  if (e.saveEnds === 'action') out.saveEnds = 'action';
   if (+e.restShrink > 0) out.restShrink = Math.min(10, +e.restShrink);
   if (e.onEnd && typeof e.onEnd === 'object' && CONDITIONS.includes(e.onEnd.cond)) out.onEnd = {cond: e.onEnd.cond, left: Math.max(0, Math.min(MAX_SECONDS, +e.onEnd.left || 6)), ...(e.onEnd.speedZero ? {speedZero: true} : {})};
   if (e.retaliate && typeof e.retaliate === 'object') { const r = e.retaliate, o = {}; if (DMG_RE.test(String(r.dice || ''))) { o.dice = String(r.dice); o.type = String(r.type || '').slice(0, 20); } if (CONDITIONS.includes(r.cond)) o.cond = r.cond; if (ABILITIES.includes(r.save)) o.save = r.save; if (Array.isArray(r.types)) o.types = r.types.slice(0, 8).map(String); if (+r.left > 0) o.left = Math.min(MAX_SECONDS, +r.left); if (o.dice || o.cond) out.retaliate = o; }
   if (e.failDmg && typeof e.failDmg === 'object' && DMG_RE.test(String(e.failDmg.dice || ''))) out.failDmg = {dice: String(e.failDmg.dice), type: String(e.failDmg.type || '').slice(0, 20)};
-  if (e.atkDmg && typeof e.atkDmg === 'object' && DMG_RE.test(String(e.atkDmg.dice || ''))) out.atkDmg = {dice: String(e.atkDmg.dice), type: String(e.atkDmg.type || '').slice(0, 20)};
+  if (e.atkDmg && typeof e.atkDmg === 'object' && DMG_RE.test(String(e.atkDmg.dice || ''))) out.atkDmg = {dice: String(e.atkDmg.dice), type: String(e.atkDmg.type || '').slice(0, 20), ...(Array.isArray(e.atkDmg.types) ? {types: e.atkDmg.types.slice(0, 8).map(String)} : {})};
   if (e.healEachTurn && DMG_RE.test(String(e.healEachTurn).replace(/\s/g, ''))) out.healEachTurn = String(e.healEachTurn).replace(/\s/g, '');
   if (e.turnDmg && typeof e.turnDmg === 'object' && DMG_RE.test(String(e.turnDmg.dice || '').replace(/\s/g, ''))) out.turnDmg = {dice: String(e.turnDmg.dice).replace(/\s/g, ''), type: String(e.turnDmg.type || '').slice(0, 20), when: e.turnDmg.when === 'start' ? 'start' : 'end', ...(e.turnDmg.once ? {once: true} : {})};
-  if (e.turnRoll && typeof e.turnRoll === 'object' && DMG_RE.test(String(e.turnRoll.dice || ''))) out.turnRoll = {when: e.turnRoll.when === 'start' ? 'start' : 'end', dice: String(e.turnRoll.dice), text: String(e.turnRoll.text || '').slice(0, 240)};
+  if (e.turnRoll && typeof e.turnRoll === 'object' && DMG_RE.test(String(e.turnRoll.dice || ''))) out.turnRoll = {...(e.turnRoll.apply && +e.turnRoll.apply.min > 0 && e.turnRoll.apply.eff ? {apply: {min: +e.turnRoll.apply.min, eff: cleanEffect({name: 'Roll result', ...e.turnRoll.apply.eff})}} : {}), when: e.turnRoll.when === 'start' ? 'start' : 'end', dice: String(e.turnRoll.dice), text: String(e.turnRoll.text || '').slice(0, 240)};
   if (+e.dc > 0) out.dc = Math.min(40, Math.round(+e.dc));
   if (ABILITIES.includes(e.abil)) out.abil = e.abil;
   { const v = String(e.weaponDmg == null ? '' : e.weaponDmg).replace(/\s/g, ''); if (v && DMG_RE.test(v)) { out.weaponDmg = v; if (e.weaponDmgType) out.weaponDmgType = String(e.weaponDmgType).slice(0, 20); } }
@@ -1094,6 +1111,7 @@ function cleanOutcome(o) {
     if (k.failDmg && DMG_RE.test(String(k.failDmg.dice || ''))) c.failDmg = {dice: String(k.failDmg.dice), type: String(k.failDmg.type || '').slice(0, 20)};
     if (CONDITIONS.includes(k.failCond)) c.failCond = k.failCond;
     if (+k.tally > 0) c.tally = Math.min(5, +k.tally);
+    if (k.resistRemoval && ABILITIES.includes(k.resistRemoval)) c.resistRemoval = k.resistRemoval;
     if (k.when === 'start' || k.when === 'end') {
       c.when = k.when;
       if (k.turn === 'source') c.turn = 'source';
@@ -1105,11 +1123,16 @@ function cleanOutcome(o) {
   const effs = (Array.isArray(o.effs) ? o.effs : []).slice(0, 4).map(cleanEffect).filter(Boolean);
   const out = {};
   if (o.kill) out.kill = true;
+  if (o.useReaction) out.useReaction = true;
+  if (o.endForm) out.endForm = true;
+  if (DMG_RE.test(String(o.hpUp || ''))) out.hpUp = String(o.hpUp);
+  if (o.setScores && typeof o.setScores === 'object') { const sc = Object.fromEntries(Object.entries(o.setScores).filter(([k, v]) => ABILITIES.includes(k) && +v > 0).map(([k, v]) => [k, Math.min(30, +v)])); if (Object.keys(sc).length) out.setScores = sc; }
+  if (o.clone && typeof o.clone === 'object') out.clone = {hpFactor: Math.max(0.1, Math.min(1, +o.clone.hpFactor || 0.5)), type: String(o.clone.type || '').slice(0, 20)};
   if (conds.length) out.conds = conds;
   if (effs.length) out.effs = effs;
   const temp = String(o.temp || '').replace(/\s/g, '');
   if (temp && DMG_RE.test(temp)) out.temp = temp;
-  return conds.length || effs.length || out.temp || out.kill ? out : null;
+  return conds.length || effs.length || out.temp || out.kill || out.useReaction || out.endForm || out.hpUp || out.setScores || out.clone ? out : null;
 }
 function outcomeText(o) {
   if (!o) return '';
@@ -1174,16 +1197,35 @@ function cleanAction(a, i) {
   if (a.multi) out.multi = true;
   if (a.remove && typeof a.remove === 'object') out.remove = {conds: (Array.isArray(a.remove.conds) ? a.remove.conds : []).filter(k => CONDITIONS.includes(k)), count: a.remove.count === 'all' ? 'all' : 1, exhaustion: Math.max(0, Math.min(6, +a.remove.exhaustion || 0)), effects: ['curse','spells','any'].includes(a.remove.effects) ? a.remove.effects : '', hpMax: !!a.remove.hpMax, maxLevel: Math.max(0, Math.min(9, +a.remove.maxLevel || 0))};
   if (a.askDM) out.askDM = String(a.askDM).slice(0, 300);
-  if (a.sctl && typeof a.sctl === 'object') out.sctl = {cmd: ['bonus','action'].includes(a.sctl.cmd) ? a.sctl.cmd : '', secs: Math.max(0, Math.min(MAX_SECONDS, +a.sctl.secs || 0)), after: a.sctl.after !== false, ...(Array.isArray(a.sctl.ac) ? {ac: [+a.sctl.ac[0] || 10, +a.sctl.ac[1] || 0]} : {}), ...(Array.isArray(a.sctl.hp) ? {hp: [+a.sctl.hp[0] || 1, +a.sctl.hp[1] || 0, +a.sctl.hp[2] || 0]} : {}), ...(a.sctl.block && typeof a.sctl.block === 'object' && a.sctl.block.name && Array.isArray(a.sctl.block.s) ? {block: JSON.parse(JSON.stringify(a.sctl.block).slice(0, 8000))} : {}), stat: String(a.sctl.stat || '').slice(0, 60)};
+  if (a.sctl && typeof a.sctl === 'object') out.sctl = {cmd: ['bonus','action'].includes(a.sctl.cmd) ? a.sctl.cmd : '', secs: Math.max(0, Math.min(MAX_SECONDS, +a.sctl.secs || 0)), after: a.sctl.after !== false, ...(a.sctl.lifeBond ? {lifeBond: true} : {}), ...(a.sctl.endsOnDamage ? {endsOnDamage: true} : {}), ...(a.sctl.noAttack ? {noAttack: true} : {}), ...(+a.sctl.speed > 0 ? {speed: Math.min(300, +a.sctl.speed)} : {}), ...(+a.sctl.count > 1 ? {count: Math.min(12, +a.sctl.count)} : {}), ...(a.sctl.countBy && typeof a.sctl.countBy === 'object' ? {countBy: a.sctl.countBy} : {}), ...(a.sctl.statByChoice && typeof a.sctl.statByChoice === 'object' ? {statByChoice: a.sctl.statByChoice} : {}), ...(Array.isArray(a.sctl.statBySlot) ? {statBySlot: a.sctl.statBySlot.slice(0, 6)} : {}), ...(Array.isArray(a.sctl.ac) ? {ac: [+a.sctl.ac[0] || 10, +a.sctl.ac[1] || 0]} : {}), ...(Array.isArray(a.sctl.hp) ? {hp: [+a.sctl.hp[0] || 1, +a.sctl.hp[1] || 0, +a.sctl.hp[2] || 0]} : {}), ...(a.sctl.block && typeof a.sctl.block === 'object' && a.sctl.block.name && Array.isArray(a.sctl.block.s) ? {block: JSON.parse(JSON.stringify(a.sctl.block).slice(0, 8000))} : {}), stat: String(a.sctl.stat || '').slice(0, 60)};
   if (a.form && typeof a.form === 'object') out.form = {on: a.form.on === 'self' ? 'self' : 'target', limit: String(a.form.limit || '').slice(0, 200), tempHP: !!a.form.tempHP};
   if (a.mv && typeof a.mv === 'object') out.mv = {kind: String(a.mv.kind || '').slice(0, 10), feet: Math.max(0, +a.mv.feet || 0), who: String(a.mv.who || 'self').slice(0, 16), others: Math.max(0, +a.mv.others || 0)};
   if (a.viaWeapon && typeof a.viaWeapon === 'object') out.viaWeapon = {extra: DMG_RE.test(String(a.viaWeapon.extra || '')) ? String(a.viaWeapon.extra) : '', type: String(a.viaWeapon.type || 'Radiant').slice(0, 20)};
-  if (a.castRoll && typeof a.castRoll === 'object' && DMG_RE.test(String(a.castRoll.dice || '').replace(/\s/g, ''))) out.castRoll = {dice: String(a.castRoll.dice).replace(/\s/g, ''), text: String(a.castRoll.text || '').slice(0, 120)};
+  if (a.castRoll && typeof a.castRoll === 'object' && DMG_RE.test(String(a.castRoll.dice || '').replace(/\s/g, ''))) out.castRoll = {dice: String(a.castRoll.dice).replace(/\s/g, ''), text: String(a.castRoll.text || '').slice(0, 120), ...(a.castRoll.extraTurns ? {extraTurns: true} : {})};
   if (a.advIf) out.advIf = String(a.advIf).slice(0, 160);
   if (Array.isArray(a.creates)) { const cr = a.creates.slice(0, 4).map(x => x && x.name ? {name: String(x.name).slice(0, 60), note: String(x.note || '').slice(0, 300), left: Math.max(0, Math.min(MAX_SECONDS, +x.left || 0)), kind: x.kind === 'item' ? 'item' : 'effect', ...(+x.count > 0 ? {count: Math.min(99, Math.round(+x.count))} : {}), ...(x.spoil ? {spoil: String(x.spoil).slice(0, 40)} : {}), ...(x.use && typeof x.use === 'object' ? {use: {heal: DMG_RE.test(String(x.use.heal || '')) ? String(x.use.heal) : '', act: ['action','bonus'].includes(x.use.act) ? x.use.act : 'action', effName: String(x.use.effName || '').slice(0, 40), effLeft: Math.max(0, Math.min(MAX_SECONDS, +x.use.effLeft || 0)), effNote: String(x.use.effNote || '').slice(0, 200)}} : {})} : null).filter(Boolean); if (cr.length) out.creates = cr; }
   if (a.castOn) out.castOn = true;
   if (a.auto && typeof a.auto === 'object') out.auto = {failTypes: (a.auto.failTypes || []).slice(0, 8).map(String), passTypes: (a.auto.passTypes || []).slice(0, 8).map(String), passCR: !!a.auto.passCR};
   if (Array.isArray(a.targetsBySlot)) out.targetsBySlot = a.targetsBySlot.slice(0, 6).filter(x => Array.isArray(x) && +x[0] > 0 && +x[1] > 0).map(x => [+x[0], Math.min(20, +x[1])]);
+  if (a.drain === 'half' || a.drain === 'full') out.drain = a.drain;
+  if (a.hpMaxDrain) out.hpMaxDrain = true;
+  if (a.onKill && typeof a.onKill === 'object') out.onKill = {...(a.onKill.dust ? {dust: a.onKill.dust === true ? true : String(a.onKill.dust).slice(0, 40)} : {}), ...(a.onKill.summon ? {summon: String(a.onKill.summon).slice(0, 40)} : {}), ...(Array.isArray(a.onKill.types) ? {types: a.onKill.types.slice(0, 6).map(String)} : {})};
+  if (a.afterMeleeHit) out.afterMeleeHit = true;
+  if (a.deferred) out.deferred = true;
+  if (a.grow && DMG_RE.test(String(a.grow))) out.grow = String(a.grow);
+  if (+a.healPool > 0) out.healPool = Math.min(2000, +a.healPool);
+  if (a.grant && typeof a.grant === 'object' && a.grant.name) out.grant = JSON.parse(JSON.stringify(a.grant).slice(0, 4000));
+  if (a.leap) out.leap = true;
+  if (a.explode && typeof a.explode === 'object') out.explode = {die: Math.max(2, Math.min(20, +a.explode.die || 8)), max: Math.max(0, Math.min(10, +a.explode.max || 0))};
+  if (a.useReaction) out.useReaction = true;
+  if (a.endForm) out.endForm = true;
+  if (a.setScores && typeof a.setScores === 'object') out.setScores = Object.fromEntries(Object.entries(a.setScores).filter(([k, v]) => ABILITIES.includes(k) && +v > 0).map(([k, v]) => [k, Math.min(30, +v)]));
+  if (a.clone && typeof a.clone === 'object') out.clone = {hpFactor: Math.max(0.1, Math.min(1, +a.clone.hpFactor || 0.5)), type: String(a.clone.type || '').slice(0, 20)};
+  if (a.countCasts) out.countCasts = true;
+  if (a.hpUp && DMG_RE.test(String(a.hpUp))) out.hpUp = String(a.hpUp);
+  if (a.choicePerTarget) out.choicePerTarget = true;
+  if (Array.isArray(out.choices) && Array.isArray(a.choices)) out.choices = out.choices.map((c, i) => (a.choices[i] || {}).multi ? {...c, multi: true} : c);
+  if (a.randomMode && typeof a.randomMode === 'object') out.randomMode = {die: Math.max(2, Math.min(20, +a.randomMode.die || 8)), twice: +a.randomMode.twice || 0};
   if (a.castNote) out.castNote = String(a.castNote).slice(0, 240);
   if (a.secondary && typeof a.secondary === 'object' && ABILITIES.includes(a.secondary.save) && Array.isArray(a.secondary.dmg)) out.secondary = {save: a.secondary.save, label: String(a.secondary.label || 'second effect').slice(0, 30), dmg: a.secondary.dmg.filter(d => Array.isArray(d) && DMG_RE.test(String(d[0]))).slice(0, 3).map(d => [String(d[0]), String(d[1] || '').slice(0, 20)]), half: !!a.secondary.half, dc: Math.max(0, Math.min(40, +a.secondary.dc || 0))};
   if (DMG_RE.test(String(a.upSecondary || ''))) out.upSecondary = String(a.upSecondary);
@@ -1191,7 +1233,7 @@ function cleanAction(a, i) {
   if (a.storeSpell && typeof a.storeSpell === 'object') out.storeSpell = {max: Math.max(1, Math.min(9, +a.storeSpell.max || 3)), bySlot: !!a.storeSpell.bySlot};
   if (DMG_RE.test(String(a.upTurn || ''))) out.upTurn = String(a.upTurn);
   if (+a.areaPerSlot > 0) out.areaPerSlot = Math.min(1000, +a.areaPerSlot);
-  if (Array.isArray(a.effBySlot)) { const l = a.effBySlot.slice(0, 6).map(x => Array.isArray(x) && +x[0] > 0 && x[1] && typeof x[1] === 'object' ? [Math.min(9, +x[0]), cleanEffect({name: 'x', ...x[1]})] : null).filter(x => x && x[1]); if (l.length) out.effBySlot = l.sort((x, y) => x[0] - y[0]); }
+  if (Array.isArray(a.effBySlot)) { const l = a.effBySlot.slice(0, 6).map(x => Array.isArray(x) && +x[0] > 0 && x[1] && typeof x[1] === 'object' ? [Math.min(9, +x[0]), {...(cleanEffect({name: 'x', ...x[1]}) || {name: 'x'}), ...(+x[1].wpnBonus ? {wpnBonus: Math.min(5, +x[1].wpnBonus)} : {})}] : null).filter(x => x && x[1]); if (l.length) out.effBySlot = l.sort((x, y) => x[0] - y[0]); }
   if (a.sight) out.sight = true;
   if (+a.upFlat > 0) out.upFlat = Math.min(100, +a.upFlat); if (+a.upTemp > 0) out.upTemp = Math.min(100, +a.upTemp);
   if (+a.durPerSlot > 0) out.durPerSlot = Math.min(MAX_SECONDS, +a.durPerSlot); if (+a.baseSecs > 0) out.baseSecs = Math.min(MAX_SECONDS, +a.baseSecs);
@@ -1327,9 +1369,34 @@ function describeEffect(e) { // what an effect does, in words
   if (e.stable) parts.push('Stable');
   if (e.dashBonus) parts.push('can Dash as a Bonus Action');
   if (e.extraAction) parts.push(e.extraAction);
-  if (e.wpn) parts.push(`attacks with its ${e.wpn.re.split('|').join(' or ')} use the spellcasting ability and deal ${e.wpn.die} damage${e.wpn.type ? ` (${e.wpn.type} or the weapon's own type)` : ''}`);
+  if (e.wpn) parts.push(e.wpn.keepMod ? `${signed(e.wpn.bonus || 0)} to attack and damage rolls with ${e.wpn.re ? e.wpn.re.split('|').join(' or ') : 'the weapon'}` : `attacks with its ${e.wpn.re.split('|').join(' or ')} use the spellcasting ability and deal ${e.wpn.die} damage${e.wpn.type ? ` (${e.wpn.type} or the weapon's own type)` : ''}`);
   if (e.healEachTurn) parts.push(`regains ${e.healEachTurn} Hit Points at the start of each of its turns${e.healAt0 ? ' if it is at 0 Hit Points' : ''}`);
   if (e.noBonus) parts.push("can't take Bonus Actions");
+  if (e.noOA) parts.push("can't make Opportunity Attacks");
+  if (e.noStand) parts.push("can't end the Prone condition on itself");
+  if (e.noAttack) parts.push("can't attack");
+  if (e.endsAt0) parts.push('ends if it drops to 0 Hit Points');
+  if (e.seeInvisible) parts.push('sees Invisible creatures');
+  if (e.noSlow) parts.push("its Speed can't be reduced by magic");
+  if (e.actOrBonus) parts.push('takes an action or a Bonus Action on its turn, not both');
+  if (e.noInvisibleVs) parts.push(`gains nothing from being Invisible against ${e.byName || 'the caster'}`);
+  if (e.atkDisAbil) parts.push(`Disadvantage on ${e.atkDisAbil} attack rolls`);
+  if (e.checkAdvSkill) parts.push(`Advantage on ${e.checkAdvSkill} checks`);
+  if (e.saveAdvVs) parts.push(`Advantage on saves against ${e.saveAdvVs}`);
+  if (e.minRoll) parts.push(`a ${e.minRoll.abil} ${e.minRoll.kind} roll of less than ${e.minRoll.value} counts as ${e.minRoll.value}`);
+  if (e.immuneSpell) parts.push(`takes no damage from ${e.immuneSpell}`);
+  if (e.bondTo) parts.push(`${e.byName || 'the caster'} takes the same damage it takes`);
+  if (e.castFail) parts.push(`casting a spell with a ${e.castFail.comp} component needs a d20 roll of ${e.castFail.dc}+`);
+  if (e.ppMod) parts.push(`${signed(e.ppMod)} Passive Perception`);
+  if (e.punish) parts.push(`takes ${e.punish.dice} ${e.punish.type} when it acts against it`);
+  if (e.turnSave) parts.push(`${e.turnSave.abil} save at the ${e.turnSave.when} of each turn: ${e.turnSave.text}`);
+  if (e.condImmuneFrom) parts.push(`can't be ${e.condImmuneFrom.conds.join(' or ')} by ${e.condImmuneFrom.types.join(', ')}`);
+  if (e.disAgainstTypes) parts.push(`${e.disAgainstTypes.join(', ')} have Disadvantage on attack rolls against it`);
+  if (e.shakeOff) parts.push('another creature can take an action to end it');
+  if (e.endsOnSpell) parts.push('ends if it is targeted by another spell');
+  if (e.untilLongRest) parts.push('lasts until a Long Rest');
+  if (e.lifeBond) parts.push("regains the same Hit Points when its summoner is healed by a spell");
+  if (e.deathAdv) parts.push('Advantage on Death Saving Throws');
   if (e.atkDisVs) parts.push(`Disadvantage on attack rolls against ${e.byName || 'the caster'}`);
   if (e.maxHeal) parts.push('regains the most Hit Points possible from any healing');
   if (e.noHpMaxDown) parts.push("its Hit Point maximum can't be reduced");
@@ -1415,14 +1482,16 @@ function d20Test(c, kind, ctx) {
       if (e.atkAdv === true || (e.atkAdv && e.atkAdv === ctx.abil)) adv.push(e.name);
       if (e.spellAtkAdv && ctx.spell) adv.push(e.name);
     });
-    es.forEach(e => { if (e.atkDis) dis.push(e.name); if (e.weaponAtk && ctx.weapon) addFlat(e.weaponAtk, e.name); }); // Sap, Magic Weapon
+    es.forEach(e => { if (e.atkDis) dis.push(e.name); if (e.atkDisAbil && e.atkDisAbil === ctx.abil) dis.push(e.name); if (e.weaponAtk && ctx.weapon) addFlat(e.weaponAtk, e.name); }); // Sap, Magic Weapon, Ray of Enfeeblement
+    if (ctx.target) ((ctx.target.effects) || []).forEach(e => { if (e.disAgainstTypes && e.disAgainstTypes.join('|').split('|').includes(creatureType(c))) dis.push(e.name); });
     if (ctx.target) es.forEach(e => { if (e.atkDisVs && e.casterId === ctx.target.id) dis.push(e.name); });
-    if (ctx.target) ((ctx.target.effects) || []).forEach(e => { if (e.disAgainst) dis.push(e.name); if (e.advFrom && e.advFrom === c.id) adv.push(e.name); }); // Dodge, Vex
-    if (hasCond(c, 'Invisible')) adv.push('Invisible');
+    const keen = /Blindsight|Truesight/i.test([...(c.senses || []), ...(((c.sheet || {}).senses) || [])].join(' ')) || hasCond(c, 'Blinded');
+    if (ctx.target) ((ctx.target.effects) || []).forEach(e => { if (e.disAgainst && !(e.unlessSight && keen)) dis.push(e.name); if (e.advFrom && e.advFrom === c.id) adv.push(e.name); }); // Dodge, Vex
+    if (hasCond(c, 'Invisible') && !(ctx.target && effs(ctx.target).some(e => e.seeInvisible)) && !(ctx.target && effs(c).some(e => e.noInvisibleVs && e.casterId === ctx.target.id))) adv.push('Invisible');
     const t = ctx.target;
     if (t) {
       ['Blinded','Paralyzed','Petrified','Restrained','Stunned','Unconscious'].forEach(n => { if (hasCond(t, n)) adv.push(`target ${n}`); });
-      if (hasCond(t, 'Invisible')) dis.push('target Invisible');
+      if (hasCond(t, 'Invisible') && !effs(c).some(e => e.seeInvisible) && !effs(t).some(e => e.noInvisibleVs && e.casterId === c.id)) dis.push('target Invisible');
       if (hasCond(t, 'Prone')) (ctx.ranged ? dis : adv).push(ctx.ranged ? 'target Prone, attacker not within 5 feet' : 'target Prone');
       ((t.effects) || []).forEach(e => {
         if (e.advAgainst) adv.push(e.name);
@@ -1494,9 +1563,10 @@ function ammoStart(c, kind) { // what the character sheet carries, or 20 when it
 }
 function ammoOf(c, kind) { const a = (c.ammo || {})[kind]; return a ? {left: +a.left || 0, spent: +a.spent || 0} : {left: ammoStart(c, kind), spent: 0}; }
 function effectiveSpeed(c) {
-  if (SPEED_ZERO.some(n => hasCond(c, n)) || effs(c).some(e => e.speedZero)) return 0;
-  const mult = effs(c).reduce((t, e) => t * (Number.isFinite(+e.speedMult) && +e.speedMult > 0 ? Math.min(4, +e.speedMult) : 1), 1);
-  return Math.max(0, Math.floor(((+c.speed || 0) + sumEff(c, 'speed')) * mult));
+  const free = effs(c).some(e => e.noSlow);
+  if (SPEED_ZERO.some(n => hasCond(c, n)) || effs(c).some(e => e.speedZero && !free)) return 0;
+  const mult = effs(c).filter(e => !(free && +e.speedMult < 1)).reduce((t, e) => t * (Number.isFinite(+e.speedMult) && +e.speedMult > 0 ? Math.min(4, +e.speedMult) : 1), 1);
+  return Math.max(0, Math.floor(((+c.speed || 0) + (free ? effs(c).reduce((t, e) => t + Math.max(0, +e.speed || 0), 0) : sumEff(c, 'speed'))) * mult));
 }
 function speedText(c) { return [`${effectiveSpeed(c)} ft.`, c.speedExtra, ...effs(c).map(e => e.move)].filter(Boolean).join(', '); }
 function effectiveInit(c) { return (+c.initiative || 0) + sumEff(c, 'init'); }       // place in the order
@@ -1829,7 +1899,8 @@ function App() {
   const [dmAsk, setDmAsk] = useState(null);         // DM: roll, or choose the total. {kind:'attack'|'prompt', q, label, mod, total}
   const [dmChoose, setDmChoose] = useState(() => { try { return window.localStorage.getItem('hba-dm-choose') !== 'off'; } catch (e) { return true; } });
   const [callRoll, setCallRoll] = useState({targetId: '', kind: 'save', ability: 'Constitution', skill: '', dc: '10', why: ''});
-  const actingRef = useRef('');                     // whose action is being resolved, for the fight summary
+  const actingRef = useRef('');
+  const actionRef = useRef(null);                    // the action whose damage is being dealt                     // whose action is being resolved, for the fight summary
   const [initCall, setInitCall] = useState(0);      // the DM has called for Initiative: a number that marks this call, or 0
   const [askInit, setAskInit] = useState(() => { try { return window.localStorage.getItem('hba-ask-init') !== 'off'; } catch (e) { return true; } }); // table rule: everyone rolls Initiative when combat is called
   const [initType, setInitType] = useState({});     // typed Initiative totals, by creature
@@ -1840,7 +1911,8 @@ function App() {
   const [weaponPick, setWeaponPick] = useState({});
   const [actOnly, setActOnly] = useState(null); // the sheet lists only what this part of the turn can do: 'action' | 'bonus' | 'reaction' | 'extra'
   const [dmgTwice, setDmgTwice] = useState(0);   // the next damage roll is rolled twice: 1 keeps the higher, -1 the lower
-  const [storePick, setStorePick] = useState({}); // the spell put inside another spell: {actionId: stored action id}
+  const [storePick, setStorePick] = useState({});
+  const [elemType, setElemType] = useState(''); // the damage type picked for this attack (Conjure Minor Elementals) // the spell put inside another spell: {actionId: stored action id}
   const [forced, setForced] = useState(null); // an action used although something says it can't be: {id, why}
   const forcedRef = useRef(null);
   const [openFlag, setOpenFlag] = useState({});
@@ -1908,7 +1980,7 @@ function App() {
   const canAct = !!(combatStarted && active && viewed && viewed.id === active.id && canControl(active));
   const target = inPlay.find(c => c.id === targetId) || null;
   // Things that keep working while they last (a spell used again each turn): offered again with no slot or use spent.
-  const runningOf = c => (c && c.running || []).filter(r => r && r.a && (!r.conc || (c.conc && c.conc.name === r.conc)));
+  const runningOf = c => (c && c.running || []).filter(r => r && r.a && (!r.conc || (c.conc && c.conc.name === r.conc)) && (!r.concBy || ((combatants.find(x => x.id === r.concBy) || {}).conc || {}).name === r.concName));
   const runActions = c => runningOf(c).map(r => ({...r.a, id: 'run-' + r.id, runId: r.id, name: r.name, activation: r.act === 'free' ? 'free' : r.act, rerun: true, detail: `Use again · ${ACTIVATIONS[r.act] || 'no action'} · nothing spent`}));
   // Grapple and Shove (options of an Unarmed Strike): the target can be no more than one size larger than you.
   const grabActions = c => { if (!c || !c.sheet || !c.ownActions) return [];
@@ -2065,6 +2137,8 @@ function App() {
   const isAway = c => ((c && c.effects) || []).some(e => e.away);
   const nextTurn = () => {
     if (!inPlay.some(c => c.currentHP > 0)) return;
+    { const cur = combatants.find(c => c.id === activeId); if (cur && +cur.extraTurns > 0) { // Time Stop: the same creature goes again
+      setCombatants(prev => prev.map(c => c.id === cur.id ? {...c, extraTurns: +c.extraTurns - 1, turn: {}} : c)); setLog(prev => [...prev, stamp({type:'round', text:`${cur.name} takes another turn (${+cur.extraTurns - 1} more after this)`})]); setSelectedAction(null); setTargetIds([]); return; } }
     let work = combatants; const entries = [], due = [];
     // Saves that fall at the end of the turn that is finishing
     if (inPlay.some(c => c.id === activeId)) due.push(...dueCondSaves(work, activeId, 'end'));
@@ -2081,7 +2155,7 @@ function App() {
         entries.push(stamp({type:'round',text:`Round ${newRound}`}));
       }
       safety++;
-    } while ((inPlay[idx].currentHP <= 0 || isAway(inPlay[idx])) && safety <= inPlay.length);
+    } while (((inPlay[idx].currentHP <= 0 && !(inPlay[idx].sheet && !inPlay[idx].dead && !isStable(inPlay[idx]))) || isAway(inPlay[idx])) && safety <= inPlay.length);
     // A new round takes 6 seconds off everything that is timed
     if (wrapped) { const t = passTime(work, ROUND_SECONDS); work = t.list; entries.push(...endedEntries(t.ended)); }
     const upId = inPlay[idx].id;
@@ -2098,11 +2172,15 @@ function App() {
           work = work.map(x => x.id !== cidT ? x : {...x, tempHP: temp - soak, currentHP: Math.max(0, x.currentHP - (adj.total - soak)), effects: e.turnDmg.once ? (x.effects || []).filter(y => y.id !== e.id) : x.effects});
           entries.push(stamp({type:'attack', forId: cidT, by: '', html:`<strong>${esc(c.name)}</strong> · ${esc(e.name)}<br/><span class="log-dmg">${adj.total} damage</span> <span class="log-detail">${esc(e.turnDmg.type)}</span><div class="log-dice">${esc(e.turnDmg.dice)} = ${r.total}${adj.notes.length ? ' · ' + adj.notes.join(' · ') : ''}</div>`}));
           if (adj.total > 0 && cur.conc) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: cidT, actorId: '', actorName: 'Damage', action: {name: `Concentration on ${cur.conc.name}`, dc: Math.min(30, Math.max(10, Math.floor(adj.total / 2))), saveAbility: 'Constitution', concSave: cur.conc.name}})]); });
-        (c.effects || []).filter(e => e.turnRoll && e.turnRoll.when === when).forEach(e => { const r = parseDamage(e.turnRoll.dice); entries.push(stamp({type:'roll', forId: c.id, by: '', html:`<strong>${esc(c.name)}</strong> · ${esc(e.name)}<br/><span class="log-result">🎲 ${r.total}</span><div class="log-detail">${esc(e.turnRoll.text)}</div>`})); }); };
+        { const ts = (c.effects || []).filter(e => e.turnSave && e.turnSave.when === when && +e.dc > 0).map(e => plain({id: newId(), kind: 'save', by: myId, targetId: c.id, actorId: e.casterId || '', actorName: e.byName || 'The spell', action: {name: `${e.name} (each turn)`, dc: e.dc, saveAbility: e.turnSave.abil, onFail: {effs: [{name: `${e.name}: failed`, note: e.turnSave.text, left: 6}]}}}));
+          if (ts.length) setPrompts(prev => [...prev, ...ts]); }
+        if (when === 'end') work = work.map(x => x.id !== cid ? x : {...x, running: (x.running || []).map(r => r.grow && r.a && r.a.dmgList ? {...r, grown: (+r.grown || 0) + 1, a: {...r.a, dmgList: r.a.dmgList.map((d, i) => i ? d : [`${d[0]}+${r.grow}`, d[1]])}} : r)});
+        (c.effects || []).filter(e => e.turnRoll && e.turnRoll.when === when).forEach(e => { const r = parseDamage(e.turnRoll.dice); if (e.turnRoll.apply && e.turnRoll.apply.eff && r.total >= e.turnRoll.apply.min) work = work.map(x => x.id !== cid ? x : {...x, effects: [...(x.effects || []).filter(y => y.name !== e.turnRoll.apply.eff.name), {...e.turnRoll.apply.eff, id: newId()}]}); entries.push(stamp({type:'roll', forId: c.id, by: '', html:`<strong>${esc(c.name)}</strong> · ${esc(e.name)}<br/><span class="log-result">🎲 ${r.total}</span><div class="log-detail">${esc(e.turnRoll.text)}</div>`})); }); };
       turnFx(activeId, 'end'); turnFx(upId, 'start');
     }
     if (work.some(c => c.id === upId && c.prowessUsed)) work = work.map(c => c.id === upId ? {...c, prowessUsed: false} : c);
     const up = work.find(c => c.id === upId) || inPlay[idx];
+    if (up.currentHP <= 0 && up.sheet && !up.dead && !isStable(up)) setPrompts(prev => prev.some(q => q.kind === 'death' && q.targetId === up.id) ? prev : [...prev, plain({id: newId(), kind: 'death', targetId: up.id})]);
     { const ec = (up.conditions || []).map(k => ({k, es: (condInfoOf(up, k) || {}).escape})).find(x => x.es), ee = (up.effects || []).find(e => e.escape), es = ec ? ec.es : ee ? ee.escape : null;
       if (es && up.currentHP > 0) setPrompts(prev => prev.some(q => q.kind === 'escape' && q.targetId === up.id) ? prev : [...prev, plain({id: newId(), kind: 'escape', targetId: up.id, cond: ec ? ec.k : '', effId: !ec && ee ? ee.id : '', what: ec ? ec.k : ee.name, es})]); }
     const hero = ((up.effects) || []).filter(e => +e.tempEachTurn > 0);
@@ -2127,8 +2205,8 @@ function App() {
   // The roll switch: the next roll of any kind is rolled twice and the higher or lower is kept, then it goes back to Normal.
   const setRollSwitch = v => { setAdvantage(v); dmgTwiceRef.current = v; };
   const useRollSwitch = () => { if (advantage || dmgTwiceRef.current) { setAdvantage(0); dmgTwiceRef.current = 0; setDmgTwice(0); } };
-  const rollSwitch = (where) => <span className="roll-switch" data-testid={'roll-switch-' + where}><span className="pp-muted" style={{fontSize: 12}}>Next roll:</span>
-    {[[1, 'Roll 2x, use highest'], [0, 'Normal'], [-1, 'Roll 2x, use lowest']].map(([v, t]) => <button key={v} className={`die-btn ${advantage === v ? 'has' : ''}`} data-testid={v === 1 ? 'roll-high' : v === -1 ? 'roll-low' : 'roll-normal'} style={{padding: '3px 8px'}} aria-pressed={advantage === v} onClick={() => setRollSwitch(v)}>{t}</button>)}</span>;
+  const rollSwitch = (where) => <span className="roll-switch" data-testid={'roll-switch-' + where}><span className="pp-muted" style={{fontSize: 12}} title="Applies to the next roll of any kind (attack, damage, check, save, initiative, Death Saving Throw, the dice roller), then goes back to Normal">Next roll:</span>
+    {[[1, 'Roll 2x, pick highest'], [0, 'Normal'], [-1, 'Roll 2x, pick lowest']].map(([v, t]) => <button key={v} className={`die-btn ${advantage === v ? 'has' : ''}`} data-testid={v === 1 ? 'roll-high' : v === -1 ? 'roll-low' : 'roll-normal'} style={{padding: '3px 8px'}} aria-pressed={advantage === v} onClick={() => setRollSwitch(v)}>{t}</button>)}</span>;
   const rollDamageOnce = (action, crit, lowAs3) => {
     const list = action.dmgList && action.dmgList.length ? action.dmgList : [[action.dmg, action.dmgType]];
     return list.map(([expr, type]) => {
@@ -2149,6 +2227,16 @@ function App() {
     if (adj.usedEffects.length) setCombatants(prev => prev.map(c => c.id !== tgt.id ? c : {...c, effects: (c.effects || []).map(e => adj.usedEffects.includes(e.id) ? {...e, usedAt: turnKey} : e)}));
     if (adj.total > 0) updateHP(tgt.id, -adj.total);
     if (adj.total > 0) endByFlag(tgt, 'endsOnDamage', 'It took damage.');
+    { const act = actionRef.current || {}, by = combatants.find(c => c.id === actingRef.current), soakT = Math.min(+tgt.tempHP || 0, adj.total), real = adj.total - soakT, drops = real > 0 && tgt.currentHP > 0 && tgt.currentHP - real <= 0;
+      if (real > 0 && act.drain && by && by.id !== tgt.id) { const h = Math.floor(real * (act.drain === 'full' ? 1 : 0.5)); if (h > 0) { setTimeout(() => updateHP(by.id, h, true), 0); adj.notes.push(`${by.name} regains ${h} Hit Points`); } }
+      if (real > 0 && act.hpMaxDrain) { setCombatants(prev => prev.map(c => c.id !== tgt.id || effs(c).some(e => e.noHpMaxDown) ? c : {...c, effects: [...(c.effects || []), plain({id: newId(), name: `${String(act.name || 'Drain').replace(/ \(Level \d slot\)$/, '')} (Hit Point maximum)`, hpMax: -Math.min(real, Math.max(0, totalHP(c) - 1)), untilLongRest: true})]})); adj.notes.push(`Hit Point maximum reduced by ${real}`); }
+      if (drops && act.onKill) { const ok = !act.onKill.types || act.onKill.types.includes(creatureType(tgt));
+        if (ok && act.onKill.dust) { setTimeout(() => setCombatants(prev => prev.map(c => c.id === tgt.id ? {...c, dead: true, dust: true} : c)), 0); adj.notes.push(`${tgt.name} is ${act.onKill.dust === true ? 'disintegrated' : act.onKill.dust}`); }
+        if (ok && act.onKill.summon && by) { adj.notes.push(`${tgt.name} rises as a ${act.onKill.summon} under ${by.name}'s control at the start of ${by.name}'s next turn`); setTimeout(() => raiseAs(by, act.onKill.summon, tgt), 300); } }
+      if (real > 0 && !act.bondHit) (tgt.effects || []).filter(e => e.bondTo && e.casterId && e.casterId !== tgt.id).forEach(e => { const cst = combatants.find(c => c.id === e.casterId); if (cst && cst.currentHP > 0) { adj.notes.push(`${e.name}: ${cst.name} takes ${real} too`); const keepAct = actionRef.current; actionRef.current = {bondHit: true}; setTimeout(() => { updateHP(cst.id, -real); }, 0); actionRef.current = keepAct; } });
+      if (drops) { const gone = (tgt.effects || []).filter(e => e.endsAt0); gone.forEach(e => removeEffect(tgt.id, e.id)); }
+      if (real > 0 && tgt.summonOf && effs(tgt).some(e => e.name === 'Summoned' && e.endsOnDamage)) setCombatants(prev => prev.map(c => c.id !== tgt.summonOf ? c : {...c, blocks: (c.blocks || []).filter(b => b.id !== tgt.blockId)}));
+    }
     if (adj.total > 0) { const by = combatants.find(c => c.id === actingRef.current), mine = x => by && x && (x === by.id || (combatants.find(c => c.id === x) && sideOf(combatants.find(c => c.id === x)) === sideOf(by)));
       const gone = (tgt.effects || []).filter(e => e.endsOnDamageBy && mine(e.casterId)), gc = (tgt.conditions || []).filter(k => (condInfoOf(tgt, k) || {}).endsOnDamageBy && mine((condInfoOf(tgt, k) || {}).by));
       gone.forEach(e => removeEffect(tgt.id, e.id)); gc.forEach(k => removeCondition(tgt.id, k));
@@ -2184,12 +2272,13 @@ function App() {
     const notes = [];
     if (action.onUse === outcome && action.type !== 'apply' && !(outcome.conds || outcome.effs || outcome.temp)) return '';
     (outcome.conds || []).forEach(k => {
-      const why = immuneTo(tgt, k.name);
+      const fromType = actor && effs(tgt).find(e => e.condImmuneFrom && e.condImmuneFrom.conds.includes(k.name) && e.condImmuneFrom.types.join('|').split('|').includes(creatureType(actor)));
+      const why = immuneTo(tgt, k.name) || (fromType ? fromType.name : '');
       if (why) { notes.push(`Immune to ${k.name} (${why})`); return; }
       const info = {src: String(action.name || '').slice(0, 40)};
       if (action.conc && actor) info.concBy = actor.id;
       if (actor) info.by = actor.id;
-      ['endsOnDamageBy','failDmg','failCond','tally'].forEach(f => { if (k[f]) info[f] = k[f]; });
+      ['endsOnDamageBy','failDmg','failCond','tally','resistRemoval'].forEach(f => { if (k[f]) info[f] = k[f]; }); if (k.resistRemoval) { info.dc = info.dc || action.dc; }
       if (k.left) info.left = k.left;
       const dc = k.dc || action.dc, abil = k.abil || action.saveAbility;
       if ((k.when || k.onDamage) && dc && abil) { info.dc = dc; info.abil = abil; if (k.when) info.when = k.when; if (k.onDamage) info.onDamage = true; if (k.turn === 'source' && actor && actor.id !== tgt.id) info.turnOf = actor.id; }
@@ -2201,9 +2290,10 @@ function App() {
       if (+e.hpMax < 0 && effs(tgt).some(x => x.noHpMaxDown)) { notes.push(`${e.name}: its Hit Point maximum can't be reduced`); return; }
       const {fromCaster, ...rest} = e;
       const eff = {...rest, id: newId(), by: myId, byName: actor ? actor.name : 'DM'};
+      if (e.oneAtATime && actor) setCombatants(prev => prev.map(c => c.id === tgt.id ? c : {...c, effects: (c.effects || []).filter(x => !(x.name === e.name && x.casterId === actor.id))}));
       if (action.rerun && action.zone) eff.fromZone = true;
       if (action.escape) eff.escape = {...action.escape, dc: action.escape.dc || +action.dc || (((actor && actor.sheet) || {}).spell || {}).dc || 13};
-      if (eff.sanctuary || eff.saveEnds || eff.saveOnDamage || eff.retaliate) { eff.dc = +action.dc || (((actor && actor.sheet) || {}).spell || {}).dc || 13; eff.abil = action.saveAbility || 'Wisdom'; }
+      if (eff.sanctuary || eff.saveEnds || eff.saveOnDamage || eff.retaliate || eff.turnSave || eff.punish) { eff.dc = +action.dc || (((actor && actor.sheet) || {}).spell || {}).dc || 13; eff.abil = action.saveAbility || 'Wisdom'; }
       if (action.conc && actor) { eff.concBy = actor.id; eff.conc = true; }
       if (actor) eff.casterId = actor.id; // so the caster's sheet can list what it has out
       if (fromCaster && actor) { eff.src = actor.id; eff.srcName = actor.name; }
@@ -2216,6 +2306,12 @@ function App() {
       notes.push(`${e.name}${e.left ? ` for ${timeText(e.left)}` : ''}${e.conc ? ' (Concentration)' : ''}`);
     });
     if (outcome.kill) { updateHP(tgt.id, -99999); notes.push('It dies'); }
+    if (outcome.useReaction) { setCombatants(prev => prev.map(c => c.id === tgt.id ? {...c, turn: {...(c.turn || {}), r: true}} : c)); notes.push('Its Reaction is used up'); }
+    if (outcome.endForm && (tgt.blocks || []).some(b => b.kind === 'form')) { setCombatants(prev => prev.map(c => c.id === tgt.id ? {...c, blocks: (c.blocks || []).filter(b => b.kind !== 'form')} : c)); notes.push('It returns to its true form'); }
+    if (outcome.hpUp) { const r = parseDamage(outcome.hpUp); setCombatants(prev => prev.map(c => c.id !== tgt.id ? c : {...c, effects: [...(c.effects || []), plain({id: newId(), name: `${String(action.name || '').replace(/ \(Level \d slot\)$/, '')} (Hit Points)`, hpMax: r.total, ...(action.concSecs || (((action.onUse || {}).effs || [])[0] || {}).left ? {left: action.concSecs || ((action.onUse.effs || [])[0] || {}).left} : {})})], currentHP: c.currentHP + r.total})); notes.push(`Hit Point maximum +${r.total}, and ${r.total} Hit Points`); }
+    if (outcome.setScores) { setCombatants(prev => prev.map(c => c.id !== tgt.id ? c : {...c, scores: {...(c.scores || {}), ...outcome.setScores}})); notes.push(Object.entries(outcome.setScores).map(([k, v]) => `${k} becomes ${v}`).join(', ')); }
+    if (outcome.clone && actor) { const cp = plain({...tgt, id: newId(), name: `${tgt.name} (simulacrum)`.slice(0, 60), maxHP: Math.max(1, Math.floor(totalHP(tgt) * outcome.clone.hpFactor)), currentHP: Math.max(1, Math.floor(totalHP(tgt) * outcome.clone.hpFactor)), effects: [], conditions: [], conc: undefined, ...(outcome.clone.type ? {creatureType: outcome.clone.type} : {}), owner: actor.owner || '', summonOf: actor.id, after: actor.id, sheet: tgt.sheet ? {...tgt.sheet} : undefined, main: false});
+      setCombatants(prev => placeByInitiative(prev, cp)); notes.push(`A copy of ${tgt.name} with ${cp.maxHP} Hit Points joins under ${actor.name}`); }
     if ((outcome.effs || []).some(e => e.breakConc) && tgt.conc) { setTimeout(() => endConcentration(tgt.id, `${action.name || 'A spell'} broke it.`), 300); notes.push('Its Concentration is broken'); }
     if (outcome.temp) { // Temporary Hit Points: they don't stack, the higher amount stays
       const r = parseDamage(outcome.temp);
@@ -2228,11 +2324,13 @@ function App() {
   // A saving throw, rolled with the target's numbers as they stand when the button is pressed.
   const resolveSave = (action, actorNameRaw, actor, tgt, ruled, keep) => {
     const actorName = esc(actorNameRaw), targetName = esc(tgt.name);
-    actingRef.current = actor ? actor.id : '';
+    actingRef.current = actor ? actor.id : ''; actionRef.current = action;
     const saveAbility = action.saveAbility;
     const saveMod = tgt.saves?.[saveAbility] ?? mod(tgt.scores?.[saveAbility]??10);
     const t = d20Test(tgt, 'save', {ability: saveAbility, conditions: ((action.onFail || {}).conds || []).map(k => k.name)});
     if (action.advNow) t.adv.push(action.advIf || 'the circumstances');
+    effs(tgt).forEach(e => { if (e.saveAdvVs && ((action.onFail || {}).conds || []).some(k => k.name === e.saveAdvVs || String(action.name).includes(e.saveAdvVs))) t.adv.push(e.name); });
+    if (action.auto && (action.auto.disTypes || []).includes(creatureType(tgt))) t.dis.push(`it is a ${creatureType(tgt)}`);
     if (!ruled && !keep && advantage && canControl(tgt)) { (advantage === 1 ? t.adv : t.dis).push('chosen'); useRollSwitch(); }
     const roll = keep || roll20(testMode(t));
     const sec = x => isDM && !tgt.owner ? `<span class="dm-secret">${x}</span>` : x; // the DM's own numbers can be kept from players
@@ -2507,7 +2605,7 @@ function App() {
     if (a.upSecondary && out.secondary && out.secondary.dmg.length) { const [n, d] = a.upSecondary.split('d').map(Number); out = {...out, secondary: {...out.secondary, dmg: out.secondary.dmg.map((x, i) => i ? x : [`${x[0]}+${n * extra}d${d}`, x[1]])}}; }
     if (a.up && /^\d+d\d+$/.test(a.up)) { const [n, d] = a.up.split('d').map(Number); eachEff(e => e.failDmg ? {...e, failDmg: {...e.failDmg, dice: `${e.failDmg.dice}+${n * extra}d${d}`}} : e); }
     if (a.upTurn) { const [n, d] = a.upTurn.split('d').map(Number); eachEff(e => e.turnDmg ? {...e, turnDmg: {...e.turnDmg, dice: `${e.turnDmg.dice}+${n * extra}d${d}`}} : e); }
-    if (a.effBySlot) { const hit = a.effBySlot.filter(x => lvl >= x[0]).pop(); if (hit) { const {name, ...over} = hit[1]; eachEff((e, i) => i === 0 ? {...e, ...over} : e); } }
+    if (a.effBySlot) { const hit = a.effBySlot.filter(x => lvl >= x[0]).pop(); if (hit) { const {name, wpnBonus, ...over} = hit[1]; eachEff((e, i) => i === 0 ? {...e, ...over, ...(wpnBonus && e.wpn ? {wpn: {...e.wpn, bonus: wpnBonus}} : {})} : e); } }
     if (a.areaPerSlot && a.area) out = {...out, area: {...a.area, size: (+a.area.size || 0) + a.areaPerSlot * extra}, areaGrew: true};
     if (a.durPerSlot) out = reDur(out, Math.min(MAX_SECONDS, (a.concSecs || a.holdSecs || a.baseSecs || 0) + a.durPerSlot * extra), false);
     if (a.durBySlot) { const hit = a.durBySlot.filter(x => lvl >= x[0]).pop(); if (hit) out = reDur(out, Math.min(MAX_SECONDS, hit[1]), !!hit[2]); }
@@ -2551,7 +2649,7 @@ function App() {
     if (!active || (!re && !selectedAction)) return;
     let action = re ? re.action : withMode(actions.find(a=>a.id===selectedAction));
     if (!action) return;
-    if (!re && action.tpl) { // what the caster chose is written into the spell's effects
+    if (!re && action.tpl && !action.choicePerTarget) { // what the caster chose is written into the spell's effects
       let j = action.tpl; (picks[action.id] || []).forEach((v, n) => { j = j.split('$' + (n + 1)).join(JSON.stringify(String(v)).slice(1, -1)); });
       try { const r = JSON.parse(j), o2 = {...action};
         if (Array.isArray(r.dmgList)) o2.dmgList = action.dmgList ? action.dmgList.map((d, n) => [d[0], String((r.dmgList[n] || d)[1] || '').slice(0, 20)]) : action.dmgList;
@@ -2565,7 +2663,7 @@ function App() {
       if (t0) { const bands = [...action.byHP].sort((x, y) => (x.max || 1e9) - (y.max || 1e9)), b = bands.find(x => x.max > 0 && t0.currentHP <= x.max) || bands.find(x => !x.max);
         if (b) { const {id, name, detail, ...rest} = b.a; action = {...baseOf(action), ...rest}; chosen.push(`${t0.name} has ${t0.currentHP} Hit Points`); } }
     }
-    actingRef.current = active.id;
+    actingRef.current = active.id; actionRef.current = action;
     const advNow = re ? re.adv : advantage, sneakNow = re ? re.sneak : sneakOn;
     if (!re && advantage && action.type === 'attack') dmgTwiceRef.current = 0; // an attack's next roll is its d20
     let castLvl = re ? re.castLvl : 0;
@@ -2574,6 +2672,8 @@ function App() {
     if (limited(action) && usesLeft(active, action) <= 0) return;
     if (!spendEconomy(active, action, !!re)) return;
     undoRef.current = {combatants, logIds: new Set(log.map(e => e.id)), promptIds: new Set(prompts.map(q => q.id)), name: action.name, actorId: active.id, key: `${round}:${activeId}`}; setUndoTick(n => n + 1);
+    { const cf = !re && action.spell && effs(active).find(e => e.castFail && String(action.comp || '').includes(e.castFail.comp));
+      if (cf) { const r = rollD(20); if (r < cf.castFail.dc) { setLog(prev => [...prev, stamp({type:'save-fail', html:`<strong>${esc(active.name)}</strong> tries to cast ${esc(action.name)}<br/><span class="log-result">🎲 ${r}</span> The spell fails (${esc(cf.name)}).<div class="log-detail">Needed ${cf.castFail.dc} or higher.</div>`})]); setSelectedAction(null); return; } } }
     const forcedWhy = !re ? forcedRef.current : null; if (!re) forcedRef.current = null;
     if (blockReason(active, action) && !forcedWhy) return;
     if (compMode === 'full' && action.spell && action.matCost && action.matConsumed && active.sheet && active.ownActions) { // the spell uses up its costly component
@@ -2589,6 +2689,7 @@ function App() {
     }
     if (chosen.length) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail">Chosen: ${chosen.map(esc).join(', ')}</div>`})]);
     if (action.spell || ['attack','save','auto'].includes(action.type)) endByFlag(active, 'endsOnAct', 'It attacked, dealt damage or cast a spell.');
+    if (action.spell) targetIds.map(id => inPlay.find(c => c.id === id)).filter(Boolean).forEach(t => endByFlag(t, 'endsOnSpell', 'Another spell targeted it.'));
     if (action.type === 'attack') { endByFlag(active, 'endsOnAttack', 'It made its next attack roll.'); targetIds.map(id => inPlay.find(c => c.id === id)).filter(Boolean).forEach(t => endByFlag(t, 'endsWhenAttacked', 'The next attack roll against it was made.')); }
     { const mins = (asRitual ? 10 : 0) + (action.spell ? (+action.castMin || 0) : 0); // casting that takes minutes: outside a fight the DM is asked to move the clock
       if (mins > 0 && !combatStarted) setPrompts(prev => [...prev, plain({id: newId(), kind: 'time', targetId: active.id, by: myId, spell: String(action.name).replace(/ \(Level \d slot\)$/, '').slice(0, 60), secs: mins * 60, ritual: asRitual})]); }
@@ -2608,7 +2709,7 @@ function App() {
         setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, made: [...(c.made || []), plain({id: newId(), kind: 'dm', name: nm, note: [action.message && msgText.trim() ? `Message${to ? ' for ' + to : ''}: "${msgText.trim().slice(0, 300)}"` : '', action.askDM || ''].filter(Boolean).join(' · ').slice(0, 500), left: secs, src: nm, conc: action.conc ? (action.concAs || nm) : ''})].slice(-12)})); }
       if (castOn) setCastOn(''); if (msgText) setMsgText(''); }
     if (action.castNote) setLog(prev => [...prev, stamp({type:'roll', forId: active.id, html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail">${esc(action.castNote)}</div>`})]);
-    if (action.castRoll) { const r = parseDamage(action.castRoll.dice); setLog(prev => [...prev, stamp({type:'roll', forId: active.id, html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<br/><span class="log-result">${r.total}</span> ${esc(action.castRoll.text)}<div class="log-dice">${esc(action.castRoll.dice)}</div>`})]); }
+    if (action.castRoll) { const r = parseDamage(action.castRoll.dice); if (action.castRoll.extraTurns) setCombatants(prev => prev.map(c => c.id === active.id ? {...c, extraTurns: r.total} : c)); setLog(prev => [...prev, stamp({type:'roll', forId: active.id, html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<br/><span class="log-result">${r.total}</span> ${esc(action.castRoll.text)}<div class="log-dice">${esc(action.castRoll.dice)}</div>`})]); }
     if (action.askDM) setPrompts(prev => [...prev, plain({id: newId(), kind: 'askdm', targetId: active.id, by: myId, spell: String(action.name).slice(0, 60), text: action.askDM, who: active.name})]);
     if (action.slot && !asRitual) { // a levelled spell spends a slot
       const opts = castOptions(active, action);
@@ -2658,7 +2759,16 @@ function App() {
     try {
     const sharedDamage = action.type === 'save' && ((action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0')) ? rollDamageParts(action, false) : null; // an area's damage is rolled once
     let healedOthers = false;
-    (picked.length ? picked : [null]).forEach((target, ti) => {
+    const actionAll = action;
+    const perTarget = (a, t) => { if (!t) return [a]; let out = a;
+      if (a.choicePerTarget && a.tpl) out = fillPicks(a, picks[a.id + ':' + t.id] || picks[a.id] || []);
+      if (a.randomMode && a.modes && a.modes.length) { const rr = () => rollD(a.randomMode.die), tw = a.randomMode.twice; let n = rr(); const list = [];
+        if (tw && n === tw) { let x, y; do { x = rr(); } while (x === tw); do { y = rr(); } while (y === tw); list.push(x, y); } else list.push(n);
+        return list.map(k => { const m = a.modes[k - 1]; if (!m) return out; const {id, name, detail, ...rest} = m.a; return {...baseOf(out), ...rest, name: `${a.name}: ${m.name} (rolled ${k}${list.length > 1 ? ', struck by two' : ''})`}; }); }
+      return [out]; };
+    let poolHP = +action.healPool || 0;
+    const runs = (action.deferred && !re) ? [] : (picked.length ? picked : [null]).flatMap((t, i) => perTarget(actionAll, t).map(av => [t, i, av]));
+    runs.forEach(([target, ti, actionV]) => { let action = actionV;
     const firstEntry = entries.length;
     const targetName = esc(target?.name || '???');
     if (target && target.id !== active.id && ['attack','save','auto'].includes(action.type)) { // Sanctuary: the attacker must get past a Wisdom save first
@@ -2711,6 +2821,7 @@ function App() {
       const autoCrit = hit && !action.ranged && target && ['Paralyzed','Unconscious'].find(n => hasCond(target, n));
       const isCrit = hit && (nat20 || !!autoCrit);
       if (!stepInfo) stepInfo = {hit, crit: hit && isCrit, total, roll};
+      if (hit && !action.ranged && (action.weapon || action.unarmed)) setCombatants(prev => prev.map(c => c.id === active.id ? {...c, turn: {...(c.turn || {}), meleeHit: true}} : c));
       // one-shot effects used up by this attack roll: Sap on the attacker, Vex on the target
       effs(active).filter(e => e.atkDis && e.name === 'Sap').forEach(e => removeEffect(active.id, e.id));
       if (target) effs(target).filter(e => e.advFrom === active.id).forEach(e => removeEffect(target.id, e.id));
@@ -2766,7 +2877,11 @@ function App() {
         ((target.effects) || []).forEach(e => {
           if (e.bonusDmg && e.src === active.id && DMG_RE.test(String(e.bonusDmg))) parts.push(...rollDamageParts({dmgList:[[e.bonusDmg, e.bonusType || '']]}, isCrit).map(pt => ({...pt, dice: `${esc(e.name)} ${pt.dice}`})));
         });
-        effs(active).filter(e => e.atkDmg).forEach(e => parts.push(...rollDamageParts({dmgList: [[e.atkDmg.dice, e.atkDmg.type || (parts[0] || {}).type || '']]}, isCrit).map(pt => ({...pt, dice: `${esc(e.name)} ${pt.dice}`}))));
+        if (action.explode && parts.length) { let n = (String(parts[0].dice).match(new RegExp('\\b' + action.explode.die + '\\b', 'g')) || []).length - 1, added = 0, extra = []; // Sorcerous Burst: each top roll adds another die
+          while (n > 0 && added < action.explode.max) { const r = rollD(action.explode.die); extra.push(r); added++; n--; if (r === action.explode.die) n++; }
+          if (extra.length) parts.push({amount: extra.reduce((a, b) => a + b, 0), type: parts[0].type, dice: `extra d${action.explode.die}: ${extra.join(', ')}`}); }
+        if (action.leap && parts.length) { const faces = (String(parts[0].dice).match(/\[([^\]]*)\]/) || [, ''])[1].split(',').map(x => x.trim()).filter(Boolean); if (new Set(faces).size < faces.length) { featNotes.push('Two damage dice match: it leaps to a new target. Use it again from Active.'); const nm = `${String(action.name).replace(/ \(Level \d slot\)$/, '')} (leap)`, {id, slot, pool, cost, usesMax, ...keep} = action; setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, running: [...(c.running || []).filter(r => r.name !== nm), plain({id: newId(), name: nm, act: 'free', conc: '', usedAt: '', once: true, a: {...keep, name: nm}})].slice(-6)})); } }
+        effs(active).filter(e => e.atkDmg).forEach(e => parts.push(...rollDamageParts({dmgList: [[e.atkDmg.dice, (e.atkDmg.types && elemType && e.atkDmg.types.includes(elemType) ? elemType : e.atkDmg.type) || (parts[0] || {}).type || '']]}, isCrit).map(pt => ({...pt, dice: `${esc(e.name)} ${pt.dice}`}))));
         dmgHtml = (parts.length ? dealDamage(target, parts, false, feat.irresistible ? ['Bludgeoning','Piercing','Slashing'] : null).html : '') + applyOutcome(target, action.onHit, action, active);
         if (!action.ranged) effs(target).filter(e => e.retaliate && (!e.retaliate.types || e.retaliate.types.includes(creatureType(active)))).forEach(e => { const rt = e.retaliate; // Fire Shield, Holy Aura: hitting it in melee costs the attacker
           if (rt.dice && !rt.save) { const rp = parseDamage(rt.dice); dmgHtml += `<div class="log-detail">${esc(e.name)}: ${esc(active.name)} takes</div>` + dealDamage(active, [{amount: rp.total, type: rt.type, dice: `${rt.dice} = ${rp.total}`}]).html; }
@@ -2787,7 +2902,8 @@ function App() {
 
     else if ((action.type === 'auto' || action.type === 'apply') && target) {
       const hasDmg = (action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0');
-      const dmgHtml = hasDmg ? dealDamage(target, rollDamageParts(action, false), false).html : '';
+      const shielded = effs(target).find(e => e.immuneSpell && e.immuneSpell === String(action.name).replace(/ \(Level \d slot\)$/, ''));
+      const dmgHtml = shielded ? `<div class="log-detail">${esc(shielded.name)}: no damage</div>` : hasDmg ? dealDamage(target, rollDamageParts(action, false), false).html : '';
       entries.push({
         type: hasDmg ? 'hit' : 'heal',
         html:`<strong>${actorName}</strong> → <strong>${targetName}</strong><br/>
@@ -2819,9 +2935,11 @@ function App() {
       const feat = active.passives || {};
       const maxed = feat.supremeHealing || effs(inPlay.find(c => c.id === healTarget) || {}).some(e => e.maxHeal) ? String(action.healDice).replace(/(\d+)d(\d+)/g, (_, c, sd) => String(c * sd)) : action.healDice; // Supreme Healing: every die is its highest number
       let {total:ht, parts} = parseDamage(maxed);
+      if (action.healPool && target) { const ask = window.prompt(`${action.name}: how many of the ${poolHP} Hit Points left go to ${target.name}?`, String(Math.min(poolHP, Math.max(0, totalHP(target) - target.currentHP)))); ht = Math.max(0, Math.min(poolHP, parseInt(ask, 10) || 0)); poolHP -= ht; parts = [`${ht} from the pool (${poolHP} left)`]; }
       if (feat.discipleOfLife && castLvl) { ht += 2 + castLvl; parts = [...parts, `Disciple of Life +${2 + castLvl}`]; }
       if (healTarget !== active.id && castLvl) healedOthers = true;
       updateHP(healTarget, ht, true);
+      if (action.spell && castLvl) combatants.filter(x => x.summonOf === healTarget && effs(x).some(e => e.lifeBond)).forEach(x => { updateHP(x.id, ht, true); parts = [...parts, `Life Bond: ${x.name} also regains ${ht}`]; });
       entries.push({
         type:'heal',
         html:`<strong>${actorName}</strong> heals <strong>${healTargetName}</strong><br/>
@@ -2842,6 +2960,14 @@ function App() {
 
     if (target && target.id !== active.id) for (let i = firstEntry; i < entries.length; i++) entries[i] = {...entries[i], forId: target.id, by: myId}; // the target's player gets a pop-up
     });
+    action = actionAll;
+    if (action.deferred && !re) { const nm = String(action.name).replace(/ \(Level \d slot\)$/, ''), {id, slot, pool, cost, usesMax, pointCosts, comp, mat, matCost, matConsumed, gp, gpConsumed, conc, concSecs, again, ritual, castMin, fromSheet, upEff, detail, hand, deferred, ...keep} = action; // it waits: set now, goes off later
+      setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, running: [...(c.running || []).filter(r => r.name !== nm), plain({id: newId(), name: nm, act: 'free', conc: action.conc ? (action.concAs || nm) : '', usedAt: '', once: true, stored: true, ...(action.grow ? {grow: action.grow} : {}), a: {...keep, name: nm}})].slice(-6)}));
+      entries.push({type:'roll', html:`<strong>${actorName}</strong> sets <span class="log-result">${esc(nm)}</span><div class="log-detail">Nothing happens yet. Use it from Active when it goes off${action.grow ? `; it grows by ${esc(action.grow)} at the end of each of your turns until then` : ''}.</div>`}); }
+    if (action.grant && !re) { const nm = String(action.grant.name).slice(0, 60), who = (action.grant.self || !picked.length) ? [active] : picked; let g = JSON.stringify(action.grant.a || {}); (picks[action.id] || []).forEach((v, n) => { g = g.split('$' + (n + 1)).join(String(v)); }); let ga = {}; try { ga = JSON.parse(g); } catch (e) {}
+      setCombatants(prev => prev.map(c => !who.some(w => w.id === c.id) ? c : {...c, running: [...(c.running || []).filter(r => r.name !== nm), plain({id: newId(), name: nm, act: action.grant.act || 'action', conc: '', concBy: action.conc ? active.id : '', concName: action.conc ? (action.concAs || String(action.name).replace(/ \(Level \d slot\)$/, '')) : '', usedAt: '', a: {...ga, name: nm}})].slice(-6)}));
+      entries.push({type:'roll', html:`<strong>${who.map(w => esc(w.name)).join(', ')}</strong> can now use <span class="log-result">${esc(nm)}</span> (${esc(ACTIVATIONS[action.grant.act] || 'Action')}) from Active.`}); }
+    if (action.countCasts && !re) { const nm = String(action.name).replace(/ \(Level \d slot\)$/, ''), n = (+((active.castCounts || {})[nm]) || 0) + 1; setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, castCounts: {...(c.castCounts || {}), [nm]: n}})); entries.push({type:'roll', html:`<strong>${actorName}</strong> · ${esc(nm)}<div class="log-detail">Cast ${n} time${n > 1 ? 's' : ''} since the last Long Rest.${n > 1 ? ` The chance of no answer is ${25 * (n - 1)}%: the DM rolls it.` : ''}</div>`}); }
     // Blessed Healer: a healing spell cast with a slot on someone else also heals the caster
     if (healedOthers && (active.passives || {}).blessedHealer && castLvl) {
       updateHP(active.id, 2 + castLvl, true);
@@ -2873,7 +2999,7 @@ function App() {
     if (!re && action.remove && (action.self ? active : picked[0])) startRemove(action.self ? active : picked[0], action, (picks[action.id] || [])[0]);
     if (!re && action.form && action.type !== 'save') { const ft = action.form.on === 'self' ? active : picked[0]; if (ft) setBlockPick({cId: ft.id, kind: 'form', any: true, conc: action.conc ? String(action.name).replace(/ \(Level \d slot\)$/, '') : '', source: String(action.name).replace(/ \(Level \d slot\)$/, ''), left: action.concSecs || 0, tempHP: action.form.tempHP, limit: action.form.limit, by: active.id, q: ''}); }
     const blkName = String(action.name).replace(/ \(Level \d slot\)$/, ''), blk = action.block || (action.spell ? (SUMMON_RE.test(blkName) ? 'summon' : FORM_RE.test(blkName) ? 'form' : '') : '');
-    if (!re && blk && active.sheet && !(action.form && action.form.on === 'target')) setBlockPick({cId: active.id, kind: blk, conc: action.conc ? blkName : '', source: blkName, left: action.concSecs || (action.sctl && action.sctl.secs) || (((action.onUse || {}).effs || [])[0] || {}).left || 0, sctl: action.sctl || null, by: active.id, q: (action.sctl && action.sctl.stat) || '', ...(action.sctl && action.sctl.block ? {gen: {...action.sctl.block, lvl: castLvl || action.slot || 1, atk: ((active.sheet || {}).spell || {}).attack || 5, dc: ((active.sheet || {}).spell || {}).dc || 13, picks: picks[action.id] || []}} : {}), ...(action.sctl && action.sctl.ac ? {ac: String(action.sctl.ac[0] + action.sctl.ac[1] * (castLvl || action.slot || 0))} : {}), ...(action.sctl && action.sctl.hp ? {hp: String(action.sctl.hp[0] + action.sctl.hp[1] * Math.max(0, (castLvl || action.slot || 0) - (action.sctl.hp[2] || 0)))} : {})});
+    if (!re && blk && active.sheet && !(action.form && action.form.on === 'target')) setBlockPick({cId: active.id, kind: blk, conc: action.conc ? blkName : '', source: blkName, left: action.concSecs || (action.sctl && action.sctl.secs) || (((action.onUse || {}).effs || [])[0] || {}).left || 0, sctl: action.sctl || null, by: active.id, count: (action.sctl && action.sctl.count) || 1, q: (action.sctl && ((action.sctl.statByChoice && action.sctl.statByChoice[(picks[action.id] || [])[0]]) || (action.sctl.statBySlot && (action.sctl.statBySlot.filter(x => (castLvl || action.slot) >= x[0]).pop() || [])[1]) || action.sctl.stat)) || '', ...(action.sctl && action.sctl.block ? {gen: {...action.sctl.block, lvl: castLvl || action.slot || 1, atk: ((active.sheet || {}).spell || {}).attack || 5, dc: ((active.sheet || {}).spell || {}).dc || 13, mod: spellModOf(active), picks: picks[action.id] || []}} : {}), ...(action.sctl && action.sctl.countBy ? {count: Math.max(1, Math.floor((action.sctl.count || 1) / ((action.sctl.countBy || {})[(picks[action.id] || [])[0]] || 1)))} : {}), ...(action.sctl && action.sctl.ac ? {ac: String(action.sctl.ac[0] + action.sctl.ac[1] * (castLvl || action.slot || 0))} : {}), ...(action.sctl && action.sctl.hp ? {hp: String(action.sctl.hp[0] + action.sctl.hp[1] * Math.max(0, (castLvl || action.slot || 0) - (action.sctl.hp[2] || 0)))} : {})});
     setArmed(null);
     if (re) return;
     setSelectedAction(null);
@@ -2886,12 +3012,14 @@ function App() {
     const base = kind === 'save' ? ((c.saves || {})[ability] ?? mod(score))
       : (skill && c.sheet && c.sheet.skills && Number.isFinite(+c.sheet.skills[skill])) ? +c.sheet.skills[skill] : mod(score);
     const t = d20Test(c, kind, {ability, skill});
+    effs(c).forEach(e => { if (kind === 'check' && e.checkAdvSkill && e.checkAdvSkill === skill) t.adv.push(e.name); });
     if (advantage === 1 && canControl(c)) t.adv.push('chosen'); if (advantage === -1 && canControl(c)) t.dis.push('chosen'); useRollSwitch();
+    const mr = effs(c).find(e => e.minRoll && e.minRoll.kind === kind && (!e.minRoll.abil || e.minRoll.abil === ability));
     const label = kind === 'save' ? `${ability} saving throw` : skill ? `${ability} (${skill}) check` : `${ability} check`;
     let body, total = null;
     if (t.autoFail) body = `<strong style="color:var(--danger)">Fails automatically (${esc(t.autoFail)})</strong>`;
     else {
-      const roll = roll20(testMode(t)); total = roll.total + base + t.bonus;
+      const roll = roll20(testMode(t)); if (mr && roll.total < mr.minRoll.value) { roll.rolls.push(`counts as ${mr.minRoll.value} (${mr.name})`); roll.total = mr.minRoll.value; } total = roll.total + base + t.bonus;
       body = `<span class="log-result">🎲 ${roll.total + base + t.bonus}</span><div class="log-dice">${roll.rolls.join('/')} ${signed(base)}${t.bonusText ? ` (${t.bonusText})` : ''}</div>${modeText(t) ? `<div class="log-detail">${modeText(t)}</div>` : ''}`;
     }
     if (dc) body += `<div class="log-detail">${why ? esc(why) + ' · ' : ''}DC ${+dc} · <strong style="color:${total != null && total >= +dc ? 'var(--success)' : 'var(--danger)'}">${total != null && total >= +dc ? 'Success' : 'Failure'}</strong></div>`;
@@ -2902,13 +3030,27 @@ function App() {
   const updateHP = (id, delta, isHeal=false) => {
     setCombatants(prev => prev.map(c => {
       if (c.id !== id) return c;
-      if (isHeal) return (c.effects || []).some(e => e.noHeal) ? c : {...c, currentHP: Math.min(totalHP(c), c.currentHP + delta)}; // something stops it regaining Hit Points
+      if (isHeal) return (c.effects || []).some(e => e.noHeal) ? c : {...c, currentHP: Math.min(totalHP(c), c.currentHP + delta), ...(delta > 0 && c.currentHP <= 0 ? {death: {s: 0, f: 0}, stable: false} : {})}; // something stops it regaining Hit Points
       const dmg = Math.max(0, -delta), temp = +c.tempHP || 0, soak = Math.min(temp, dmg); // Temporary Hit Points are lost first
       const ward = (c.effects || []).find(e => e.ward0); // Death Ward: the first drop to 0 becomes 1, and the ward is spent
       if (ward && c.currentHP > 0 && c.currentHP - (dmg - soak) <= 0) return {...c, tempHP: temp - soak, currentHP: 1, effects: c.effects.filter(e => e.id !== ward.id)};
+      if (c.currentHP <= 0 && dmg - soak > 0 && c.sheet && !c.dead && delta > -99999) { const f = Math.min(3, ((c.death || {}).f || 0) + 1); return {...c, tempHP: temp - soak, stable: false, death: {...(c.death || {s: 0}), f}, ...(f >= 3 ? {dead: true} : {})}; } // damage at 0 Hit Points is a failed Death Saving Throw
+      if (delta <= -99999 && c.currentHP > 0 && !(c.effects || []).some(e => e.ward0)) return {...c, tempHP: 0, currentHP: 0, ...(c.sheet ? {dead: true} : {})}; // killed outright
       return {...c, tempHP: temp - soak, currentHP: Math.max(0, c.currentHP - (dmg - soak))};
     }));
   };
+  // Death Saving Throws: at 0 Hit Points a character rolls at the start of its turn. 10+ is a success, 1 is two failures, 20 brings it back with 1 Hit Point.
+  const isStable = c => !!(c.stable || effs(c).some(e => e.stable));
+  const rollDeathSave = (c) => { if (!c || c.currentHP > 0 || c.dead || isStable(c)) return;
+    const t = {adv: effs(c).filter(e => e.deathAdv).map(e => e.name), dis: []}; if (advantage === 1) t.adv.push('chosen'); if (advantage === -1) t.dis.push('chosen'); useRollSwitch();
+    const r = roll20(testMode(t)), n = r.total, ds = c.death || {s: 0, f: 0};
+    let next = {...ds}, out = '', change = {};
+    if (n === 20) { change = {currentHP: 1, death: {s: 0, f: 0}}; out = 'a 20: back up with 1 Hit Point'; }
+    else if (n === 1) { next.f = Math.min(3, ds.f + 2); out = 'a 1: two failures'; }
+    else if (n >= 10) { next.s = Math.min(3, ds.s + 1); out = 'a success'; } else { next.f = Math.min(3, ds.f + 1); out = 'a failure'; }
+    if (!change.death) { change.death = next; if (next.s >= 3) { change = {death: {s: 0, f: 0}, stable: true}; out += ', and now Stable'; } if (next.f >= 3) { change = {...change, dead: true}; out += ', and the third failure: dead'; } }
+    setCombatants(prev => prev.map(x => x.id === c.id ? {...x, ...change} : x));
+    setLog(prev => [...prev, stamp({type: n >= 10 ? 'save-pass' : 'save-fail', forId: c.id, html:`<strong>${esc(c.name)}</strong> · Death Saving Throw<br/><span class="log-result">🎲 ${n}</span> ${esc(out)}<div class="log-dice">${r.rolls.join('/')}${modeText(t) ? ' · ' + modeText(t) : ''}</div>`})]); };
   const setTempHP = (id, n) => setCombatants(prev => prev.map(c => c.id === id ? {...c, tempHP: Math.max(0, n)} : c));
 
   const addCondition = (id, cond, info) => {
@@ -2994,7 +3136,10 @@ function App() {
     ...(rm.effects ? (t.effects || []).filter(e => !(rm.exhaustion && e.name === 'Exhaustion')).filter(e => rm.effects !== 'curse' || /curse|hex|geas/i.test(e.name) || (rm.hpMax && +e.hpMax < 0)).map(e => ({kind: 'eff', key: e.id, label: e.name})) : []),
     ...(rm.hpMax && !rm.effects ? (t.effects || []).filter(e => +e.hpMax < 0).map(e => ({kind: 'eff', key: e.id, label: `${e.name} (Hit Point maximum reduced)`})) : []),
     ...(rm.exhaustion ? (t.effects || []).filter(e => e.name === 'Exhaustion').map(e => ({kind: 'exh', key: e.id, label: `one level of Exhaustion (now ${e.lvl || 1})`})) : [])];
-  const doRemove = (tid, opts, spell) => {
+  const doRemove = (tid, opts0, spell) => {
+    const tt = combatants.find(c => c.id === tid); // Contagion: the condition holds on unless a save is made
+    const opts = (opts0 || []).filter(o => { if (o.kind !== 'cond' || !tt) return true; const inf = condInfoOf(tt, o.key) || {}; if (!inf.resistRemoval) return true; const tot = rollTest(tt, 'save', inf.resistRemoval, '', inf.dc || 13, `Keeping ${o.key} from ending`); return tot != null && tot >= (inf.dc || 13); });
+    if (!opts.length) return;
     setCombatants(prev => reorder(prev.map(c => { if (c.id !== tid) return c; let out = c;
       opts.forEach(o => { if (o.kind === 'cond') out = dropCondition(out, o.key);
         else if (o.kind === 'eff') out = {...out, effects: (out.effects || []).filter(e => e.id !== o.key)};
@@ -3026,16 +3171,22 @@ function App() {
     setLog(prev => [...prev, stamp({type:'heal', forId: t.id, by: myId, html:`<strong>${esc(t.name)}</strong> uses <span class="log-result">${esc(b.name.replace(/ \(\d+\)$/, ''))}</span>${t.id !== c.id ? ` from ${esc(c.name)}` : ''}${heal ? `<br/><span class="log-heal-val">+${heal} HP</span>` : ''}<div class="log-detail">${esc(ACTIVATIONS[u.act] || 'Action')}${u.effName ? ` · ${esc(u.effName)}${u.effLeft ? ` for ${timeText(u.effLeft)}` : ''}` : ''}</div>`})]); };
   // A summoned creature whose stat block depends on the spell's level: its numbers are worked out from the slot, the caster's spell attack and save DC, and what was chosen.
   const genBlock = (G) => { const L = +G.lvl || 1, pk = G.picks || [], sub = x => String(x || '').replace(/\$1/g, pk[0] || '').replace(/\$2/g, pk[1] || '');
-    const dice = x => String(x || '').replace(/L/g, String(L)).replace(/\s/g, '').replace(/\+0$/, '');
+    const dice = x => String(x || '').replace(/MOD/g, String(G.mod || 0)).replace(/L/g, String(L)).replace(/\s/g, '').replace(/\+0$/, '');
     const typ = sub(G.type || ''), dt = d => typeof d === 'object' && d ? (d[typ] || Object.values(d)[0]) : sub(d);
-    const acts = (G.acts || []).filter(x => !x.only || x.only === typ).map((x, i) => { const base = {id: 'g' + i, name: x.n, desc: sub(x.d || ''), activation: x.act || 'action', ...(x.uses ? {usesMax: x.uses, recharge: 'long'} : {})};
+    const acts = (G.acts || []).filter(x => !x.only || x.only === typ || x.only === pk[0]).map(x => x.dmgUp && L > (x.upFrom || 0) ? {...x, dmg: `${x.dmg}+${(L - (x.upFrom || 0)) * +String(x.dmgUp).split('d')[0]}d${String(x.dmgUp).split('d')[1]}`} : x).map((x, i) => { const base = {id: 'g' + i, name: x.n, desc: sub(x.d || ''), activation: x.act || 'action', ...(x.uses ? {usesMax: x.uses, recharge: 'long'} : {})};
       if (x.kind === 'attack') return {...base, type: 'attack', tag: 'attack', atk: G.atk, dmgList: [[dice(x.dmg), dt(x.dtype)]], detail: `+${G.atk} to hit · ${dice(x.dmg)} ${dt(x.dtype)}`};
       if (x.kind === 'save') return {...base, type: 'save', tag: 'save', dc: G.dc, saveAbility: x.save, ...(x.dmg ? {dmgList: [[dice(x.dmg), dt(x.dtype)]], halfOnSave: !!x.half} : {}), ...(x.cond ? {onFail: {conds: [{name: x.cond, ...(x.left ? {left: x.left} : {})}]}} : {}), detail: `DC ${G.dc} ${x.save.slice(0, 3)} save${x.dmg ? ' · ' + dice(x.dmg) + ' ' + dt(x.dtype) : ''}${x.cond ? ' · ' + x.cond : ''}`};
       if (x.kind === 'heal') return {...base, type: 'heal', tag: 'heal', healDice: dice(x.heal), detail: `heals ${dice(x.heal)}`};
       return {...base, type: 'info', tag: 'utility', detail: 'Posts its text to the log'}; });
     const more = (G.speedMore || []).filter(x => !x.minLvl || L >= x.minLvl).map(x => x.text).join(', ');
-    return {ac: G.ac[0] + G.ac[1] * L, hp: G.hp[0] + G.hp[1] * Math.max(0, L - (G.hp[2] || 0)), s: G.s, speed: G.speed || 30, speedExtra: more, senses: G.senses ? [G.senses] : [], res: G.res || '', ci: G.ci || '',
+    const hpA = Array.isArray(G.hp) ? G.hp : (G.hp || {})[pk[0]] || Object.values(G.hp || {})[0] || [10, 0, 0];
+    return {ac: G.ac[0] + G.ac[1] * L, hp: hpA[0] + hpA[1] * Math.max(0, L - (hpA[2] || 0)), s: G.s, speed: G.speed || 30, speedExtra: more, senses: G.senses ? [G.senses] : [], res: G.res || '', ci: G.ci || '',
       sub: `${G.size || 'Large'} ${typ || 'creature'} · spell level ${L}`, actions: acts, info: [...(G.traits || []).length ? [{h: 'Traits', items: G.traits.map(t => [t[0], sub(t[1])])}] : [], {h: 'Notes', items: [['Spell level', `Its numbers use spell level ${L}.${more ? ' ' + more + '.' : ''}`]]}]}; };
+  // A creature killed by a spell that raises it (Finger of Death): it joins the caster's side as that stat block.
+  const raiseAs = (boss, name, from) => { const m = MONSTERS.find(x => x.n === name); if (!m || !boss) { setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(from.name)}</strong> rises as a ${esc(name)}. Add its stat block by hand.`})]); return; }
+    const scores = {}, saves = {}; ABILITY_KEYS.forEach(([k, full], i) => { scores[full] = m.s[i]; saves[full] = (m.sv && m.sv[full] != null) ? m.sv[full] : mod(m.s[i]); });
+    const add = plain({id: newId(), name: `${name} (${boss.name})`.slice(0, 60), base: name, type: 'companion', sub: `${m.t}, CR ${m.cr}`, level: 1, maxHP: m.hp, currentHP: m.hp, ac: m.ac, initiative: boss.initiative || 0, initBonus: mod(m.s[1]), initFor: boss.initFor || 0, scores, saves, speed: parseInt(m.sp, 10) || 30, senses: m.se || [], conditions: [], effects: [], pb: m.pb, actions: monsterActions(m), info: monsterInfo(m), ...(boss.owner ? {owner: boss.owner} : {}), summonOf: boss.id, after: boss.id});
+    setCombatants(prev => placeByInitiative(prev, add)); };
   const giveMade = (c, b, t) => { if (!t) return; const one = {...b, id: newId(), ...(b.count ? {count: 1} : {})};
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, made: (x.made || []).map(y => y.id !== b.id ? y : {...y, count: (+y.count || 1) - 1}).filter(y => !(y.id === b.id && !(y.count > 0)))}
       : x.id === t.id ? {...x, made: (() => { const have = (x.made || []).find(y => y.kind === 'item' && y.name === b.name && y.src === b.src && b.count); return have ? x.made.map(y => y === have ? {...y, count: (+y.count || 1) + 1} : y) : [...(x.made || []), plain(one)].slice(-12); })()} : x));
@@ -3673,8 +3824,15 @@ function App() {
                 <button className={`pp-save ${prof ? 'prof' : ''}`} disabled={!ctl} title={`Roll a ${ab} saving throw${prof ? ' (proficient)' : ''}`} onClick={() => rollTest(c, 'save', ab)}><span className={`pp-o ${prof ? 'full' : ''}`}/> Save {signed(sv)}</button>
               </div>); })}
             <div className="pp-hp" data-testid="pp-hp">
+              {c.currentHP <= 0 && !c.dead ? (() => { const ds = c.death || {s: 0, f: 0}, stable = isStable(c); return (
+              <div className="pp-death" data-testid="death-tracker">
+                <div className="pp-h3" style={{margin: 0}}>{stable ? 'Stable' : 'Death Saving Throws'}</div>
+                <div><span className="pp-muted">Successes</span> {[0, 1, 2].map(i => <span key={i} className={`pp-o ${ds.s > i ? 'full' : ''}`} style={{marginLeft: 3}}/>)}</div>
+                <div><span className="pp-muted">Failures</span> {[0, 1, 2].map(i => <span key={i} className={`pp-o ${ds.f > i ? 'ex' : ''}`} style={{marginLeft: 3}}/>)}</div>
+                {ctl && !stable && <button className="pp-chip on" data-testid="death-roll" onClick={() => rollDeathSave(c)}>🎲 Roll a Death Saving Throw</button>}
+              </div>); })() : c.dead ? <div className="pp-death" data-testid="death-dead"><div className="pp-h3" style={{margin: 0}}>Dead</div></div> :
               <div className="pp-heart"><svg viewBox="0 0 100 92" aria-hidden="true"><path d="M50 88 C20 62 4 46 4 27 C4 13 15 4 27 4 C37 4 45 9 50 18 C55 9 63 4 73 4 C85 4 96 13 96 27 C96 46 80 62 50 88 Z"/></svg>
-                <div className="pp-heartval"><strong>{c.currentHP}</strong><span>HP</span></div></div>
+                <div className="pp-heartval"><strong>{c.currentHP}</strong><span>HP</span></div></div>}
               <div className="pp-hpside">
                 <div className="pp-hprow"><div><strong>{totalHP(c)}</strong><span>Total</span></div><div><strong>{+c.tempHP || 0}</strong><span>Temp</span></div></div>
                 <div className="pp-hit" title="Hit Point Dice left">Hit Dice {hitLeft}/{c.level}</div>
@@ -3690,9 +3848,8 @@ function App() {
                     <span className="pp-sn">{SKILL_SHORT[sk] || sk}</span><span className="pp-sa">{SKILL_ABILITY[sk].slice(0, 3).toUpperCase()}</span>
                   </div>); })}
               </div>
-              <div className="pp-carry"><strong>Jump</strong> {str} ft. long, {Math.max(0, 3 + mod(str))} ft. high</div>
               <div className="pp-h3">Important Items</div>
-              {(() => { const withUse = Array.from(new Set(actions.filter(a => a.item).map(a => a.item))), names = Array.from(new Set([...(sh.importantItems || []), ...withUse]));
+              {(() => { const weaponNames = new Set(actions.filter(a => a.weapon).map(a => a.name.replace(/ \(.*$/, ''))), withUse = Array.from(new Set(actions.filter(a => a.item && !a.weapon).map(a => a.item))), names = Array.from(new Set([...(sh.importantItems || []), ...withUse])).filter(n => !weaponNames.has(String(n).replace(/ \(.*$/, '')));
                 return names.length ? names.map(n => <div key={n} className="pp-center" data-testid="important-item">{n}{ctl && actions.filter(a => a.item === n).map(a => <button key={a.id} className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} style={{marginLeft: 6}} onClick={() => sel(a)}>{a.name === n ? 'Use' : a.name}{leftText(a)}</button>)}</div>)
                   : <div className="pp-center pp-muted">Items that do something, and items marked with the diamond in the builder's Inventory, show here</div>; })()}
               <div className="pp-h3">Languages</div>
@@ -3710,7 +3867,7 @@ function App() {
                   {[['Perception', 'Passive Perception'], ['Investigation', 'Passive Investigation'], ['Insight', 'Passive Insight']].map(([sk, t]) => { const v = (sh.skills || {})[sk]; const n = sk === 'Perception' && sh.pp != null ? sh.pp : 10 + (Number.isFinite(+v) ? +v : mod((c.scores || {})[SKILL_ABILITY[sk]] ?? 10)); return <div key={sk}><strong>{n}</strong><span>{t}</span></div>; })}
                 </div>
               </div>
-              <div className="pp-line"><span><strong>Senses</strong> {effectiveSenses(c).join(', ') || 'None'}</span><span><strong>Speeds</strong> {speedText(c)}</span></div>
+              <div className="pp-line"><span><strong>Senses</strong> {effectiveSenses(c).join(', ') || 'None'}</span><span><strong>Speeds</strong> {speedText(c)} &nbsp; <strong>Jump</strong> {str} ft. long, {Math.max(0, 3 + mod(str))} ft. high</span></div>
 
               {combatStarted && (() => { const turn = c.turn || {}, mine = !!(active && active.id === c.id), sp = effectiveSpeed(c), moved = +turn.moved || 0;
                 const flip = (k) => ctl && setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, turn: {...(x.turn || {}), [k]: !(x.turn || {})[k]}}));
@@ -3751,14 +3908,16 @@ function App() {
                   {ctl && <span style={{display: 'inline-flex', gap: 6}}>{inPlay.find(x => x.id === targetIds[0] && x.id !== c.id) && <button className="pp-chip on" data-testid="made-give" title="Hand it to the creature you have targeted" onClick={() => giveMade(c, b, inPlay.find(x => x.id === targetIds[0]))}>Give {b.count > 1 ? 'one' : 'it'} to {(inPlay.find(x => x.id === targetIds[0]) || {}).name}</button>}{b.use && <button className="pp-chip on" data-testid="made-use" title={`${ACTIVATIONS[b.use.act] || 'Action'}. It goes to the creature you have targeted, or to ${c.name}.`} onClick={() => useMade(c, b)}>Use one</button>}
                     <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).filter(y => y.id !== b.id)}))}>Drop</button></span>}</div>)}
                 {(c.made || []).filter(b => b.kind !== 'item' && b.kind !== 'dm').map(b => <div key={b.id} className="pp-arow" data-testid="active-made" title={b.note}><span><strong>{b.name}</strong> <span className="pp-muted">active effect you control{b.on ? ` · on ${b.on}` : ''}{+b.left > 0 ? ` · ${timeText(b.left)} left` : ''}{b.note ? ` · ${b.note}` : ''}</span></span>
-                  {ctl && <span style={{display: 'inline-flex', gap: 6}}><button className="pp-chip on" data-testid="made-move" title="Say where it is now. On the map this will be a click." onClick={() => { const w = window.prompt(`Where is ${b.name} now?`, b.on || ''); if (w != null) setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).map(y => y.id !== b.id ? y : {...y, on: w.slice(0, 80), loc: {text: w.slice(0, 80), x: null, y: null}})})); }}>Place</button>
+                  {ctl && <span style={{display: 'inline-flex', gap: 6}}>{b.count > 0 && <button className="pp-chip on" data-testid="made-count" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).map(y => y.id !== b.id ? y : {...y, count: y.count - 1}).filter(y => !(y.id === b.id && y.count <= 0))}))}>Use one ({b.count} left)</button>}<button className="pp-chip on" data-testid="made-move" title="Say where it is now. On the map this will be a click." onClick={() => { const w = window.prompt(`Where is ${b.name} now?`, b.on || ''); if (w != null) setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).map(y => y.id !== b.id ? y : {...y, on: w.slice(0, 80), loc: {text: w.slice(0, 80), x: null, y: null}})})); }}>Place</button>
                     <button className="pp-chip on" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, made: (x.made || []).filter(y => y.id !== b.id)}))}>End</button></span>}</div>)}
                 {(c.made || []).filter(b => b.kind === 'dm').map(b => <div key={b.id} className="pp-arow" data-testid="made-dm"><span><strong>{b.name}</strong> <span className="pp-muted">with the DM{+b.left > 0 ? ` · ${timeText(b.left)} left` : ''}</span></span></div>)}
                 {(c.conditions || []).map(k => { const i = condInfoOf(c, k), es = i && i.escape; return <div key={k} className="pp-arow"><span><strong>{k}</strong> <span className="pp-muted">condition{i && +i.left > 0 ? ` · ${timeText(i.left)} left` : ''}</span></span>
                   {ctl && es && <button className="pp-chip on" data-testid="escape-btn" title="Takes an action" onClick={() => tryEscape(c, es, k, null)}>Try to escape: {es.ability}{es.skill ? ` (${es.skill})` : ''} DC {es.dc}</button>}</div>; })}
                 {(c.effects || []).map(e => <div key={e.id} className="pp-arow" title={[describeEffect(e), e.note].filter(Boolean).join('. ')}><span><strong>{e.name}</strong> <span className="pp-muted">on you{e.byName && e.casterId !== c.id && e.byName !== c.name ? ` from ${e.byName}` : ''}{+e.left > 0 ? ` · ${timeText(e.left)} left` : ''}{describeEffect(e) ? ` · ${describeEffect(e)}` : ''}</span></span>{ctl && <span style={{display: 'inline-flex', gap: 6}}>
+                  {e.punish && isDM && <button className="pp-chip on" data-testid="punish-btn" title="It acted against the command" onClick={() => { const r = parseDamage(e.punish.dice); setLog(prev => [...prev, stamp({type:'attack', forId: c.id, html:`<strong>${esc(c.name)}</strong> acts against <span class="log-result">${esc(e.name)}</span><br/>${dealDamage(c, [{amount: r.total, type: e.punish.type, dice: `${e.punish.dice} = ${r.total}`}]).html}`})]); }}>It acted against it</button>}
+                  {e.saveEnds === 'action' && +e.dc > 0 && <button className="pp-chip on" data-testid="action-save" title="Uses its action" onClick={() => setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: c.id, actorId: '', actorName: e.byName || 'The spell', action: {name: `${e.name} (repeat)`, dc: e.dc, saveAbility: e.abil || 'Wisdom', endEff: e.id}})])}>Use an action to repeat the save</button>}
                   {e.escape && !(c.conditions || []).some(k => (condInfoOf(c, k) || {}).escape) && <button className="pp-chip on" data-testid="escape-btn" title="Takes an action" onClick={() => tryEscape(c, e.escape, null, e)}>Try to escape: {e.escape.ability}{e.escape.skill ? ` (${e.escape.skill})` : ''} DC {e.escape.dc}</button>}
-                  <button className="pp-chip on" data-testid={e.fromZone ? 'effect-reject' : 'effect-end'} title={e.fromZone ? 'You were not in the area: take it off and tell the table' : undefined} onClick={() => { removeEffect(c.id, e.id); if (e.fromZone) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> rejects <span class="log-result">${esc(e.name)}</span><div class="log-detail">Not in its area. The DM has the last word.</div>`})]); }}>{e.fromZone ? 'Reject' : 'End'}</button></span>}</div>)}
+                  <button className="pp-chip on" data-testid={e.fromZone ? 'effect-reject' : 'effect-end'} title={e.fromZone ? 'You were not in the area: take it off and tell the table' : undefined} onClick={() => { removeEffect(c.id, e.id); if (e.fromZone) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> rejects <span class="log-result">${esc(e.name)}</span><div class="log-detail">Not in its area. The DM has the last word.</div>`})]); }}>{e.fromZone ? 'Reject' : 'End'}</button></span>}{!ctl && e.shakeOff && <button className="pp-chip on" data-testid="shake-btn" title="Another creature uses its action" onClick={() => { removeEffect(c.id, e.id); setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> is shaken out of <span class="log-result">${esc(e.name)}</span> by another creature's action`})]); }}>Shake it out of it</button>}</div>)}
                 {inPlay.filter(x => x.id !== c.id).flatMap(x => (x.effects || []).filter(e => e.casterId === c.id || e.concBy === c.id || e.src === c.id).map(e => ({x, e}))).map(({x, e}) => (
                   <div key={e.id} className={`pp-arow ${isMovable(e) ? 'hot' : ''}`} data-testid="active-out"><span><strong>{e.name}</strong> <span className="pp-muted">on {x.name}{+e.left > 0 ? ` · ${timeText(e.left)} left` : ''}</span></span>
                     {ctl && <span style={{display: 'inline-flex', gap: 6}}>
@@ -3923,7 +4082,7 @@ function App() {
       chip('HP', `${c.currentHP} / ${totalHP(c)}${+c.tempHP > 0 ? ` +${c.tempHP} temp` : ''}`, srcEff(c, e => +e.hpMax)),
       chip('Prof', `+${c.pb || 2}`, ''),
     ];
-    if (sh.pp != null) out.push(chip('Passive Perception', sh.pp, ''));
+    if (sh.pp != null) out.push(chip('Passive Perception', sh.pp + sumEff(c, 'ppMod'), srcEff(c, e => +e.ppMod)));
     if (sh.spell) { out.push(chip('Spell Save DC', sh.spell.dc, '')); out.push(chip('Spell Attack', signed(sh.spell.attack), '')); }
     return out;
   };
@@ -3940,6 +4099,12 @@ function App() {
   // What a spell like Shillelagh can go on: the weapons on the sheet and the items carried, by name.
   const itemFits = (c, a) => { const re = new RegExp('^(' + a.needItem.re + ')', 'i'), out = actions.filter(x => x.weapon && re.test(x.name)), have = new Set(out.map(x => x.name.replace(/ \(.*$/, '')));
     (((c && c.sheet) || {}).itemsFull || []).map(i => i.name).concat(((c && c.sheet) || {}).items || []).forEach(n => { const b = String(n).replace(/ \(.*$/, ''); if (re.test(b) && !have.has(b)) { have.add(b); out.push({id: 'inv:' + b, name: b, inv: true}); } }); return out; };
+  // Writes what was chosen ("$1", "$2") into a spell's damage types and effects.
+  const fillPicks = (action, arr) => { if (!action.tpl) return action; let j = action.tpl; (arr || []).forEach((v, n) => { j = j.split('$' + (n + 1)).join(JSON.stringify(String(v)).slice(1, -1)); });
+    try { const r = JSON.parse(j), o2 = {...action};
+      if (Array.isArray(r.dmgList)) o2.dmgList = action.dmgList ? action.dmgList.map((d, n) => [d[0], String((r.dmgList[n] || d)[1] || '').slice(0, 20)]) : action.dmgList;
+      ['onHit','onFail','onSuccess','onUse'].forEach(k => { const o = cleanOutcome(r[k]); if (o) o2[k] = o; });
+      const se = (Array.isArray(r.selfEffs) ? r.selfEffs : []).map(cleanEffect).filter(Boolean); if (se.length) o2.selfEffs = se; return o2; } catch (e) { return action; } };
   const reMod = (dice, delta, die) => { const m = /^(.*?)([+-]\d+)?$/.exec(String(dice || '').replace(/\s/g, '')) || [], n = (+m[2] || 0) + delta, head = die ? String(m[1] || '').replace(/^\d+d\d+/, die) : (m[1] || ''); return head + (n > 0 ? '+' + n : n < 0 ? String(n) : ''); };
   const spellModOf = c => c && (c.sheet || {}).spell ? (+c.sheet.spell.attack || 0) - (+c.pb || 2) : 0;
   const withMode = a0 => { let a = pickMode(a0); const c = viewed; if (!a || !c) return a;
@@ -3954,8 +4119,8 @@ function App() {
       return {...w, id: a.id, name: `${a.name} (${w.name})`.slice(0, 80), spell: true, slot: 0, activation: a.activation, comp: a.comp, mat: a.mat, gp: a.gp, choices: a.choices, viaWeapon: a.viaWeapon, desc: a.desc, tgt: a.tgt, range: a.range, hand: '', atk: (+w.atk || 0) + delta,
         dmgList: [[reMod(own[0], delta), type], ...(w.dmgList || []).slice(1), ...(a.viaWeapon.extra ? [[a.viaWeapon.extra, a.viaWeapon.type]] : [])]}; }
     const wb = a.weapon && !a.ranged ? effs(c).find(e => e.wpn && new RegExp('^(' + e.wpn.re + ')', 'i').test(a.name)) : null;
-    if (wb) { const delta = Math.max(0, wb.wpn.mod - mod((c.scores || {})[a.abil] || 10)), own = (a.dmgList || [])[0]; // Shillelagh: the better of the two abilities, and its own damage die
-      if (own) return {...a, atk: (+a.atk || 0) + delta, dmgList: [[reMod(own[0], delta, wb.wpn.die), own[1]], ...a.dmgList.slice(1)], buffBy: wb.name}; }
+    if (wb) { const delta = (wb.wpn.keepMod ? 0 : Math.max(0, wb.wpn.mod - mod((c.scores || {})[a.abil] || 10))) + (+wb.wpn.bonus || 0), own = (a.dmgList || [])[0]; // Shillelagh: the better of the two abilities, and its own damage die
+      if (own) return {...a, atk: (+a.atk || 0) + delta, dmgList: [[reMod(own[0], delta, wb.wpn.die || ''), own[1]], ...a.dmgList.slice(1)], buffBy: wb.name}; }
     return a; };
   const selAction = withMode(actions.find(a => a.id === selectedAction));
   const needsTargetNow = selAction && !['selfheal','info'].includes(selAction.type) && !selAction.self;
@@ -3963,6 +4128,9 @@ function App() {
   // Why the chosen action cannot be done right now, in words, or '' when it can.
   const effectBlock = (c, a) => { if (!c || !a) return ''; const nc = a.spell && effs(c).find(e => e.noCast), na = (['action', 'bonus'].includes(a.activation || 'action') && effs(c).find(e => e.noAct)) || (a.activation === 'bonus' && effs(c).find(e => e.noBonus));
     if (nc) return `${c.name} can't cast spells (${nc.name}).`; if (na) return `${c.name} can't take ${na.noBonus && !na.noAct ? 'Bonus Actions' : 'actions'} (${na.name}).`;
+    if (a.type === 'attack' && effs(c).some(e => e.noAttack)) return `${c.name} can't attack (${effs(c).find(e => e.noAttack).name}).`;
+    if (effs(c).some(e => e.actOrBonus) && ((c.turn || {}).a && a.activation === 'bonus' || (c.turn || {}).b && (a.activation || 'action') === 'action')) return `${c.name} can take an action or a Bonus Action this turn, not both (${effs(c).find(e => e.actOrBonus).name}).`;
+    if (a.afterMeleeHit && !(c.turn || {}).meleeHit) return `${a.name} is cast right after hitting with a melee weapon or an Unarmed Strike, and ${c.name} has not hit with one this turn.`;
     if (a.sight && hasCond(c, 'Blinded')) return `${c.name} is Blinded and ${a.name} needs a target it can see.`;
     if (a.needItem && (a.itemName === '' || (a.itemName === undefined && !itemFits(c, a).length))) return `No target available: ${a.name} works on a ${a.needItem.re.split('|').join(' or ')} ${c.name} is holding, and ${c.name} has neither.`;
     if (a.needItem && a.itemName && a.itemHeld === false && handsOn && !c.handsIgnore) return `${a.name} works on a weapon ${c.name} is holding, and the ${a.itemName} is not in hand.`;
@@ -3980,7 +4148,8 @@ function App() {
     : (selAction.modes && modePick[selAction.id] == null) ? 'Choose which version to use'
     : (selAction.viaWeapon && !selAction.weapon) ? 'Choose the weapon it is cast with'
     : (selAction.storeSpell && !storeOptions(selAction).some(x => x.id === storePick[selAction.id])) ? 'Choose the spell to store in it'
-    : (selAction.choices && selAction.choices.some((c, i) => choiceNeeded(selAction, i) && !((picks[selAction.id] || [])[i]))) ? `Choose: ${selAction.choices.filter((c, i) => choiceNeeded(selAction, i) && !((picks[selAction.id] || [])[i])).map(c => c.label).join(', ')}`
+    : (selAction.choicePerTarget && selAction.choices && targetIds.some(tid => !((picks[selAction.id + ':' + tid] || [])[0]))) ? `Choose: ${selAction.choices[0].label} for each target`
+    : (!selAction.choicePerTarget && selAction.choices && selAction.choices.some((c, i) => choiceNeeded(selAction, i) && !((picks[selAction.id] || [])[i]))) ? `Choose: ${selAction.choices.filter((c, i) => choiceNeeded(selAction, i) && !((picks[selAction.id] || [])[i])).map(c => c.label).join(', ')}`
     : (selAction.slot > 0 && castOptions(viewed, selAction).length === 0 && !selAction.ritual) ? (selAction.pointCosts ? `Not enough ${selAction.pool}` : 'No spell slot left') : '';
   // An attack goes in steps when the table rule is on: declare it, roll it, the target sees the roll, then it applies.
   const stepWanted = !!(stepOn && freeT == null && selAction && selAction.type === 'attack' && !selAction.self && inPlay.find(c => c.id === targetIds[0]));
@@ -4080,8 +4249,8 @@ function App() {
   // What is waiting on this person: Reactions they can take, and rolls they are asked to make. These pop up in the middle of the screen.
   const myAskIds = [...flowPrompts.filter(({q, c}) => canControl(c) && ((q.kind === 'incoming' && q.react && !q.answer) || (q.kind === 'confirm' && !q.answer) || (q.kind === 'offer' && reactionsFor(c, q.ev).length > 0))).map(x => x.q.id),
     ...openPrompts.filter(({c}) => canControl(c)).map(x => x.q.id)];
-  const sidePrompts = prompts.filter(q => q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time' || q.kind === 'escape').map(q => ({q, c: combatants.find(x => x.id === q.targetId)})).filter(x => x.c);
-  sidePrompts.forEach(({q, c}) => { if (((q.kind === 'askdm' || q.kind === 'time') && isDM) || ((q.kind === 'form' || q.kind === 'escape') && canControl(c))) myAskIds.push(q.id); });
+  const sidePrompts = prompts.filter(q => q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time' || q.kind === 'escape' || q.kind === 'death').map(q => ({q, c: combatants.find(x => x.id === q.targetId)})).filter(x => x.c);
+  sidePrompts.forEach(({q, c}) => { if (((q.kind === 'askdm' || q.kind === 'time') && isDM) || ((q.kind === 'form' || q.kind === 'escape' || q.kind === 'death') && canControl(c))) myAskIds.push(q.id); });
   const askKey = myAskIds.join(','), askPop = myAskIds.length > 0 && askLater !== askKey && !targeting;
   const targets = inPlay.filter(c => viewed && c.id !== viewed.id && c.currentHP > 0);
   // Who can be picked for the chosen action: yourself too when it allows that, and creatures at 0 Hit Points for things that help.
@@ -4248,7 +4417,11 @@ function App() {
                 <span className="p-btns">{react}{noR}</span>
               </div>);
           })}
-          {sidePrompts.map(({q, c}) => q.kind === 'escape' ? (
+          {sidePrompts.map(({q, c}) => q.kind === 'death' ? (c.currentHP > 0 || c.dead || isStable(c) ? null :
+            <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`} data-testid="prompt-death">
+              <span><strong>{c.name}</strong> is at 0 Hit Points: roll a Death Saving Throw. ({(c.death || {}).s || 0} successes, {(c.death || {}).f || 0} failures)</span>
+              {canControl(c) ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="death-go" onClick={() => { removePrompt(q.id); rollDeathSave(c); }}>🎲 Roll it</button></span> : <span className="prompt-wait">Waiting for its player</span>}
+            </div>) : q.kind === 'escape' ? (
             <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`} data-testid="prompt-escape">
               <span><strong>{c.name}</strong> is held by <strong>{q.what}</strong>. It can take an action to try to get free: {q.es.ability}{q.es.skill ? ` (${q.es.skill})` : ''} check, DC {q.es.dc}.</span>
               {canControl(c) ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="escape-go" onClick={() => { removePrompt(q.id); setTimeout(() => tryEscape(c, q.es, q.cond || null, q.effId ? (c.effects || []).find(e => e.id === q.effId) : null), 450); }}>🎲 Try to escape</button>
@@ -4610,7 +4783,16 @@ function App() {
                   </div>
                 )}
                 {selAction && selAction.buffBy && <div className="buff-note" data-testid="buff-line" style={{marginTop:8}}>{selAction.buffBy} is on this weapon: +{selAction.atk} to hit, {selAction.dmgList[0][0]} damage.</div>}
-                {selAction && (selAction.choices || []).map((ch, i) => !choiceNeeded(selAction, i) ? null : (
+                {selAction && selAction.type === 'attack' && viewed && effs(viewed).find(e => e.atkDmg && e.atkDmg.types) && (() => { const e = effs(viewed).find(x => x.atkDmg && x.atkDmg.types); return (
+                  <div className="manual-roll" data-testid="elem-box"><span className="label">{e.name}: damage type for this attack</span>
+                    <select aria-label="Damage type for this attack" value={elemType || e.atkDmg.type} onChange={ev => setElemType(ev.target.value)} style={{width:'100%', background:'#0F1923', border:'1px solid #3d5166', color:'var(--parchment)', padding:'6px 8px', borderRadius:4}}>{e.atkDmg.types.map(t => <option key={t} value={t}>{t}</option>)}</select></div>); })()}
+                {selAction && selAction.choicePerTarget && (selAction.choices || []).length > 0 && targetIds.map(tid => { const t = inPlay.find(c => c.id === tid); if (!t) return null; const ch = selAction.choices[0]; return (
+                  <div className="manual-roll" key={'pt' + tid} data-testid="choice-per-target"><span className="label">{ch.label} for {t.name}</span>
+                    <select aria-label={`${ch.label} for ${t.name}`} value={(picks[selAction.id + ':' + tid] || [])[0] || ''} onChange={e => setPicks({...picks, [selAction.id + ':' + tid]: [e.target.value]})} style={{width:'100%', background:'#0F1923', border:'1px solid #3d5166', color:'var(--parchment)', padding:'6px 8px', borderRadius:4}}><option value="">Choose</option>{ch.options.map(o => <option key={o} value={o}>{o}</option>)}</select></div>); })}
+                {selAction && !selAction.choicePerTarget && (selAction.choices || []).map((ch, i) => !choiceNeeded(selAction, i) ? null : ch.multi ? (
+                  <div className="manual-roll" key={'ch' + i} data-testid="choice-box"><span className="label">{ch.label} (one or more)</span>
+                    <div className="advantage-row" style={{flexWrap: 'wrap'}}>{ch.options.map(o => { const cur = String((picks[selAction.id] || [])[i] || '').split('|').filter(Boolean), on = cur.includes(o); return <div key={o} data-testid={'choice-multi-' + i} className={`adv-btn ${on ? 'active-adv' : ''}`} onClick={() => { const nx = on ? cur.filter(x => x !== o) : [...cur, o], arr = [...(picks[selAction.id] || [])]; arr[i] = nx.join('|'); setPicks({...picks, [selAction.id]: arr}); }}>{o}</div>; })}</div>
+                  </div>) : (
                   <div className="manual-roll" key={'ch' + i} data-testid="choice-box">
                     <span className="label">{ch.label}</span>
                     <select aria-label={ch.label} data-testid={'choice-' + i} value={(picks[selAction.id] || [])[i] || ''} onChange={e => { const cur = [...(picks[selAction.id] || [])]; cur[i] = e.target.value; setPicks({...picks, [selAction.id]: cur}); }}
@@ -5040,7 +5222,8 @@ function App() {
               initiative: boss.initiative || 0, initBonus: m ? mod(m.s[1]) : g ? mod(g.s[1]) : 0, initFor: boss.initFor || 0, scores, saves, speed: m ? (parseInt(m.sp, 10) || 0) : g ? g.speed : 30, ...(g && g.speedExtra ? {speedExtra: g.speedExtra} : {}), senses: m ? (m.se || []) : g ? g.senses : [], ...(g && g.res ? {res: g.res} : {}), ...(g && g.ci ? {ci: g.ci} : {}), conditions: [], effects: [],
               pb: m ? m.pb : (boss.pb || 2), actions: m ? monsterActions(m) : g ? g.actions : [], info: m ? monsterInfo(m) : g ? g.info : [], ...(boss.owner ? {owner: boss.owner} : {}), ...(boss.type === 'monster' ? {type: 'monster', rel: boss.rel || 'hostile'} : {}), summonOf: boss.id, blockId: bid, after: boss.id});
             const sc = blockPick.sctl || null, secs = +blockPick.left || 0;
-            add.effects = [plain({id: newId(), name: 'Summoned', note: `Brought here by ${boss.name}${blockPick.source ? ` with ${blockPick.source}` : ''}. ${sc && sc.cmd ? `${boss.name} commands it with ${sc.cmd === 'bonus' ? 'a Bonus Action' : 'an action'}.` : 'It acts on its own turn.'}${blockPick.conc ? ' It lasts while the Concentration holds.' : ''}`, casterId: boss.id, src: boss.id, ...(secs > 0 ? {left: secs} : {}), ...(blockPick.conc ? {concBy: boss.id, conc: true} : {})})];
+            if (sc && +sc.speed > 0) add.speed = +sc.speed;
+            add.effects = [plain({id: newId(), ...(sc && sc.lifeBond ? {lifeBond: true} : {}), ...(sc && sc.endsOnDamage ? {endsOnDamage: true} : {}), ...(sc && sc.noAttack ? {noAttack: true} : {}), name: 'Summoned', note: `Brought here by ${boss.name}${blockPick.source ? ` with ${blockPick.source}` : ''}. ${sc && sc.cmd ? `${boss.name} commands it with ${sc.cmd === 'bonus' ? 'a Bonus Action' : 'an action'}.` : 'It acts on its own turn.'}${blockPick.conc ? ' It lasts while the Concentration holds.' : ''}`, casterId: boss.id, src: boss.id, ...(secs > 0 ? {left: secs} : {}), ...(blockPick.conc ? {concBy: boss.id, conc: true} : {})})];
             if (sc && sc.after === false) { const r = rollD(20); delete add.after; add.initiative = r + add.initBonus; add.ownInit = true; }
           }
           const cmd = add && blockPick.sctl && blockPick.sctl.cmd ? plain({id: newId(), name: `Command ${n}`.slice(0, 60), act: blockPick.sctl.cmd, conc: blockPick.conc || '', usedAt: '', cmd: true, blockId: bid, a: {type: 'info', name: `Command ${n}`.slice(0, 60), desc: `Tell ${n} what to do on its turn. If you give no command, it takes the Dodge action and moves only to avoid danger.`}}) : null;
@@ -5049,7 +5232,7 @@ function App() {
           else if (form) setLog(prev => [...prev, stamp({type:'roll', forId: blockPick.cId, html:`<strong>${esc(boss ? boss.name : 'The target')}</strong> takes the form of <span class="log-result">${esc(n)}</span>`})]);
           if (add && add.ownInit) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(add.name)}</strong> rolls its own Initiative: <span class="log-result">${add.initiative}</span>`})]);
           setCombatants(prev => { const next = prev.map(x => x.id !== blockPick.cId ? x : {...x, blocks: [...(x.blocks || []), plain({id: bid, name: n, kind: blockPick.kind, source: blockPick.source || '', conc: blockPick.conc || '', left: blockPick.left || 0, ...(blockPick.by && blockPick.by !== blockPick.cId ? {concBy: blockPick.by} : {})})].slice(-8), ...(fm ? {tempHP: Math.max(+x.tempHP || 0, fm)} : {}), ...(cmd ? {running: [...(x.running || []), cmd].slice(-6)} : {})}); return add ? placeByInitiative(next, add) : next; });
-          setSheetTab('blocks'); setBlockPick(null); };
+          setSheetTab('blocks'); if (+blockPick.count > 1) setBlockPick({...blockPick, count: +blockPick.count - 1}); else setBlockPick(null); };
         return (
         <div className="modal-overlay" onClick={() => setBlockPick(null)}>
           <div className="modal" data-testid="block-modal" onClick={e => e.stopPropagation()} style={{maxWidth: 520}}>
@@ -5064,6 +5247,7 @@ function App() {
                 {list.length === 0 && <div className="empty-state">Nothing in the roster by that name. You can still use the name you typed.</div>}
               </div>
               {!form && <div className="buff-note">It joins the Initiative order straight after you, folded away. If it has no stat block here, give it: Hit Points <input type="number" min="1" aria-label="Summoned creature Hit Points" value={blockPick.hp || ''} placeholder="10" onChange={e => setBlockPick({...blockPick, hp: e.target.value})} style={{width: 60}}/> AC <input type="number" min="1" aria-label="Summoned creature AC" value={blockPick.ac || ''} placeholder="10" onChange={e => setBlockPick({...blockPick, ac: e.target.value})} style={{width: 54}}/></div>}
+              {+blockPick.count > 1 && <div className="buff-note" data-testid="block-count">{blockPick.count} still to bring in: pick each one.</div>}
               <div className="do-row"><button className="btn btn-primary" data-testid="block-use-name" disabled={!(blockPick.q || '').trim()} onClick={() => pick(blockPick.q)}>Use the name I typed</button><button className="btn btn-ghost btn-sm" onClick={() => setBlockPick(null)}>Skip</button></div>
             </div>
           </div>

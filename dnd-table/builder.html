@@ -303,6 +303,43 @@ The "extras" object (include only the keys that apply):
 - "viaWeapon": the spell is an attack made with a weapon the caster holds, using the spellcasting ability (True Strike): {"byLevel": true if it adds 1d6, 2d6 and 3d6 extra damage at character levels 5, 11 and 17, "type": the extra damage type}. The player then picks the weapon when casting.
 - "weaponBuff": the spell changes how a held weapon attacks while it lasts (Shillelagh): {"weapons": "Club|Quarterstaff" (weapon names, separated by |), "die": "1d8" (its new damage die), "byLevel": true if the die grows at levels 5, 11 and 17, "type": a damage type it may deal instead}.
 - "castRoll": a die rolled once when the spell is cast, shown to the table: {"dice": "1d4+1", "text": "what the number means"}.
+- "castRoll" may add "extraTurns": true: the caster takes that many turns in a row while no time passes for anyone else (Time Stop).
+- "drain": "half" or "full": the caster regains Hit Points equal to that share of the damage dealt (Vampiric Touch).
+- "hpMaxDrain": true: the target's Hit Point maximum drops by the damage it takes, until it finishes a Long Rest (Harm).
+- "onKill": {"dust": true} when a creature dropped to 0 Hit Points by it is disintegrated, or {"summon": "Zombie", "types": ["Humanoid"]} when it rises under the caster's control.
+- "afterMeleeHit": true: it can only be cast right after the caster hits with a melee weapon or an Unarmed Strike (Divine Smite).
+- "deferred": true: casting it sets it, and nothing happens until the caster uses it from Active (Delayed Blast Fireball). "grow": "1d6": its first damage grows by this at the end of each of the caster's turns until then.
+- "healPool": 700: the healing is one pool the caster divides among the targets (Mass Heal).
+- "grant": the target (or the caster) gains an action it can use from Active while the spell lasts: {"name": "Dragon's Breath", "act": "action" or "bonus", "self": true if the caster gains it, "save": "Dexterity", "dmg": [["3d6", "$1"]], "half": true, "area": {...}, "attack": true for an attack roll with the spell attack bonus, "ranged": true, "heal": "1d8", "desc": "its text"}. Alter Self's natural weapons are {"attack": true, "dmg": [["1d6+SPELLMOD", "$1"]]}.
+- "leap": true: when two damage dice show the same number, it can be used again on a new target (Chromatic Orb).
+- "explode": {"die": 8}: each die that rolls its top number adds another die, up to the spellcasting modifier (Sorcerous Burst).
+- "choicePerTarget": true: the first choice is made separately for each target (Enhance Ability).
+- "randomMode": {"die": 8, "twice": 8}: each target rolls the die and gets the version with that number, versions listed in die order; on the "twice" number it gets two other versions (Prismatic Spray).
+- "countCasts": true: casts are counted until a Long Rest and the count is shown (Divination).
+- "weaponBuff" may instead be {"weapons": "" for any weapon, "bonus": 1, "keepMod": true}: a flat bonus to attack and damage rolls with the one weapon the caster picks (Magic Weapon). A bonus that grows with the slot goes in "effBySlot": [[3, {"wpnBonus": 2}], [6, {"wpnBonus": 3}]].
+- "auto" may add "disTypes": ["Construct"]: creatures of those types have Disadvantage on the save (Shatter).
+- "summonCtl" may add: "lifeBond": true (the caster drops when it does), "endsOnDamage": true (it vanishes when it takes damage), "noAttack": true, "speed": 100, "count": 4 or "SPELLMOD", "countBy": {"Large": 2, "Huge": 3} (how many of the count one creature of that choice uses up, Animate Objects), "statByChoice": {"Corpse (Zombie)": "Zombie"} (the stat block follows the first choice), "statBySlot": [[8, "Ghast"], [9, "Wight"]], and "block": a stat block printed in the spell itself. In "block", "hp" may be an object keyed by the choice ({"Large": [20, 0, 0]}), each action may have "only": the choice it belongs to, and "dmgUp": "1d4" with "upFrom": 5 when its damage grows per slot above that level. Monster names for "statBlock" are the SRD 5.2.1 names.
+- A choice may add "multi": true when the caster picks several options at once (Magic Circle's creature types).
+More effect keys (inside "effs" / "selfEffs"):
+- "noOA": can't make Opportunity Attacks. "noStand": can't end the Prone condition on itself. "noAttack": can't make attacks. "endsAt0": the effect ends if the creature drops to 0 Hit Points.
+- "seeInvisible": it sees Invisible creatures. "noSlow": its Speed can't be reduced by magic. "actOrBonus": on its turn it takes an action or a Bonus Action, not both.
+- "noInvisibleVs": it gains nothing from being Invisible against the caster. "unlessSight": with "disAgainst", attackers with Blindsight or Truesight, or who are Blinded, ignore it (Blur).
+- "shakeOff": another creature can take an action to end it. "endsOnSpell": it ends if the creature is targeted by another spell. "untilLongRest": it lasts until the creature finishes a Long Rest. "oneAtATime": only one creature can have it from the caster at once; casting again moves it.
+- "deathAdv": Advantage on Death Saving Throws. "atkDisAbil": "Strength": Disadvantage only on attack rolls that use that ability. "checkAdvSkill": "Intimidation": Advantage on checks with that one skill. "saveAdvVs": "Poisoned": Advantage on saves against that condition.
+- "saveAbil": "Dexterity" with "saveAbilMod": -2: a bonus or penalty to saving throws of that one ability (Slow).
+- "minRoll": {"abil": "Charisma", "kind": "check" or "save", "value": 15}: a d20 roll lower than that counts as that number.
+- "immuneSpell": "Magic Missile": takes no damage from that spell. "bondTo": true: the caster takes the same damage this creature takes (Warding Bond).
+- "castFail": {"comp": "S", "dc": 6}: when it casts a spell with that component, a d20 below that number means the spell fails.
+- "ppMod": -10: added to its Passive Perception. "punish": {"dice": "5d10", "type": "Psychic"}: the DM gets a button to deal this when the creature acts against the spell's command.
+- "turnSave": {"abil": "Wisdom", "when": "start", "text": "what a failure means"}: a save each turn that does not end the effect; a failure is logged with that text.
+- "condImmuneFrom": {"conds": ["Charmed", "Frightened"], "types": ["Fiend", "Undead"]}: creatures of those types can't give it those conditions. "disAgainstTypes": ["Aberration"]: attackers of those types have Disadvantage against it.
+- "saveEnds": "action": instead of a save each turn, it can take an action to repeat the save. "atkDmg" may add "types": ["Acid", "Cold"]: the damage type is picked for each attack.
+More result keys (inside onHit / onFail / onSuccess / onUse, next to "conds" and "effs"):
+- "useReaction": true: its Reaction is used up. "endForm": true: it returns to its true form.
+- "hpUp": "2d10": its Hit Point maximum rises by the roll and it gains that many Hit Points for the spell's duration.
+- "setScores": {"Intelligence": 10}: those ability scores become that value.
+- "clone": {"hpFactor": 0.5, "type": "Construct"}: a copy of the target joins under the caster with that share of its Hit Point maximum.
+- A condition may add "resistRemoval": "Constitution": when something would end it, the creature must succeed on that save or it stays (Contagion).
 - "cannot": if, after all of this, part of the spell still cannot be expressed, one short sentence saying exactly what and why. Leave it out if nothing.
 MAP FEATURES. Everything with a range, an area, a created thing, an object or a spot as its target, or forced movement is something the map will place later, and the app tags it from "range", "area", "targets" and "zone" with no extra key. So always fill those four exactly, even though the app does not measure distance yet: that is what lets it be clicked and placed on the map later with no rewrite. Until then everything is entered by hand: the caster picks the creatures in the area, anything that needs a save is rolled at once, a spell that works on an object or a spot asks the caster to type what it is cast on, a created effect can be placed and re-placed by typing where it is, and an area that stays in play ("zone") can be applied to more creatures later (the affected player can reject it). If the text says the target must be one "that you can see", the app works that out from the text: write nothing for it.
 WHEN SOMETHING CANNOT BE DONE. Never write a rule that forbids a use (a missing component, a condition that stops casting, a wrong target). The app greys the option out, says why, and lets the table go ahead with a flag in the log. Your job is only to record the requirement (components, "targetLimit", "cost") exactly.
@@ -4112,9 +4149,9 @@ function spellAction(sp, ctx, opts) {
 // ── Spells with a full record (spells.js "f") ──
 // Every effect, when it happens, who it can target (count, size, creature type), range and area are all carried
 // onto the sheet, so the Combat Resolver can apply them now and a map can use the distances later.
-const FULL_EFF_KEYS = ["ac", "acMin", "acBase", "speed", "speedMult", "speedZero", "init", "d20", "atk", "save", "saveAdv", "saveDis", "checkAdv", "checkDis", "atkDis", "advAgainst", "disAgainst",
+const FULL_EFF_KEYS = ["ac", "acMin", "acBase", "speed", "speedMult", "speedZero", "init", "d20", "atk", "save", "saveAdv", "saveDis", "saveAbil", "saveAbilMod", "checkAdv", "checkDis", "atkDis", "advAgainst", "disAgainst",
   "noInvisible", "bonusDmg", "bonusType", "fromCaster", "resist", "resistType", "immuneDmg", "vuln", "immune", "condImmune", "tempEachTurn", "hpMax", "sizeStep", "noReact", "noHeal", "sense", "move", "weaponDmg", "weaponDmgType",
-  "ward0", "sanctuary", "images", "endsOnAct", "endsOnDamage", "saveEnds", "endsOnAttack", "endsWhenAttacked", "noCast", "noAct", "saveOnDamage", "away", "healEachTurn", "turnDmg", "noBonus", "atkDisVs", "maxHeal", "noHpMaxDown", "healAt0", "breakConc", "turnOfCaster", "endsOnDamageBy", "noAgain", "restShrink", "onEnd", "retaliate", "atkDmg", "failDmg", "weaponAtk", "stable", "dashBonus", "protect", "extraAction", "turnRoll", "kill"];
+  "ward0", "sanctuary", "images", "endsOnAct", "endsOnDamage", "saveEnds", "endsOnAttack", "endsWhenAttacked", "noCast", "noAct", "saveOnDamage", "away", "healEachTurn", "turnDmg", "noBonus", "atkDisVs", "maxHeal", "noHpMaxDown", "healAt0", "breakConc", "turnOfCaster", "endsOnDamageBy", "noAgain", "restShrink", "onEnd", "retaliate", "atkDmg", "failDmg", "noOA", "noStand", "noAttack", "endsAt0", "seeInvisible", "noSlow", "actOrBonus", "noInvisibleVs", "unlessSight", "shakeOff", "endsOnSpell", "untilLongRest", "oneAtATime", "lifeBond", "deathAdv", "atkDisAbil", "checkAdvSkill", "saveAdvVs", "minRoll", "immuneSpell", "bondTo", "castFail", "ppMod", "punish", "turnSave", "condImmuneFrom", "disAgainstTypes", "weaponAtk", "stable", "dashBonus", "protect", "extraAction", "turnRoll", "kill"];
 const FULL_ABILITIES = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"];
 const FULL_CONDS = ["Blinded", "Charmed", "Deafened", "Frightened", "Grappled", "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone", "Restrained", "Stunned", "Unconscious"];
 function fullEffect(e, sp, f) {
@@ -4136,12 +4173,13 @@ function fullEffect(e, sp, f) {
 }
 function fullOutcome(o, sp, f) {
   if (!o) return null;
-  const conds = (o.conds || []).filter((c) => c && (FULL_CONDS.includes(c.name) || /^\$[12]$/.test(String(c.name)))).map((c) => ({ name: c.name, ...(f.dur > 0 ? { left: f.dur } : {}), ...(c.repeat === "end" || c.repeat === "start" ? { when: c.repeat } : {}), ...(c.onDamage ? { onDamage: true } : {}), ...(c.endsOnDamageBy ? { endsOnDamageBy: "caster" } : {}), ...(c.failDmg ? { failDmg: c.failDmg } : {}), ...(c.failCond ? { failCond: c.failCond } : {}), ...(+c.tally > 0 ? { tally: +c.tally } : {}), ...(+c.secs > 0 ? { left: +c.secs } : {}) }));
+  const conds = (o.conds || []).filter((c) => c && (FULL_CONDS.includes(c.name) || /^\$[12]$/.test(String(c.name)))).map((c) => ({ name: c.name, ...(f.dur > 0 ? { left: f.dur } : {}), ...(c.repeat === "end" || c.repeat === "start" ? { when: c.repeat } : {}), ...(c.onDamage ? { onDamage: true } : {}), ...(c.endsOnDamageBy ? { endsOnDamageBy: "caster" } : {}), ...(c.failDmg ? { failDmg: c.failDmg } : {}), ...(c.failCond ? { failCond: c.failCond } : {}), ...(+c.tally > 0 ? { tally: +c.tally } : {}), ...(c.resistRemoval ? { resistRemoval: c.resistRemoval } : {}), ...(+c.secs > 0 ? { left: +c.secs } : {}) }));
   const effs = (o.effs || []).filter(Boolean).map((e) => fullEffect(e, sp, f));
   const out = {};
   if (conds.length) out.conds = conds.slice(0, 4);
   if (effs.length) out.effs = effs.slice(0, 4);
   if (o.kill) out.kill = true;
+  ["useReaction", "endForm", "hpUp", "setScores", "clone"].forEach((k) => { if (o[k]) out[k] = o[k]; });
   return Object.keys(out).length ? out : null;
 }
 function fullSpellAction(sp, ctx, opts) {
@@ -4215,17 +4253,21 @@ function fullSpellAction(sp, ctx, opts) {
   // ── the fuller protocol: ritual, cost, choices, modes, Hit Point bands, several attacks, removing, asking the DM, summoning, forms, movement, zones ──
   if (sp.rit) out.ritual = true;
   if (x.cost && +x.cost.gp > 0) { out.gp = +x.cost.gp; if (x.cost.consumed) out.gpConsumed = true; }
-  if (Array.isArray(x.choices) && x.choices.length && !x.remove) out.choices = x.choices.slice(0, 2).map((c) => ({ label: String(c.label || "Choice").slice(0, 30), options: (c.options || []).map((v) => String(v).slice(0, 40)).slice(0, 30) })).filter((c) => c.options.length);
+  if (Array.isArray(x.choices) && x.choices.length && !x.remove) out.choices = x.choices.slice(0, 2).map((c) => ({ label: String(c.label || "Choice").slice(0, 30), options: (c.options || []).map((v) => String(v).slice(0, 40)).slice(0, 30), ...(c.multi ? { multi: true } : {}) })).filter((c) => c.options.length);
   if (x.viaWeapon) { // the spell is an attack made with a weapon the caster holds (True Strike)
     out.type = "attack"; out.atk = ctx.SPELLATK; delete out.ranged; delete out.dmgList;
     out.viaWeapon = { extra: x.viaWeapon.byLevel ? (ctx.LEVEL >= 17 ? "3d6" : ctx.LEVEL >= 11 ? "2d6" : ctx.LEVEL >= 5 ? "1d6" : "") : "", type: String(x.viaWeapon.type || "Radiant") };
   }
-  if (x.weaponBuff && out.onUse && (out.onUse.effs || []).length) { // the spell changes how a held weapon attacks (Shillelagh)
+  if (x.weaponBuff && x.weaponBuff.keepMod && !(out.onUse && (out.onUse.effs || []).length)) out.onUse = { ...(out.onUse || {}), conds: (out.onUse || {}).conds || [], effs: [{ name: sp.n }] };
+  if (x.weaponBuff && x.weaponBuff.keepMod && out.onUse && (out.onUse.effs || []).length) { // a flat bonus on one weapon (Magic Weapon)
+    out.onUse = { ...out.onUse, effs: [{ ...out.onUse.effs[0], wpn: { re: String(x.weaponBuff.weapons || ""), bonus: +x.weaponBuff.bonus || 1, useMod: false } }, ...out.onUse.effs.slice(1)] };
+    out.needItem = { re: String(x.weaponBuff.weapons || "") };
+  } else if (x.weaponBuff && out.onUse && (out.onUse.effs || []).length) { // the spell changes how a held weapon attacks (Shillelagh)
     const die = x.weaponBuff.byLevel ? (ctx.LEVEL >= 17 ? "2d6" : ctx.LEVEL >= 11 ? "1d12" : ctx.LEVEL >= 5 ? "1d10" : x.weaponBuff.die) : x.weaponBuff.die;
     out.onUse = { ...out.onUse, effs: [{ ...out.onUse.effs[0], wpn: { re: String(x.weaponBuff.weapons || ""), die: String(die || ""), mod: ctx.SPELLMOD, type: String(x.weaponBuff.type || "") } }, ...out.onUse.effs.slice(1)] };
   }
   if (x.saveAdvIf) out.advIf = String(x.saveAdvIf).slice(0, 160);
-  if (x.weaponBuff && x.weaponBuff.weapons) out.needItem = { re: String(x.weaponBuff.weapons) };
+  if (x.weaponBuff && !out.needItem) out.needItem = { re: String(x.weaponBuff.weapons || "") };
   if (Array.isArray(x.creates) && x.creates.length) out.creates = x.creates.slice(0, 4).map((c) => ({ name: String(c.name || sp.n).slice(0, 60), note: String(c.note || "").slice(0, 300), left: Math.max(0, +c.secs || 0), kind: c.kind === "item" ? "item" : "effect", ...(+c.count > 0 ? { count: +c.count } : {}), ...(c.spoil ? { spoil: String(c.spoil) } : {}), ...(c.use ? { use: c.use } : {}) }));
   if (["object", "point", "creature or object"].includes(t.kind) && (out.type === "info" || t.kind !== "creature or object")) out.castOn = true; // it works on a thing or a spot: the caster says which
   if (x.message) out.message = true;
@@ -4235,6 +4277,15 @@ function fullSpellAction(sp, ctx, opts) {
   if (x.upTurn) out.upTurn = String(x.upTurn);
   if (x.auto) out.auto = x.auto; // some creatures fail or pass the save without rolling
   if (Array.isArray(x.targetsBySlot)) out.targetsBySlot = x.targetsBySlot;
+  ["drain", "hpMaxDrain", "onKill", "afterMeleeHit", "deferred", "grow", "healPool", "leap", "choicePerTarget", "randomMode", "countCasts"].forEach((k) => { if (x[k]) out[k] = x[k]; });
+  if (x.explode) out.explode = { die: +x.explode.die || 8, max: Math.max(0, ctx.SPELLMOD) }; // extra dice up to the spellcasting modifier
+  if (x.grant && x.grant.name) { const g = x.grant, a = { type: g.attack ? "attack" : g.save ? "save" : g.heal ? "heal" : "info", desc: String(g.desc || "").slice(0, 400) }; // something the target can now do itself
+    if (g.attack) { a.atk = ctx.SPELLATK; if (g.ranged) a.ranged = true; }
+    if (g.save) { a.saveAbility = g.save; a.dc = ctx.SPELLDC; if (g.half) a.halfOnSave = true; }
+    if (Array.isArray(g.dmg)) a.dmgList = g.dmg.map((d) => [String(d[0]).includes("SPELLMOD") ? (evalDice(String(d[0]), ctx) || d[0]) : String(d[0]), String(d[1] || "")]);
+    if (g.heal) a.healDice = evalDice(String(g.heal), ctx) || String(g.heal);
+    if (g.area) a.area = g.area;
+    out.grant = { name: String(g.name).slice(0, 60), act: ["action", "bonus", "reaction"].includes(g.act) ? g.act : "action", self: !!g.self, a }; }
   if (x.castNote) out.castNote = String(x.castNote).slice(0, 240);
   if (+x.fixedDc > 0 && out.type === "save") out.dc = +x.fixedDc; // a save with its own DC
   ["onHit", "onFail", "onSuccess", "onUse"].forEach((k) => { if (out[k] && out[k].effs) out[k] = { ...out[k], effs: out[k].effs.map((e) => { const o = { ...e }; Object.keys(o).forEach((q) => { if (typeof o[q] === "string" && /SPELLMOD/.test(o[q]) && q !== "note" && q !== "name") { const n = evalFormula(o[q], ctx); if (Number.isFinite(n)) o[q] = n; } }); return o; }) }; }); // a value that is the caster's spellcasting modifier
@@ -4249,7 +4300,7 @@ function fullSpellAction(sp, ctx, opts) {
   if (x.dmNote) out.dmNote = String(x.dmNote).slice(0, 500);
   if (f.area || x.zone || x.move || out.castOn || out.creates || ["object", "point", "creature or object"].includes(t.kind)) out.map = { target: f.area ? "area" : String(t.kind || "creature"), auto: !!x.zone }; // what the map will place or click, once there is one
   if (x.escape && x.escape.ability) out.escape = { ability: String(x.escape.ability), skill: String(x.escape.skill || ""), dc: +x.escape.dc || 0 };
-  if (x.castRoll && x.castRoll.dice) out.castRoll = { dice: String(x.castRoll.dice), text: String(x.castRoll.text || "").slice(0, 120) };
+  if (x.castRoll && x.castRoll.dice) out.castRoll = { dice: String(x.castRoll.dice), text: String(x.castRoll.text || "").slice(0, 120), ...(x.castRoll.extraTurns ? { extraTurns: true } : {}) };
   if (x.attacks && +x.attacks.n > 0) { // separate attack rolls or darts, which can share a target
     const n = +x.attacks.n + (x.attacks.byLevel ? (ctx.LEVEL >= 17 ? 3 : ctx.LEVEL >= 11 ? 2 : ctx.LEVEL >= 5 ? 1 : 0) : 0);
     out.multi = true; out.targets = Math.min(20, n); delete out.self;
@@ -4261,6 +4312,8 @@ function fullSpellAction(sp, ctx, opts) {
   if (out.sctl && x.summonCtl && Array.isArray(x.summonCtl.ac)) out.sctl.ac = x.summonCtl.ac;
   if (out.sctl && x.summonCtl && Array.isArray(x.summonCtl.hp)) out.sctl.hp = x.summonCtl.hp;
   if (out.sctl && x.summonCtl && x.summonCtl.block) out.sctl.block = x.summonCtl.block; // its stat block is built from the slot level
+  if (out.sctl && x.summonCtl) ["lifeBond", "endsOnDamage", "noAttack", "speed", "count", "statByChoice", "statBySlot", "countBy"].forEach((k) => { if (x.summonCtl[k] != null && x.summonCtl[k] !== false) out.sctl[k] = x.summonCtl[k]; });
+  if (out.sctl && x.summonCtl && x.summonCtl.count === "SPELLMOD") out.sctl.count = Math.max(1, ctx.SPELLMOD);
   if (x.form) { out.form = { on: x.form.on === "self" ? "self" : "target", limit: String(x.form.limit || "").slice(0, 200), tempHP: !!x.form.tempHP }; if (out.block === "form" && out.form.on === "target") delete out.block; }
   if (x.move && x.move.kind) out.mv = { kind: String(x.move.kind).slice(0, 10), feet: Math.max(0, +x.move.feet || 0), who: String(x.move.who || "self").slice(0, 16), others: Math.max(0, +x.move.others || 0) };
   if (x.zone) { out.zone = { enter: !!x.zone.enter, start: !!x.zone.startTurn, end: !!x.zone.endTurn, difficult: !!x.zone.difficult, obscured: String(x.zone.obscured || "").slice(0, 8), once: !!x.zone.oncePerTurn }; if (!out.again && lasts && out.type !== "info") out.again = "free"; }
