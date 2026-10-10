@@ -10,6 +10,7 @@
   <script src="spells.js"></script>
   <script src="rules.js"></script>
   <script src="mechanics.js"></script>
+  <script src="items.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -359,10 +360,18 @@ rarity is Common, Uncommon, Rare, Very Rare, Legendary or Artifact.
 type decides where the item shows up, so write it exactly in one of these forms:
 - Magic armor: "Armor (plate)", "Armor (chain shirt)", "Armor (studded leather)" for one kind of armor; "Armor (light)", "Armor (medium)", "Armor (heavy)", "Armor (medium or heavy)", "Armor (medium or heavy, not hide)" or "Armor (light, medium, or heavy)" when the player picks the kind; "Armor (shield)" for a shield.
 - Magic weapons: "Weapon (longsword)" for one kind of weapon; "Weapon (any sword)", "Weapon (any axe)", "Weapon (any axe or sword)", "Weapon (any sword that deals slashing damage)", "Weapon (any melee)", "Weapon (any ranged)" or "Weapon (any)" when the player picks the kind.
+- When the text names several kinds, list them the same way, in lower case: "Weapon (greatsword, longsword, rapier, scimitar, or shortsword)", "Armor (half plate or plate)", "Armor (chain mail or chain shirt)". "Any Simple or Martial" is "Weapon (any)"; "Any Melee Weapon" is "Weapon (any melee)"; "Any Ammunition" is "Weapon (any ammunition)".
 - Anything else: "Wondrous Item", "Ring", "Rod", "Staff", "Wand", "Potion", "Scroll".
 An armor or weapon item written this way is offered in the builder's Armor and Weapon pickers when the character carries it, as the ordinary armor or weapon it is (same Armor Class formula, damage die, properties and mastery property). An item that fits several kinds is offered once for each kind, for example "Adamantine Armor (Plate Armor)".
 If the item gives a flat bonus, add "bonus": 1 (or 2, 3). For armor and shields it is added to Armor Class. For weapons it is added to attack rolls and damage rolls. Example: { "name": "Wardstone Plate", "rarity": "Rare", "type": "Armor (plate)", "attunement": false, "bonus": 1, "description": "Full item text." }
-Anything else the item does (extra damage, a use per day, a save it forces) goes in "abilities" with "grantedBy": { "type": "item", "name": "Wardstone Plate" }.
+Anything else the item does (extra damage, a use per day, a save it forces) goes in "abilities" with "grantedBy": { "type": "item", "name": "Wardstone Plate" }. Work through every magic item in this order, and always the same way:
+  1. The item entry itself: name, rarity, type, "attunement", "description" (the full text word for word), and "bonus" for a flat +1, +2 or +3 on armor, a shield or a weapon. An item sold as +1, +2 or +3 is three items: "Weapon, +1", "Weapon, +2", "Weapon, +3" (the same for Armor, Shield, Ammunition and Wand of the War Mage), each with its own rarity.
+  2. What it does all the time while worn, held or attuned: one ability with only "statics" (Ring of Protection: "acBonus": 1 and "saveBonus": 1; Cloak of Elvenkind: "skillBonus"; Boots of Speed: an activated effect instead). A score the item sets ("your Strength is 21") is "scoresMin": { "Strength": 21 } (no effect if the score is already higher).
+  Numbers and timing that do not fit a field are written the same way every time: charges or uses set by a roll ("1d6 + 4 pinches") take the highest number as "max" and the roll in the ability's "message"; a wait longer than a rest ("after 7 days", "1 hour") is "recharge": "none" with the wait in "message"; damage that depends on charges left goes in a note.
+  3. Its charges, if it has any: one ability with only "resource", named exactly as the item: { "name": "Wand of Magic Missiles", "max": 7, "recharge": "dawn", "regain": "1d6+1" }. recharge is "dawn" for "regains ... daily at dawn" (write the dice in "regain"; leave "regain" out if all come back), "long" or "short" when it follows a rest, or "none" when used charges never come back. Anything the item does on its last charge ("roll a d20; on a 1 it crumbles") goes in that ability's "message".
+  4. Each spell it casts: one ability with "castSpell": { "spell": "Magic Missile" (the spell's exact name), "level": 1 (the level it is cast at), "maxLevel": 3 (the highest level extra charges can raise it to, else the same as level), "perLevel": 1 (charges for each level above), "dc": 15 and "attack": 7 when the item fixes them (leave them out to use the user's own spellcasting) } and "uses": { "pool": "Wand of Magic Missiles", "cost": 1 } for charges, or "uses": { "max": 1, "recharge": "long" } for "once per dawn" without charges. The app runs the spell exactly as the spell itself, from its own record.
+  5. Everything else it lets the user activate (a breath, an attack, an effect it switches on): one ability each, like any other ability, with "uses" for charges or limits.
+An item that needs Attunement only works while the user is attuned to it: the builder has an Attune button on each such item (at most 3). Write nothing for this beyond "attunement": true.
 
 ---------------------------------------------------------------------
 ABILITIES: EVERYTHING A CHARACTER ACTIVATES
@@ -425,7 +434,7 @@ save: { "ability": "Wisdom", "dc": "SPELLDC" }
 
 damage: a list, one entry per damage type: { "dice": "1d8+STR", "type": "Slashing" }.
   dice is a dice formula (see FORMULAS). With roll "attack" it is dealt on a hit and the dice are doubled on a Critical Hit. With roll "save" it is dealt on a failed save. With roll "none" it is dealt automatically.
-halfOnSave: true if a successful save still takes half damage.
+halfOnSave: true if a successful save still takes half damage. damageOnSuccessToo: true when the damage comes with a hit no matter what, and the save only decides something else (Giant Slayer, Sword of Wounding).
 
 heal: a dice formula for Hit Points restored, for example "1d10+LEVEL" or "2d4+SPELLMOD". With target "self" it heals the user.
 
@@ -572,11 +581,19 @@ PASSIVE FEATURES: statics
   "cantripBonus": 1                                       more cantrips known
   "cantripDamage": "WIS"                                  added to the damage of its cantrips
   "schoolDamage": { "school": "Evocation", "formula": "INT" }       added to the damage of spells of that school
-  "weaponDamage": { "dice": "1d8", "type": "Radiant", "when": "melee" }   extra damage on every hit. when: "melee", "weapon" or "all".
+  "weaponDamage": { "dice": "1d8", "type": "Radiant", "when": "melee" }   extra damage on every hit. when: "melee", "weapon", "all", or "this" for hits with the magic weapon that grants it only (Frost Brand). Leave "type" out when it is the weapon's own type. Add "vsTypes": ["Dragon"] when the extra damage is only against those creature types (Dragon Slayer, Sun Blade against Undead).
   "weaponMasteries": 2                                    how many kinds of weapons it can use the mastery property of (a list of 20 for a number that grows)
   "proficiencies": { "armor": ["Heavy"], "weapons": ["Martial"] }   armor or weapon proficiencies a feature adds. armor: "Light", "Medium", "Heavy", "Shield". weapons: "Simple", "Martial", or a weapon name such as "Longsword"
   "unarmedDie": 6                                         its Unarmed Strike rolls this die (a list of 20 for a die that grows)
   "unarmedDexterity": true                                Unarmed Strikes can use Dexterity
+  "skillAdvantage": ["Stealth"]                           Advantage on ability checks with those skills
+  "immune": ["Poison"]                                    Immunity to those damage types
+  "moves": ["Climb Speed equal to your Speed"]            another way of moving, shown next to Speed
+  "speedMin": 30                                          Speed is at least this (no effect if it is already higher)
+  "scoresMin": { "Strength": 21 }                         that score becomes this, unless it is already higher
+  "spellAttackBonus": 2                                   added to spell attack rolls
+  "spellDcBonus": 2                                       added to spell save DCs
+  "saveAdvantageVsSpells": true                           Advantage on saving throws against spells
   "passives": { ... }                                     standing combat rules, below
 
 passives the Combat Resolver applies:
@@ -818,197 +835,10 @@ const ALL_SKILLS = Object.keys(SKILL_ABILITY);
 const ABILITIES = ["Strength","Dexterity","Constitution","Intelligence","Wisdom","Charisma"];
 const ABBR = {Strength:"STR",Dexterity:"DEX",Constitution:"CON",Intelligence:"INT",Wisdom:"WIS",Charisma:"CHA"};
 
-/* ============ DMG MAGIC ITEMS ============ */
+/* ============ MAGIC ITEMS (SRD 5.2.1, items.js) ============ */
 const RARITY_ORDER = ["Common","Uncommon","Rare","Very Rare","Legendary","Artifact"];
 const RARITY_COLORS = {Common:"#aaa",Uncommon:"#4caf50",Rare:"#2196f3","Very Rare":"#9c27b0",Legendary:"#ff9800",Artifact:"#f44336"};
-const MAGIC_ITEMS = [
-  {name:"Adamantine Armor",rarity:"Uncommon",type:"Armor (medium or heavy, not hide)",attunement:false,description:"This suit of armor is reinforced with adamantine, one of the hardest substances in existence. While you're wearing it, any critical hit against you becomes a normal hit."},
-  {name:"Ammunition +1",rarity:"Uncommon",type:"Weapon (any ammunition)",attunement:false,description:"You have a +1 bonus to attack and damage rolls made with this piece of magic ammunition. Once it hits a target, the ammunition is no longer magical."},
-  {name:"Amulet of Proof against Detection and Location",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing this amulet, you are hidden from divination magic. You can't be targeted by such magic or perceived through magical scrying sensors."},
-  {name:"Bag of Holding",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"This bag has an interior space considerably larger than its outside dimensions, roughly 2 feet in diameter at the mouth and 4 feet deep. The bag can hold up to 500 pounds, not exceeding a volume of 64 cubic feet. Retrieving an item from the bag requires an action."},
-  {name:"Boots of Elvenkind",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While you wear these boots, your steps make no sound, regardless of the surface you are moving across. You also have advantage on Dexterity (Stealth) checks that rely on moving silently."},
-  {name:"Boots of Striding and Springing",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While you wear these boots, your walking speed becomes 30 feet, unless your walking speed is higher, and your speed isn't reduced if you are encumbered or wearing heavy armor. In addition, you can jump three times the normal distance."},
-  {name:"Boots of the Winterlands",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"These furred boots are snug and feel quite warm. While you wear them, you gain the following benefits: You have resistance to cold damage. You ignore difficult terrain created by ice or snow. You can tolerate temperatures as low as −50 degrees Fahrenheit without any additional protection."},
-  {name:"Broom of Flying",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"This wooden broom, which weighs 3 pounds, functions like a mundane broom until you stand astride it and speak its command word. It then hovers beneath you and can be ridden in the air. It has a flying speed of 50 feet. It can carry up to 400 pounds, but its flying speed becomes 30 feet while carrying over 200 pounds."},
-  {name:"Circlet of Blasting",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While wearing this circlet, you can use an action to cast the Scorching Ray spell with it. When you make the spell's attacks, you do so with an attack bonus of +5. The circlet can't be used this way again until the next dawn."},
-  {name:"Cloak of Elvenkind",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While you wear this cloak with its hood up, Wisdom (Perception) checks made to see you have disadvantage, and you have advantage on Dexterity (Stealth) checks made to hide, as the cloak's color shifts to camouflage you."},
-  {name:"Cloak of Protection",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"You gain a +1 bonus to AC and saving throws while you wear this cloak."},
-  {name:"Cloak of the Manta Ray",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While wearing this cloak with its hood up, you can breathe underwater, and you have a swimming speed of 60 feet. Pulling the hood up or down requires an action."},
-  {name:"Decanter of Endless Water",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"This stoppered flask sloshes when shaken, as if it contains water. The decanter weighs 2 pounds. You can use an action to remove the stopper and speak one of three command words, whereupon an amount of fresh water or salt water pours out of the flask."},
-  {name:"Eyes of the Eagle",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"These crystal lenses fit over the eyes. While wearing them, you have advantage on Wisdom (Perception) checks that rely on sight. In conditions of clear visibility, you can make out details of even extremely distant creatures and objects as small as 2 feet across."},
-  {name:"Gauntlets of Ogre Power",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"Your Strength score is 19 while you wear these gauntlets. They have no effect on you if your Strength is already 19 or higher."},
-  {name:"Gloves of Missile Snaring",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"These gloves seem to almost meld into your hands when you don them. When a ranged weapon attack hits you while you're wearing them, you can use your reaction to reduce the damage by 1d10 + your Dexterity modifier, provided that you have a free hand. If you reduce the damage to 0, you can catch the missile if it is small enough for you to hold in that hand."},
-  {name:"Gloves of Swimming and Climbing",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing these gloves, climbing and swimming don't cost you extra movement, and you gain a +5 bonus to Strength (Athletics) checks made to climb or swim."},
-  {name:"Goggles of Night",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While wearing these dark lenses, you have darkvision out to a range of 60 feet. If you already have darkvision, wearing the goggles increases its range by 60 feet."},
-  {name:"Hat of Disguise",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing this hat, you can use an action to cast the Disguise Self spell from it at will. The spell ends if the hat is removed."},
-  {name:"Headband of Intellect",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"Your Intelligence score is 19 while you wear this headband. It has no effect on you if your Intelligence is already 19 or higher."},
-  {name:"Helm of Comprehending Languages",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While wearing this helm, you can use an action to cast the Comprehend Languages spell from it at will."},
-  {name:"Helm of Telepathy",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing this helm, you can use an action to cast the Detect Thoughts spell (DC 13) from it. As long as you concentrate on the spell, you can use a bonus action to send a telepathic message to a creature you are focused on."},
-  {name:"Immovable Rod",rarity:"Uncommon",type:"Rod",attunement:false,description:"This flat iron rod has a button on one end. You can use an action to press the button, which causes the rod to become magically fixed in place. Until you or another creature uses an action to push the button again, the rod doesn't move, even if it is defying gravity. The rod can hold up to 8,000 pounds of weight."},
-  {name:"Javelin of Lightning",rarity:"Uncommon",type:"Weapon (javelin)",attunement:false,description:"This javelin is a magic weapon. When you hurl it and speak its command word, it transforms into a bolt of lightning, forming a line 5 feet wide that extends out from you to a target within 120 feet of you. Each creature in the line excluding you and the target must make a DC 13 Dexterity saving throw, taking 4d6 lightning damage on a failed save, and half as much damage on a successful one. The javelin's property can't be used again until the next dawn."},
-  {name:"Lantern of Revealing",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While lit, this hooded lantern burns for 6 hours on 1 pint of oil, shedding bright light in a 30-foot radius and dim light for an additional 30 feet. Invisible creatures and objects are visible as long as they are in the lantern's bright light."},
-  {name:"Mithral Armor",rarity:"Uncommon",type:"Armor (medium or heavy, not hide)",attunement:false,description:"Mithral is a light, flexible metal. If the armor normally imposes disadvantage on Dexterity (Stealth) checks or has a Strength requirement, the mithral version of the armor doesn't."},
-  {name:"Necklace of Adaptation",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing this necklace, you can breathe normally in any environment, and you have advantage on saving throws made against harmful gases and vapors (such as Cloudkill and Stinking Cloud effects, inhaled poisons, and the breath weapon of some dragons)."},
-  {name:"Pearl of Power",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While this pearl is on your person, you can use an action to speak its command word and regain one expended spell slot of up to 3rd level. Once you have used the pearl, it can't be used again until the next dawn."},
-  {name:"Periapt of Health",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"You are immune to contracting any disease while you wear this pendant. If you are already infected with a disease, the effects of the disease are suppressed while you wear the pendant."},
-  {name:"Philter of Love",rarity:"Uncommon",type:"Potion",attunement:false,description:"The next time you see a creature within 10 minutes after drinking this philter, you become charmed by that creature for 1 hour. If the creature is of a species and gender you are normally attracted to, you regard it as your true love while you are charmed."},
-  {name:"Pipes of Haunting",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"You must be proficient with wind instruments to use these pipes. They have 3 charges. You can use an action to play them and expend 1 charge to create an eerie, spellbinding tune. Each creature within 30 feet of you that hears you play must succeed on a DC 13 Wisdom saving throw or become frightened of you for 1 minute. The pipes regain 1d3 expended charges daily at dawn."},
-  {name:"Pipes of the Sewers",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"You must be proficient with wind instruments to use these pipes. While you are attuned to the pipes, ordinary rats and giant rats are indifferent toward you. The pipes have 3 charges and regain 1d3 expended charges daily at dawn. If you play the pipes as an action, you can use a bonus action to expend 1 to 3 charges, calling forth one swarm of rats with each expended charge."},
-  {name:"Potion of Climbing",rarity:"Uncommon",type:"Potion",attunement:false,description:"When you drink this potion, you gain a climbing speed equal to your walking speed for 1 hour. During this time, you have advantage on Strength (Athletics) checks you make to climb."},
-  {name:"Potion of Growth",rarity:"Uncommon",type:"Potion",attunement:false,description:"When you drink this potion, you gain the 'enlarge' effect of the Enlarge/Reduce spell for 1d4 hours (no concentration required)."},
-  {name:"Potion of Water Breathing",rarity:"Uncommon",type:"Potion",attunement:false,description:"You can breathe underwater for 1 hour after drinking this potion. Its cloudy green fluid smells of the sea and has a jellyfish-like bubble floating in it."},
-  {name:"Ring of Jumping",rarity:"Uncommon",type:"Ring",attunement:true,description:"While wearing this ring, you can cast the Jump spell from it as a bonus action at will, but can target only yourself when you do so."},
-  {name:"Ring of Mind Shielding",rarity:"Uncommon",type:"Ring",attunement:true,description:"While wearing this ring, you are immune to magic that allows other creatures to read your thoughts, determine whether you are lying, know your alignment, or know your creature type."},
-  {name:"Ring of Swimming",rarity:"Uncommon",type:"Ring",attunement:false,description:"You have a swimming speed of 40 feet while wearing this ring."},
-  {name:"Ring of Warmth",rarity:"Uncommon",type:"Ring",attunement:true,description:"While wearing this ring, you have resistance to cold damage. In addition, you and everything you wear and carry are unharmed by temperatures as low as −50 degrees Fahrenheit."},
-  {name:"Ring of Water Walking",rarity:"Uncommon",type:"Ring",attunement:false,description:"While wearing this ring, you can stand on and move across any liquid surface as if it were solid ground."},
-  {name:"Robe of Useful Items",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"This robe has cloth patches of various shapes and colors covering it. While wearing the robe, you can use an action to detach one of the patches, causing it to become the object or creature it represents. The robe comes with items determined by the DM."},
-  {name:"Slippers of Spider Climbing",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While you wear these light shoes, you can move up, down, and across vertical surfaces and upside down along ceilings, while leaving your hands free. You have a climbing speed equal to your walking speed."},
-  {name:"Spell Scroll (2nd Level)",rarity:"Uncommon",type:"Scroll",attunement:false,description:"A spell scroll bearing a 2nd-level spell. A spellcaster with the spell on their list can cast it using the scroll. The spell is cast at 2nd level."},
-  {name:"Spell Scroll (3rd Level)",rarity:"Uncommon",type:"Scroll",attunement:false,description:"A spell scroll bearing a 3rd-level spell. A spellcaster with the spell on their list can cast it. Spell is cast at 3rd level."},
-  {name:"Staff of the Python",rarity:"Uncommon",type:"Staff",attunement:true,description:"You can use an action to speak this staff's command word and throw the staff on the ground within 10 feet of you. The staff becomes a giant constrictor snake under your control and acts on its own initiative count. The staff can't be used this way again until the next dawn."},
-  {name:"Wand of Magic Detection",rarity:"Uncommon",type:"Wand",attunement:false,description:"This wand has 3 charges. While holding it, you can expend 1 charge as an action to cast the Detect Magic spell from it. The wand regains 1d3 expended charges daily at dawn."},
-  {name:"Wand of Magic Missiles",rarity:"Uncommon",type:"Wand",attunement:false,description:"This wand has 7 charges. While holding it, you can use an action to expend 1 or more of its charges to cast the Magic Missile spell from it. For 1 charge, you cast the 1st-level version of the spell. You can increase the spell slot level by one for each additional charge you expend. The wand regains 1d6+1 expended charges daily at dawn."},
-  {name:"Wand of Secrets",rarity:"Uncommon",type:"Wand",attunement:false,description:"The wand has 3 charges. While holding it, you can use an action to expend 1 of its charges, and if a secret door or trap is within 30 feet of you, the wand pulses and points at the one nearest to you. The wand regains 1d3 expended charges daily at dawn."},
-  {name:"Wand of Web",rarity:"Uncommon",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action to expend 1 of its charges to cast the Web spell (save DC 15) from it. The wand regains 1d6+1 expended charges daily at dawn."},
-  {name:"Wand of the War Mage +1",rarity:"Uncommon",type:"Wand",attunement:true,description:"While you are holding this wand, you gain a +1 bonus to spell attack rolls. In addition, you ignore half cover when making a spell attack."},
-  {name:"Weapon +1",rarity:"Uncommon",type:"Weapon (any)",attunement:false,description:"You have a +1 bonus to attack and damage rolls made with this magic weapon."},
-  {name:"Wind Fan",rarity:"Uncommon",type:"Wondrous Item",attunement:false,description:"While holding this fan, you can use an action to cast the Gust of Wind spell (save DC 13) from it. Once used, the fan shouldn't be used again until the next dawn."},
-  {name:"Winged Boots",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While you wear these boots, you have a flying speed equal to your walking speed. You can use the boots to fly for up to 4 hours, all at once or in several shorter flights. If you are flying when the duration expires, you descend at a rate of 30 feet per round until you land."},
-  {name:"Wings of Flying",rarity:"Uncommon",type:"Wondrous Item",attunement:true,description:"While wearing this cloak, you can use an action to speak its command word. This turns the cloak into a pair of bat wings or bird wings on your back for 1 hour or until you repeat the command word as an action. The wings give you a flying speed of 60 feet. When they disappear, you can't use them again for 1d12 hours."},
-  {name:"Ammunition +2",rarity:"Rare",type:"Weapon (any ammunition)",attunement:false,description:"You have a +2 bonus to attack and damage rolls made with this piece of magic ammunition."},
-  {name:"Amulet of Health",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"Your Constitution score is 19 while you wear this amulet. It has no effect on you if your Constitution is already 19 or higher."},
-  {name:"Animated Shield",rarity:"Rare",type:"Armor (shield)",attunement:true,description:"While holding this shield, you can speak its command word as a bonus action to cause it to animate. The shield leaps into the air and hovers in your space to protect you as if you were wielding it, leaving your hands free. The shield remains animated for 1 minute."},
-  {name:"Armor +1",rarity:"Rare",type:"Armor (light, medium, or heavy)",attunement:false,description:"You have a +1 bonus to AC while wearing this armor."},
-  {name:"Belt of Dwarvenkind",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While wearing this belt, your Constitution score increases by 2, to a maximum of 20. You have advantage on Charisma (Persuasion) checks made to interact with dwarves. You also have a 50% chance of growing a full beard if you're capable of growing one."},
-  {name:"Belt of Giant Strength (Hill)",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While wearing this belt, your Strength score changes to 21. The item has no effect on you if your Strength without the belt is equal to or greater than the belt's score."},
-  {name:"Berserker Axe",rarity:"Rare",type:"Weapon (any axe)",attunement:true,description:"You gain a +1 bonus to attack and damage rolls made with this magic weapon. While attuned, your hit point maximum increases by 1 for each level you have attained. Curse: You are unwilling to part with the axe, becoming aggressive toward those who try to remove it."},
-  {name:"Boots of Levitation",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While you wear these boots, you can use an action to cast the Levitate spell on yourself at will."},
-  {name:"Boots of Speed",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While you wear these boots, you can use a bonus action and click the boots' heels together to double your walking speed. In addition, difficult terrain doesn't cost you extra movement. You can end the effect using a bonus action. Once used, this property of the boots can't be used again until the next dawn."},
-  {name:"Bowl of Commanding Water Elementals",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"While this bowl is filled with water, you can use an action to speak the bowl's command word and summon a water elemental. The bowl can't be used this way again until the next dawn."},
-  {name:"Brazier of Commanding Fire Elementals",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"While a fire burns in this brass brazier, you can use an action to speak the brazier's command word and summon a fire elemental. The brazier can't be used this way again until the next dawn."},
-  {name:"Cape of the Mountebank",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"This cape smells faintly of brimstone. While wearing it, you can use it to cast the Dimension Door spell as an action. This property of the cape can't be used again until the next dawn. When you disappear, you leave behind a cloud of smoke, and you appear in a similar cloud of smoke at your destination."},
-  {name:"Censer of Controlling Air Elementals",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"While incense is burning in this censer, you can use an action to speak the censer's command word and summon an air elemental. The censer can't be used this way again until the next dawn."},
-  {name:"Cloak of Displacement",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While you wear this cloak, it projects an illusion that makes you appear to be standing in a place near your actual location, causing any creature to have disadvantage on attack rolls against you. If you take damage, the property ceases to function until the start of your next turn."},
-  {name:"Cloak of the Bat",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While wearing this cloak, you have advantage on Dexterity (Stealth) checks. In an area of dim light or darkness, you can grip the edges of the cloak with both hands and use it to fly at a speed of 40 feet."},
-  {name:"Cube of Force",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"This cube is about an inch across. Each face has a distinct marking on it that can be pressed. The cube starts with 36 charges, and it regains 1d20 expended charges daily at dawn. You can use an action to press one of the cube's faces, expending a number of charges based on the chosen face."},
-  {name:"Instant Fortress",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"You can use an action to place this 1-inch metal cube on the ground and speak its command word. The cube rapidly grows into a square tower, 20 feet on a side and 30 feet high, that remains until you use an action to speak the command word that dismisses it."},
-  {name:"Dagger of Venom",rarity:"Rare",type:"Weapon (dagger)",attunement:false,description:"You gain a +1 bonus to attack and damage rolls made with this magic weapon. You can use an action to cause thick, black poison to coat the blade. The poison remains for 1 minute or until an attack using this weapon hits a creature. That creature must succeed on a DC 15 Constitution saving throw or take 2d10 poison damage and become poisoned for 1 minute."},
-  {name:"Dimensional Shackles",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"You can use an action to place these shackles on an incapacitated creature. The shackles adjust to fit a creature of Small to Large size. The shackles prevent a creature bound by them from using any method of extradimensional movement, including teleportation or travel to a different plane of existence."},
-  {name:"Dragon Slayer",rarity:"Rare",type:"Weapon (any sword)",attunement:false,description:"You gain a +1 bonus to attack and damage rolls made with this magic weapon. When you hit a dragon with this weapon, the dragon takes an extra 3d6 damage of the weapon's type."},
-  {name:"Elven Chain",rarity:"Rare",type:"Armor (chain shirt)",attunement:false,description:"You gain a +1 bonus to AC while you wear this armor. You are considered proficient with this armor even if you lack proficiency with medium armor."},
-  {name:"Flame Tongue",rarity:"Rare",type:"Weapon (any sword)",attunement:true,description:"You can use a bonus action to speak this magic sword's command word, causing flames to erupt from the blade. These flames shed bright light in a 40-foot radius and dim light for an additional 40 feet. While the sword is ablaze, it deals an extra 2d6 fire damage to any target it hits."},
-  {name:"Gem of Seeing",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"This gem has 3 charges. As an action, you can speak the gem's command word and expend 1 charge. For the next 10 minutes, you have truesight out to 120 feet when you peer through the gem. The gem regains 1d3 expended charges daily at dawn."},
-  {name:"Giant Slayer",rarity:"Rare",type:"Weapon (any axe or sword)",attunement:false,description:"You gain a +1 bonus to attack and damage rolls made with this magic weapon. When you hit a giant with it, the giant takes an extra 2d6 damage of the weapon's type and must succeed on a DC 15 Strength saving throw or fall prone."},
-  {name:"Glamoured Studded Leather",rarity:"Rare",type:"Armor (studded leather)",attunement:false,description:"While wearing this armor, you gain a +1 bonus to AC. You can also use a bonus action to speak the armor's command word and cause the armor to assume the appearance of a normal set of clothing or some other kind of armor."},
-  {name:"Helm of Teleportation",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"This helm has 3 charges. While wearing it, you can use an action and expend 1 charge to cast the Teleport spell from it. The helm regains 1d3 expended charges daily at dawn."},
-  {name:"Horn of Blasting",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"You can use an action to speak the horn's command word and then blow the horn, which emits a thunderous blast in a 30-foot cone that is audible 600 feet away. Each creature in the cone must make a DC 15 Constitution saving throw. On a failed save, a creature takes 5d6 thunder damage and is deafened for 1 minute."},
-  {name:"Horn of Valhalla (Silver)",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"You can use an action to blow this horn. In response, warrior spirits from Valhalla appear within 60 feet of you. They use the statistics of a berserker. They return to Valhalla after 1 hour or when they drop to 0 hit points. Once you use the horn, it can't be used again until 7 days have passed."},
-  {name:"Ioun Stone (Awareness)",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While this dark lavender ellipsoid orbits your head, you can't be surprised and have advantage on initiative rolls."},
-  {name:"Ioun Stone (Protection)",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While this dusty rose prism orbits your head, you gain a +1 bonus to AC."},
-  {name:"Ioun Stone (Reserve)",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"While this vibrant purple prism orbits your head, you can cast spells into it and use its power to restore expended spell slots."},
-  {name:"Iron Bands of Binding",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"This rusty iron sphere measures 3 inches in diameter and weighs 1 pound. You can use an action to speak the command word and throw the sphere at a Huge or smaller creature you can see within 60 feet of you. Make a ranged attack roll with an attack bonus of +7. On a hit, the target is restrained until you use a bonus action to speak the command word again to release it."},
-  {name:"Mantle of Spell Resistance",rarity:"Rare",type:"Wondrous Item",attunement:true,description:"You have advantage on saving throws against spells while you wear this cloak."},
-  {name:"Necklace of Fireballs",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"This necklace has 1d6+3 beads hanging from it. You can use an action to detach a bead and throw it up to 60 feet away. When it reaches the end of its trajectory, the bead detonates as a 3rd-level Fireball spell (save DC 15)."},
-  {name:"Periapt of Proof against Poison",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"This delicate silver chain has a brilliant-cut black gem pendant. While you wear it, poisons have no effect on you. You are immune to the poisoned condition and have immunity to poison damage."},
-  {name:"Ring of Animal Influence",rarity:"Rare",type:"Ring",attunement:false,description:"This ring has 3 charges, and it regains 1d3 expended charges daily at dawn. While wearing the ring, you can use an action to expend 1 of its charges to cast one of the following spells: Animal Friendship (DC 13), Fear (affecting only beasts with an Intelligence of 3 or lower; DC 13), or Speak with Animals."},
-  {name:"Ring of Evasion",rarity:"Rare",type:"Ring",attunement:true,description:"This ring has 3 charges, and it regains 1d3 expended charges daily at dawn. When you fail a Dexterity saving throw, you can use your reaction to expend 1 of the ring's charges to succeed on that saving throw instead."},
-  {name:"Ring of Feather Falling",rarity:"Rare",type:"Ring",attunement:true,description:"When you fall while wearing this ring, you descend 60 feet per round and take no damage from falling."},
-  {name:"Ring of Free Action",rarity:"Rare",type:"Ring",attunement:true,description:"While you wear this ring, difficult terrain doesn't cost you extra movement. In addition, magic can neither reduce your speed nor cause you to be paralyzed or restrained."},
-  {name:"Ring of Protection",rarity:"Rare",type:"Ring",attunement:true,description:"You gain a +1 bonus to AC and saving throws while wearing this ring."},
-  {name:"Ring of Spell Storing",rarity:"Rare",type:"Ring",attunement:true,description:"This ring stores spells cast into it, holding them until the attuned wearer uses them. The ring can store up to 5 levels worth of spells at a time."},
-  {name:"Ring of the Ram",rarity:"Rare",type:"Ring",attunement:true,description:"This ring has 3 charges, and it regains 1d3 expended charges daily at dawn. While wearing the ring, you can use an action to expend 1 to 3 of its charges to attack one creature you can see within 60 feet of you with a spectral ram's head (+7 attack bonus, 2d10 force damage per charge + pushed 5 feet)."},
-  {name:"Rope of Entanglement",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"This rope is 30 feet long and weighs 3 pounds. If you hold one end of the rope and use an action to speak its command word, the other end darts forward to entangle a creature you can see within 20 feet of you. The target must succeed on a DC 15 Dexterity saving throw or become restrained."},
-  {name:"Shield +1",rarity:"Rare",type:"Armor (shield)",attunement:false,description:"While holding this shield, you have a +1 bonus to AC in addition to the shield's normal bonus to AC."},
-  {name:"Staff of Charming",rarity:"Rare",type:"Staff",attunement:true,description:"While holding this staff, you can use an action to expend 1 of its 10 charges to cast Charm Person, Command, or Comprehend Languages from it using your spell save DC. The staff can also be used as a magic quarterstaff. The staff regains 1d8+2 expended charges daily at dawn."},
-  {name:"Staff of Healing",rarity:"Rare",type:"Staff",attunement:true,description:"This staff has 10 charges. While holding it, you can use an action to expend 1 or more of its charges to cast one of the following spells from it, using your spell save DC: Cure Wounds (1 charge/level, up to 4th level), Lesser Restoration (2 charges), or Mass Cure Wounds (5 charges)."},
-  {name:"Staff of Swarming Insects",rarity:"Rare",type:"Staff",attunement:true,description:"This staff has 10 charges. While holding the staff, you can use an action to expend some of its charges to cast Giant Insect (4 charges) or Insect Plague (5 charges)."},
-  {name:"Staff of the Woodlands",rarity:"Rare",type:"Staff",attunement:true,description:"This staff can be wielded as a magic quarterstaff that grants a +2 bonus to attack and damage rolls made with it. While holding it, you have a +2 bonus to spell attack rolls. The staff has 10 charges for various nature spells."},
-  {name:"Staff of Thunder and Lightning",rarity:"Rare",type:"Staff",attunement:true,description:"This staff can be wielded as a magic quarterstaff that grants a +2 bonus to attack and damage rolls. It also has several lightning and thunder abilities, each usable once per dawn."},
-  {name:"Stone of Controlling Earth Elementals",rarity:"Rare",type:"Wondrous Item",attunement:false,description:"If the stone is touching the ground, you can use an action to speak its command word to summon an earth elemental. The stone can't be used this way again until the next dawn."},
-  {name:"Sun Blade",rarity:"Rare",type:"Weapon (longsword)",attunement:true,description:"This item appears to be a longsword hilt. While grasping the hilt, you can use a bonus action to cause a blade of pure radiance to spring into existence. You gain a +2 bonus to attack and damage rolls made with this weapon, which deals radiant damage instead of slashing damage. When you hit an undead with it, that target takes an extra 1d8 radiant damage."},
-  {name:"Sword of Life Stealing",rarity:"Rare",type:"Weapon (any sword)",attunement:true,description:"When you attack a creature with this magic weapon and roll a 20 on the attack roll, that target takes an extra 3d6 necrotic damage, provided that the target isn't a construct or an undead. You also gain 10 temporary hit points."},
-  {name:"Sword of Wounding",rarity:"Rare",type:"Weapon (any sword)",attunement:true,description:"Hit points lost to this weapon's damage can be regained only through a short or long rest, rather than by regeneration, magic, or any other means. Once per turn, when you hit a creature with an attack using this magic weapon, you can wound the target. At the start of each of the wounded creature's turns, it takes 1d4 necrotic damage for each time you've wounded it."},
-  {name:"Trident of Fish Command",rarity:"Rare",type:"Weapon (trident)",attunement:true,description:"This trident is a magic weapon. It has 3 charges. While you carry it, you can use an action and expend 1 charge to cast Dominate Beast (save DC 15) from it on a beast that has an innate swimming speed. The trident regains 1d3 expended charges daily at dawn."},
-  {name:"Wand of Binding",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action to expend some of its charges to cast Hold Monster (5 charges) or Hold Person (2 charges). The wand regains 1d6+1 expended charges daily at dawn."},
-  {name:"Wand of Enemy Detection",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action and expend 1 charge to speak its command word. For the next minute, you know the direction of the nearest creature hostile to you within 60 feet of you. The wand regains 1d6+1 expended charges daily at dawn."},
-  {name:"Wand of Fear",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. Command (1 charge): you can command another creature to flee or grovel. Cone (2 charges): emits a 60-foot cone of amber light causing fear. The wand regains 1d6+1 expended charges daily at dawn."},
-  {name:"Wand of Fireballs",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action to expend 1 or more of its charges to cast the Fireball spell (save DC 15) from it. You can increase the spell slot level by one for each additional charge you expend."},
-  {name:"Wand of Lightning Bolts",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action to expend 1 or more of its charges to cast the Lightning Bolt spell (save DC 15) from it. You can increase the spell slot level by one for each additional charge you expend."},
-  {name:"Wand of Paralysis",rarity:"Rare",type:"Wand",attunement:true,description:"This wand has 7 charges. While holding it, you can use an action to expend 1 of its charges to cause a thin blue ray to streak from the tip toward a creature you can see within 60 feet of you. The target must succeed on a DC 15 Constitution saving throw or be paralyzed for 1 minute."},
-  {name:"Wand of the War Mage +2",rarity:"Rare",type:"Wand",attunement:true,description:"While you are holding this wand, you gain a +2 bonus to spell attack rolls. In addition, you ignore half cover when making a spell attack."},
-  {name:"Weapon +2",rarity:"Rare",type:"Weapon (any)",attunement:false,description:"You have a +2 bonus to attack and damage rolls made with this magic weapon."},
-  {name:"Ammunition +3",rarity:"Very Rare",type:"Weapon (any ammunition)",attunement:false,description:"You have a +3 bonus to attack and damage rolls made with this piece of magic ammunition."},
-  {name:"Amulet of the Planes",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"While wearing this amulet, you can use an action to name a location that you are familiar with on another plane of existence. Then make a DC 15 Intelligence check. On a successful check, you cast the Plane Shift spell. On a failure, you and each creature and object within 15 feet of you travel to a random destination."},
-  {name:"Armor +2",rarity:"Very Rare",type:"Armor (light, medium, or heavy)",attunement:false,description:"You have a +2 bonus to AC while wearing this armor."},
-  {name:"Belt of Giant Strength (Stone/Frost)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"While wearing this belt, your Strength score changes to 23. The item has no effect on you if your Strength without the belt is equal to or greater than the belt's score."},
-  {name:"Carpet of Flying",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"You can speak the carpet's command word as an action to make the carpet hover and fly. It moves according to your spoken directions, provided that you are within 30 feet of it. Sizes range from small (3×5ft, 200lb limit, 80ft speed) to large (6×9ft, 800lb limit, 40ft speed)."},
-  {name:"Cloak of Arachnida",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"While wearing it, you gain resistance to poison damage, a climbing speed equal to your walking speed, the ability to move across vertical surfaces and ceilings, immunity to webs, and can cast Web (save DC 13) once per dawn."},
-  {name:"Crystal Ball",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"The typical crystal ball is about 6 inches in diameter. While touching it, you can cast the Scrying spell (save DC 17) with it. The spell doesn't require any components."},
-  {name:"Dragon Scale Mail",rarity:"Very Rare",type:"Armor (scale mail)",attunement:true,description:"You gain a +1 bonus to AC, advantage on saving throws against the Frightful Presence and breath weapons of dragons, and resistance to one damage type determined by the kind of dragon that provided the scales."},
-  {name:"Horn of Valhalla (Bronze)",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"You can use an action to blow this horn. In response, 3d4+3 warrior spirits from Valhalla appear. They return to Valhalla after 1 hour or when they drop to 0 hit points. Once you use the horn, it can't be used again until 7 days have passed. You must be proficient with medium armor or the summoned berserkers attack you."},
-  {name:"Ioun Stone (Absorption)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"While this pale lavender ellipsoid orbits your head, you can use your reaction to cancel a spell of 4th level or lower cast by a creature you can see and targeting only you. The stone can absorb a combined total of 20 levels of spells before it burns out."},
-  {name:"Ioun Stone (Agility)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Dexterity score increases by 2, to a maximum of 20, while this deep red sphere orbits your head."},
-  {name:"Ioun Stone (Fortitude)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Constitution score increases by 2, to a maximum of 20, while this pink rhomboid orbits your head."},
-  {name:"Ioun Stone (Insight)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Wisdom score increases by 2, to a maximum of 20, while this incandescent blue sphere orbits your head."},
-  {name:"Ioun Stone (Intellect)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Intelligence score increases by 2, to a maximum of 20, while this marbled scarlet and blue sphere orbits your head."},
-  {name:"Ioun Stone (Leadership)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Charisma score increases by 2, to a maximum of 20, while this marbled pink and green sphere orbits your head."},
-  {name:"Ioun Stone (Strength)",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"Your Strength score increases by 2, to a maximum of 20, while this pale blue rhomboid orbits your head."},
-  {name:"Manual of Bodily Health",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents and practicing its guidelines, your Constitution score increases by 2, as does your maximum for that score. The manual then loses its magic, but regains it in a century."},
-  {name:"Manual of Gainful Exercise",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents and practicing its guidelines, your Strength score increases by 2, as does your maximum for that score. The manual then loses its magic, but regains it in a century."},
-  {name:"Manual of Quickness of Action",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents and practicing its guidelines, your Dexterity score increases by 2, as does your maximum for that score. The manual then loses its magic, but regains it in a century."},
-  {name:"Necklace of Prayer Beads",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"This necklace has 1d4+2 magic beads made from aquamarine, black pearl, or topaz. Each bead stores a spell (Bless, Cure Wounds, Greater Restoration, Sending, Smite spells) that can be cast once per dawn. If a magic bead is removed from the necklace, that bead loses its magic."},
-  {name:"Nine Lives Stealer",rarity:"Very Rare",type:"Weapon (any sword)",attunement:true,description:"You gain a +2 bonus to attack and damage rolls made with this magic weapon. The sword has 1d8+1 charges. If you score a critical hit against a creature that has fewer than 100 hit points, it must succeed on a DC 15 Constitution saving throw or be slain instantly as the sword tears its life force from its body."},
-  {name:"Oathbow",rarity:"Very Rare",type:"Weapon (longbow)",attunement:true,description:"When you nock an arrow on this bow, it whispers in Elvish, 'Swift defeat to my enemies.' When you use this weapon to make a ranged attack, you can, as a command phrase, say, 'Swift death to you who have wronged me.' The target of your attack becomes your sworn enemy until it dies or until dawn seven days later."},
-  {name:"Potion of Flying",rarity:"Very Rare",type:"Potion",attunement:false,description:"When you drink this potion, you gain a flying speed equal to your walking speed for 1 hour and can hover. If you're in the air when the potion wears off, you fall unless you have some other means of staying aloft."},
-  {name:"Potion of Healing (Supreme)",rarity:"Very Rare",type:"Potion",attunement:false,description:"You regain 10d4+20 hit points when you drink this potion."},
-  {name:"Potion of Invisibility",rarity:"Very Rare",type:"Potion",attunement:false,description:"This potion's container looks empty but feels as though it holds liquid. When you drink it, you become invisible for 1 hour. Anything you wear or carry is invisible with you. The effect ends early if you attack or cast a spell."},
-  {name:"Ring of Regeneration",rarity:"Very Rare",type:"Ring",attunement:true,description:"While wearing this ring, you regain 1d6 hit points every 10 minutes, provided that you have at least 1 hit point. If you lose a body part, the ring causes the missing part to regrow and return to full functionality after 1d6+1 days."},
-  {name:"Ring of Shooting Stars",rarity:"Very Rare",type:"Ring",attunement:true,description:"While wearing this ring in dim light or darkness, you can cast Dancing Lights and Light from the ring at will. The ring has 6 charges for other properties, regaining 1d6 expended charges daily at dawn."},
-  {name:"Ring of Telekinesis",rarity:"Very Rare",type:"Ring",attunement:true,description:"While wearing this ring, you can cast the Telekinesis spell at will, but you can target only objects that aren't being worn or carried."},
-  {name:"Robe of Stars",rarity:"Very Rare",type:"Wondrous Item",attunement:true,description:"This black or dark blue robe is embroidered with small white or silver stars. You gain a +1 bonus to saving throws while you wear it. You can use an action to pull one star patch off the robe and use it to cast Magic Missile as a 5th-level spell. Daily at dusk, 1d6 removed star patches reappear."},
-  {name:"Rod of Absorption",rarity:"Very Rare",type:"Rod",attunement:true,description:"While holding this rod, you can use your reaction to absorb a spell that is targeting only you. The absorbed spell's effect is canceled and its energy is stored in the rod. The rod can absorb and store up to 50 levels of energy over the course of its existence."},
-  {name:"Rod of Alertness",rarity:"Very Rare",type:"Rod",attunement:true,description:"While holding the rod, you have advantage on Wisdom (Perception) checks and on rolls for initiative. As an action, you can cast one of the following spells from it: Detect Evil and Good, Detect Magic, Detect Poison and Disease, or See Invisibility."},
-  {name:"Rod of Security",rarity:"Very Rare",type:"Rod",attunement:false,description:"While holding this rod, you can use an action to activate it, instantly transporting you and up to 199 other willing creatures you can see to a paradise that exists in an extradimensional space."},
-  {name:"Scimitar of Speed",rarity:"Very Rare",type:"Weapon (scimitar)",attunement:true,description:"You gain a +2 bonus to attack and damage rolls made with this magic weapon. In addition, you can make one attack with it as a bonus action on each of your turns."},
-  {name:"Shield +2",rarity:"Very Rare",type:"Armor (shield)",attunement:false,description:"While holding this shield, you have a +2 bonus to AC in addition to the shield's normal bonus to AC."},
-  {name:"Spell Scroll (8th Level)",rarity:"Very Rare",type:"Scroll",attunement:false,description:"A spell scroll bearing an 8th-level spell. A spellcaster with the spell on their class's spell list can read the scroll and cast its spell without providing any material components."},
-  {name:"Staff of Fire",rarity:"Very Rare",type:"Staff",attunement:true,description:"You have resistance to fire damage while you hold this staff. The staff has 10 charges for Burning Hands (1 charge), Fireball (3 charges), or Wall of Fire (4 charges). The staff regains 1d6+4 expended charges daily at dawn."},
-  {name:"Staff of Frost",rarity:"Very Rare",type:"Staff",attunement:true,description:"You have resistance to cold damage while you hold this staff. The staff has 10 charges for Cone of Cold (5 charges), Fog Cloud (1 charge), Ice Storm (4 charges), or Wall of Ice (4 charges). The staff regains 1d6+4 expended charges daily at dawn."},
-  {name:"Staff of Power",rarity:"Very Rare",type:"Staff",attunement:true,description:"This staff grants a +2 bonus to attack and damage rolls, AC, saving throws, and spell attack rolls. The staff has 20 charges for various powerful spells. It regains 2d8+4 expended charges daily at dawn."},
-  {name:"Staff of Striking",rarity:"Very Rare",type:"Staff",attunement:true,description:"This staff grants a +3 bonus to attack and damage rolls. The staff has 10 charges. When you hit with a melee attack using it, you can expend up to 3 of its charges. For each charge you expend, the target takes an extra 1d6 force damage."},
-  {name:"Sword of Sharpness",rarity:"Very Rare",type:"Weapon (any sword that deals slashing damage)",attunement:true,description:"When you attack an object with this magic sword and hit, maximize your weapon damage dice against the target. When you attack a creature with this weapon and roll a 20 on the attack roll, that target takes an extra 4d6 slashing damage. Then roll another d20. If you roll a 20, you lop off one of the target's limbs."},
-  {name:"Tome of Clear Thought",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents, your Intelligence score increases by 2, as does your maximum for that score. The tome then loses its magic, but regains it in a century."},
-  {name:"Tome of Leadership and Influence",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents, your Charisma score increases by 2, as does your maximum for that score. The tome then loses its magic, but regains it in a century."},
-  {name:"Tome of Understanding",rarity:"Very Rare",type:"Wondrous Item",attunement:false,description:"If you spend 48 hours over a period of 6 days or fewer studying the book's contents, your Wisdom score increases by 2, as does your maximum for that score. The tome then loses its magic, but regains it in a century."},
-  {name:"Wand of the War Mage +3",rarity:"Very Rare",type:"Wand",attunement:true,description:"While you are holding this wand, you gain a +3 bonus to spell attack rolls. In addition, you ignore half cover and three-quarters cover when making a spell attack."},
-  {name:"Weapon +3",rarity:"Very Rare",type:"Weapon (any)",attunement:false,description:"You have a +3 bonus to attack and damage rolls made with this magic weapon."},
-  {name:"Armor +3",rarity:"Legendary",type:"Armor (light, medium, or heavy)",attunement:false,description:"You have a +3 bonus to AC while wearing this armor."},
-  {name:"Armor of Invulnerability",rarity:"Legendary",type:"Armor (plate)",attunement:true,description:"You have resistance to nonmagical damage while you wear this armor. Additionally, you can use an action to make yourself immune to nonmagical damage for 10 minutes or until you are no longer wearing the armor. Once this special action is used, it can't be used again until the next dawn."},
-  {name:"Belt of Giant Strength (Storm/Cloud)",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"While wearing this belt, your Strength score changes to 29. The item has no effect on you if your Strength without the belt is equal to or greater than the belt's score."},
-  {name:"Cloak of Invisibility",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"While wearing this cloak, you can pull its hood over your head to cause yourself to become invisible. While you are invisible, anything you are carrying or wearing is invisible with you. After accumulating 2 hours of use, the cloak ceases to function. For every uninterrupted 12 hours the cloak goes unused, it regains 1 hour of use."},
-  {name:"Cubic Gate",rarity:"Legendary",type:"Wondrous Item",attunement:false,description:"This cube is 3 inches across and radiates palpable magical energy. The six sides of the cube are each keyed to a different plane of existence. The other five are chosen by the DM."},
-  {name:"Defender",rarity:"Legendary",type:"Weapon (any sword)",attunement:true,description:"You gain a +3 bonus to attack and damage rolls made with this magic weapon. The first time you attack with the sword on each of your turns, you can transfer some or all of the sword's bonus to your Armor Class instead of using it on any attacks that turn."},
-  {name:"Hammer of Thunderbolts",rarity:"Legendary",type:"Weapon (maul)",attunement:false,description:"You gain a +1 bonus to attack and damage rolls made with this magic weapon. When attuned (requires Belt of Giant Strength and Gauntlets of Ogre Power), your Strength score increases by 4 (max 25), and when you score a critical hit with it, the target must succeed on a DC 17 Constitution saving throw or die."},
-  {name:"Holy Avenger",rarity:"Legendary",type:"Weapon (any sword)",attunement:true,description:"You gain a +3 bonus to attack and damage rolls. When you hit a fiend or an undead, that creature takes an extra 2d10 radiant damage. While you hold the drawn sword, it creates an aura in a 10-foot radius around you granting advantage on saving throws against spells and magical effects. At 17+ paladin levels, the radius expands to 30 feet."},
-  {name:"Iron Flask",rarity:"Legendary",type:"Wondrous Item",attunement:false,description:"This iron bottle has a brass stopper. You can use an action to speak the flask's command word, targeting a creature that you can see within 60 feet of you that is native to a plane other than the one you're on. The target must succeed on a DC 17 Wisdom saving throw or be trapped in the flask. The flask can hold only one creature at a time."},
-  {name:"Luck Blade",rarity:"Legendary",type:"Weapon (any sword)",attunement:true,description:"You gain a +1 bonus to attack and damage rolls and a +1 bonus to saving throws. Luck: Once per dawn, reroll one attack roll, ability check, or saving throw you dislike and use the second roll. Wish: The sword has 1d4−1 charges. While holding it, you can use an action to expend 1 charge and cast the Wish spell from it."},
-  {name:"Plate Armor of Etherealness",rarity:"Legendary",type:"Armor (plate)",attunement:true,description:"While you're wearing this armor, you can speak its command word as an action to gain the effect of the Etherealness spell, which lasts 10 minutes or until you remove the armor or use an action to speak the command word again."},
-  {name:"Ring of Djinni Summoning",rarity:"Legendary",type:"Ring",attunement:true,description:"While wearing this ring, you can speak its command word as an action to summon a particular djinni from the Elemental Plane of Air. The djinni appears in an unoccupied space you choose within 120 feet of you. It remains as long as you concentrate (maximum 1 hour)."},
-  {name:"Ring of Elemental Command (Air)",rarity:"Legendary",type:"Ring",attunement:true,description:"While wearing this ring, you have advantage on attack rolls against elementals from the Elemental Plane of Air, and they have disadvantage on attack rolls against you. You also gain access to several elemental air-related properties."},
-  {name:"Ring of Spell Turning",rarity:"Legendary",type:"Ring",attunement:true,description:"While wearing this ring, you have advantage on saving throws against any spell that targets only you. In addition, if you roll a 20 for the save and the spell is 7th level or lower, the spell has no effect on you and instead targets the caster."},
-  {name:"Ring of Three Wishes",rarity:"Legendary",type:"Ring",attunement:false,description:"While wearing this ring, you can use an action to expend 1 of its 3 charges to cast the Wish spell from it. The ring becomes nonmagical when you use the last charge."},
-  {name:"Robe of the Archmagi",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"While wearing the robe, your base Armor Class is 15 + your Dexterity modifier (if not wearing armor), you have advantage on saving throws against spells and other magical effects, and your spell save DC and spell attack bonus each increase by 2."},
-  {name:"Rod of Lordly Might",rarity:"Legendary",type:"Rod",attunement:true,description:"This rod has a flanged head and functions as a magic mace that grants a +3 bonus to attack and damage rolls. The rod has properties associated with six different buttons that are set in a row along the haft."},
-  {name:"Rod of Resurrection",rarity:"Legendary",type:"Rod",attunement:true,description:"The rod has 5 charges. While you hold it, you can use an action to cast one of the following spells from it: Heal (1 charge) or Resurrection (5 charges). The rod regains 1 charge daily at dawn."},
-  {name:"Scarab of Protection",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"While it is on your person, you have advantage on saving throws against spells. The scarab has 12 charges. If you fail a saving throw against a necromancy spell or a harmful effect originating from an undead creature, you can use your reaction to expend 1 charge and turn the failed save into a successful one."},
-  {name:"Shield +3",rarity:"Legendary",type:"Armor (shield)",attunement:false,description:"While holding this shield, you have a +3 bonus to AC in addition to the shield's normal bonus to AC."},
-  {name:"Sphere of Annihilation",rarity:"Legendary",type:"Wondrous Item",attunement:false,description:"This 2-foot-diameter black sphere is a hole in the multiverse, hovering in space and stabilized by a magical field surrounding it. The sphere obliterates all matter it passes through and all matter that passes through it."},
-  {name:"Staff of the Magi",rarity:"Legendary",type:"Staff",attunement:true,description:"This staff grants a +2 bonus to attack and damage rolls, and a +2 bonus to spell attack rolls. The staff has 50 charges for various powerful spells and properties, regaining 4d6+2 expended charges daily at dawn."},
-  {name:"Talisman of Pure Good",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"This talisman is a mighty symbol of goodness. A creature that is neither good nor evil in alignment takes 6d6 radiant damage upon touching the talisman. An evil creature takes 8d6 radiant damage upon touching the talisman."},
-  {name:"Talisman of Ultimate Evil",rarity:"Legendary",type:"Wondrous Item",attunement:true,description:"This item symbolizes unrepentant evil. A creature that is neither good nor evil in alignment takes 6d6 necrotic damage upon touching the talisman. A good creature takes 8d6 necrotic damage upon touching the talisman."},
-  {name:"Vorpal Sword",rarity:"Legendary",type:"Weapon (any sword that deals slashing damage)",attunement:true,description:"You gain a +3 bonus to attack and damage rolls. The weapon ignores resistance to slashing damage. When you attack a creature that has at least one head with this weapon and roll a 20 on the attack roll, you cut off one of the creature's heads. The creature dies if it can't survive without the lost head."},
-];
+const MAGIC_ITEMS = (window.HBA_ITEMS || []).map((i) => ({ ...i })); // SRD 5.2.1 magic items, from items.js
 
 /* ============ PHB MUNDANE ITEMS ============ */
 const MUNDANE_ITEMS = [
@@ -1513,6 +1343,7 @@ function compileAbility(ab0, ctx) {
     out.type = "save"; out.saveAbility = sv.ability; out.dc = dc;
     if (dmgList.length) out.dmgList = dmgList;
     if (ab.halfOnSave) out.halfOnSave = true;
+    if (ab.damageOnSuccessToo) out.fullOnSave = true; // the damage comes with the hit; the save only decides the rest
     const f = compileOutcome(ab.onFail, ctx); if (f) out.onFail = f;
     const ok = compileOutcome(ab.onSuccess, ctx); if (ok) out.onSuccess = ok;
   } else {
@@ -1949,13 +1780,13 @@ function magicGearInfo(item) {
   const spec = m[2].toLowerCase().trim(), desc = String(item.description || "");
   const given = parseInt(item.bonus, 10);
   if (m[1] === "Armor") {
-    const bonus = given > 0 ? given : +((/\+(\d) bonus to AC/.exec(desc) || [])[1] || 0);
+    const bonus = given > 0 ? given : +((/\+(\d) bonus to (?:AC|Armor Class)/.exec(desc) || [])[1] || 0);
     if (spec === "shield") return { kind: "shield", bases: [], bonus };
     let bases;
     if (spec.startsWith("light, medium") || spec === "any") bases = ARMOR;
     else if (spec.startsWith("medium or heavy")) bases = ARMOR.filter(a => a.cat !== "Light" && !(spec.includes("not hide") && a.name === "Hide Armor"));
     else if (["light", "medium", "heavy"].includes(spec)) bases = ARMOR.filter(a => a.cat.toLowerCase() === spec);
-    else bases = ARMOR.filter(a => gearNorm(a.name) === gearNorm(spec) || gearNorm(a.name) === gearNorm(spec + " armor"));
+    else { const names = spec.split(/,\s*(?:or\s+)?|\s+or\s+/).map(x => x.trim()).filter(Boolean); bases = ARMOR.filter(a => names.some(x => gearNorm(a.name) === gearNorm(x) || gearNorm(a.name) === gearNorm(x + " armor"))); } // one kind, or a list of kinds
     return bases.length ? { kind: "armor", bases: bases.map(a => a.name), bonus } : null;
   }
   if (spec.includes("ammunition")) return null;
@@ -1969,7 +1800,7 @@ function magicGearInfo(item) {
   else if (spec === "any axe") bases = WEAPONS.filter(axe);
   else if (spec === "any melee") bases = WEAPONS.filter(w => !w.ranged);
   else if (spec === "any ranged") bases = WEAPONS.filter(w => w.ranged);
-  else bases = WEAPONS.filter(w => gearNorm(w.name) === gearNorm(spec));
+  else { const names = spec.split(/,\s*(?:or\s+)?|\s+or\s+/).map(x => x.trim()).filter(Boolean); bases = WEAPONS.filter(w => names.some(x => gearNorm(w.name) === gearNorm(x))); } // one kind, or a list of kinds
   return bases.length ? { kind: "weapon", bases: bases.map(w => w.name), bonus } : null;
 }
 // The kinds a magic item can be, when the player has to pick one ("any sword", "medium or heavy").
@@ -2049,7 +1880,7 @@ function activeMechanics(ch) {
 // Adds up the passive changes. Formulas are worked out against ctx (this character's numbers).
 function gatherStatics(entries, ctx, gear, level) {
   const d = { acBases: [], acBonus: 0, speedBonus: 0, speedBase: 0, hp: 0, initiative: 0, saveProf: [], saveBonus: 0, saveAdv: [], condImmune: [], condAdv: [], resist: [], senses: [],
-    halfProf: false, classPicks: 0, anyPicks: 0, spells: [], cantripBonus: 0, skillBonus: {}, cantripDamage: 0, schoolDamage: {}, weaponDamage: [], unarmedDie: 0, unarmedDex: false, monkWeapons: false, masteryCount: 0, profArmor: [], profWeapons: [], passives: {} };
+    skillAdv: [], immune: [], moves: [], speedMin: 0, spellAtkBonus: 0, spellDcBonus: 0, halfProf: false, classPicks: 0, anyPicks: 0, spells: [], cantripBonus: 0, skillBonus: {}, cantripDamage: 0, schoolDamage: {}, weaponDamage: [], unarmedDie: 0, unarmedDex: false, monkWeapons: false, masteryCount: 0, profArmor: [], profWeapons: [], passives: {} };
   const num = (f) => { const n = evalFormula(f, ctx); return Number.isFinite(n) ? n : 0; };
   const armorCat = gear.armor ? gear.armor.cat : "";
   const when = (w) => w === "noHeavy" ? armorCat !== "Heavy" : w === "noArmor" ? !armorCat : w === "noArmorNoShield" ? !armorCat && !gear.shield : w === "armor" ? !!armorCat : true;
@@ -2075,7 +1906,14 @@ function gatherStatics(entries, ctx, gear, level) {
     if (s.skillBonus) pArr(pObj(s.skillBonus).skills).forEach(k => { d.skillBonus[k] = (d.skillBonus[k] || 0) + num(s.skillBonus.formula); });
     if (s.cantripDamage != null) d.cantripDamage += num(s.cantripDamage);
     if (s.schoolDamage) d.schoolDamage[pStr(pObj(s.schoolDamage).school, 20)] = num(s.schoolDamage.formula);
-    if (s.weaponDamage) pArr(Array.isArray(s.weaponDamage) ? s.weaponDamage : [s.weaponDamage]).forEach(w => { const dice = evalDice(w.dice, ctx); if (dice) d.weaponDamage.push({ dice, type: pStr(w.type, 20), when: w.when || "weapon" }); });
+    if (s.weaponDamage) pArr(Array.isArray(s.weaponDamage) ? s.weaponDamage : [s.weaponDamage]).forEach(w => { const dice = evalDice(w.dice, ctx); if (dice) d.weaponDamage.push({ dice, type: pStr(w.type, 20), when: w.when || "weapon", ...(pArr(w.vsTypes).length ? { vsTypes: pArr(w.vsTypes).map(x => pStr(x, 20)) } : {}), item: pObj(e.grantedBy).type === "item" ? pStr(e.grantedBy.name, 80) : "" }); });
+    pArr(s.skillAdvantage).forEach(k => { if (SKILL_ABILITY[k]) d.skillAdv.push(k); }); // Advantage on checks with one skill (Boots of Elvenkind: Stealth)
+    pArr(s.immune).forEach(t => d.immune.push(pStr(t, 20))); // Immunity to a damage type
+    pArr(s.moves).forEach(t => d.moves.push(pStr(t, 40))); // another way of moving: "Climb Speed equal to your Speed"
+    if (s.speedMin) d.speedMin = Math.max(d.speedMin, num(s.speedMin)); // Speed at least this (Boots of Striding and Springing)
+    if (s.spellAttackBonus) d.spellAtkBonus += num(s.spellAttackBonus);
+    if (s.spellDcBonus) d.spellDcBonus += num(s.spellDcBonus);
+    if (s.saveAdvantageVsSpells) d.passives.saveAdvSpells = true;
     if (s.unarmedDie) d.unarmedDie = Math.max(d.unarmedDie, num(s.unarmedDie));
     if (s.unarmedDexterity) d.unarmedDex = true;
     if (s.monkWeapons) d.monkWeapons = true;
@@ -2098,7 +1936,8 @@ function armorClassOf(d, gear, dexMod) {
 // Attacks the character can always make: Unarmed Strike and each weapon on the sheet.
 function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { // mastered: weapons whose mastery property this character can use
   const best = Math.max(ctx.STR, ctx.DEX);
-  const rider = (melee) => d.weaponDamage.filter(w => w.when === "all" || w.when === "weapon" || (w.when === "melee" && melee)).map(w => [w.dice, w.type]);
+  const rider = (melee, wn, own) => d.weaponDamage.filter(w => w.when === "all" || w.when === "weapon" || (w.when === "melee" && melee) || (w.when === "this" && wn && w.item && String(wn).startsWith(w.item))).filter(w => !w.vsTypes).map(w => [w.dice, w.type || own || ""]);
+  const riderVs = (melee, wn) => d.weaponDamage.filter(w => w.vsTypes && (w.when === "all" || w.when === "weapon" || (w.when === "melee" && melee) || (w.when === "this" && wn && w.item && String(wn).startsWith(w.item)))).map(w => ({ dice: w.dice, type: w.type, types: w.vsTypes })); // only against some creature types // "this": only the weapon that is the item
   const out = [];
   const uMod = d.unarmedDex ? best : ctx.STR;
   out.push({ name: "Unarmed Strike", type: "attack", activation: "action", atk: ctx.PROF + uMod, unarmed: true, abil: d.unarmedDex && ctx.DEX > ctx.STR ? "Dexterity" : "Strength",
@@ -2115,11 +1954,12 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { /
     const make = (label, die, two) => {
       let dice = die;
       if (monk && d.unarmedDie) { const m = /^1d(\d+)$/.exec(die); if (m && +m[1] < d.unarmedDie) dice = `1d${d.unarmedDie}`; }
-      const a = { name: label, type: "attack", activation: "action", atk: pb + mod + plus, weapon: true, abil, dmgList: [[evalDice(`${dice}+${mod + plus}`, ctx), w.type], ...rider(!w.ranged)], desc: w.magic ? `${info}. ${String(w.magic.description || "").slice(0, 600)}` : info };
+      const a = { name: label, type: "attack", activation: "action", atk: pb + mod + plus, weapon: true, abil, dmgList: [[evalDice(`${dice}+${mod + plus}`, ctx), w.type], ...rider(!w.ranged, w.magic ? w.magic.name : "", w.type)], desc: w.magic ? `${info}. ${String(w.magic.description || "").slice(0, 600)}` : info };
       if (w.mastery && trained && (mastered || []).includes(w.plain || w.name)) { // the Combat Resolver applies the mastery property on a hit (or a miss, for Graze)
         a.mastery = w.mastery; a.masteryMod = mod; a.masteryDc = 8 + mod + ctx.PROF;
         a.desc = `${info}. ${w.mastery}: ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`;
       }
+      { const vs = riderVs(!w.ranged, w.magic ? w.magic.name : ""); if (vs.length) a.dmgVs = vs.map(v => ({ ...v, type: v.type || w.type })); }
       a.reach = w.ranged ? "0" : w.props.includes("Reach") ? "10" : "5";
       if (w.mastery) a.mprop = w.mastery; // shown on the sheet: gold when the character has it, grey when not
       if (w.range || w.thrown) a.rng = String(w.range || w.thrown);
@@ -2388,7 +2228,7 @@ function CharacterSheet() {
   // Every feature, trait and pack ability this character has, with level changes and choices applied.
   const mech = useMemo(() => activeMechanics({ className, subclassName, level, species, lineage, background, featureChoices,
     spells: [...spells.filter(Boolean), ...featSpells], feats: Array.from(new Set(takenFeats.flatMap(f => [f.name, f.base]))),
-    items: characterItems.map(i => i && i.name).filter(Boolean) }),
+    items: characterItems.filter(i => i && i.name && (!i.attunement || i.attuned)).map(i => i.name) }), // an item that needs Attunement works only while attuned
     [className, subclassName, level, species, lineage, background, featureChoices, spells, featSpells, takenFeats, pinnedItems, characterItems]);
   const featureScores = useMemo(() => {
     const out = {};
@@ -2399,8 +2239,9 @@ function CharacterSheet() {
   const finalScores = useMemo(() => {
     const out = {};
     ABILITIES.forEach(a => { out[a] = baseScores[a] + (featBonuses[a] || 0) + (featureScores[a] || 0); });
+    mech.entries.forEach(e => { const sm = pObj(pObj(e.statics).scoresMin); Object.keys(sm).forEach(a => { const n = parseInt(sm[a], 10); if (ABILITIES.includes(a) && n > out[a]) out[a] = n; }); }); // an item that sets a score: no effect if the score is already higher
     return out;
-  }, [baseScores, featBonuses, featureScores]);
+  }, [baseScores, featBonuses, featureScores, mech]);
 
   const finalMods = useMemo(() => {
     const out = {};
@@ -2413,9 +2254,10 @@ function CharacterSheet() {
     const mi = takenFeats.find(f => f.def && f.def.grants && f.def.grants.magic && ABILITIES.includes(f.choices.castAbility));
     const ability = cls && cls.spellAbility ? cls.spellAbility : mi ? mi.choices.castAbility : null;
     const spellMod = ability ? finalMods[ability] : 0;
+    let atkB = 0, dcB = 0; mech.entries.forEach(e => { const st = pObj(e.statics); atkB += parseInt(st.spellAttackBonus, 10) || 0; dcB += parseInt(st.spellDcBonus, 10) || 0; }); // a staff or wand's bonus to spell attacks and save DCs
     return { STR: finalMods.Strength, DEX: finalMods.Dexterity, CON: finalMods.Constitution, INT: finalMods.Intelligence, WIS: finalMods.Wisdom, CHA: finalMods.Charisma,
-      PROF: profBonus, LEVEL: level, SPELLMOD: spellMod, SPELLDC: 8 + profBonus + spellMod, SPELLATK: profBonus + spellMod };
-  }, [cls, finalMods, profBonus, level, takenFeats]);
+      PROF: profBonus, LEVEL: level, SPELLMOD: spellMod, SPELLDC: 8 + profBonus + spellMod + dcB, SPELLATK: profBonus + spellMod + atkB };
+  }, [cls, finalMods, profBonus, level, takenFeats, mech]);
   // Every weapon in the inventory is a weapon the character can attack with. A magic weapon counts once its kind is chosen.
   const weapons = useMemo(() => {
     const out = [];
@@ -2548,7 +2390,7 @@ function CharacterSheet() {
   const ac = armorClassOf(derived, gear, finalMods.Dexterity);
   const armorClass = ac.value + (takenFeats.some(f => f.base === "Defense") && gear.armor ? 1 : 0) + (statAdj.ac || 0); // Defense: +1 while wearing armor
   const passivePerception = 10 + skillMods.Perception;
-  const speed = (derived.speedBase || (SPECIES[species] ? SPECIES[species].speed : 30)) + derived.speedBonus + (statAdj.speed || 0);
+  const speed = Math.max(derived.speedMin || 0, (derived.speedBase || (SPECIES[species] ? SPECIES[species].speed : 30)) + derived.speedBonus + (statAdj.speed || 0));
 
   const effectiveMaxHp = Math.max(1, maxHp + hpDelta); // the Hit Point total: the average unless the player set their own
   const displayHp = currentHp === null ? effectiveMaxHp : Math.min(currentHp, effectiveMaxHp);
@@ -2650,6 +2492,15 @@ function CharacterSheet() {
   const sheetActions = useMemo(() => {
     const out = weaponActions(weapons, spellCtx, derived, takenFeats.map(f => f.base), masteries, prof.weapon);
     mech.entries.forEach(e => {
+      if (e.castSpell) { try { const cs = pObj(e.castSpell), sp = spellOf(cs.spell); if (!sp) return;
+        const lvl = Math.max(0, Math.min(9, parseInt(cs.level, 10) || sp.l)), ctx2 = { ...spellCtx, ...(+cs.dc > 0 ? { SPELLDC: +cs.dc } : {}), ...(cs.attack != null && cs.attack !== "" ? { SPELLATK: +cs.attack } : {}), ...(cs.mod != null && cs.mod !== "" ? { SPELLMOD: +cs.mod } : {}) };
+        const a = spellAction({ ...sp, l: lvl || sp.l }, ctx2, {});
+        a.name = pStr(e.name || sp.n, 60); a.spellName = sp.n; a.slot = lvl; a.fromItem = true; delete a.ritual;
+        if (pObj(e.grantedBy).type === "item") a.item = pStr(e.grantedBy.name, 80);
+        const u = pObj(e.uses), cost = Math.max(0, parseInt(u.cost != null ? u.cost : 1, 10) || 0), maxLvl = Math.max(lvl, Math.min(9, parseInt(cs.maxLevel, 10) || lvl));
+        if (u.pool) { a.pool = pStr(u.pool, 40); a.cost = cost; if (lvl > 0) { a.pointCosts = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => l < lvl || l > maxLvl ? 0 : cost + (l - lvl) * (parseInt(cs.perLevel, 10) || 1)); a.maxLvl = maxLvl; } }
+        else if (u.max != null) { const n = evalFormula(u.max, spellCtx); if (n > 0) { a.usesMax = n; a.recharge = u.recharge === "short" ? "short" : "long"; } }
+        out.push(a); } catch (err) {} return; }
       if (!isActivated(e)) return;
       try {
         const a = compileAbility(e, spellCtx);
@@ -2675,7 +2526,9 @@ function CharacterSheet() {
     mech.entries.forEach(e => {
       const r = e.resource; if (!r || !r.name) return;
       const max = evalFormula(r.max, spellCtx);
-      if (Number.isFinite(max) && max > 0) { out[pStr(r.name, 40)] = { max: Math.min(999, max), recharge: r.recharge === "short" ? "short" : "long" }; if (+r.shortRegain > 0) out[pStr(r.name, 40)].shortRegain = +r.shortRegain; }
+      if (Number.isFinite(max) && max > 0) { out[pStr(r.name, 40)] = { max: Math.min(999, max), recharge: r.recharge === "short" ? "short" : r.recharge === "dawn" ? "dawn" : r.recharge === "none" ? "none" : "long" }; if (+r.shortRegain > 0) out[pStr(r.name, 40)].shortRegain = +r.shortRegain;
+        if (r.recharge === "dawn" && r.regain) { const d = evalDice(r.regain, spellCtx); if (d) out[pStr(r.name, 40)].regain = d; }
+        if (pObj(e.grantedBy).type === "item") out[pStr(r.name, 40)].item = pStr(e.grantedBy.name, 80); }
     });
     return out;
   }, [mech, spellCtx]);
@@ -2749,6 +2602,8 @@ function CharacterSheet() {
       const w = WEAPONS.find(x => gearNorm(x.name) === gearNorm(it.name)); return !!w && masteries.includes(w.name);
     },
     setKind: (it, kind) => { const put = (prev) => prev.map(p => p.name === it.name ? { ...p, kind } : p); setCharacterItems(put); setPinnedItems(put); },
+    attunedCount: characterItems.filter(p => p && p.attuned).length,
+    setAttuned: (it, on) => { const put = (prev) => prev.map(p => p.name === it.name ? { ...p, attuned: !!on } : p); setCharacterItems(put); setPinnedItems(put); },
   };
 
   /* ============ CHARACTER FILE (save / load / send to Combat Resolver) ============ */
@@ -2771,6 +2626,8 @@ function CharacterSheet() {
       actions: [...sheetActions, ...takenFeats.flatMap(f => (f.def && f.def.actions) || []), ...spellActions],
       pools,
       resist: Array.from(new Set(derived.resist)),
+      immune: Array.from(new Set(derived.immune)),
+      moves: Array.from(new Set(derived.moves)),
       conditionImmune: Array.from(new Set(derived.condImmune)),
       lineage, armor, shield, weapons, masteries,
       passives: (() => {
@@ -2786,6 +2643,7 @@ function CharacterSheet() {
         Object.assign(out, derived.passives);
         if (derived.saveAdv.length) out.saveAdv = Array.from(new Set(derived.saveAdv));
         if (derived.condAdv.length) out.condAdv = Array.from(new Set(derived.condAdv));
+        if (derived.skillAdv.length) out.skillAdv = Array.from(new Set(derived.skillAdv));
         return out;
       })(),
       packs: INSTALLED_PACKS.map(p => p.name),
@@ -4765,6 +4623,9 @@ function InventoryTab({ inv, prof, magic, mundane, components, setComponents, sp
                     <span style={{ fontSize: 11, color: colors.parchment + "88", minWidth: 60, textAlign: "right" }}>{item.rarity || item.cost || ""}</span>
                     <button aria-label={`${inv.important(item) ? "Unmark" : "Mark"} ${item.name} as important`} aria-pressed={inv.important(item)} title={inv.important(item) ? "Shown under Important Items on your character sheet. Click to take it off." : "Show under Important Items on your character sheet"}
                       onClick={() => inv.setImportant(item, !inv.important(item))} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 15, color: inv.important(item) ? colors.brassLight : colors.parchment + "55", padding: "0 2px" }}>{inv.important(item) ? "◆" : "◇"}</button>
+                    {item.attunement && <button data-testid={`attune-${item.name}`} aria-pressed={!!item.attuned} disabled={!item.attuned && inv.attunedCount >= 3}
+                      title={item.attuned ? "Attuned: its magic works. Click to end the Attunement." : inv.attunedCount >= 3 ? "You are already attuned to 3 items, the most you can be" : "Needs Attunement (a Short Rest with the item). Click when you are attuned."}
+                      onClick={() => inv.setAttuned(item, !item.attuned)} style={{ background: item.attuned ? colors.brass : "transparent", color: item.attuned ? colors.ink : colors.parchment + "aa", border: `1px solid ${colors.brass}88`, borderRadius: 10, fontSize: 11, padding: "1px 7px", cursor: "pointer" }}>{item.attuned ? "Attuned" : "Attune"}</button>}
                     <ItemControls item={item} inv={inv} colors={colors} small />
                   </div>
                   {openItem === item.name && <div style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.85, margin: "6px 0 4px 16px" }}>{item.type ? <em>{item.type}{item.attunement ? ", requires Attunement" : ""}. </em> : null}{item.description || "No description."}</div>}

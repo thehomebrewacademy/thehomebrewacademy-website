@@ -429,6 +429,8 @@
     .item-card-head { display: flex; justify-content: space-between; align-items: center; }
     .item-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
     .item-card-charges { color: #b79cff; font-weight: 600; margin: 4px 0; }
+    .item-card-attuned { color: #8fd18f; font-size: 13px; margin: 2px 0 6px; }
+    .item-card-unattuned { color: #ff9e80; font-size: 13px; margin: 2px 0 6px; }
     .item-card-text { white-space: pre-wrap; line-height: 1.45; color: var(--text-light); }
     .notice-sep { border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0; }
     .modal-overlay {
@@ -1038,7 +1040,8 @@ function rollCondSave(c, cond, adv) {
 function cleanPassives(p) {
   const out = {};
   if (!p || typeof p !== 'object') return out;
-  ['savage','archery','gwf','grappler','prowess','evasion','discipleOfLife','blessedHealer','supremeHealing','initiativeAdvantage'].forEach(k => { if (p[k]) out[k] = true; });
+  ['savage','archery','gwf','grappler','prowess','evasion','discipleOfLife','blessedHealer','supremeHealing','initiativeAdvantage','saveAdvSpells'].forEach(k => { if (p[k]) out[k] = true; });
+  if (Array.isArray(p.skillAdv)) out.skillAdv = p.skillAdv.filter(k => SKILL_ABILITY[k]);
   if (+p.criticalOn >= 15 && +p.criticalOn <= 19) out.criticalOn = Math.round(+p.criticalOn);
   if (+p.sneakAttackDice > 0) out.sneakAttackDice = Math.min(20, Math.round(+p.sneakAttackDice));
   if (+p.attacks > 1) out.attacks = Math.min(8, Math.round(+p.attacks));
@@ -1202,6 +1205,8 @@ function cleanAction(a, i) {
     if (!ABILITIES.includes(a.saveAbility) || !(+a.dc > 0)) return null;
     out.saveAbility = a.saveAbility; out.dc = Math.min(40, Math.round(+a.dc));
     if (a.halfOnSave) out.halfOnSave = true;
+    if (a.fullOnSave) out.fullOnSave = true;
+    if (Array.isArray(a.dmgVs)) { const dv = a.dmgVs.filter(v => v && DMG_RE.test(String(v.dice || '').replace(/\s/g, '')) && Array.isArray(v.types)).slice(0, 4).map(v => ({dice: String(v.dice).replace(/\s/g, ''), type: String(v.type || '').slice(0, 20), types: v.types.map(x => String(x).slice(0, 20)).slice(0, 14)})); if (dv.length) out.dmgVs = dv; }
     bits.push(`DC ${out.dc} ${out.saveAbility.slice(0, 3)} save`);
   }
   if (a.type === 'auto' && !dmgList.length) return null;
@@ -1539,12 +1544,14 @@ function d20Test(c, kind, ctx) {
     const pas = (c && c.passives) || {};
     if ((pas.saveAdv || []).includes(ctx.ability)) adv.push('a feature'); // Danger Sense, Gnomish Cunning
     if ((ctx.conditions || []).some(n => (pas.condAdv || []).includes(n))) adv.push('a trait'); // Fey Ancestry, Brave, Dwarven Resilience
+    if (ctx.spell && pas.saveAdvSpells) adv.push('against spells'); // Mantle of Spell Resistance
     if (ctx.ability === 'Dexterity' && hasCond(c, 'Restrained')) dis.push('Restrained');
     if (['Strength','Dexterity'].includes(ctx.ability)) autoFail = AUTO_FAIL_STR_DEX.find(n => hasCond(c, n)) || '';
   } else {
     ['Frightened','Poisoned'].forEach(n => { if (hasCond(c, n)) dis.push(n); });
     es.forEach(e => { if (e.checkDis && e.checkDis === ctx.ability) dis.push(e.name); if (e.checkAdv && e.checkAdv === ctx.ability) adv.push(e.name); });
     dice = effectDice(c, 'check', e => !!ctx.skill && e.checkSkill === ctx.skill);
+    if (ctx.skill && (((c && c.passives) || {}).skillAdv || []).includes(ctx.skill)) adv.push('an item or feature'); // Boots of Elvenkind: Stealth
   }
   return {adv, dis, flat, dice, autoFail, bonus: flat + dice.total, bonusText: [dice.text, flatParts.join(', ')].filter(Boolean).join(', ')};
 }
@@ -1632,14 +1639,15 @@ function sheetToFields(data) {
   const pools = {}; // shared pools of uses: Rage, Focus Points, Channel Divinity...
   Object.keys(data.pools && typeof data.pools === 'object' ? data.pools : {}).slice(0, 20).forEach(k => {
     const q = data.pools[k]; const max = Math.round(+((q || {}).max));
-    if (max > 0) { pools[str(k, 40)] = {max: Math.min(999, max), recharge: q.recharge === 'short' ? 'short' : 'long'}; if (+q.shortRegain > 0) pools[str(k, 40)].shortRegain = Math.min(99, Math.round(+q.shortRegain)); }
+    if (max > 0) { pools[str(k, 40)] = {max: Math.min(999, max), recharge: ['short', 'dawn', 'none'].includes(q.recharge) ? q.recharge : 'long'}; if (+q.shortRegain > 0) pools[str(k, 40)].shortRegain = Math.min(99, Math.round(+q.shortRegain));
+      if (q.regain && DMG_RE.test(String(q.regain).replace(/\s/g, ''))) pools[str(k, 40)].regain = String(q.regain).replace(/\s/g, ''); if (q.item) pools[str(k, 40)].item = str(q.item, 80); }
   });
   const sheet = {
     pools, species: str(data.species, 30), background: str(data.background, 30), subclass: str(data.subclassName, 40),
     player: str(data.player, 40), pp: num(data.passivePerception, 10 + mod(scores.Wisdom)),
     skills, skillProfs: list(data.skillProfs, 30, 30), skillExpertise: list(data.skillExpertise, 30, 30),
     hitDie: num(data.hitDie, 0), equipment: str(data.equipment, 2000), items: list(data.items, 60, 80),
-    itemsFull: (Array.isArray((data.builder || {}).characterItems) ? data.builder.characterItems : []).slice(0, 80).filter(i => i && typeof i === 'object' && i.name).map(i => ({name: str(i.name, 80), type: str(i.type || i.category, 60), rarity: str(i.rarity, 20), attune: !!i.attunement, d: str(i.description, 1500), cost: str(i.cost, 20), weight: str(i.weight, 20)})),
+    itemsFull: (Array.isArray((data.builder || {}).characterItems) ? data.builder.characterItems : []).slice(0, 80).filter(i => i && typeof i === 'object' && i.name).map(i => ({name: str(i.name, 80), type: str(i.type || i.category, 60), rarity: str(i.rarity, 20), attune: !!i.attunement, attuned: !!i.attuned, d: str(i.description, 3000), cost: str(i.cost, 20), weight: str(i.weight, 20)})),
     shield: !!data.shield, feats: list(data.feats, 40, 60), components: list(data.components, 80, 60),
     featureList: (Array.isArray(data.featureList) ? data.featureList : []).slice(0, 120).filter(f => f && typeof f === 'object' && f.n).map(f => ({n: str(f.n, 80), lv: Math.max(0, Math.min(20, num(f.lv, 0))), src: str(f.src, 24), d: str(f.d, 2500)})),
     saveProfs: list(data.saveProfs, 6, 20), languages: list(data.languages, 40, 40), tools: list(data.tools, 40, 60), importantItems: list(data.importantItems, 40, 80),
@@ -1671,11 +1679,11 @@ function sheetToFields(data) {
     name: str(data.name, 60) || 'Unnamed Hero', type: 'player',
     charClass: str(data.className, 40).trim() || 'Fighter', // any class name, so homebrew classes keep theirs
     level, maxHP, gold: Math.max(0, num(data.gold, 0)), size: SIZES.includes(data.size) ? data.size : 'Medium', xp: Math.max(0, num(data.xp, 0)), currentHP: Math.max(0, Math.min(maxHP, num(data.currentHP, maxHP))), hitDiceUsed: Math.max(0, Math.min(level, num(data.hitDiceUsed, 0))),
-    tempHP: Math.max(0, num(data.tempHP, 0)), ac: num(data.ac, 10), speed: num(data.speed, 30), initBonus: num(data.initiativeBonus, mod(scores.Dexterity)),
+    tempHP: Math.max(0, num(data.tempHP, 0)), ac: num(data.ac, 10), speed: num(data.speed, 30), ...(list(data.moves, 6, 40).length ? {speedExtra: list(data.moves, 6, 40).join(', ')} : {}), initBonus: num(data.initiativeBonus, mod(scores.Dexterity)),
     senses: list(data.senses, 10, 40), scores, saves, pb: num(data.profBonus, profBonus(level)), sheet, info,
     passives: cleanPassives(data.passives),
     ownActions: data.rules === 1, // the sheet brings its own attacks, features and spells
-    res: list(data.resist, 14, 20).join(', '), ci: list(data.conditionImmune, 14, 20).filter(x => CONDITIONS.includes(x)).join(', '),
+    res: list(data.resist, 14, 20).join(', '), imm: list(data.immune, 14, 20).join(', '), ci: list(data.conditionImmune, 14, 20).filter(x => CONDITIONS.includes(x)).join(', '),
     sheetActions: (Array.isArray(data.actions) ? data.actions : []).slice(0, 60).map(cleanAction).filter(Boolean),
   };
 }
@@ -2038,7 +2046,7 @@ function App() {
     const fresh = log.filter(e => !seenLog.current.has(e.id));
     fresh.forEach(e => seenLog.current.add(e.id));
     const w = castWatch.current; if (w && fresh.length) { fresh.forEach(e => { if (e.html && e.type !== 'round') { w.html.push(e.html); w.ids.add(e.id); } }); w.last = Date.now(); }
-    const mineNow = fresh.filter(e => !(w && w.ids.has(e.id))).filter(e => e.forAll || (noticesOn && e.forId) && (e.by === myId || combatants.some(c => c.id === e.forId && (c.owner === myId || (isDM && !c.owner)))));
+    const mineNow = fresh.filter(e => !(w && w.ids.has(e.id))).filter(e => e.forAll || (noticesOn && e.forId) && !isDM && (e.by === myId || combatants.some(c => c.id === e.forId && c.owner === myId)));
     if (mineNow.length) setNotices(prev => [...prev, ...mineNow.map(e => ({id: e.id, html: e.html, concEnd: e.concEnd || null, name: (combatants.find(c => c.id === e.forId) || {}).name || ''}))].slice(-12));
   }, [log]);
 
@@ -2417,7 +2425,7 @@ function App() {
     actingRef.current = actor ? actor.id : ''; actionRef.current = action;
     const saveAbility = action.saveAbility;
     const saveMod = tgt.saves?.[saveAbility] ?? mod(tgt.scores?.[saveAbility]??10);
-    const t = d20Test(tgt, 'save', {ability: saveAbility, conditions: ((action.onFail || {}).conds || []).map(k => k.name)});
+    const t = d20Test(tgt, 'save', {ability: saveAbility, conditions: ((action.onFail || {}).conds || []).map(k => k.name), spell: !!action.spell});
     if (action.advNow) t.adv.push(action.advIf || 'the circumstances');
     effs(tgt).forEach(e => { if (e.saveAdvVs && ((action.onFail || {}).conds || []).some(k => k.name === e.saveAdvVs || String(action.name).includes(e.saveAdvVs))) t.adv.push(e.name); });
     if (action.auto && (action.auto.disTypes || []).includes(creatureType(tgt))) t.dis.push(`it is a ${creatureType(tgt)}`);
@@ -2433,6 +2441,7 @@ function App() {
     const evade = (tgt.passives || {}).evasion && saveAbility === 'Dexterity' && action.halfOnSave && !hasCond(tgt, 'Incapacitated'); // Evasion: none on a success, half on a failure
     const parts = Array.isArray(action.rolled) && action.rolled.length ? action.rolled : hasDmg ? rollDamageParts(action, false) : [];
     if (parts.length && evade) dmgHtml = passed ? '<div class="log-detail">Evasion: no damage</div>' : dealDamage(tgt, parts, true).html + '<div class="log-detail">Evasion: half damage</div>';
+    else if (parts.length && passed && action.fullOnSave) dmgHtml = dealDamage(tgt, parts, false).html; // the damage came with the hit; the save only decides the rest
     else if (parts.length && (!passed || action.halfOnSave)) dmgHtml = dealDamage(tgt, parts, passed).html;
     const condHtml = applyOutcome(tgt, passed ? action.onSuccess : action.onFail, action, actor);
     const extras = [t.bonusText, inspired && inspired.text].filter(Boolean).join(', ');
@@ -2747,7 +2756,7 @@ function App() {
         const se = (Array.isArray(r.selfEffs) ? r.selfEffs : []).map(cleanEffect).filter(Boolean); if (se.length) o2.selfEffs = se;
         action = o2; } catch (e) {}
     }
-    if (!re && action.spell && noticesOn) castWatch.current = {name: action.name, start: Date.now(), last: Date.now(), html: [], ids: new Set()};
+    if (!re && action.spell && noticesOn && !isDM) castWatch.current = {name: action.name, start: Date.now(), last: Date.now(), html: [], ids: new Set()};
     const chosen = !re ? [action.modeName, ...(picks[action.id] || [])].filter(Boolean) : [];
     if (!re && action.byHP && !action.self) { // the effect depends on the target's Hit Points right now
       const t0 = inPlay.find(c => c.id === targetIds[0]);
@@ -2957,6 +2966,7 @@ function App() {
           } else if (e.dmgBonus && parts.length && (action.weapon || action.unarmed) && (!e.dmgBonusFor || e.dmgBonusFor === action.abil)) parts.push({amount: e.dmgBonus, type: parts[0].type, dice: `${esc(e.name)} ${signed(e.dmgBonus)}`});
           if (e.weaponDmg && parts.length && action.weapon) parts.push(...rollDamageParts({dmgList: [[e.weaponDmg, e.weaponDmgType || parts[0].type]]}, isCrit).map(x => ({...x, dice: `${esc(e.name)} ${x.dice}`}))); // Divine Favor and the like
         });
+        (action.dmgVs || []).forEach(v => { if (parts.length && v.types.includes(creatureType(target))) parts.push(...rollDamageParts({dmgList: [[v.dice, v.type || parts[0].type]]}, isCrit).map(x => ({...x, dice: `against ${esc(creatureType(target))} ${x.dice}`}))); }); // Dragon Slayer, Sun Blade: more damage against some creature types
         if (feat.sneakAttackDice && sneakNow && action.weapon && (action.finesse || action.ranged) && parts.length && active.sneakAt !== turnKey) { // Sneak Attack, once per turn
           const sn = parseDamage(`${feat.sneakAttackDice * (isCrit ? 2 : 1)}d6`);
           parts.push({amount: sn.total, type: parts[0].type, dice: `Sneak Attack ${sn.parts.join(' + ')}`});
@@ -3299,8 +3309,11 @@ function App() {
     if (c.slotsUsed && (longRest || (c.sheet || {}).pact)) c = {...c, slotsUsed: {}}; // Long Rest, or Pact Magic on a Short Rest
     if (c.poolUsed) { // shared pools: all back on a Long Rest; on a Short Rest the short ones, and one use of some others
       const left = {};
-      if (!longRest) Object.keys(c.poolUsed).forEach(k => {
+      Object.keys(c.poolUsed).forEach(k => {
         const q = ((c.sheet || {}).pools || {})[k] || {};
+        if (q.recharge === 'none') { if (c.poolUsed[k] > 0) left[k] = c.poolUsed[k]; return; } // an item whose charges never come back
+        if (q.recharge === 'dawn') { const n = longRest ? (q.regain ? Math.max(0, c.poolUsed[k] - parseDamage(q.regain).total) : 0) : c.poolUsed[k]; if (n > 0) left[k] = n; return; } // regained at dawn: counted at a Long Rest
+        if (longRest) return;
         const n = q.recharge === 'short' ? 0 : Math.max(0, c.poolUsed[k] - (q.shortRegain || 0));
         if (n > 0) left[k] = n;
       });
@@ -3863,7 +3876,10 @@ function App() {
     const chargesLeft = it => { const mx = chargesMax(it), u = +((c.itemCharges || {})[chKey(it.name)]) || 0; return Math.max(0, mx - u); };
     const setCharge = (it, d) => { const mx = chargesMax(it), k = chKey(it.name); setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, itemCharges: {...(x.itemCharges || {}), [k]: Math.max(0, Math.min(mx, (+((x.itemCharges || {})[k]) || 0) - d))}})); };
     const itemUses = it => { const base = it.name.replace(/ \(.*$/, ''); return actions.filter(a => a.item && (a.item === it.name || a.item === base)); };
-    const chargePill = it => { const mx = chargesMax(it), uses = itemUses(it).filter(a => a.usesMax || a.pool);
+    const itemPool = it => Object.entries(sh.pools || {}).find(([n, q]) => q.item === it.name || n === it.name) || null;
+    const chargePill = it => { const ip = itemPool(it); if (ip) { const [pn, q] = ip; return <span className="item-charges" data-testid="item-charges" title={`Charges left${q.recharge === 'dawn' ? (q.regain ? `, regains ${q.regain} at dawn (counted at a Long Rest)` : ', all back at dawn') : q.recharge === 'none' ? ', they do not come back' : ''}`} onClick={e => e.stopPropagation()}>
+        {ctl && <button className="item-ch-btn" aria-label="Spend a charge" data-testid="charge-minus" onClick={() => adjustPool(c.id, pn, -1)}>−</button>}⚡ {poolLeft(c, pn)}/{q.max}{ctl && <button className="item-ch-btn" aria-label="Regain a charge" data-testid="charge-plus" onClick={() => adjustPool(c.id, pn, 1)}>+</button>}</span>; }
+      const mx = chargesMax(it), uses = itemUses(it).filter(a => a.usesMax || a.pool);
       if (!mx && !uses.length) return <span className="item-charges none" data-testid="item-charges"/>;
       return <span className="item-charges" data-testid="item-charges" title={mx ? 'Charges left' : 'Uses left'} onClick={e => e.stopPropagation()}>
         {mx ? <>{ctl && <button className="item-ch-btn" aria-label="Spend a charge" data-testid="charge-minus" onClick={() => setCharge(it, -1)}>−</button>}⚡ {chargesLeft(it)}/{mx}{ctl && <button className="item-ch-btn" aria-label="Regain a charge" data-testid="charge-plus" onClick={() => setCharge(it, 1)}>+</button>}</>
@@ -3923,7 +3939,9 @@ function App() {
               <div className="modal-header item-card-head"><span>{it.name}</span><button className="btn btn-ghost btn-sm" data-testid="item-card-close" onClick={() => setItemCard(null)}>Close</button></div>
               <div className="modal-body">
                 <div className="item-card-top"><span className="pp-muted">{[it.type, it.rarity, it.attune ? 'requires Attunement' : '', it.weight, it.cost].filter(Boolean).join(' · ') || 'Item'}</span>{chargePill(it)}</div>
-                {mx > 0 && <div className="item-card-charges" data-testid="item-card-charges">Charges: {chargesLeft(it)} of {mx}</div>}
+                {itemPool(it) ? <div className="item-card-charges" data-testid="item-card-charges">Charges: {poolLeft(c, itemPool(it)[0])} of {itemPool(it)[1].max}{itemPool(it)[1].recharge === 'dawn' ? (itemPool(it)[1].regain ? ` · regains ${itemPool(it)[1].regain} at dawn` : ' · all back at dawn') : ''}</div>
+                  : mx > 0 && <div className="item-card-charges" data-testid="item-card-charges">Charges: {chargesLeft(it)} of {mx}</div>}
+                {it.attune && <div className={it.attuned ? 'item-card-attuned' : 'item-card-unattuned'} data-testid="item-card-attune">{it.attuned ? 'Attuned: its magic works.' : 'Not attuned: its magic does not work until you attune to it (in the Character Builder).'}</div>}
                 {ctl && itemUses(it).length > 0 && <div style={{margin: '6px 0'}}>{itemUses(it).map(a => <button key={a.id} className="pp-chip on" data-testid="item-card-use" onClick={() => { sel(a); setItemCard(null); }}>{a.name === it.name ? 'Use' : `Use ${a.name}`}{leftText(a)}</button>)}</div>}
                 <div className="item-card-text" data-testid="item-card-text">{it.d || 'No description.'}</div>
                 {ctl && <label className="pp-muted" style={{display: 'block', marginTop: 10}}><input type="checkbox" data-testid="item-card-important" checked={isImportant(it)} onChange={e => setImportant(it, e.target.checked)}/> Show in Important Items</label>}
@@ -4023,7 +4041,7 @@ function App() {
                   {actOnly && <button className="pp-chip on" data-testid="econ-all" onClick={() => setActOnly(null)}>Showing only {actOnly === 'extra' ? 'what the extra action allows' : ACTIVATIONS[actOnly] || actOnly}: show all</button>}
                   {ctl && canUndo() && undoRef.current.actorId === c.id && <button className="pp-chip on" data-testid="undo-btn" onClick={undoLast}>Take back {undoRef.current.name}</button>}
                 </div>); })()}
-          {Object.entries(sh.pools || {}).map(([pn, q]) => { const spend = actions.filter(a => a.pool === pn && !a.pointCosts); return (
+          {Object.entries(sh.pools || {}).filter(([pn, q]) => !q.item).map(([pn, q]) => { const spend = actions.filter(a => a.pool === pn && !a.pointCosts); return (
                 <div key={pn} className="pp-card" data-testid="resource-group" style={{marginBottom: 10}}>
                   <div style={{display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap'}}>
                     <span data-testid="resource-count" style={{fontSize: '1.9rem', fontWeight: 700, lineHeight: 1}}>{poolLeft(c, pn)}<span style={{fontSize: '1rem', fontWeight: 400}}> / {q.max}</span></span>
