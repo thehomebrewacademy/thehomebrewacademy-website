@@ -402,6 +402,35 @@
     .setup-screen p { color: var(--text-muted); max-width: 300px; line-height: 1.5; }
 
     /* ── MODAL ── */
+    .gloss-modal { max-width: 720px; max-height: 88vh; }
+    .gloss-modal .modal-header { display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1; }
+    .gloss-body { padding: 12px 16px; }
+    .gloss-search { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 6px 8px; background: var(--ink); color: var(--text-light); border: 1px solid var(--brass); border-radius: 4px; }
+    .gloss-entry { border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .gloss-name { background: none; border: 0; color: var(--brass-light); font: inherit; font-weight: 600; padding: 6px 0; cursor: pointer; text-align: left; width: 100%; }
+    .gloss-text { padding: 0 0 8px; font-size: 14px; line-height: 1.45; color: var(--text-light); }
+    .gloss-text p { margin: 0 0 8px; }
+    .gloss-table { border-collapse: collapse; margin: 0 0 8px; font-size: 13px; }
+    .gloss-table th, .gloss-table td { border: 1px solid rgba(255,255,255,0.15); padding: 3px 6px; text-align: left; vertical-align: top; }
+    .gloss-credit { font-size: 11px; opacity: 0.6; margin-top: 10px; }
+    .item-list { display: flex; flex-direction: column; gap: 2px; }
+    .item-row { display: grid; grid-template-columns: 1fr auto 18px; align-items: center; column-gap: 6px; padding: 3px 4px 3px 8px; border-bottom: 1px solid rgba(127,127,127,0.25); border-left: 3px solid transparent; text-align: left; }
+    .item-row.magic { border-left-color: #8a63d2; }
+    .item-main { min-width: 0; }
+    .item-name { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: inherit; cursor: pointer; text-align: left; }
+    .item-name:hover { text-decoration: underline; }
+    .item-tag { font-size: 11px; opacity: 0.7; }
+    .item-charges { display: inline-flex; align-items: center; gap: 3px; background: #6a3fb5; color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .item-charges.none { visibility: hidden; padding: 0; width: 0; }
+    .item-ch-btn { background: rgba(255,255,255,0.2); color: #fff; border: 0; border-radius: 50%; width: 16px; height: 16px; line-height: 14px; padding: 0; cursor: pointer; font-size: 12px; }
+    .item-star { background: none; border: 0; cursor: pointer; font-size: 14px; color: #b8860b; padding: 0 2px; }
+    .item-sub { display: flex; gap: 6px; align-items: center; padding: 0 4px 4px 12px; font-size: 12px; }
+    .item-card { max-width: 520px; }
+    .item-card-head { display: flex; justify-content: space-between; align-items: center; }
+    .item-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .item-card-charges { color: #b79cff; font-weight: 600; margin: 4px 0; }
+    .item-card-text { white-space: pre-wrap; line-height: 1.45; color: var(--text-light); }
+    .notice-sep { border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0; }
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100;
       display: flex; align-items: center; justify-content: center; padding: 20px;
@@ -678,6 +707,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="monsters.js"></script>
+<script src="glossary.js"></script>
 <script type="text/babel">
 
 const {useState, useRef, useEffect, useMemo} = React;
@@ -1784,6 +1814,39 @@ function monsterInfo(m) {
 }
 
 // ── MAIN APP ─────────────────────────────────────────────────────────────────
+// The Rules Glossary (SRD 5.2.1) as simple marked-up text: paragraphs, lists, tables, *italic* and **bold**.
+function glossInline(t) { return esc(t).replace(/\\\[/g, '[').replace(/\\\]/g, ']').replace(/_\*\*(.+?)\*\*_/g, '<em><strong>$1</strong></em>').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>').replace(/(^|\W)_(.+?)_(?=\W|$)/g, '$1<em>$2</em>'); }
+function glossHtml(t) {
+  return String(t || '').split(/\n\s*\n/).map(b => { const lines = b.split('\n').filter(l => l.trim());
+    if (lines.length && lines.every(l => l.trim().startsWith('|'))) { const rows = lines.filter(l => !/^\|[\s\-:|]+\|?$/.test(l.trim())).map(l => l.trim().replace(/^\||\|$/g, '').split('|').map(x => x.trim())); const w = Math.max(...rows.map(r => r.reduce((n, x, i) => x ? i + 1 : n, 0)));
+      return '<table class="gloss-table">' + rows.map((r, i) => '<tr>' + r.slice(0, w).map(x => i ? `<td>${glossInline(x)}</td>` : `<th>${glossInline(x)}</th>`).join('') + '</tr>').join('') + '</table>'; }
+    if (lines.length && lines.every(l => /^\s*[-*] /.test(l))) return '<ul>' + lines.map(l => `<li>${glossInline(l.replace(/^\s*[-*] /, ''))}</li>`).join('') + '</ul>';
+    return `<p>${glossInline(lines.join(' '))}</p>`; }).join('');
+}
+function GlossaryPanel({onClose}) {
+  const [q, setQ] = useState(''); const [open, setOpen] = useState('');
+  const all = window.HBA_GLOSSARY || [];
+  const ql = q.trim().toLowerCase();
+  const list = !ql ? all : all.filter(e => e.n.toLowerCase().includes(ql)).concat(all.filter(e => !e.n.toLowerCase().includes(ql) && e.t.toLowerCase().includes(ql)));
+  const shown = e => open === e.n || (!!ql && list.length <= 3);
+  return (
+    <div className="modal-overlay" onClick={onClose} data-testid="glossary">
+      <div className="modal gloss-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header"><span>Rules Glossary</span><button className="btn btn-ghost btn-sm" data-testid="glossary-close" onClick={onClose}>Close</button></div>
+        <div className="gloss-body">
+          <input className="gloss-search" data-testid="glossary-search" autoFocus placeholder="Search terms or text" value={q} onChange={e => setQ(e.target.value)}/>
+          {!all.length && <div className="pp-muted">The glossary file did not load.</div>}
+          {all.length > 0 && !list.length && <div className="pp-muted">Nothing matches.</div>}
+          {list.map(e => <div key={e.n} className="gloss-entry">
+            <button className="gloss-name" data-testid="glossary-term" aria-expanded={shown(e)} onClick={() => setOpen(open === e.n ? '' : e.n)}>{e.n}</button>
+            {shown(e) && <div className="gloss-text" data-testid="glossary-text" dangerouslySetInnerHTML={{__html: glossHtml(e.t)}}/>}
+          </div>)}
+          <div className="gloss-credit">From the System Reference Document 5.2.1 by Wizards of the Coast LLC, under CC BY 4.0.</div>
+        </div>
+      </div>
+    </div>);
+}
+
 function App() {
   const [combatants, setCombatantsRaw] = useState([]);
   const deferRef = useRef(null);   // while an attack waits for the target's OK, the changes it would make are collected here
@@ -1893,6 +1956,7 @@ function App() {
   }, [clock]);
   useEffect(() => { FUDGE_DONE = () => setFudge(''); return () => { FUDGE_DONE = null; NEXT_D20 = 0; }; }, []);
   const [blockPick, setBlockPick] = useState(null);  // choosing the creature for a form or a summon: {cId, kind, source, left, q}
+  const [showGlossary, setShowGlossary] = useState(false); // the DM's Rules Glossary
   const [restSummary, setRestSummary] = useState(null); // what a player's rest just gave back
   const restRef = useRef(null);
   const [castLevel, setCastLevel] = useState(0); // spell slot level chosen for the selected spell (0 = lowest available)
@@ -1941,6 +2005,8 @@ function App() {
   const [compMode, setCompMode] = useState('');    // table rule: spell components. '' off, 'simple', 'full'
   const [showPouch, setShowPouch] = useState(false);
   const [openSpells, setOpenSpells] = useState({});        // spell name -> its details are open
+  const castWatch = useRef(null); // a spell I just cast: everything it causes is gathered into one pop-up
+  const promptsRef = useRef([]);
   const [notices, setNotices] = useState([]);              // "this is what happened to you" pop-ups waiting to be read
   const seenLog = useRef(null);
   const [reveal, setReveal] = useState('full');            // table rule: what players see of creatures that are not theirs: full | bar | conditions | none
@@ -1948,7 +2014,8 @@ function App() {
   const [trackerDraft, setTrackerDraft] = useState('');
   const [sheetTab, setSheetTab] = useState('main');
   const [invHi, setInvHi] = useState(''); // items picked out on the Inventory tab, as a name pattern
-  const [invOpen, setInvOpen] = useState({});        // Main | Spells | Character | Features & Traits
+  const [invOpen, setInvOpen] = useState({});
+  const [itemCard, setItemCard] = useState(null); // {cId, name}: the magic item card open on top of the page        // Main | Spells | Character | Features & Traits
   const [actFilter, setActFilter] = useState({});          // which kinds of action the sheet lists; a kind set to false is hidden
   const [stdAct, setStdAct] = useState(null);              // the standard action being asked about
   const [showTheme, setShowTheme] = useState(false);
@@ -1957,12 +2024,21 @@ function App() {
   useEffect(() => { logEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [log]);
   // An attack of mine that was waiting has been answered by the target or the DM.
   useEffect(() => { prompts.forEach(q => { if (q.kind === 'confirm' && q.answer && pendingRef.current[q.id]) finalizeRef.current(q.id); }); }, [prompts]);
+  promptsRef.current = prompts;
+  // When a spell I cast has finished (nothing new for a moment and no rolls of it still waiting), one pop-up says what it did.
+  useEffect(() => { const t = setInterval(() => { const w = castWatch.current; if (!w) return;
+    const waiting = (promptsRef.current || []).some(q => q.by === myId && q.action && q.action.name === w.name && !q.answer);
+    if ((Date.now() - w.last < 1200 || waiting) && Date.now() - w.start < 120000) return;
+    castWatch.current = null;
+    if (w.html.length) setNotices(prev => [...prev, {id: newId(), html: w.html.join('<hr class="notice-sep"/>'), title: `What ${w.name} did`, name: ''}].slice(-12)); }, 400);
+    return () => clearInterval(t); }, []);
   // Something just happened to one of my creatures because of someone else: show it to me.
   useEffect(() => {
     if (seenLog.current === null) { seenLog.current = new Set(log.map(e => e.id)); return; }
     const fresh = log.filter(e => !seenLog.current.has(e.id));
     fresh.forEach(e => seenLog.current.add(e.id));
-    const mineNow = fresh.filter(e => e.forAll || (noticesOn && e.forId) && (e.by === myId || combatants.some(c => c.id === e.forId && (c.owner === myId || (isDM && !c.owner)))));
+    const w = castWatch.current; if (w && fresh.length) { fresh.forEach(e => { if (e.html && e.type !== 'round') { w.html.push(e.html); w.ids.add(e.id); } }); w.last = Date.now(); }
+    const mineNow = fresh.filter(e => !(w && w.ids.has(e.id))).filter(e => e.forAll || (noticesOn && e.forId) && (e.by === myId || combatants.some(c => c.id === e.forId && (c.owner === myId || (isDM && !c.owner)))));
     if (mineNow.length) setNotices(prev => [...prev, ...mineNow.map(e => ({id: e.id, html: e.html, concEnd: e.concEnd || null, name: (combatants.find(c => c.id === e.forId) || {}).name || ''}))].slice(-12));
   }, [log]);
 
@@ -2218,8 +2294,7 @@ function App() {
   const rollSwitch = (where) => { const b = (k, t, tip, id) => <button key={k} className={`die-btn ${rollMods[k] ? 'has' : ''}`} data-testid={id} style={{padding: '2px 7px'}} aria-pressed={!!rollMods[k]} title={tip + (rollMods[k] ? '. Click again to cancel.' : '')} onClick={() => toggleRollMod(k)}>{t}</button>;
     return <span className="roll-switch" data-testid={'roll-switch-' + where}>
       <span className="roll-switch-row"><span className="pp-muted" style={{fontSize: 12}} title="Each lit button applies to the next roll of any kind (attack, damage, check, save, initiative, Death Saving Throw, the dice roller), then turns off">Next roll:</span>
-        {b('hi', '2x ⏫ Highest', 'Roll twice and keep the higher', 'roll-high')}{b('lo', '2x ⏬ Lowest', 'Roll twice and keep the lower', 'roll-low')}
-        {rollMods.hi && rollMods.lo && <span className="pp-muted" style={{fontSize: 11}} data-testid="roll-cancel-out">cancel out</span>}</span>
+        {b('hi', '2x ⏫ Highest', 'Roll twice and keep the higher', 'roll-high')}{b('lo', '2x ⏬ Lowest', 'Roll twice and keep the lower', 'roll-low')}</span>
       <span className="roll-switch-row">{b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once', 'roll-r1')}{b('low3', '1 & 2 = 3', 'On the next damage roll, a 1 or a 2 on a die counts as a 3', 'roll-low3')}
         <button className="die-btn" data-testid="roll-clear" style={{padding: '2px 7px'}} title="Turn every button here off" onClick={clearRollMods}>Clear all</button></span></span>; };
   const rollDamageOnce = (action, crit, lowAs3) => {
@@ -2672,6 +2747,7 @@ function App() {
         const se = (Array.isArray(r.selfEffs) ? r.selfEffs : []).map(cleanEffect).filter(Boolean); if (se.length) o2.selfEffs = se;
         action = o2; } catch (e) {}
     }
+    if (!re && action.spell && noticesOn) castWatch.current = {name: action.name, start: Date.now(), last: Date.now(), html: [], ids: new Set()};
     const chosen = !re ? [action.modeName, ...(picks[action.id] || [])].filter(Boolean) : [];
     if (!re && action.byHP && !action.self) { // the effect depends on the target's Hit Points right now
       const t0 = inPlay.find(c => c.id === targetIds[0]);
@@ -3780,6 +3856,32 @@ function App() {
     const back = (a) => (e) => restoreUse(c, a, e);
     const rowCls = (a, extra) => `action-btn ${extra || ''} ${selectedAction === a.id ? 'selected' : ''} ${softOf(c, a) ? 'blocked' : ''}`;
     const dim = (a) => limited(a) && usesLeft(c, a) <= 0 ? {opacity: 0.45} : {};
+    const allItems = sh.itemsFull && sh.itemsFull.length ? sh.itemsFull : (sh.items || []).map(n => ({name: n}));
+    const isMagic = it => !!(it && (it.rarity || /^(Potion|Ring|Rod|Staff|Wand|Scroll|Wondrous)/i.test(it.type || '')));
+    const chargesMax = it => { const m = /(?:has|starts with|contains) (\d+) charges/i.exec((it && it.d) || ''); return m ? +m[1] : 0; };
+    const chKey = n => String(n).replace(/[.#$\/\[\]]/g, '_'); // a safe key for the synced record
+    const chargesLeft = it => { const mx = chargesMax(it), u = +((c.itemCharges || {})[chKey(it.name)]) || 0; return Math.max(0, mx - u); };
+    const setCharge = (it, d) => { const mx = chargesMax(it), k = chKey(it.name); setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, itemCharges: {...(x.itemCharges || {}), [k]: Math.max(0, Math.min(mx, (+((x.itemCharges || {})[k]) || 0) - d))}})); };
+    const itemUses = it => { const base = it.name.replace(/ \(.*$/, ''); return actions.filter(a => a.item && (a.item === it.name || a.item === base)); };
+    const chargePill = it => { const mx = chargesMax(it), uses = itemUses(it).filter(a => a.usesMax || a.pool);
+      if (!mx && !uses.length) return <span className="item-charges none" data-testid="item-charges"/>;
+      return <span className="item-charges" data-testid="item-charges" title={mx ? 'Charges left' : 'Uses left'} onClick={e => e.stopPropagation()}>
+        {mx ? <>{ctl && <button className="item-ch-btn" aria-label="Spend a charge" data-testid="charge-minus" onClick={() => setCharge(it, -1)}>−</button>}⚡ {chargesLeft(it)}/{mx}{ctl && <button className="item-ch-btn" aria-label="Regain a charge" data-testid="charge-plus" onClick={() => setCharge(it, 1)}>+</button>}</>
+          : uses.map(a => <span key={a.id}>{usesLeft(c, a)}{a.usesMax ? '/' + a.usesMax : ''} {a.pool || 'uses'}</span>)}</span>; };
+    const impOn = c.impOn || [], impOff = c.impOff || [];
+    const weaponNamesSet = new Set(actions.filter(a => a.weapon).map(a => a.name.replace(/ \(.*$/, '')));
+    const autoImportant = it => isMagic(it) || itemUses(it).length > 0 || (sh.importantItems || []).includes(it.name);
+    const isImportant = it => !weaponNamesSet.has(it.name.replace(/ \(.*$/, '')) && (impOn.includes(it.name) || (autoImportant(it) && !impOff.includes(it.name)));
+    const setImportant = (it, on) => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, impOn: on ? Array.from(new Set([...(x.impOn || []), it.name])) : (x.impOn || []).filter(n => n !== it.name), impOff: on ? (x.impOff || []).filter(n => n !== it.name) : Array.from(new Set([...(x.impOff || []), it.name]))}));
+    const itemRow = (it, where) => { const uses = itemUses(it), magic = isMagic(it); return (
+      <div className={`item-row ${magic ? 'magic' : ''}`} data-testid={where === 'main' ? 'important-item' : 'item-line'} key={where + it.name}>
+        <div className="item-main"><button className="item-name" data-testid="item-open" title="Open the item card" onClick={() => setItemCard({cId: c.id, name: it.name})}>{it.name}</button>
+          {(it.rarity || it.attune) && <span className="item-tag"> {[it.rarity, it.attune ? 'Attunement' : ''].filter(Boolean).join(' · ')}</span>}
+          {ctl && uses.length > 0 && <div>{uses.map(a => <button key={a.id} className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} data-testid={where === 'main' ? 'important-use' : 'inv-use'} onClick={() => sel(a)}>{a.name === it.name || a.name === it.name.replace(/ \(.*$/, '') ? 'Use' : a.name}</button>)}</div>}</div>
+        {chargePill(it)}
+        {ctl && (where === 'main' ? <button className="item-star" data-testid="important-remove" title="Take it off Important Items" onClick={() => setImportant(it, false)}>✕</button>
+          : <button className={`item-star ${isImportant(it) ? 'on' : ''}`} data-testid="important-toggle" aria-pressed={isImportant(it)} title={isImportant(it) ? 'Take it off Important Items' : 'Show it in Important Items on the Main tab'} onClick={() => setImportant(it, !isImportant(it))}>{isImportant(it) ? '★' : '☆'}</button>)}
+      </div>); };
     const leftText = (a) => a.pool ? ` (${poolLeft(c, a.pool)} ${a.pool} left)` : a.usesMax ? ` (${usesLeft(c, a)}/${a.usesMax} left)` : '';
     const kindOf = (a) => ['action', 'bonus', 'reaction'].includes(a.activation) ? a.activation : 'other';
     const extraOk = (a) => (a.type === 'attack' && a.weapon) || /^(Dash|Disengage|Hide|Utilize|Attack)\b/.test(a.name);
@@ -3815,6 +3917,19 @@ function App() {
     const feats = sh.featureList && sh.featureList.length ? sh.featureList : ((c.info || []).find(x => x.h === 'Features and Traits') || {items: []}).items.map(it => { const m = /^([^:.]{2,60})[:.]\s*(.*)$/s.exec(it[1] || ''); return {n: m ? m[1] : it[1], d: m ? m[2] : '', lv: 0, src: ''}; });
     return (
       <div className="paper" data-testid="paper" style={{'--pp-main': themeNow.main, '--pp-border': themeNow.border, '--pp-text': themeNow.text}}>
+        {itemCard && itemCard.cId === c.id && (() => { const it = allItems.find(x => x.name === itemCard.name) || {name: itemCard.name}, mx = chargesMax(it); return (
+          <div className="modal-overlay" onClick={() => setItemCard(null)} data-testid="item-card">
+            <div className="modal item-card" onClick={e => e.stopPropagation()}>
+              <div className="modal-header item-card-head"><span>{it.name}</span><button className="btn btn-ghost btn-sm" data-testid="item-card-close" onClick={() => setItemCard(null)}>Close</button></div>
+              <div className="modal-body">
+                <div className="item-card-top"><span className="pp-muted">{[it.type, it.rarity, it.attune ? 'requires Attunement' : '', it.weight, it.cost].filter(Boolean).join(' · ') || 'Item'}</span>{chargePill(it)}</div>
+                {mx > 0 && <div className="item-card-charges" data-testid="item-card-charges">Charges: {chargesLeft(it)} of {mx}</div>}
+                {ctl && itemUses(it).length > 0 && <div style={{margin: '6px 0'}}>{itemUses(it).map(a => <button key={a.id} className="pp-chip on" data-testid="item-card-use" onClick={() => { sel(a); setItemCard(null); }}>{a.name === it.name ? 'Use' : `Use ${a.name}`}{leftText(a)}</button>)}</div>}
+                <div className="item-card-text" data-testid="item-card-text">{it.d || 'No description.'}</div>
+                {ctl && <label className="pp-muted" style={{display: 'block', marginTop: 10}}><input type="checkbox" data-testid="item-card-important" checked={isImportant(it)} onChange={e => setImportant(it, e.target.checked)}/> Show in Important Items</label>}
+              </div>
+            </div>
+          </div>); })()}
         <div className="pp-banner">
           <div className="pp-title">{c.name} <span className="pp-the">the</span> {[sh.species, c.charClass].filter(Boolean).join(' ')}</div>
           <div className="pp-level"><span>Level</span><strong>{c.level}</strong></div>
@@ -3871,9 +3986,10 @@ function App() {
                   </div>); })}
               </div>
               <div className="pp-h3">Important Items</div>
-              {(() => { const weaponNames = new Set(actions.filter(a => a.weapon).map(a => a.name.replace(/ \(.*$/, ''))), withUse = Array.from(new Set(actions.filter(a => a.item && !a.weapon).map(a => a.item))), names = Array.from(new Set([...(sh.importantItems || []), ...withUse])).filter(n => !weaponNames.has(String(n).replace(/ \(.*$/, '')));
-                return names.length ? names.map(n => <div key={n} className="pp-center" data-testid="important-item">{n}{ctl && actions.filter(a => a.item === n).map(a => <button key={a.id} className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} style={{marginLeft: 6}} onClick={() => sel(a)}>{a.name === n ? 'Use' : a.name}{leftText(a)}</button>)}</div>)
-                  : <div className="pp-center pp-muted">Items that do something, and items marked with the diamond in the builder's Inventory, show here</div>; })()}
+              {(() => { const list = allItems.filter(isImportant), names = new Set(list.map(it => it.name)), extra = Array.from(new Set(actions.filter(a => a.item && !a.weapon).map(a => a.item))).filter(n => !names.has(n) && !allItems.some(it => it.name.replace(/ \(.*$/, '') === n) && !impOff.includes(n)).map(n => ({name: n}));
+                const rows = [...list, ...extra];
+                return rows.length ? <div className="item-list">{rows.map(it => itemRow(it, 'main'))}</div>
+                  : <div className="pp-center pp-muted">Magic items and items that do something show here. Add others with the star on the Inventory tab.</div>; })()}
               <div className="pp-h3">Languages</div>
               <div className="pp-center">{(sh.languages || []).join(', ') || 'Common'}</div>
               <div className="pp-h3">Tool Proficiencies</div>
@@ -3889,7 +4005,7 @@ function App() {
                   {[['Perception', 'Passive Perception'], ['Investigation', 'Passive Investigation'], ['Insight', 'Passive Insight']].map(([sk, t]) => { const v = (sh.skills || {})[sk]; const n = sk === 'Perception' && sh.pp != null ? sh.pp : 10 + (Number.isFinite(+v) ? +v : mod((c.scores || {})[SKILL_ABILITY[sk]] ?? 10)); return <div key={sk}><strong>{n}</strong><span>{t}</span></div>; })}
                 </div>
               </div>
-              <div className="pp-line"><span><strong>Senses</strong> {effectiveSenses(c).join(', ') || 'None'}</span><span><strong>Speeds</strong> {speedText(c)} &nbsp; <strong>Jump</strong> {str} ft. long, {Math.max(0, 3 + mod(str))} ft. high</span></div>
+              <div className="pp-line"><span><strong>Senses</strong> {effectiveSenses(c).join(', ') || 'None'}</span><span><strong>Speeds</strong> {speedText(c)} &nbsp; <strong>Long Jump</strong> {str} ft. &nbsp; <strong>High Jump</strong> {Math.max(0, 3 + mod(str))} ft.</span></div>
 
               {combatStarted && (() => { const turn = c.turn || {}, mine = !!(active && active.id === c.id), sp = effectiveSpeed(c), moved = +turn.moved || 0;
                 const flip = (k) => ctl && setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, turn: {...(x.turn || {}), [k]: !(x.turn || {})[k]}}));
@@ -4036,16 +4152,15 @@ function App() {
             {b.note && <div className="pp-etext">{b.note}</div>}</div>)}
           <div className="pp-h2">Carried</div>
           {full.length === 0 && <div className="pp-center pp-muted">Nothing listed. Items come from the Character Builder's inventory.</div>}
-          {full.map((it, i) => { const base = it.name.replace(/ \(.*$/, ''), inHand = held.includes(base), uses = actions.filter(a => a.item && (a.item === it.name || a.item === base)), lit = hi && hi.test(it.name); return (
-            <div key={it.name + i} className="pp-entry" data-testid="inv-item" style={lit ? {outline: '3px solid var(--gold)', borderRadius: 6} : undefined}>
-              <div className="pp-ename"><span style={{cursor: 'pointer'}} title="Click for the full description" onClick={() => setInvOpen({...invOpen, [it.name]: !invOpen[it.name]})}>{it.name}</span><span className="pp-tag">{[it.type, it.rarity, it.attune ? 'needs Attunement' : '', inHand ? 'in hand' : ''].filter(Boolean).join(' · ')}</span>
-                {ctl && <span className="pp-use">
-                  {uses.map(a => <button key={a.id} className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} data-testid="inv-use" onClick={() => sel(a)}>{a.name === it.name ? 'Use' : `Use ${a.name}`}{leftText(a)}</button>)}
-                  {lit && selAction && selAction.needItem && <button className="pp-chip on" data-testid="inv-target" onClick={() => { const w = actions.find(x => x.weapon && x.name.replace(/ \(.*$/, '') === base); setWeaponPick({...weaponPick, [selAction.id]: w ? w.id : 'inv:' + base}); setInvHi(''); setSheetTab('main'); }}>Cast {selAction.name} on this</button>}
-                  {/weapon|shield|armor \(shield\)/i.test(it.type || '') && !inHand && handsOn && <button className="pp-chip" onClick={() => holdItem(c, base)}>Hold</button>}
-                </span>}</div>
-              {invOpen[it.name] && it.d && <div className="pp-etext" data-testid="inv-desc">{it.d}</div>}
-            </div>); })}
+          <div className="item-list">{full.map((it, i) => { const base = it.name.replace(/ \(.*$/, ''), inHand = held.includes(base), lit = hi && hi.test(it.name); return (
+            <div key={it.name + i} data-testid="inv-item" style={lit ? {outline: '3px solid var(--gold)', borderRadius: 6} : undefined}>
+              {itemRow(it, 'inv')}
+              {ctl && ((lit && selAction && selAction.needItem) || (/weapon|shield|armor \(shield\)/i.test(it.type || '') && !inHand && handsOn) || inHand) && <div className="item-sub">
+                {inHand && <span className="pp-muted">in hand</span>}
+                {lit && selAction && selAction.needItem && <button className="pp-chip on" data-testid="inv-target" onClick={() => { const w = actions.find(x => x.weapon && x.name.replace(/ \(.*$/, '') === base); setWeaponPick({...weaponPick, [selAction.id]: w ? w.id : 'inv:' + base}); setInvHi(''); setSheetTab('main'); }}>Cast {selAction.name} on this</button>}
+                {/weapon|shield|armor \(shield\)/i.test(it.type || '') && !inHand && handsOn && <button className="pp-chip" onClick={() => holdItem(c, base)}>Hold</button>}
+              </div>}
+            </div>); })}</div>
         </div>); })()}
         {sheetTab === 'character' && (
         <div data-testid="paper-journal">
@@ -4292,6 +4407,7 @@ function App() {
       {/* HEADER */}
       <div className="header">
         <h1>⚔ Combat Resolver</h1>
+        {isDM && <button className="btn btn-ghost btn-sm" data-testid="glossary-open" title="Rules Glossary (SRD 5.2.1)" onClick={() => setShowGlossary(true)}>📖 Rules Glossary</button>}
         {combatStarted && <div className="round-badge">Round {round}</div>}
         <div className="room-bar">
           <span>Player code <span className="room-code" data-testid="player-code">{playerCode}</span>
@@ -4337,6 +4453,7 @@ function App() {
         </div>
       )}
       {dragging && <div className="drop-overlay">Drop a character file to add it to combat</div>}
+      {showGlossary && <GlossaryPanel onClose={() => setShowGlossary(false)}/>}
       {restSummary && (
         <div className="modal-overlay" onClick={()=>setRestSummary(null)} data-testid="rest-summary">
           <div className="modal" onClick={e=>e.stopPropagation()}>
@@ -5274,7 +5391,7 @@ function App() {
       {notices.length > 0 && (
         <div className="modal-overlay" data-testid="notice">
           <div className="modal" style={{maxWidth: 460}}>
-            <div className="modal-header">This is what happened{notices[0].name ? ` to ${notices[0].name}` : ''}{notices.length > 1 ? ` (1 of ${notices.length})` : ''}</div>
+            <div className="modal-header" data-testid="notice-title">{notices[0].title || `This is what happened${notices[0].name ? ` to ${notices[0].name}` : ''}`}{notices.length > 1 ? ` (1 of ${notices.length})` : ''}</div>
             <div className="modal-body">
               <div className="log-entry" dangerouslySetInnerHTML={{__html: notices[0].html}} />
               <div className="buff-note">Hit Points, conditions and effects are already updated. Switch these off with Pop-ups above the Combat Log.</div>
