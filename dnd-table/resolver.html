@@ -255,6 +255,16 @@
     .pp-center { text-align: center; font-size: 14px; line-height: 1.5; }
     .pp-stats { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .pp-stat { border: 2px solid var(--pp-border); border-radius: 10px; background: var(--pp-card); min-width: 64px; height: 62px; padding: 4px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .def-chip { margin-right: 10px; cursor: help; }
+    .adv-mark { display: inline-block; margin-left: 3px; font-size: 10px; font-weight: 700; border-radius: 3px; padding: 0 3px; line-height: 14px; vertical-align: middle; color: #fff; cursor: help; }
+    .adv-mark.a { background: #2e7d32; } .adv-mark.d { background: #b23a3a; } .adv-mark.ad { background: #777; }
+    .pp-stat.clickable { cursor: pointer; position: relative; }
+    .pp-shield { position: relative; }
+    .why-btn { position: absolute; top: -4px; right: -4px; background: var(--pp-card); border: 1px solid var(--pp-border); border-radius: 50%; width: 18px; height: 18px; font-size: 11px; line-height: 14px; padding: 0; cursor: pointer; color: var(--pp-text); }
+    .stat-why { position: absolute; top: 100%; left: 0; z-index: 30; min-width: 220px; background: var(--pp-card); color: var(--pp-text); border: 2px solid var(--pp-border); border-radius: 8px; padding: 8px 10px; font-size: 13px; text-align: left; box-shadow: 0 4px 14px rgba(0,0,0,0.35); cursor: default; }
+    .stat-why > div { display: flex; justify-content: space-between; gap: 10px; font-family: inherit; }
+    .stat-why strong { font-size: 14px !important; display: block; margin-bottom: 4px; }
+    .stat-why span { font-size: 13px !important; text-transform: none !important; letter-spacing: 0 !important; font-weight: 400 !important; }
     .pp-stat strong { font-family: 'Cinzel', serif; font-size: 24px; line-height: 1.1; }
     .pp-stat span { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     .pp-cond { flex: 1; min-width: 160px; padding: 6px 12px; text-align: center; font-size: 14px; }
@@ -420,6 +430,9 @@
     .item-name { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: inherit; cursor: pointer; text-align: left; }
     .item-name:hover { text-decoration: underline; }
     .item-tag { font-size: 11px; opacity: 0.7; }
+    .item-attune { font-size: 11px; margin-left: 6px; opacity: 0.75; white-space: nowrap; }
+    .item-attune.on { color: #3f9a4a; opacity: 1; }
+    .attune-line { font-size: 12px; margin: 2px 0 6px; }
     .item-charges { display: inline-flex; align-items: center; gap: 3px; background: #6a3fb5; color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; }
     .item-charges.none { visibility: hidden; padding: 0; width: 0; }
     .item-ch-btn { background: rgba(255,255,255,0.2); color: #fff; border: 0; border-radius: 50%; width: 16px; height: 16px; line-height: 14px; padding: 0; cursor: pointer; font-size: 12px; }
@@ -433,6 +446,19 @@
     .item-card-unattuned { color: #ff9e80; font-size: 13px; margin: 2px 0 6px; }
     .item-card-text { white-space: pre-wrap; line-height: 1.45; color: var(--text-light); }
     .notice-sep { border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0; }
+    .note-cat { border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; }
+    .note-cat-head { display: flex; align-items: center; gap: 6px; }
+    .note-cat-name { flex: 1; background: transparent; border: 0; border-bottom: 1px dashed rgba(255,255,255,0.25); color: var(--brass-light); font: inherit; font-weight: 600; }
+    .note-toggle { background: none; border: 0; color: var(--text-light); cursor: pointer; }
+    .note { margin: 6px 0 6px 18px; }
+    .note-head { display: flex; gap: 6px; }
+    .note-head input { flex: 1; background: var(--ink); color: var(--text-light); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 3px 6px; }
+    .note textarea { width: 100%; box-sizing: border-box; background: var(--ink); color: var(--text-light); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 4px 6px; margin-top: 4px; font: inherit; font-size: 14px; }
+    .world-badge { font-size: 13px; color: var(--parchment); border: 1px solid var(--brass); border-radius: 12px; padding: 2px 10px; margin-left: 8px; }
+    .world-panel input, .world-panel select { min-width: 0; }
+    .world-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 13px; }
+    .world-row.done { opacity: 0.55; }
+    .item-ch-btn.dark { background: rgba(255,255,255,0.12); }
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100;
       display: flex; align-items: center; justify-content: center; padding: 20px;
@@ -733,6 +759,20 @@ function makeCode(len) {
 }
 function cleanCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12); }
 function sessionFromHash() { const m = /room=([A-Za-z0-9]+)/.exec(window.location.hash); return m ? cleanCode(m[1]) : ''; }
+// The DM's world tracker: the time of day, the weather, counters that change with time, and timers.
+const DAY = 86400, HOUR = 3600, DAWN = 6 * HOUR;
+const WEATHER_PRESETS = ['Clear', 'Cloudy', 'Light rain', 'Heavy rain', 'Fog', 'Snow', 'Thunderstorm', 'Strong wind', 'Extreme heat', 'Extreme cold'];
+function cleanWorld(w) {
+  if (!w || typeof w !== 'object') return null;
+  const num = (v, d) => Number.isFinite(+v) ? +v : d, str = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const arr = x => Array.isArray(x) ? x : (x && typeof x === 'object' ? Object.values(x) : []);
+  const wx = w.weather && typeof w.weather === 'object' ? w.weather : {};
+  return {on: !!w.on, t: Math.max(0, Math.round(num(w.t, 8 * HOUR))), show: !!w.show,
+    weather: {now: str(wx.now, 60), rule: ['hand', 'day', 'hour'].includes(wx.rule) ? wx.rule : 'hand', table: arr(wx.table).map(x => str(x, 40)).filter(Boolean).slice(0, 20)},
+    trackers: arr(w.trackers).filter(x => x && x.id).slice(0, 30).map(x => ({id: str(x.id, 20), name: str(x.name, 40), value: num(x.value, 0), per: ['hour', 'day', ''].includes(x.per) ? x.per : '', by: num(x.by, 0), min: x.min === '' || x.min == null ? '' : num(x.min, 0), max: x.max === '' || x.max == null ? '' : num(x.max, 0), show: !!x.show})),
+    timers: arr(w.timers).filter(x => x && x.id).slice(0, 40).map(x => ({id: str(x.id, 20), name: str(x.name, 60), at: Math.max(0, Math.round(num(x.at, 0))), note: str(x.note, 200), show: !!x.show, done: !!x.done}))};
+}
+function clockText(t) { const d = Math.floor(t / DAY) + 1, s = t % DAY, h = Math.floor(s / HOUR), m = Math.floor((s % HOUR) / 60); return `Day ${d}, ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`; }
 function stamp(entry) { return {...entry, id: newId()}; }
 function plain(v) { return JSON.parse(JSON.stringify(v)); } // drops undefined, which Firebase rejects
 function stable(v) { // JSON with sorted keys, so local and synced copies compare equal
@@ -1042,6 +1082,9 @@ function cleanPassives(p) {
   if (!p || typeof p !== 'object') return out;
   ['savage','archery','gwf','grappler','prowess','evasion','discipleOfLife','blessedHealer','supremeHealing','initiativeAdvantage','saveAdvSpells'].forEach(k => { if (p[k]) out[k] = true; });
   if (Array.isArray(p.skillAdv)) out.skillAdv = p.skillAdv.filter(k => SKILL_ABILITY[k]);
+  if (p.critImmune) { out.critImmune = true; out.critImmuneFrom = String(p.critImmuneFrom || '').slice(0, 60); }
+  if (+p.acVsRanged) out.acVsRanged = Math.max(-10, Math.min(10, Math.round(+p.acVsRanged)));
+  if (p.critExtraDice && DMG_RE.test(String(p.critExtraDice).replace(/\s/g, ''))) out.critExtraDice = String(p.critExtraDice).replace(/\s/g, '');
   if (+p.criticalOn >= 15 && +p.criticalOn <= 19) out.criticalOn = Math.round(+p.criticalOn);
   if (+p.sneakAttackDice > 0) out.sneakAttackDice = Math.min(20, Math.round(+p.sneakAttackDice));
   if (+p.attacks > 1) out.attacks = Math.min(8, Math.round(+p.attacks));
@@ -1057,6 +1100,9 @@ function cleanEffect(e) {
   if (!e || typeof e !== 'object' || !String(e.name || '').trim()) return null;
   const out = {name: String(e.name).trim().slice(0, 40)};
   ['ac','speed','init','d20','saveAbilMod','tempEachTurn','hpMax'].forEach(k => { const n = parseInt(e[k], 10); if (Number.isFinite(n) && n) out[k] = Math.max(-200, Math.min(200, n)); });
+  if (e.critImmune) out.critImmune = true;
+  { const n = parseInt(e.acVsRanged, 10); if (n) out.acVsRanged = Math.max(-10, Math.min(10, n)); }
+  if (e.abilMin && typeof e.abilMin === 'object') { const am = {}; Object.keys(e.abilMin).forEach(a => { const n = parseInt(e.abilMin[a], 10); if (ABILITIES.includes(a) && n > 0 && n <= 30) am[a] = n; }); if (Object.keys(am).length) out.abilMin = am; }
   if (+e.speedMult > 0 && +e.speedMult !== 1) out.speedMult = Math.min(4, +e.speedMult);
   ['atk','save','check','bonusDmg'].forEach(k => { const v = String(e[k] == null ? '' : e[k]).replace(/\s/g, '').replace(/^\+/, ''); if (v && DMG_RE.test(v.replace(/^-/, ''))) out[k] = v; });
   ['sense','move','bonusType'].forEach(k => { if (e[k]) out[k] = String(e[k]).slice(0, 60); });
@@ -1315,7 +1361,7 @@ function cleanAction(a, i) {
   if (a.type === 'apply' && !out.onUse && !out.modes && !out.byHP) return null;
   if (out.targets) bits.push(out.targets === 'any' ? 'any number of targets' : `up to ${out.targets} targets`);
   if (out.pool) bits.push(`costs ${out.cost} ${out.pool}`);
-  if (+a.usesMax > 0) { out.usesMax = Math.min(99, Math.round(+a.usesMax)); out.recharge = a.recharge === 'short' ? 'short' : 'long'; }
+  if (+a.usesMax > 0) { out.usesMax = Math.min(99, Math.round(+a.usesMax)); out.recharge = ['short', 'dawn', 'none', 'after'].includes(a.recharge) ? a.recharge : 'long'; if (out.recharge === 'after') out.wait = Math.max(60, Math.min(MAX_SECONDS, +a.wait || DAY)); }
   if (a.desc) out.desc = String(a.desc).slice(0, 1200);
   if (a.type === 'info') bits.push('Posts its text to the log');
   out.detail = bits.join(' · ');
@@ -1515,6 +1561,8 @@ function d20Test(c, kind, ctx) {
   const es = (c && c.effects) || [];
   const addFlat = (n, label) => { if (Number.isFinite(+n) && +n) { flat += +n; flatParts.push(`${esc(label)} ${signed(+n)}`); } };
   es.forEach(e => addFlat(e.d20, e.name));
+  const abNow = kind === 'attack' ? ctx.abil : ctx.ability; // a score set by an effect: the difference in modifier counts
+  if (abNow) es.forEach(e => { const v = +((e.abilMin || {})[abNow]); const sc = +((c.scores || {})[abNow]); if (v > 0 && Number.isFinite(sc) && v > sc) addFlat(Math.floor((v - 10) / 2) - Math.floor((sc - 10) / 2), e.name); });
   if (kind === 'attack') {
     dice = effectDice(c, 'atk');
     ['Blinded','Frightened','Poisoned','Prone','Restrained'].forEach(n => { if (hasCond(c, n)) dis.push(n); });
@@ -1610,6 +1658,12 @@ function effectiveSpeed(c) {
   const mult = effs(c).filter(e => !(free && +e.speedMult < 1)).reduce((t, e) => t * (Number.isFinite(+e.speedMult) && +e.speedMult > 0 ? Math.min(4, +e.speedMult) : 1), 1);
   return Math.max(0, Math.floor(((+c.speed || 0) + (free ? effs(c).reduce((t, e) => t + Math.max(0, +e.speed || 0), 0) : sumEff(c, 'speed'))) * mult));
 }
+function defensesOf(c) { // Resistance, Immunity, Vulnerability and condition immunities, from the sheet and from effects
+  const list = (x) => String(x || '').split(',').map(t => t.trim()).filter(Boolean), uniq = a => Array.from(new Set(a));
+  const es = (c && c.effects) || [];
+  const res = uniq([...list(c.res), ...es.flatMap(e => list(e.resist))]), imm = uniq([...list(c.imm), ...es.flatMap(e => list(e.immuneDmg))]), vul = uniq([...list(c.vul), ...es.flatMap(e => list(e.vuln))]), ci = uniq([...list(c.ci), ...es.flatMap(e => [e.immune, ...list(e.condImmune)]).filter(Boolean)]);
+  return [['res', res], ['imm', imm], ['vul', vul], ['ci', ci]].filter(x => x[1].length).map(([k, v]) => [k, v.join(', ')]);
+}
 function speedText(c) { return [`${effectiveSpeed(c)} ft.`, c.speedExtra, ...effs(c).map(e => e.move)].filter(Boolean).join(', '); }
 function effectiveInit(c) { return (+c.initiative || 0) + sumEff(c, 'init'); }       // place in the order
 function effectiveInitBonus(c) { return (+c.initBonus || 0) + sumEff(c, 'init'); }   // modifier to the roll
@@ -1639,7 +1693,7 @@ function sheetToFields(data) {
   const pools = {}; // shared pools of uses: Rage, Focus Points, Channel Divinity...
   Object.keys(data.pools && typeof data.pools === 'object' ? data.pools : {}).slice(0, 20).forEach(k => {
     const q = data.pools[k]; const max = Math.round(+((q || {}).max));
-    if (max > 0) { pools[str(k, 40)] = {max: Math.min(999, max), recharge: ['short', 'dawn', 'none'].includes(q.recharge) ? q.recharge : 'long'}; if (+q.shortRegain > 0) pools[str(k, 40)].shortRegain = Math.min(99, Math.round(+q.shortRegain));
+    if (max > 0) { pools[str(k, 40)] = {max: Math.min(999, max), recharge: ['short', 'dawn', 'none', 'after'].includes(q.recharge) ? q.recharge : 'long'}; if (q.recharge === 'after') pools[str(k, 40)].wait = Math.max(60, Math.min(MAX_SECONDS, +q.wait || DAY)); if (+q.shortRegain > 0) pools[str(k, 40)].shortRegain = Math.min(99, Math.round(+q.shortRegain));
       if (q.regain && DMG_RE.test(String(q.regain).replace(/\s/g, ''))) pools[str(k, 40)].regain = String(q.regain).replace(/\s/g, ''); if (q.item) pools[str(k, 40)].item = str(q.item, 80); }
   });
   const sheet = {
@@ -1647,6 +1701,8 @@ function sheetToFields(data) {
     player: str(data.player, 40), pp: num(data.passivePerception, 10 + mod(scores.Wisdom)),
     skills, skillProfs: list(data.skillProfs, 30, 30), skillExpertise: list(data.skillExpertise, 30, 30),
     hitDie: num(data.hitDie, 0), equipment: str(data.equipment, 2000), items: list(data.items, 60, 80),
+    attuneMax: Math.max(0, Math.min(12, num(data.attuneMax, 3))),
+    why: (() => { const w = data.why && typeof data.why === 'object' ? data.why : {}, out = {}; ['ac', 'speed', 'initiative', 'saves', 'hp'].forEach(k => { out[k] = (Array.isArray(w[k]) ? w[k] : []).filter(x => Array.isArray(x) && x.length === 2 && Number.isFinite(+x[1])).slice(0, 12).map(x => [str(x[0], 60), +x[1]]); }); return out; })(),
     itemsFull: (Array.isArray((data.builder || {}).characterItems) ? data.builder.characterItems : []).slice(0, 80).filter(i => i && typeof i === 'object' && i.name).map(i => ({name: str(i.name, 80), type: str(i.type || i.category, 60), rarity: str(i.rarity, 20), attune: !!i.attunement, attuned: !!i.attuned, d: str(i.description, 3000), cost: str(i.cost, 20), weight: str(i.weight, 20)})),
     shield: !!data.shield, feats: list(data.feats, 40, 60), components: list(data.components, 80, 60),
     featureList: (Array.isArray(data.featureList) ? data.featureList : []).slice(0, 120).filter(f => f && typeof f === 'object' && f.n).map(f => ({n: str(f.n, 80), lv: Math.max(0, Math.min(20, num(f.lv, 0))), src: str(f.src, 24), d: str(f.d, 2500)})),
@@ -1855,6 +1911,126 @@ function GlossaryPanel({onClose}) {
     </div>);
 }
 
+// The DM's world tracker: time of day, weather, counters that change with time, timers. Pass Time moves all of it.
+function WorldPanel({world, setWorld, log}) {
+  const w = world || {on: false, t: 8 * HOUR, show: false, weather: {now: '', rule: 'hand', table: []}, trackers: [], timers: []};
+  const put = patch => setWorld({...w, ...patch});
+  const [open, setOpen] = useState(!!(world && world.on));
+  const [tn, setTn] = useState({name: '', value: '', per: 'day', by: '-1', min: '0', max: ''});
+  const [tm, setTm] = useState({name: '', n: '7', unit: 'days', note: ''});
+  const day = Math.floor(w.t / DAY) + 1, sec = w.t % DAY;
+  const setClock = (d, hh, mm) => put({t: Math.max(0, (Math.max(1, d) - 1) * DAY + Math.max(0, Math.min(23, hh)) * HOUR + Math.max(0, Math.min(59, mm)) * 60)});
+  const say = (text, shown) => log(prev => [...prev, stamp({type: 'roll', ...(shown ? {} : {dmOnly: true}), html: `<strong>The world</strong> <div class="log-detail">${esc(text)}</div>`})]);
+  const uid = () => newId().slice(0, 18);
+  return (
+    <div className="manual-roll world-panel" data-testid="world-panel">
+      <span className="label" data-testid="world-toggle" style={{cursor: 'pointer'}} onClick={() => setOpen(!open)}>{open ? '▾' : '▸'} World Tracker</span>
+      {open && <>
+        <label className="rule-label"><input type="checkbox" data-testid="world-on" checked={w.on} onChange={e => put({on: e.target.checked})}/> Keep track of the time of day</label>
+        {w.on && <>
+          <div className="time-row" style={{gridTemplateColumns: 'auto 1fr auto 1fr auto 1fr'}}>
+            <span className="pp-muted">Day</span><input type="number" min="1" aria-label="Day" data-testid="world-day" value={day} onChange={e => setClock(+e.target.value || 1, Math.floor(sec / HOUR), Math.floor((sec % HOUR) / 60))}/>
+            <span className="pp-muted">Hour</span><input type="number" min="0" max="23" aria-label="Hour" data-testid="world-hour" value={Math.floor(sec / HOUR)} onChange={e => setClock(day, +e.target.value || 0, Math.floor((sec % HOUR) / 60))}/>
+            <span className="pp-muted">Min</span><input type="number" min="0" max="59" aria-label="Minute" value={Math.floor((sec % HOUR) / 60)} onChange={e => setClock(day, Math.floor(sec / HOUR), +e.target.value || 0)}/>
+          </div>
+          <div className="buff-note" style={{margin: '2px 0'}}>Now: <strong data-testid="world-now">{clockText(w.t)}</strong>. Dawn is 06:00: items that recharge at dawn get their roll then.</div>
+          <label className="rule-label"><input type="checkbox" data-testid="world-show" checked={w.show} onChange={e => put({show: e.target.checked})}/> The party can see the time and weather</label>
+          <span className="label" style={{marginTop: 6}}>Weather</span>
+          <div className="time-row" style={{gridTemplateColumns: '1fr auto'}}>
+            <input aria-label="Weather now" data-testid="world-weather" list="weather-presets" value={w.weather.now} placeholder="Clear" onChange={e => put({weather: {...w.weather, now: e.target.value}})}/>
+            <button className="btn btn-ghost btn-sm" onClick={() => say(`Weather: ${w.weather.now || 'not set'}`, w.show)}>Announce</button>
+          </div>
+          <datalist id="weather-presets">{WEATHER_PRESETS.map(x => <option key={x} value={x}/>)}</datalist>
+          <div className="time-row" style={{gridTemplateColumns: 'auto 1fr'}}>
+            <span className="pp-muted">Changes</span>
+            <select aria-label="How the weather changes" data-testid="world-weather-rule" value={w.weather.rule} onChange={e => put({weather: {...w.weather, rule: e.target.value}})}>
+              <option value="hand">by hand</option><option value="day">each day, rolled from the list</option><option value="hour">each hour, rolled from the list</option>
+            </select>
+          </div>
+          {w.weather.rule !== 'hand' && <input aria-label="Weather list" data-testid="world-weather-table" placeholder="Clear, Clear, Cloudy, Light rain, Fog" value={w.weather.table.join(', ')} onChange={e => put({weather: {...w.weather, table: e.target.value.split(',').map(x => x.trim()).filter(Boolean)}})}/>}
+          {w.weather.rule !== 'hand' && <div className="buff-note" style={{margin: '2px 0'}}>Write an option twice to make it twice as likely.</div>}
+          <span className="label" style={{marginTop: 6}}>Trackers</span>
+          {w.trackers.map(x => <div key={x.id} className="world-row" data-testid="world-tracker">
+            <strong>{x.name}</strong>
+            <button className="item-ch-btn dark" aria-label={`Less ${x.name}`} onClick={() => put({trackers: w.trackers.map(y => y.id === x.id ? {...y, value: y.value - 1} : y)})}>−</button>
+            <input type="number" aria-label={`${x.name} value`} value={x.value} onChange={e => put({trackers: w.trackers.map(y => y.id === x.id ? {...y, value: +e.target.value || 0} : y)})} style={{width: 64}}/>
+            <button className="item-ch-btn dark" aria-label={`More ${x.name}`} onClick={() => put({trackers: w.trackers.map(y => y.id === x.id ? {...y, value: y.value + 1} : y)})}>+</button>
+            <span className="pp-muted">{x.per && x.by ? `${x.by > 0 ? '+' : ''}${x.by} each ${x.per}` : 'by hand'}</span>
+            <label className="pp-muted" title="The party sees it next to the time"><input type="checkbox" checked={x.show} onChange={e => put({trackers: w.trackers.map(y => y.id === x.id ? {...y, show: e.target.checked} : y)})}/> shown</label>
+            <button className="item-star" aria-label={`Remove ${x.name}`} onClick={() => put({trackers: w.trackers.filter(y => y.id !== x.id)})}>✕</button>
+          </div>)}
+          <div className="time-row" style={{gridTemplateColumns: '2fr 1fr 1fr 1fr'}}>
+            <input aria-label="Tracker name" data-testid="tracker-name" placeholder="Rations" value={tn.name} onChange={e => setTn({...tn, name: e.target.value})}/>
+            <input type="number" aria-label="Tracker start" placeholder="Start" value={tn.value} onChange={e => setTn({...tn, value: e.target.value})}/>
+            <input type="number" aria-label="Tracker change" placeholder="Change" value={tn.by} onChange={e => setTn({...tn, by: e.target.value})}/>
+            <select aria-label="Tracker changes every" value={tn.per} onChange={e => setTn({...tn, per: e.target.value})}><option value="day">per day</option><option value="hour">per hour</option><option value="">by hand</option></select>
+          </div>
+          <button className="btn btn-ghost btn-sm" data-testid="tracker-add" disabled={!tn.name.trim()} onClick={() => { put({trackers: [...w.trackers, {id: uid(), name: tn.name.trim(), value: +tn.value || 0, per: tn.per, by: +tn.by || 0, min: tn.min === '' ? '' : +tn.min, max: tn.max === '' ? '' : +tn.max, show: false}]}); setTn({...tn, name: '', value: ''}); }}>Add tracker</button>
+          <div className="buff-note" style={{margin: '2px 0'}}>Ideas: rations and water, torches and lantern oil (hours), days of travel, miles to go, days until an event, a curse or disease that worsens each day. Each changes by itself as you pass time.</div>
+          <span className="label" style={{marginTop: 6}}>Timers</span>
+          {w.timers.map(x => <div key={x.id} className={`world-row ${x.done ? 'done' : ''}`} data-testid="world-timer">
+            <strong>{x.name}</strong><span className="pp-muted">{x.done ? 'done' : `${timeText(Math.max(0, x.at - w.t))} left`}{x.note ? ` · ${x.note}` : ''}</span>
+            <button className="item-star" aria-label={`Remove ${x.name}`} onClick={() => put({timers: w.timers.filter(y => y.id !== x.id)})}>✕</button>
+          </div>)}
+          <div className="time-row" style={{gridTemplateColumns: '2fr 1fr 1fr'}}>
+            <input aria-label="Timer name" data-testid="timer-name" placeholder="Clone finishes growing" value={tm.name} onChange={e => setTm({...tm, name: e.target.value})}/>
+            <input type="number" min="1" aria-label="Timer length" value={tm.n} onChange={e => setTm({...tm, n: e.target.value})}/>
+            <select aria-label="Timer unit" value={tm.unit} onChange={e => setTm({...tm, unit: e.target.value})}>{['minutes', 'hours', 'days', 'years'].map(u => <option key={u} value={u}>{u}</option>)}</select>
+          </div>
+          <button className="btn btn-ghost btn-sm" data-testid="timer-add" disabled={!tm.name.trim() || !(+tm.n > 0)} onClick={() => { const secs = Math.round(+tm.n * ({minutes: 60, hours: HOUR, days: DAY, years: 365 * DAY}[tm.unit])); put({timers: [...w.timers, {id: uid(), name: tm.name.trim(), at: w.t + secs, note: tm.note, show: false, done: false}]}); setTm({...tm, name: ''}); }}>Add timer</button>
+        </>}
+      </>}
+    </div>);
+}
+
+// Notes for everyone: categories of notes, each collapsible and renamable, kept on this computer. Combat Log entries can be saved into them.
+const notesKey = who => 'hba-notes-' + (who || 'me');
+function loadNotes(who) { try { const v = JSON.parse(window.localStorage.getItem(notesKey(who)) || 'null'); if (v && Array.isArray(v.cats)) return v; } catch (e) {} return {cats: [{id: 'general', name: 'General', open: true, notes: []}]}; }
+function saveNotes(who, v) { try { window.localStorage.setItem(notesKey(who), JSON.stringify(v)); } catch (e) {} }
+function addNoteTo(who, catName, title, text) { // used by the Combat Log: the category is made if it does not exist yet
+  const v = loadNotes(who); let cat = v.cats.find(c => c.name === catName);
+  if (!cat) { cat = {id: newId().slice(0, 18), name: catName, open: true, notes: []}; v.cats = [cat, ...v.cats]; }
+  cat.notes = [...cat.notes, {id: newId().slice(0, 18), title, text, at: Date.now()}]; saveNotes(who, v); return v;
+}
+function NotesPanel({who, onClose, version}) {
+  const [v, setV] = useState(() => loadNotes(who));
+  useEffect(() => { setV(loadNotes(who)); }, [who, version]);
+  const put = nv => { setV(nv); saveNotes(who, nv); };
+  const cat = (id, patch) => put({...v, cats: v.cats.map(c => c.id === id ? {...c, ...patch} : c)});
+  const note = (cid, nid, patch) => put({...v, cats: v.cats.map(c => c.id !== cid ? c : {...c, notes: c.notes.map(n => n.id === nid ? {...n, ...patch} : n)})});
+  const [newCat, setNewCat] = useState('');
+  return (
+    <div className="modal-overlay" onClick={onClose} data-testid="notes">
+      <div className="modal gloss-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header"><span>Notes</span><button className="btn btn-ghost btn-sm" data-testid="notes-close" onClick={onClose}>Close</button></div>
+        <div className="gloss-body">
+          <div className="time-row" style={{gridTemplateColumns: '1fr auto', marginBottom: 8}}>
+            <input aria-label="New category" data-testid="notes-newcat" placeholder="New category (NPCs, Loot, Quests...)" value={newCat} onChange={e => setNewCat(e.target.value)}/>
+            <button className="btn btn-primary btn-sm" data-testid="notes-addcat" disabled={!newCat.trim()} onClick={() => { put({...v, cats: [...v.cats, {id: newId().slice(0, 18), name: newCat.trim().slice(0, 60), open: true, notes: []}]}); setNewCat(''); }}>Add category</button>
+          </div>
+          {v.cats.map((c, ci) => <div key={c.id} className="note-cat" data-testid="notes-cat">
+            <div className="note-cat-head">
+              <button className="note-toggle" aria-label={c.open ? 'Collapse' : 'Expand'} onClick={() => cat(c.id, {open: !c.open})}>{c.open ? '▾' : '▸'}</button>
+              <input className="note-cat-name" aria-label="Category name" data-testid="notes-catname" value={c.name} onChange={e => cat(c.id, {name: e.target.value.slice(0, 60)})}/>
+              <span className="pp-muted">{c.notes.length}</span>
+              <button className="item-star" title="Move up" disabled={ci === 0} onClick={() => { const a = v.cats.slice(); [a[ci - 1], a[ci]] = [a[ci], a[ci - 1]]; put({...v, cats: a}); }}>↑</button>
+              <button className="item-star" title="Delete this category and its notes" onClick={() => { if (window.confirm(`Delete "${c.name}" and its ${c.notes.length} notes?`)) put({...v, cats: v.cats.filter(x => x.id !== c.id)}); }}>✕</button>
+            </div>
+            {c.open && <>
+              {c.notes.map(n => <div key={n.id} className="note" data-testid="note">
+                <div className="note-head"><input aria-label="Note title" data-testid="note-title" value={n.title} onChange={e => note(c.id, n.id, {title: e.target.value.slice(0, 100)})}/>
+                  <button className="item-star" title="Delete this note" onClick={() => put({...v, cats: v.cats.map(x => x.id !== c.id ? x : {...x, notes: x.notes.filter(y => y.id !== n.id)})})}>✕</button></div>
+                <textarea aria-label="Note text" data-testid="note-text" rows={Math.min(10, Math.max(2, String(n.text || '').split('\n').length + 1))} value={n.text} onChange={e => note(c.id, n.id, {text: e.target.value.slice(0, 20000)})}/>
+              </div>)}
+              <button className="btn btn-ghost btn-sm" data-testid="notes-add" onClick={() => put({...v, cats: v.cats.map(x => x.id !== c.id ? x : {...x, open: true, notes: [...x.notes, {id: newId().slice(0, 18), title: 'New note', text: '', at: Date.now()}]})})}>+ Note</button>
+            </>}
+          </div>)}
+          <div className="gloss-credit">Notes stay on this computer. Save a Combat Log entry here with its 📝 button.</div>
+        </div>
+      </div>
+    </div>);
+}
+
 function App() {
   const [combatants, setCombatantsRaw] = useState([]);
   const deferRef = useRef(null);   // while an attack waits for the target's OK, the changes it would make are collected here
@@ -1918,7 +2094,8 @@ function App() {
   const [stepOn, setStepOn] = useState(true);        // table rule: attacks are declared, rolled and confirmed one step at a time
   const [allowUndo, setAllowUndo] = useState(true);  // table rule: a player may take back the action they just took
   const [leftTab, setLeftTab] = useState('order');   // the DM's left panel: order | dm
-  const [noticesOn, setNoticesOn] = useState(() => { try { return window.localStorage.getItem('hba-notices') !== 'off'; } catch (e) { return true; } });
+  const [noticesPl, setNoticesPl] = useState(() => { try { return window.localStorage.getItem('hba-notices') !== 'off'; } catch (e) { return true; } });
+  const [noticesDm, setNoticesDm] = useState(() => { try { return window.localStorage.getItem('hba-notices-dm') === 'on'; } catch (e) { return false; } }); // the DM's pop-ups start off
   const [undoTick, setUndoTick] = useState(0);
   const [ended, setEnded] = useState(null);         // the last fight that was ended: {at, rounds, rows, xp, stable, ammo}
   const [showEnd, setShowEnd] = useState(false);    // the end of combat panel
@@ -1964,7 +2141,9 @@ function App() {
   }, [clock]);
   useEffect(() => { FUDGE_DONE = () => setFudge(''); return () => { FUDGE_DONE = null; NEXT_D20 = 0; }; }, []);
   const [blockPick, setBlockPick] = useState(null);  // choosing the creature for a form or a summon: {cId, kind, source, left, q}
-  const [showGlossary, setShowGlossary] = useState(false); // the DM's Rules Glossary
+  const [showGlossary, setShowGlossary] = useState(false);
+  const [showNotes, setShowNotes] = useState(false); const [notesVer, setNotesVer] = useState(0);
+  const combatKey = useRef(''); // the DM's Rules Glossary
   const [restSummary, setRestSummary] = useState(null); // what a player's rest just gave back
   const restRef = useRef(null);
   const [castLevel, setCastLevel] = useState(0); // spell slot level chosen for the selected spell (0 = lowest available)
@@ -2002,13 +2181,18 @@ function App() {
   const [hideTimer, setHideTimer] = useState(false);
   const [clock, setClock] = useState(Date.now());
   const timeUpRef = useRef('');
-  const [sessName, setSessName] = useState('');     // the name the DM gave this session
+  const [sessName, setSessName] = useState('');
+  const [world, setWorld] = useState(null);        // the DM's world tracker (time of day, weather, trackers, timers), shared with the session     // the name the DM gave this session
   const [sessions, setSessions] = useState(() => mySessions());
   const [showSessions, setShowSessions] = useState(true);
   const [hideRolls, setHideRolls] = useState(false); // DM: players see the result of the DM's rolls, not the numbers
   const [ammoOn, setAmmoOn] = useState(false);     // table rule: everyone counts ammunition (a player can also switch it on alone)
   const [fudge, setFudge] = useState('');           // DM: what the next d20 shows
-  const [handPick, setHandPick] = useState(null);   // choosing what goes in a hand: {cId, i, want}
+  const [handPick, setHandPick] = useState(null);
+  const [holdFor, setHoldFor] = useState(null);
+  const [clearPick, setClearPick] = useState(null); // the DM choosing what to clear: {log, monsters, players, world, notes}
+  const [statWhy, setStatWhy] = useState(''); // which number's breakdown is open: 'ac', 'speed', 'init'     // picking from the Inventory tab what goes in a hand: {cId, i}
+  const [holdText, setHoldText] = useState('');   // choosing what goes in a hand: {cId, i, want}
   const [handsOn, setHandsOn] = useState(false);   // table rule: track what each character holds
   const [compMode, setCompMode] = useState('');    // table rule: spell components. '' off, 'simple', 'full'
   const [showPouch, setShowPouch] = useState(false);
@@ -2017,6 +2201,13 @@ function App() {
   const promptsRef = useRef([]);
   const [notices, setNotices] = useState([]);              // "this is what happened to you" pop-ups waiting to be read
   const seenLog = useRef(null);
+  useEffect(() => { if (combatStarted && !combatKey.current) { const d = new Date(); combatKey.current = `Combat, ${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`; } if (!combatStarted) combatKey.current = ''; }, [combatStarted]);
+  const noteFromLog = (entry) => { const text = String(entry.html || entry.text || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/div>/gi, '\n').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\n{2,}/g, '\n').trim();
+    const d = new Date(), cat = combatKey.current || `Session, ${d.toLocaleDateString()}`;
+    addNoteTo(isDM ? 'dm-' + playerCode : playerCode, cat, text.split('\n')[0].slice(0, 80), text); setNotesVer(n => n + 1);
+    setNoteSaved(entry.id); setTimeout(() => setNoteSaved(''), 1500); };
+  const [noteSaved, setNoteSaved] = useState('');
+  const dmHist = useRef({}); const lastSnap = useRef(null); // the DM can take the table back to just before any Combat Log entry
   const [reveal, setReveal] = useState('full');            // table rule: what players see of creatures that are not theirs: full | bar | conditions | none
   const [revealAC, setRevealAC] = useState(true);
   const [trackerDraft, setTrackerDraft] = useState('');
@@ -2042,11 +2233,13 @@ function App() {
     return () => clearInterval(t); }, []);
   // Something just happened to one of my creatures because of someone else: show it to me.
   useEffect(() => {
-    if (seenLog.current === null) { seenLog.current = new Set(log.map(e => e.id)); return; }
+    if (seenLog.current === null) { seenLog.current = new Set(log.map(e => e.id)); lastSnap.current = combatants; return; }
     const fresh = log.filter(e => !seenLog.current.has(e.id));
     fresh.forEach(e => seenLog.current.add(e.id));
+    if (fresh.length) { const before = lastSnap.current || combatants; fresh.forEach(e => { dmHist.current[e.id] = before; }); const ks = Object.keys(dmHist.current); if (ks.length > 150) ks.sort().slice(0, ks.length - 150).forEach(k => delete dmHist.current[k]); }
+    lastSnap.current = combatants;
     const w = castWatch.current; if (w && fresh.length) { fresh.forEach(e => { if (e.html && e.type !== 'round') { w.html.push(e.html); w.ids.add(e.id); } }); w.last = Date.now(); }
-    const mineNow = fresh.filter(e => !(w && w.ids.has(e.id))).filter(e => e.forAll || (noticesOn && e.forId) && !isDM && (e.by === myId || combatants.some(c => c.id === e.forId && c.owner === myId)));
+    const mineNow = fresh.filter(e => !(w && w.ids.has(e.id))).filter(e => e.forAll || (noticesOn && e.forId) && (e.by === myId || combatants.some(c => c.id === e.forId && (c.owner === myId || (isDM && !c.owner)))));
     if (mineNow.length) setNotices(prev => [...prev, ...mineNow.map(e => ({id: e.id, html: e.html, concEnd: e.concEnd || null, name: (combatants.find(c => c.id === e.forId) || {}).name || ''}))].slice(-12));
   }, [log]);
 
@@ -2054,6 +2247,8 @@ function App() {
   // Outside a session this screen controls everything. In a session the DM (whoever created it) controls
   // everything, and each player controls only the characters and companions they brought.
   const isDM = !room || !dmId || dmId === myId;
+  const noticesOn = isDM ? noticesDm : noticesPl;
+  const setNoticesOn = v => { if (isDM) { setNoticesDm(v); try { window.localStorage.setItem('hba-notices-dm', v ? 'on' : 'off'); } catch (e) {} } else { setNoticesPl(v); try { window.localStorage.setItem('hba-notices', v ? 'on' : 'off'); } catch (e) {} } };
   const canControl = c => !!c && (isDM || (!!c.owner && c.owner === myId));
   const veil = c => !isDM && !canControl(c) && c.type !== 'player'; // a creature whose numbers the DM may be hiding from this player
   // When an effect that raised a Hit Point total ends, current Hit Points come down to the total again.
@@ -2580,6 +2775,18 @@ function App() {
     setLogRaw(prev => [...prev.filter(e => u.logIds.has(e.id)), stamp({type:'roll', html:`<strong>${esc(who)}</strong> takes back <span class="log-result">${esc(u.name)}</span>`})]);
     undoRef.current = null; setUndoTick(n => n + 1); setArmed(null);
   };
+  // The DM: everything goes back to how it was just before this entry; it and every later entry leave the log.
+  const undoToEntry = (entry) => {
+    const before = dmHist.current[entry.id]; if (!isDM || !before) return;
+    const later = log.filter(e => e.id >= entry.id);
+    if (!window.confirm(`Undo this and the ${later.length - 1} entr${later.length === 2 ? 'y' : 'ies'} after it? Hit Points, conditions, effects and uses go back to how they were before it.`)) return;
+    Object.keys(pendingRef.current).forEach(k => delete pendingRef.current[k]);
+    prompts.forEach(q => removePrompt(q.id));
+    later.forEach(e => { if (room && db) db.ref('rooms/' + room + '/log/' + e.id).remove(); });
+    setCombatantsRaw(before);
+    setLogRaw(prev => [...prev.filter(e => e.id < entry.id), stamp({type: 'roll', html: `<strong>The DM</strong> undid ${later.length} Combat Log entr${later.length === 1 ? 'y' : 'ies'}, starting with: ${String(entry.html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)}`})]);
+    lastSnap.current = before;
+  };
   const canUndo = () => { const u = undoRef.current; return !!(u && (allowUndo || isDM) && u.key === `${round}:${activeId}`); };
   // ── ATTACKS, ONE STEP AT A TIME: declared, rolled, shown to the target, then applied ──
   const answerPrompt = (q, ans) => {
@@ -2646,7 +2853,7 @@ function App() {
   const focusItems = c => itemsOf(c).filter(n => FOCUS_RE.test(n) || (c.charClass === 'Bard' && INSTRUMENT_RE.test(n)));
   const hasPouch = c => itemsOf(c).some(n => /component pouch/i.test(n));
   const weaponNames = c => Array.from(new Set(((c && c.sheetActions) || []).filter(a => a.weapon).map(a => a.name.replace(/ \(two hands\)$/, ''))));
-  const handChoices = c => [...weaponNames(c), ...(((c.sheet || {}).shield) ? ['Shield'] : []), ...focusItems(c), 'Something else'];
+  const handChoices = c => [...weaponNames(c), ...(((c.sheet || {}).shield) ? ['Shield'] : []), ...focusItems(c)];
   const handsOf = c => Array.isArray(c.hands) ? [c.hands[0] || '', c.hands[1] || ''] : [weaponNames(c)[0] || '', ((c.sheet || {}).shield) ? 'Shield' : ''];
   const setHand = (id, i, v, how) => {
     const c0 = combatants.find(c => c.id === id); if (!c0) return;
@@ -2756,7 +2963,7 @@ function App() {
         const se = (Array.isArray(r.selfEffs) ? r.selfEffs : []).map(cleanEffect).filter(Boolean); if (se.length) o2.selfEffs = se;
         action = o2; } catch (e) {}
     }
-    if (!re && action.spell && noticesOn && !isDM) castWatch.current = {name: action.name, start: Date.now(), last: Date.now(), html: [], ids: new Set()};
+    if (!re && action.spell && noticesOn) castWatch.current = {name: action.name, start: Date.now(), last: Date.now(), html: [], ids: new Set()};
     const chosen = !re ? [action.modeName, ...(picks[action.id] || [])].filter(Boolean) : [];
     if (!re && action.byHP && !action.self) { // the effect depends on the target's Hit Points right now
       const t0 = inPlay.find(c => c.id === targetIds[0]);
@@ -2844,8 +3051,9 @@ function App() {
       const {id, slot, pool, cost, usesMax, pointCosts, maxLvl, comp, mat, matCost, matConsumed, conc, concSecs, again, block, fromSheet, up, upEff, detail, ...keep} = action;
       setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, running: [...(c.running || []).filter(r => r.name !== nm), plain({id: newId(), name: nm, act: action.again, conc: action.conc ? (action.concAs || nm) : '', usedAt: turnKey, a: keep, ...(action.zone ? {zone: zoneText(action)} : {})})].slice(-6)}));
     }
-    if (action.pool) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, poolUsed: {...(c.poolUsed || {}), [action.pool]: (+((c.poolUsed || {})[action.pool]) || 0) + (action.cost || 1)}}));
-    else if (action.usesMax) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, used: {...(c.used || {}), [action.id]: (+((c.used || {})[action.id]) || 0) + 1}}));
+    const wt = world && world.on ? world.t : null; // when it was spent, for what comes back after a number of days
+    if (action.pool) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, poolUsed: {...(c.poolUsed || {}), [action.pool]: (+((c.poolUsed || {})[action.pool]) || 0) + (action.cost || 1)}, ...(wt != null && !((c.poolAt || {})[action.pool] != null) ? {poolAt: {...(c.poolAt || {}), [action.pool]: wt}} : {})}));
+    else if (action.usesMax) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, used: {...(c.used || {}), [action.id]: (+((c.used || {})[action.id]) || 0) + 1}, ...(wt != null && !((c.usedAt || {})[action.id] != null) ? {usedAt: {...(c.usedAt || {}), [action.id]: wt}} : {})}));
     }
 
     let entries = [];
@@ -2901,7 +3109,9 @@ function App() {
       if (advNow === -1) t.dis.push('chosen');
       const roll = re && re.roll && !stepInfo ? re.roll : roll20(testMode(t)); // a ruling keeps the roll everyone already saw
       let total = roll.total + action.atk + t.bonus;
-      const targetAC = target ? effectiveAC(target) : 10;
+      const acVsR = target && action.ranged ? (+((target.passives || {}).acVsRanged) || 0) + sumEff(target, 'acVsRanged') : 0;
+      if (acVsR) featNotes.push(`${target.name} has ${signed(acVsR)} AC against ranged attacks`);
+      const targetAC = target ? effectiveAC(target) + acVsR : 10;
       const critOn = feat.criticalOn && (action.weapon || action.unarmed) ? feat.criticalOn : 20; // Improved Critical
       const nat20 = roll.total >= critOn, nat1 = roll.total === 1;
       let inspired = null;
@@ -2919,7 +3129,9 @@ function App() {
           else featNotes.push(`${im.name}: rolled ${dr.join(', ')}. No duplicate takes the hit`); } }
       if (forced === 'miss') { hit = false; featNotes.push('The DM ruled that it misses'); }
       const autoCrit = hit && !action.ranged && target && ['Paralyzed','Unconscious'].find(n => hasCond(target, n));
-      const isCrit = hit && (nat20 || !!autoCrit);
+      const critWard = target && hit && (nat20 || !!autoCrit) && ((target.passives || {}).critImmune ? 'its armor' : (effs(target).find(e => e.critImmune) || {}).name);
+      if (critWard) featNotes.push(`Critical Hit reduced: ${critWard === 'its armor' ? (target.passives.critImmuneFrom || 'an item') : critWard} turns it into a normal hit`);
+      const isCrit = hit && (nat20 || !!autoCrit) && !critWard;
       if (!stepInfo) stepInfo = {hit, crit: hit && isCrit, total, roll};
       if (hit && !action.ranged && (action.weapon || action.unarmed)) setCombatants(prev => prev.map(c => c.id === active.id ? {...c, turn: {...(c.turn || {}), meleeHit: true}} : c));
       // one-shot effects used up by this attack roll: Sap on the attacker, Vex on the target
@@ -2959,7 +3171,9 @@ function App() {
           if (sum(again) > sum(parts)) parts = again;
           setCombatants(prev => prev.map(c => c.id === active.id ? {...c, savageAt: turnKey} : c));
         }
+        if (isCrit && feat.critExtraDice && parts.length && (action.weapon || action.unarmed)) parts.push(...rollDamageParts({dmgList: [[feat.critExtraDice, parts[0].type]]}, false).map(x => ({...x, dice: `Critical Hit extra ${x.dice}`}))); // a feature that adds dice to a Critical Hit
         effs(active).forEach(e => { // Rage Damage and the like
+          { const v = +((e.abilMin || {})[action.abil]), sc = +((active.scores || {})[action.abil]); if (v > sc && parts.length && (action.weapon || action.unarmed)) { const dd = Math.floor((v - 10) / 2) - Math.floor((sc - 10) / 2); if (dd) parts.push({amount: dd, type: parts[0].type, dice: `${esc(e.name)} ${signed(dd)}`}); } } // Potion of Giant Strength
           if (e.dmgBonus && /d/.test(String(e.dmgBonus)) && parts.length && (action.weapon || action.unarmed)) { // Enlarge and Reduce: a die more or less, never below 1 damage
             const neg = String(e.dmgBonus)[0] === '-', r = parseDamage(String(e.dmgBonus).replace('-', '')), had = parts.reduce((n, pt) => n + pt.amount, 0), amt = neg ? -Math.min(r.total, Math.max(0, had - 1)) : r.total;
             parts.push({amount: amt, type: parts[0].type, dice: `${esc(e.name)} ${neg ? '-' : '+'}${String(e.dmgBonus).replace('-', '')} (${r.total})`});
@@ -3304,15 +3518,26 @@ function App() {
 
   // ── TIME, RESTS AND ENDING AN ENCOUNTER (DM) ────────────────────────────────
   // What a rest gives back to one creature: spell slots, shared pools and each feature's own uses.
+  const regainLines = useRef([]); // what the last rest or dawn gave back by a roll: "Wand of Magic Missiles: rolled 1d6+1 = 5, 5 charges back"
+  const dawnRegain = (c0) => { // one dawn: every item that regains charges at dawn rolls for them
+    let c = c0; const lines = []; const left = {...(c.poolUsed || {})};
+    Object.entries(((c.sheet || {}).pools) || {}).forEach(([k, q]) => { if (q.recharge !== 'dawn' || !(left[k] > 0)) return;
+      if (q.regain) { const r = parseDamage(q.regain); const got = Math.min(left[k], r.total); left[k] -= got; lines.push(`${k}: rolled ${q.regain} = ${r.total}, ${got} charge${got === 1 ? '' : 's'} back (${q.max - left[k]} of ${q.max})`); }
+      else { lines.push(`${k}: all ${q.max} charges back`); left[k] = 0; }
+      if (!(left[k] > 0)) delete left[k]; });
+    return {c: {...c, poolUsed: left}, lines};
+  };
   const restoreUses = (c0, longRest) => {
     let c = c0;
+    if (longRest && !(world && world.on)) { const d = dawnRegain(c); c = d.c; regainLines.current = d.lines; } else regainLines.current = []; // without a tracked time of day, dawn comes with the Long Rest
     if (c.slotsUsed && (longRest || (c.sheet || {}).pact)) c = {...c, slotsUsed: {}}; // Long Rest, or Pact Magic on a Short Rest
     if (c.poolUsed) { // shared pools: all back on a Long Rest; on a Short Rest the short ones, and one use of some others
       const left = {};
       Object.keys(c.poolUsed).forEach(k => {
         const q = ((c.sheet || {}).pools || {})[k] || {};
         if (q.recharge === 'none') { if (c.poolUsed[k] > 0) left[k] = c.poolUsed[k]; return; } // an item whose charges never come back
-        if (q.recharge === 'dawn') { const n = longRest ? (q.regain ? Math.max(0, c.poolUsed[k] - parseDamage(q.regain).total) : 0) : c.poolUsed[k]; if (n > 0) left[k] = n; return; } // regained at dawn: counted at a Long Rest
+        if (q.recharge === 'dawn') { if (c.poolUsed[k] > 0) left[k] = c.poolUsed[k]; return; } // regained at dawn (above)
+        if (q.recharge === 'after') { if (c.poolUsed[k] > 0) left[k] = c.poolUsed[k]; return; } // comes back after a wait: the DM's clock does it
         if (longRest) return;
         const n = q.recharge === 'short' ? 0 : Math.max(0, c.poolUsed[k] - (q.shortRegain || 0));
         if (n > 0) left[k] = n;
@@ -3321,7 +3546,8 @@ function App() {
     }
     if (c.used) {
       const used = {};
-      if (!longRest) buildActions(c).forEach(a => { if (a.recharge !== 'short' && c.used[a.id]) used[a.id] = c.used[a.id]; });
+      const clock = world && world.on;
+      buildActions(c).forEach(a => { if (!c.used[a.id]) return; const keep = a.recharge === 'none' || a.recharge === 'after' || (a.recharge === 'dawn' && clock) || (!longRest && a.recharge !== 'short'); if (keep) used[a.id] = c.used[a.id]; });
       c = {...c, used};
     }
     return c;
@@ -3333,14 +3559,15 @@ function App() {
     const longRest = kind === 'long';
     let after = restoreUses(c, longRest);
     if (longRest) after = {...after, currentHP: totalHP(c), tempHP: 0};
-    const lines = [];
+    const lines = [], rolled = regainLines.current.slice();
     if (after.currentHP !== c.currentHP) lines.push(`Hit Points: ${c.currentHP} to ${after.currentHP}`);
     if ((+c.tempHP || 0) !== (+after.tempHP || 0)) lines.push(`Temporary Hit Points: ${c.tempHP} to 0`);
-    Object.entries((c.sheet || {}).pools || {}).forEach(([n, q]) => { const b = poolLeft(c, n), a = poolLeft(after, n); if (a !== b) lines.push(`${n}: ${b} to ${a} of ${q.max}`); });
+    Object.entries((c.sheet || {}).pools || {}).forEach(([n, q]) => { const b = poolLeft(c, n), a = poolLeft(after, n); if (a !== b && !rolled.some(l => l.startsWith(n + ':'))) lines.push(`${n}: ${b} to ${a} of ${q.max}`); });
+    lines.push(...rolled);
     (((c.sheet || {}).slotMax) || []).forEach((n, i) => { const b = slotsLeft(c, i + 1), a = slotsLeft(after, i + 1); if (n > 0 && a !== b) lines.push(`Level ${i + 1} spell slots: ${b} to ${a} of ${n}`); });
     buildActions(c).forEach(a => { if (a.usesMax && !a.pool) { const b = usesLeft(c, a), x = usesLeft(after, a); if (x !== b) lines.push(`${a.name}: ${b} to ${x} of ${a.usesMax}`); } });
-    setCombatants(prev => prev.map(x => x.id === id ? {...restoreUses(x, longRest), ...(longRest ? {currentHP: totalHP(x), tempHP: 0} : {})} : x));
-    setLog(prev => [...prev, stamp({type:'heal', html:`<strong>${esc(c.name)}</strong> finishes a <span class="log-result">${longRest ? 'Long Rest' : 'Short Rest'}</span>${lines.length ? `<div class="log-detail">${lines.map(esc).join(' · ')}</div>` : ''}`})]);
+    setCombatants(prev => prev.map(x => x.id === id ? {...x, slotsUsed: after.slotsUsed, poolUsed: after.poolUsed, used: after.used, ...(longRest ? {currentHP: after.currentHP, tempHP: 0} : {})} : x));
+    setLog(prev => [...prev, stamp({type:'heal', forId: c.id, html:`<strong>${esc(c.name)}</strong> finishes a <span class="log-result">${longRest ? 'Long Rest' : 'Short Rest'}</span>${lines.length ? `<div class="log-detail">${lines.map(esc).join(' · ')}</div>` : ''}`})]);
     setRestSummary({name: c.name, kind, lines});
   };
   const advanceTime = (seconds, label, rest) => { // rest: 'short' or 'long' when the time passes as a rest
@@ -3348,12 +3575,42 @@ function App() {
     const longRest = rest === 'long';
     const t = passTime(combatants, seconds, longRest);
     // A rest gives back the uses of features that recharge on it
+    const perC = {};
     const restore = c0 => {
       if (!rest) return c0;
-      return restoreUses(c0, longRest);
+      const r = restoreUses(c0, longRest); if (regainLines.current.length && !perC[c0.id]) perC[c0.id] = regainLines.current.slice(); // charges rolled back at dawn (the Long Rest stands in for it)
+      return r;
     };
-    setCombatants(prev => reorder(passTime(prev, seconds, longRest).list.map(restore)));
-    setLog(prev => [...prev, stamp({type:'round', text: label}), ...endedEntries(t.ended)]);
+    let worldLines = [], dawnFor = [], w2 = world;
+    if (world && world.on) { const r = worldStep(world, seconds); w2 = r.world; worldLines = r.lines; dawnFor = r.dawns; setWorld(w2); }
+    const clockOn = !!(world && world.on), t2 = w2 ? w2.t : 0;
+    const onClock = c0 => { if (!clockOn) return c0; let c = c0, lines = [];
+      for (let i = 0; i < dawnFor; i++) { const d = dawnRegain(c); c = d.c; lines.push(...d.lines); } // each dawn that passed
+      if (dawnFor > 0 && c.used) { const used = {...c.used}; buildActions(c).forEach(a => { if (a.recharge === 'dawn' && used[a.id]) { delete used[a.id]; lines.push(`${a.name}: back at dawn`); } }); c = {...c, used}; }
+      const pq = ((c.sheet || {}).pools) || {}, pAt = {...(c.poolAt || {})}, pUsed = {...(c.poolUsed || {})};
+      Object.keys(pAt).forEach(k => { const q = pq[k] || {}; if (q.recharge === 'after' && t2 >= pAt[k] + (q.wait || DAY)) { delete pUsed[k]; delete pAt[k]; lines.push(`${k}: back after ${timeText(q.wait || DAY)}`); } else if (!(pUsed[k] > 0)) delete pAt[k]; });
+      const uAt = {...(c.usedAt || {})}, used = {...(c.used || {})}; const acts = buildActions(c);
+      Object.keys(uAt).forEach(id => { const a = acts.find(x => x.id === id); if (a && a.recharge === 'after' && t2 >= uAt[id] + (a.wait || DAY)) { delete used[id]; delete uAt[id]; lines.push(`${a.name}: usable again after ${timeText(a.wait || DAY)}`); } else if (!used[id]) delete uAt[id]; });
+      c = {...c, poolUsed: pUsed, poolAt: pAt, used, usedAt: uAt}; if (lines.length) perC[c.id] = [...(perC[c.id] || []), ...lines]; return c; };
+    const after = reorder(passTime(combatants, seconds, longRest).list.map(restore).map(onClock));
+    setCombatants(prev => reorder(passTime(prev, seconds, longRest).list.map(restore).map(c => { const a = after.find(x => x.id === c.id); return a ? {...c, poolUsed: a.poolUsed, poolAt: a.poolAt, used: a.used, usedAt: a.usedAt} : c; })));
+    setLog(prev => [...prev, stamp({type:'round', text: label + (clockOn ? ` · now ${clockText(t2)}` : '')}), ...endedEntries(t.ended),
+      ...(worldLines.length ? [stamp({type: 'roll', ...(w2 && w2.show ? {} : {dmOnly: true}), html: `<strong>The world</strong>${worldLines.map(l => `<div class="log-detail">${esc(l)}</div>`).join('')}`})] : []),
+      ...Object.entries(perC).map(([id, lines]) => stamp({type: 'heal', forId: id, html: `<strong>${esc((combatants.find(c => c.id === id) || {}).name || '')}</strong>${lines.map(l => `<div class="log-detail">${esc(l)}</div>`).join('')}`}))]);
+  };
+  // One step of the world clock: dawns passed, weather, trackers and timers. Pure: returns the new world and what to tell the table.
+  const worldStep = (w, seconds) => {
+    const t0 = w.t, t1 = t0 + seconds, lines = [];
+    const crossed = (period, offset) => Math.floor((t1 - offset) / period) - Math.floor((t0 - offset) / period);
+    const dawns = crossed(DAY, DAWN), days = crossed(DAY, 0), hours = crossed(HOUR, 0);
+    let weather = w.weather;
+    const steps = weather.rule === 'day' ? days : weather.rule === 'hour' ? Math.min(hours, 48) : 0;
+    if (steps > 0 && weather.table.length) { const now = weather.table[Math.floor(Math.random() * weather.table.length)]; weather = {...weather, now}; lines.push(`Weather: ${now}`); }
+    const trackers = w.trackers.map(x => { const n = x.per === 'day' ? days : x.per === 'hour' ? hours : 0; if (!n || !x.by) return x;
+      let v = x.value + n * x.by; if (x.min !== '') v = Math.max(x.min, v); if (x.max !== '') v = Math.min(x.max, v); if (v !== x.value) lines.push(`${x.name}: ${x.value} to ${v}`); return {...x, value: v}; });
+    const timers = w.timers.map(x => { if (!x.done && x.at <= t1) { lines.push(`Timer done: ${x.name}${x.note ? ` (${x.note})` : ''}`); return {...x, done: true}; } return x; });
+    if (dawns > 0) lines.push(dawns === 1 ? 'Dawn: items that recharge at dawn regain their charges' : `${dawns} dawns pass: items that recharge at dawn regain their charges each time`);
+    return {world: {...w, t: t1, weather, trackers, timers}, lines, dawns};
   };
   const advanceCustom = () => {
     const n = parseFloat(lapse.n);
@@ -3433,6 +3690,20 @@ function App() {
     lsSet('hba-note', JSON.stringify({code: playerCode, note, at: Date.now()})); // an open Character Builder adds it to its Journal too
     window.alert(`Saved to Session Notes in ${ch.name || 'your character'}'s Journal as "${note.title}".`);
   };
+  // The DM clears parts of the table: the log, the monsters and turn order, the player characters, the world tracker, their own notes.
+  const clearTable = (k) => {
+    if (!isDM) return;
+    const what = [k.log && 'the Combat Log', k.monsters && 'the monsters and the turn order', k.players && 'the player characters', k.world && 'the World Tracker', k.notes && 'your notes'].filter(Boolean);
+    if (!what.length || !window.confirm(`Clear ${what.join(', ')}? This cannot be undone.`)) return;
+    if (k.monsters || k.players) { if (combatStarted) { setCombatStarted(false); setRound(1); setActiveId(null); }
+      const gone = combatants.filter(c => (k.players && c.owner) || (k.monsters && !c.owner));
+      gone.forEach(c => { if (room && db) db.ref('rooms/' + room + '/combatants/' + c.id).remove(); });
+      setCombatantsRaw(prev => prev.filter(c => !gone.some(g => g.id === c.id))); prompts.forEach(q => removePrompt(q.id)); }
+    if (k.log) { log.forEach(e => { if (room && db) db.ref('rooms/' + room + '/log/' + e.id).remove(); }); setLogRaw([]); dmHist.current = {}; }
+    if (k.world) setWorld(null);
+    if (k.notes) { try { window.localStorage.removeItem(notesKey('dm-' + playerCode)); } catch (e) {} setNotesVer(n => n + 1); }
+    setClearPick(null);
+  };
   const deleteSession = () => {
     if (!isDM || !room || !db) return;
     if (!window.confirm(`Delete session ${room}? The shared room is erased for everyone and the code stops working. Character sheets saved on each player's own computer are not touched.`)) return;
@@ -3505,7 +3776,7 @@ function App() {
   };
 
   // ── LIVE SYNC ───────────────────────────────────────────────────────────────
-  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || '', reveal: reveal || 'full', revealAC: revealAC !== false, stepOn: stepOn !== false, allowUndo: allowUndo !== false, hideRolls: !!hideRolls, ammoOn: !!ammoOn, name: sessName || '', turnSecs: +turnSecs || 0, initCall: +initCall || 0, askInit: askInit !== false, ...(ended ? {ended} : {})});
+  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || '', reveal: reveal || 'full', revealAC: revealAC !== false, stepOn: stepOn !== false, allowUndo: allowUndo !== false, hideRolls: !!hideRolls, ammoOn: !!ammoOn, name: sessName || '', turnSecs: +turnSecs || 0, initCall: +initCall || 0, askInit: askInit !== false, ...(ended ? {ended} : {}), ...(world ? {world} : {})});
   const setHash = h => { try { (window.parent || window).history.replaceState(null, '', h); } catch (e) {} };
   const enterSession = code => { promptedRef.current = false; setRemoteSigs(null); setSyncMsg(''); setRoom(code); setRoomInput(''); setHash('#room=' + code); };
 
@@ -3589,7 +3860,7 @@ function App() {
         .sort((a, b) => ((a.seq || 0) - (b.seq || 0)) || (a.id < b.id ? -1 : 1));
       const logList = Object.values(v.log || {}).filter(e => e && e.id).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const m = v.meta || {};
-      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : '', reveal: ['full','bar','conditions','none'].includes(m.reveal) ? m.reveal : 'full', revealAC: m.revealAC !== false, stepOn: m.stepOn !== false, allowUndo: m.allowUndo !== false, hideRolls: !!m.hideRolls, ammoOn: !!m.ammoOn, name: String(m.name || '').slice(0, 60), turnSecs: Math.max(0, Math.min(900, +m.turnSecs || 0)), initCall: +m.initCall || 0, askInit: m.askInit !== false, ...(m.ended && m.ended.at ? {ended: m.ended} : {})};
+      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : '', reveal: ['full','bar','conditions','none'].includes(m.reveal) ? m.reveal : 'full', revealAC: m.revealAC !== false, stepOn: m.stepOn !== false, allowUndo: m.allowUndo !== false, hideRolls: !!m.hideRolls, ammoOn: !!m.ammoOn, name: String(m.name || '').slice(0, 60), turnSecs: Math.max(0, Math.min(900, +m.turnSecs || 0)), initCall: +m.initCall || 0, askInit: m.askInit !== false, ...(m.ended && m.ended.at ? {ended: m.ended} : {}), world: cleanWorld(m.world)};
       const promptList = Object.values(v.prompts || {}).filter(q => q && q.id && q.targetId).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const sigs = {combatants: {}, log: {}, prompts: {}, meta: stable(meta)};
       promptList.forEach(q => { sigs.prompts[q.id] = true; });
@@ -3603,7 +3874,7 @@ function App() {
       setActiveId(meta.activeId);
       setDmId(meta.dm);
       setApproval(meta.approval);
-      setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn); setSessName(meta.name); setTurnSecs(meta.turnSecs); setInitCall(meta.initCall); setAskInit(meta.askInit); setEnded(prev => stable(prev) === stable(meta.ended || null) ? prev : (meta.ended || null));
+      setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn); setSessName(meta.name); setTurnSecs(meta.turnSecs); setInitCall(meta.initCall); setAskInit(meta.askInit); setEnded(prev => stable(prev) === stable(meta.ended || null) ? prev : (meta.ended || null)); setWorld(prev => stable(prev) === stable(meta.world || null) ? prev : (meta.world || null));
       setRemoteSigs(sigs);
       setSyncStatus('live');
     };
@@ -3626,7 +3897,7 @@ function App() {
     if (stable(meta) !== remoteSigs.meta) updates['meta'] = meta;
     if (Object.keys(updates).length) updates['touched'] = firebase.database.ServerValue.TIMESTAMP; // last activity, for the 90-day cleanup
     if (Object.keys(updates).length) db.ref('rooms/' + room).update(updates).catch(err => { console.error('Session write failed', err); setSyncStatus('error'); setSyncMsg('Could not save'); });
-  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, reveal, revealAC, stepOn, allowUndo, hideRolls, ammoOn, ended, sessName, turnSecs, initCall, askInit, room, remoteSigs]);
+  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, reveal, revealAC, stepOn, allowUndo, hideRolls, ammoOn, ended, sessName, turnSecs, initCall, askInit, world, room, remoteSigs]);
 
   // This browser keeps a list of the sessions it has been in.
   const sessKey = room && remoteSigs ? [room, sessName, dmId === myId ? 'dm' : 'player', combatants.filter(c => c.type !== 'monster' && !c.pending).map(c => c.name).join('|')].join('~') : '';
@@ -3892,12 +4163,33 @@ function App() {
     const itemRow = (it, where) => { const uses = itemUses(it), magic = isMagic(it); return (
       <div className={`item-row ${magic ? 'magic' : ''}`} data-testid={where === 'main' ? 'important-item' : 'item-line'} key={where + it.name}>
         <div className="item-main"><button className="item-name" data-testid="item-open" title="Open the item card" onClick={() => setItemCard({cId: c.id, name: it.name})}>{it.name}</button>
-          {(it.rarity || it.attune) && <span className="item-tag"> {[it.rarity, it.attune ? 'Attunement' : ''].filter(Boolean).join(' · ')}</span>}
-          {ctl && uses.length > 0 && <div>{uses.map(a => <button key={a.id} className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} data-testid={where === 'main' ? 'important-use' : 'inv-use'} onClick={() => sel(a)}>{a.name === it.name || a.name === it.name.replace(/ \(.*$/, '') ? 'Use' : a.name}</button>)}</div>}</div>
+          {(it.rarity || it.attune) && <span className="item-tag"> {[it.rarity].filter(Boolean).join(' · ')}</span>}
+          {it.attune && <span className={`item-attune ${it.attuned ? 'on' : ''}`} data-testid="item-attune" title={it.attuned ? 'Attuned: its magic is working' : 'Needs Attunement: its magic is not working'}>{it.attuned ? '● Active' : '○ Not attuned'}</span>}
+          {!it.attune && magic && itemUses(it).length === 0 && <span className="item-attune on" title="Its magic works while you carry or wear it">● Active</span>}
+          {ctl && where === 'inv' && holdFor && holdFor.cId === c.id && <button className="pp-chip on" data-testid="hold-this" onClick={() => { setHand(c.id, holdFor.i, it.name.replace(/ \(.*$/, '').slice(0, 40)); setHoldFor(null); setSheetTab('main'); }}>Hold</button>}
+        {ctl && uses.length > 0 && <div>{uses.map(a => <button key={a.id} className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} data-testid={where === 'main' ? 'important-use' : 'inv-use'} onClick={() => sel(a)}>{a.name === it.name || a.name === it.name.replace(/ \(.*$/, '') ? 'Use' : a.name}</button>)}</div>}</div>
         {chargePill(it)}
         {ctl && (where === 'main' ? <button className="item-star" data-testid="important-remove" title="Take it off Important Items" onClick={() => setImportant(it, false)}>✕</button>
           : <button className={`item-star ${isImportant(it) ? 'on' : ''}`} data-testid="important-toggle" aria-pressed={isImportant(it)} title={isImportant(it) ? 'Take it off Important Items' : 'Show it in Important Items on the Main tab'} onClick={() => setImportant(it, !isImportant(it))}>{isImportant(it) ? '★' : '☆'}</button>)}
       </div>); };
+    // A or D next to a roll when something on this creature always gives Advantage or Disadvantage on it (hover for why)
+    const advMark = (kind, ctx) => { let t; try { t = d20Test(c, kind, ctx); } catch (e) { return null; } const m = testMode(t);
+      if (!t.adv.length && !t.dis.length) return null;
+      const why = [...t.adv.map(x => `Advantage: ${x}`), ...t.dis.map(x => `Disadvantage: ${x}`)].join('\n').replace(/<[^>]*>/g, '');
+      return <span className={`adv-mark ${m === 1 ? 'a' : m === -1 ? 'd' : 'ad'}`} data-testid="adv-mark" title={why}>{m === 1 ? 'A' : m === -1 ? 'D' : 'A/D'}</span>; };
+    const whyLines = (k) => { const base = ((sh.why || {})[k === 'init' ? 'initiative' : k]) || [], live = [];
+      effs(c).forEach(e => { if (k === 'ac' && +e.ac) live.push([e.name, +e.ac]); if (k === 'ac' && (+e.acBase > 0 || +e.acMin > 0)) live.push([e.name, +e.acBase ? `base ${e.acBase} + Dex` : `at least ${e.acMin}`]);
+        if (k === 'speed' && +e.speed) live.push([e.name, +e.speed]); if (k === 'speed' && e.speedMult && +e.speedMult !== 1) live.push([e.name, `× ${e.speedMult}`]); if (k === 'speed' && e.speedZero) live.push([e.name, 'Speed 0']);
+        if (k === 'init' && e.init) live.push([e.name, e.init]); });
+      if (k === 'ac' && shieldOff(c)) live.push(['Shield not held', -2]);
+      if (k === 'speed') (c.conditions || []).filter(n => ['Grappled', 'Restrained', 'Paralyzed', 'Petrified', 'Stunned', 'Unconscious'].includes(n)).forEach(n => live.push([n, 'Speed 0']));
+      return {base, live}; };
+    const whyBox = k => { if (statWhy !== k) return null; const {base, live} = whyLines(k), title = {ac: 'Armor Class', speed: 'Speed', init: 'Initiative'}[k];
+      return <div className="stat-why" data-testid={`why-${k}`} onClick={e => e.stopPropagation()}><strong>{title}</strong>
+        {base.length ? base.map(([n, v], i) => <div key={'b' + i}><span>{n}</span><span>{typeof v === 'number' && i ? signed(v) : v}</span></div>) : <div className="pp-muted">From the character sheet: {k === 'ac' ? c.ac : k === 'speed' ? c.speed : signed(+c.initBonus || 0)}</div>}
+        {live.length > 0 && <div className="pp-muted" style={{marginTop: 4}}>Right now</div>}
+        {live.map(([n, v], i) => <div key={'l' + i}><span>{n}</span><span>{typeof v === 'number' ? signed(v) : v}</span></div>)}
+        <button className="pp-chip" onClick={() => setStatWhy('')}>Close</button></div>; };
     const leftText = (a) => a.pool ? ` (${poolLeft(c, a.pool)} ${a.pool} left)` : a.usesMax ? ` (${usesLeft(c, a)}/${a.usesMax} left)` : '';
     const kindOf = (a) => ['action', 'bonus', 'reaction'].includes(a.activation) ? a.activation : 'other';
     const extraOk = (a) => (a.type === 'attack' && a.weapon) || /^(Dash|Disengage|Hide|Utilize|Attack)\b/.test(a.name);
@@ -3944,6 +4236,13 @@ function App() {
                 {it.attune && <div className={it.attuned ? 'item-card-attuned' : 'item-card-unattuned'} data-testid="item-card-attune">{it.attuned ? 'Attuned: its magic works.' : 'Not attuned: its magic does not work until you attune to it (in the Character Builder).'}</div>}
                 {ctl && itemUses(it).length > 0 && <div style={{margin: '6px 0'}}>{itemUses(it).map(a => <button key={a.id} className="pp-chip on" data-testid="item-card-use" onClick={() => { sel(a); setItemCard(null); }}>{a.name === it.name ? 'Use' : `Use ${a.name}`}{leftText(a)}</button>)}</div>}
                 <div className="item-card-text" data-testid="item-card-text">{it.d || 'No description.'}</div>
+                {ctl && (() => { const base = it.name.replace(/ \(.*$/, ''), hd = handsOf(c), held = hd.some(h => String(h).replace(/ \(.*$/, '') === base), wieldy = /weapon|shield/i.test(it.type || '') || /^(Staff|Rod|Wand)/i.test(it.type || ''), armor = /^Armor \((?!shield)/i.test(it.type || ''), worn = armor && String(sh.armor || '').startsWith(base), ip = itemPool(it);
+                  return <div className="do-row" style={{flexWrap: 'wrap', gap: 6, margin: '8px 0 0'}}>
+                    {wieldy && (held ? <button className="pp-chip" data-testid="item-card-stow" onClick={() => setHand(c.id, hd.findIndex(h => String(h).replace(/ \(.*$/, '') === base), '')}>Put it away</button>
+                      : <button className="pp-chip on" data-testid="item-card-hold" onClick={() => holdItem(c, base)}>Hold it</button>)}
+                    {armor && <span className="pp-muted" data-testid="item-card-worn">{worn ? 'Wearing it' : 'Not worn'} (armor is put on and taken off in the Character Builder)</span>}
+                    {ip && ip[1].regain && poolLeft(c, ip[0]) < ip[1].max && <button className="pp-chip on" data-testid="item-card-regain" onClick={() => { const [pn, q] = ip, r = parseDamage(q.regain), got = Math.min(r.total, q.max - poolLeft(c, pn)); adjustPool(c.id, pn, got); setLog(prev => [...prev, stamp({type: 'heal', forId: c.id, html: `<strong>${esc(c.name)}</strong> · ${esc(pn)} regains charges<br/><span class="log-result">🎲 ${r.total}</span> (${esc(q.regain)}): ${got} back<div class="log-dice">${esc(r.parts.join(' + '))}</div>`})]); }}>🎲 Roll {ip[1].regain} charges back</button>}
+                  </div>; })()}
                 {ctl && <label className="pp-muted" style={{display: 'block', marginTop: 10}}><input type="checkbox" data-testid="item-card-important" checked={isImportant(it)} onChange={e => setImportant(it, e.target.checked)}/> Show in Important Items</label>}
               </div>
             </div>
@@ -3975,8 +4274,8 @@ function App() {
               <div className="pp-abil" key={ab} data-testid={`pp-${k}`}>
                 <div className="pp-abname">{k.toUpperCase()}</div>
                 <div className="pp-score">{score}</div>
-                <button className="pp-mod" disabled={!ctl} title={`Roll a ${ab} check`} onClick={() => rollTest(c, 'check', ab)}>{modStr(score)}</button>
-                <button className={`pp-save ${prof ? 'prof' : ''}`} disabled={!ctl} title={`Roll a ${ab} saving throw${prof ? ' (proficient)' : ''}`} onClick={() => rollTest(c, 'save', ab)}><span className={`pp-o ${prof ? 'full' : ''}`}/> Save {signed(sv)}</button>
+                <button className="pp-mod" disabled={!ctl} title={`Roll a ${ab} check`} onClick={() => rollTest(c, 'check', ab)}>{modStr(score)}{advMark('check', {ability: ab})}</button>
+                <button className={`pp-save ${prof ? 'prof' : ''}`} disabled={!ctl} title={`Roll a ${ab} saving throw${prof ? ' (proficient)' : ''}`} onClick={() => rollTest(c, 'save', ab)}><span className={`pp-o ${prof ? 'full' : ''}`}/> Save {signed(sv)}{advMark('save', {ability: ab})}</button>
               </div>); })}
             <div className="pp-hp" data-testid="pp-hp">
               {c.currentHP <= 0 && !c.dead ? (() => { const ds = c.death || {s: 0, f: 0}, stable = isStable(c); return (
@@ -4000,13 +4299,13 @@ function App() {
                 {Object.keys(SKILL_ABILITY).sort().map(sk => { const ex = (sh.skillExpertise || []).includes(sk), pr = (sh.skillProfs || []).includes(sk), v = (sh.skills || {})[sk]; return (
                   <div key={sk} className={`pp-skill ${pr || ex ? 'prof' : ''}`} onClick={() => ctl && rollTest(c, 'check', SKILL_ABILITY[sk], sk)} title={`Roll ${sk}`}>
                     <span className={`pp-o ${ex ? 'ex' : pr ? 'full' : ''}`} /><span className="pp-sv">{signed(Number.isFinite(+v) ? +v : mod((c.scores || {})[SKILL_ABILITY[sk]] ?? 10))}</span>
-                    <span className="pp-sn">{SKILL_SHORT[sk] || sk}</span><span className="pp-sa">{SKILL_ABILITY[sk].slice(0, 3).toUpperCase()}</span>
+                    <span className="pp-sn">{SKILL_SHORT[sk] || sk}</span><span className="pp-sa">{SKILL_ABILITY[sk].slice(0, 3).toUpperCase()}</span>{advMark('check', {ability: SKILL_ABILITY[sk], skill: sk})}
                   </div>); })}
               </div>
               <div className="pp-h3">Important Items</div>
               {(() => { const list = allItems.filter(isImportant), names = new Set(list.map(it => it.name)), extra = Array.from(new Set(actions.filter(a => a.item && !a.weapon).map(a => a.item))).filter(n => !names.has(n) && !allItems.some(it => it.name.replace(/ \(.*$/, '') === n) && !impOff.includes(n)).map(n => ({name: n}));
                 const rows = [...list, ...extra];
-                return rows.length ? <div className="item-list">{rows.map(it => itemRow(it, 'main'))}</div>
+                return rows.length ? <div className="item-list">{allItems.some(it => it.attune) && <div className="attune-line" data-testid="attune-main">Attuned {allItems.filter(it => it.attune && it.attuned).length} of {sh.attuneMax || 3}</div>}{rows.map(it => itemRow(it, 'main'))}</div>
                   : <div className="pp-center pp-muted">Magic items and items that do something show here. Add others with the star on the Inventory tab.</div>; })()}
               <div className="pp-h3">Languages</div>
               <div className="pp-center">{(sh.languages || []).join(', ') || 'Common'}</div>
@@ -4015,14 +4314,15 @@ function App() {
             </div>
             <div className="pp-right">
               <div className="pp-stats">
-                <div className="pp-shape pp-shield" data-testid="pp-ac" title={(c.sheet || {}).shield ? 'Armor Class. Click to put on or take off your Shield' : 'Armor Class'} style={(c.sheet || {}).shield && ctl ? {cursor:'pointer'} : {}} onClick={() => ctl && toggleShield(c)}><svg viewBox="0 0 100 112" aria-hidden="true"><path d="M50 4 C64 12 80 14 94 14 C94 60 84 88 50 108 C16 88 6 60 6 14 C20 14 36 12 50 4 Z"/></svg><div><strong>{effectiveAC(c)}</strong><span>AC</span></div></div>
+                <div className="pp-shape pp-shield" data-testid="pp-ac" title={(c.sheet || {}).shield ? 'Armor Class. Click to put on or take off your Shield' : 'Armor Class'} style={(c.sheet || {}).shield && ctl ? {cursor:'pointer'} : {}} onClick={() => ctl && toggleShield(c)}><svg viewBox="0 0 100 112" aria-hidden="true"><path d="M50 4 C64 12 80 14 94 14 C94 60 84 88 50 108 C16 88 6 60 6 14 C20 14 36 12 50 4 Z"/></svg><div><strong>{effectiveAC(c)}</strong><span>AC</span></div><button className="why-btn" data-testid="why-ac-btn" title="What makes up this number" onClick={e => { e.stopPropagation(); setStatWhy(statWhy === 'ac' ? '' : 'ac'); }}>ⓘ</button>{whyBox('ac')}</div>
                 <div className="pp-shape pp-starbox" title="Proficiency Bonus"><svg viewBox="0 0 100 100" aria-hidden="true"><polygon points="50,3 61,20 82,13 80,35 97,50 80,65 82,87 61,80 50,97 39,80 18,87 20,65 3,50 20,35 18,13 39,20"/></svg><div><strong>+{c.pb || 2}</strong><span>Prof</span></div></div>
-                <div className="pp-stat"><strong>{effectiveSpeed(c)}</strong><span>Speed</span></div>
-                <div className="pp-stat"><strong>{signed(effectiveInitBonus(c))}</strong><span>Init</span></div>
+                <div className="pp-stat clickable" data-testid="pp-speed" title="Click to see what makes up this number" onClick={() => setStatWhy(statWhy === 'speed' ? '' : 'speed')}><strong>{effectiveSpeed(c)}</strong><span>Speed</span>{whyBox('speed')}</div>
+                <div className="pp-stat clickable" data-testid="pp-init" title="Click to see what makes up this number" onClick={() => setStatWhy(statWhy === 'init' ? '' : 'init')}><strong>{signed(effectiveInitBonus(c))}</strong><span>Init</span>{whyBox('init')}</div>
                 <div className="pp-card pp-passive" data-testid="pp-passive">
                   {[['Perception', 'Passive Perception'], ['Investigation', 'Passive Investigation'], ['Insight', 'Passive Insight']].map(([sk, t]) => { const v = (sh.skills || {})[sk]; const n = sk === 'Perception' && sh.pp != null ? sh.pp : 10 + (Number.isFinite(+v) ? +v : mod((c.scores || {})[SKILL_ABILITY[sk]] ?? 10)); return <div key={sk}><strong>{n}</strong><span>{t}</span></div>; })}
                 </div>
               </div>
+              {(() => { const d = defensesOf(c); return d.length ? <div className="pp-line" data-testid="pp-defenses"><span><strong>Defenses</strong> {d.map(([k, v], i) => <span key={k} className={`def-chip def-${k}`} title={{res: 'Resistance: takes half damage of these types', imm: 'Immunity: takes no damage of these types', vul: 'Vulnerability: takes double damage of these types', ci: 'Cannot be given these conditions'}[k]}>{{res: '🛡 Resistant', imm: '⛔ Immune', vul: '⚠ Vulnerable', ci: '✋ Condition immune'}[k]}: {v}</span>)}</span></div> : null; })()}
               <div className="pp-line"><span><strong>Senses</strong> {effectiveSenses(c).join(', ') || 'None'}</span><span><strong>Speeds</strong> {speedText(c)} &nbsp; <strong>Long Jump</strong> {str} ft. &nbsp; <strong>High Jump</strong> {Math.max(0, 3 + mod(str))} ft.</span></div>
 
               {combatStarted && (() => { const turn = c.turn || {}, mine = !!(active && active.id === c.id), sp = effectiveSpeed(c), moved = +turn.moved || 0;
@@ -4105,7 +4405,7 @@ function App() {
                 <div key={a.id} className={rowCls(a, 'pp-attack')} style={dim(a)} onClick={() => ctl && sel(a)} onContextMenu={back(a)}>
                   <span><span className="a-name">{a.name}{leftText(a)}</span>{(a.mprop || a.mastery) ? <span className={`pp-mast ${a.mastery ? 'on' : ''}`} data-testid="mastery-chip" title={a.mastery ? `You have the ${a.mastery} mastery property with this weapon` : `You do not have this weapon's mastery property`}>{a.mprop || a.mastery}</span> : null}</span>
                   <span>{a.rng ? `${a.rng} - ${a.reach || 0}` : `0 - ${a.reach || 5}`}</span>
-                  <span>{signed(a.atk)}</span>
+                  <span>{signed(a.atk)}{advMark('attack', {abil: a.abil, weapon: !!a.weapon, ranged: !!a.ranged, spell: !!a.spell})}</span>
                   <span>{(a.dmgList || []).map(d => `${d[0]} ${DMG_SHORT[d[1]] || String(d[1] || '').slice(0, 3)}`).join(' + ')}</span>
                 </div>))}
               {renderHands(c, ctl)}
@@ -4163,6 +4463,8 @@ function App() {
               <span><strong>Money</strong> {ctl ? <input type="number" min="0" aria-label="Gold pieces" data-testid="inv-gold" value={+c.gold || 0} onChange={e => { const n = Math.max(0, parseInt(e.target.value, 10) || 0); setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, gold: n, goldAt: Date.now()})); }} style={{width: 90}}/> : (+c.gold || 0)} GP</span>
               <span data-testid="inv-carry"><strong>Carrying capacity</strong> {cap} lb.{wt ? ` · carrying ${Math.round(wt * 10) / 10} lb.` : ''}</span>
             </div>; })()}
+          {allItems.some(it => it.attune) && <div className="attune-line" data-testid="attune-inv">Attuned: <strong>{allItems.filter(it => it.attune && it.attuned).length} of {sh.attuneMax || 3}</strong>{allItems.filter(it => it.attune && it.attuned).length ? ` · ${allItems.filter(it => it.attune && it.attuned).map(it => it.name).join(', ')}` : ''}<span className="pp-muted"> (attune or end it in the Character Builder)</span></div>}
+          {holdFor && holdFor.cId === c.id && <div className="buff-note" data-testid="hold-hint" style={{margin: '0 0 8px'}}>Pick what to hold in your {holdFor.i ? 'second' : 'first'} hand: press Hold on an item. <button className="pp-chip" onClick={() => setHoldFor(null)}>Cancel</button></div>}
           {hi && <div className="buff-note" data-testid="inv-hint" style={{margin: '0 0 8px'}}>Highlighted: what {selAction ? selAction.name : 'the spell'} can be cast on. <button className="pp-chip on" onClick={() => setInvHi('')}>Clear</button></div>}
           {madeItems.length > 0 && <div className="pp-h2">Made by spells</div>}
           {madeItems.map(b => <div key={b.id} className="pp-entry" data-testid="inv-made"><div className="pp-ename">{b.name}{b.count > 0 ? ` × ${b.count}` : ''}<span className="pp-tag">{[b.src, +b.left > 0 ? (b.spoil ? `spoils in ${timeText(b.left)}` : `${timeText(b.left)} left`) : '', b.spoiled ? 'spoiled' : ''].filter(Boolean).join(' · ')}</span>
@@ -4425,8 +4727,10 @@ function App() {
       {/* HEADER */}
       <div className="header">
         <h1>⚔ Combat Resolver</h1>
+        <button className="btn btn-ghost btn-sm" data-testid="notes-open" title="Your notes" onClick={() => setShowNotes(true)}>📝 Notes</button>
         {isDM && <button className="btn btn-ghost btn-sm" data-testid="glossary-open" title="Rules Glossary (SRD 5.2.1)" onClick={() => setShowGlossary(true)}>📖 Rules Glossary</button>}
         {combatStarted && <div className="round-badge">Round {round}</div>}
+        {world && world.on && (isDM || world.show) && <div className="world-badge" data-testid="world-badge" title={isDM && !world.show ? 'Only you see this' : 'The time and weather'}>🕰 {clockText(world.t)}{world.weather.now ? ` · ${world.weather.now}` : ''}{(world.trackers || []).filter(x => isDM || x.show).map(x => ` · ${x.name} ${x.value}`).join('')}</div>}
         <div className="room-bar">
           <span>Player code <span className="room-code" data-testid="player-code">{playerCode}</span>
             {!room && <> <button className="link-btn" onClick={changePlayerCode}>change</button></>}</span>
@@ -4472,6 +4776,17 @@ function App() {
       )}
       {dragging && <div className="drop-overlay">Drop a character file to add it to combat</div>}
       {showGlossary && <GlossaryPanel onClose={() => setShowGlossary(false)}/>}
+      {clearPick && <div className="modal-overlay" onClick={() => setClearPick(null)} data-testid="clear-modal">
+        <div className="modal" style={{maxWidth: 420}} onClick={e => e.stopPropagation()}>
+          <div className="modal-header">Clear the table</div>
+          <div className="modal-body">
+            {[['log', 'The Combat Log'], ['monsters', 'Monsters and the turn order (ends combat)'], ['players', 'Player characters (their sheets leave the session; players keep their files)'], ['world', 'The World Tracker (time, weather, trackers, timers)'], ['notes', 'My notes']].map(([k, t]) =>
+              <label key={k} className="rule-label" style={{display: 'block', margin: '4px 0'}}><input type="checkbox" data-testid={`clear-${k}`} checked={!!clearPick[k]} onChange={e => setClearPick({...clearPick, [k]: e.target.checked})}/> {t}</label>)}
+            <div className="do-row"><button className="btn btn-danger" data-testid="clear-go" onClick={() => clearTable(clearPick)}>Clear</button><button className="btn btn-ghost btn-sm" onClick={() => setClearPick(null)}>Cancel</button></div>
+          </div>
+        </div>
+      </div>}
+      {showNotes && <NotesPanel who={isDM ? 'dm-' + playerCode : playerCode} version={notesVer} onClose={() => setShowNotes(false)}/>}
       {restSummary && (
         <div className="modal-overlay" onClick={()=>setRestSummary(null)} data-testid="rest-summary">
           <div className="modal" onClick={e=>e.stopPropagation()}>
@@ -4644,6 +4959,7 @@ function App() {
                 <button className="btn btn-danger btn-full" onClick={endEncounter}>End Combat</button>
               </div>
             )}
+            {isDM && <div className="initiative-controls"><button className="btn btn-ghost btn-full" data-testid="clear-open" onClick={() => setClearPick({log: true, monsters: true, players: false, world: false, notes: false})}>Clear the table…</button></div>}
             {ended && !combatStarted && <div className="initiative-controls"><button className="btn btn-ghost btn-full" data-testid="end-open" onClick={() => { setEndTab('summary'); setShowEnd(true); }}>After the Fight</button></div>}
             {visible.length === 0 && (
               <div className="empty-state">{isDM ? 'Add combatants to begin' : 'Add your character to join the fight'}</div>
@@ -4781,6 +5097,7 @@ function App() {
                 <label className="rule-label" style={{margin:'4px 0 0'}}><input type="checkbox" data-testid="reveal-ac" checked={revealAC} onChange={e=>setRevealAC(e.target.checked)}/> Show their Armor Class and Speed</label>
               </div>
             )}
+            {isDM && leftTab === 'dm' && <WorldPanel world={world} setWorld={setWorld} log={setLog}/>}
             {isDM && leftTab === 'dm' && (
               <div className="manual-roll" data-testid="time-panel">
                 <span className="label">Pass Time</span>
@@ -5230,7 +5547,7 @@ function App() {
             ))}
           </div>
           <div className="panel-header">Combat Log
-            <label className="rule-label" style={{float:'right', fontFamily:"'Crimson Text', serif", textTransform:'none', letterSpacing:0, color:'var(--text-muted)'}} title="A pop-up for the result of what you do and for anything that affects your creatures"><input type="checkbox" data-testid="notices-toggle" checked={noticesOn} onChange={e=>{ setNoticesOn(e.target.checked); try { window.localStorage.setItem('hba-notices', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> Pop-ups</label>
+            <label className="rule-label" style={{float:'right', fontFamily:"'Crimson Text', serif", textTransform:'none', letterSpacing:0, color:'var(--text-muted)'}} title="A pop-up for the result of what you do and for anything that affects your creatures"><input type="checkbox" data-testid="notices-toggle" checked={noticesOn} onChange={e=>setNoticesOn(e.target.checked)}/> Pop-ups</label>
           </div>
           <div className="log-body">
             {log.length===0 && <div className="empty-state">Results will appear here</div>}
@@ -5240,6 +5557,8 @@ function App() {
                 : (entry.dmOnly && !isDM) || (entry.priv && !isDM && !entry.priv.some(id => canControl(combatants.find(c => c.id === id)))) ? null
                 : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result ${entry.void ? 'void' : ''} ${entry.flag ? 'flagged' : ''}`}>
                     {entry.flag && <div className="log-flag" data-testid="log-flag" role="button" title="Click for the reason" onClick={() => setOpenFlag({...openFlag, [entry.id]: !openFlag[entry.id]})}>❗ Used against the rules{openFlag[entry.id] && <span className="why" data-testid="log-flag-why">Error: {entry.flag}</span>}</div>}
+                    {isDM && dmHist.current[entry.id] && <button className="log-star" data-testid="log-undo" title="Undo this and everything after it (DM)" aria-label="Undo from here" onClick={() => undoToEntry(entry)}>↶</button>}
+                    <button className="log-star" data-testid="log-note" title={noteSaved === entry.id ? 'Saved to your Notes' : 'Save this to your Notes (under this fight)'} aria-label="Save to notes" onClick={() => noteFromLog(entry)}>{noteSaved === entry.id ? '✓' : '📝'}</button>
                     <button className={`log-star ${stars.some(x => x.id === entry.id) ? 'on' : ''}`} data-testid="log-star" title="Star this to keep it for after the fight" aria-label="Star this entry" onClick={() => toggleStar(entry)}>{stars.some(x => x.id === entry.id) ? '★' : '☆'}</button>
                     <div className="log-html" dangerouslySetInnerHTML={{__html:sanitizeLogHtml(entry.html)}}/>
                     {entry.void && <div className="log-detail" style={{color:'#fff176'}}>Overridden by the DM. See the new result below.</div>}
@@ -5346,6 +5665,11 @@ function App() {
                 {hd[handPick.i] && <><button className="btn btn-ghost btn-full" style={{marginBottom: 6}} data-testid="hand-away" onClick={() => put(handPick.i, '')}>Put away {hd[handPick.i]}</button>
                   <button className="btn btn-ghost btn-full" style={{marginBottom: 6}} data-testid="hand-drop" onClick={() => put(handPick.i, '', 'drop')}>Drop {hd[handPick.i]}</button></>}
                 {handChoices(c).filter(n => n !== hd[handPick.i]).map(n => <button key={n} className="btn btn-ghost btn-full" style={{marginBottom: 6}} data-testid={`hand-opt-${n}`} onClick={() => put(handPick.i, n)}>Hold {n}</button>)}
+                <button className="btn btn-ghost btn-full" style={{marginBottom: 6}} data-testid="hand-from-items" onClick={() => { setHoldFor({cId: c.id, i: handPick.i}); setSheetTab('inventory'); close(); }}>Choose from my items…</button>
+                <div className="time-row" style={{gridTemplateColumns: '1fr auto', marginBottom: 6}}>
+                  <input aria-label="Something else to hold" data-testid="hand-type" placeholder="Or type what you pick up" value={holdText} onChange={e => setHoldText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && holdText.trim()) { put(handPick.i, holdText.trim().slice(0, 40)); setHoldText(''); } }}/>
+                  <button className="btn btn-primary btn-sm" data-testid="hand-type-hold" disabled={!holdText.trim()} onClick={() => { put(handPick.i, holdText.trim().slice(0, 40)); setHoldText(''); }}>Hold</button>
+                </div>
               </>}
               <div className="do-row"><button className="btn btn-ghost btn-sm" onClick={close}>Cancel</button></div>
             </div>

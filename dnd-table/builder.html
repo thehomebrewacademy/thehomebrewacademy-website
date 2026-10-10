@@ -367,8 +367,8 @@ If the item gives a flat bonus, add "bonus": 1 (or 2, 3). For armor and shields 
 Anything else the item does (extra damage, a use per day, a save it forces) goes in "abilities" with "grantedBy": { "type": "item", "name": "Wardstone Plate" }. Work through every magic item in this order, and always the same way:
   1. The item entry itself: name, rarity, type, "attunement", "description" (the full text word for word), and "bonus" for a flat +1, +2 or +3 on armor, a shield or a weapon. An item sold as +1, +2 or +3 is three items: "Weapon, +1", "Weapon, +2", "Weapon, +3" (the same for Armor, Shield, Ammunition and Wand of the War Mage), each with its own rarity.
   2. What it does all the time while worn, held or attuned: one ability with only "statics" (Ring of Protection: "acBonus": 1 and "saveBonus": 1; Cloak of Elvenkind: "skillBonus"; Boots of Speed: an activated effect instead). A score the item sets ("your Strength is 21") is "scoresMin": { "Strength": 21 } (no effect if the score is already higher).
-  Numbers and timing that do not fit a field are written the same way every time: charges or uses set by a roll ("1d6 + 4 pinches") take the highest number as "max" and the roll in the ability's "message"; a wait longer than a rest ("after 7 days", "1 hour") is "recharge": "none" with the wait in "message"; damage that depends on charges left goes in a note.
-  3. Its charges, if it has any: one ability with only "resource", named exactly as the item: { "name": "Wand of Magic Missiles", "max": 7, "recharge": "dawn", "regain": "1d6+1" }. recharge is "dawn" for "regains ... daily at dawn" (write the dice in "regain"; leave "regain" out if all come back), "long" or "short" when it follows a rest, or "none" when used charges never come back. Anything the item does on its last charge ("roll a d20; on a 1 it crumbles") goes in that ability's "message".
+  Numbers and timing that do not fit a field are written the same way every time: charges or uses set by a roll ("1d6 + 4 pinches") take the highest number as "max" and the roll in the ability's "message"; a wait before it can be used again ("after 7 days", "1 hour", "24 hours") is "recharge": "after" with "after": { "amount": 7, "unit": "days" } (units: minutes, hours, days, years), and the DM's clock gives it back when that time has passed; a wait that is itself a roll ("1d8 hours") takes the highest number; damage that depends on charges left goes in a note.
+  3. Its charges, if it has any: one ability with only "resource", named exactly as the item: { "name": "Wand of Magic Missiles", "max": 7, "recharge": "dawn", "regain": "1d6+1" }. recharge is "dawn" for "regains ... daily at dawn" (write the dice in "regain"; leave "regain" out if all come back), "long" or "short" when it follows a rest, "after" with "after": { "amount": 7, "unit": "days" } when they all come back after a wait, or "none" when used charges never come back. "uses" takes the same recharge words ("dawn" for "once per dawn"). When the DM keeps track of the time of day, dawn comes at 06:00; otherwise a Long Rest counts as dawn. Anything the item does on its last charge ("roll a d20; on a 1 it crumbles") goes in that ability's "message".
   4. Each spell it casts: one ability with "castSpell": { "spell": "Magic Missile" (the spell's exact name), "level": 1 (the level it is cast at), "maxLevel": 3 (the highest level extra charges can raise it to, else the same as level), "perLevel": 1 (charges for each level above), "dc": 15 and "attack": 7 when the item fixes them (leave them out to use the user's own spellcasting) } and "uses": { "pool": "Wand of Magic Missiles", "cost": 1 } for charges, or "uses": { "max": 1, "recharge": "long" } for "once per dawn" without charges. The app runs the spell exactly as the spell itself, from its own record.
   5. Everything else it lets the user activate (a breath, an attack, an effect it switches on): one ability each, like any other ability, with "uses" for charges or limits.
 An item that needs Attunement only works while the user is attuned to it: the builder has an Attune button on each such item (at most 3). Write nothing for this beyond "attunement": true.
@@ -481,6 +481,9 @@ effects: a list of timed bonuses, penalties and riders. Give each a name (usuall
   "resistDamage": ["Bludgeoning", "Piercing"]      Resistance to those damage types while it lasts
   "damageBonus": 2                                 formula: added to the damage of its weapon attacks and Unarmed Strikes
   "damageBonusFor": "Strength"                     only when the attack uses that ability
+  "critImmune": true                               a Critical Hit against it becomes a normal hit while the effect lasts
+  "acVsRanged": 2                                  added to its Armor Class against ranged attacks only
+  "scoresMin": { "Strength": 25 }                  that score counts as this while the effect lasts, unless it is already higher (Potion of Giant Strength)
   "attackAdvantage": true                          Advantage on its attack rolls (or an ability name: only attacks using it)
   "attacksAgainstHaveDisadvantage": true           attack rolls against the creature have Disadvantage
   "spellSaveDC": 1                                 bonus to the save DC of its spells
@@ -581,7 +584,7 @@ PASSIVE FEATURES: statics
   "cantripBonus": 1                                       more cantrips known
   "cantripDamage": "WIS"                                  added to the damage of its cantrips
   "schoolDamage": { "school": "Evocation", "formula": "INT" }       added to the damage of spells of that school
-  "weaponDamage": { "dice": "1d8", "type": "Radiant", "when": "melee" }   extra damage on every hit. when: "melee", "weapon", "all", or "this" for hits with the magic weapon that grants it only (Frost Brand). Leave "type" out when it is the weapon's own type. Add "vsTypes": ["Dragon"] when the extra damage is only against those creature types (Dragon Slayer, Sun Blade against Undead).
+  "weaponDamage": { "dice": "1d8", "type": "Radiant", "when": "melee" }   extra damage on every hit. when: "melee", "weapon", "all", or "this" for hits with the magic weapon that grants it only (Frost Brand). Leave "type" out when it is the weapon's own type. Add "vsTypes": ["Dragon"] when the extra damage is only against those creature types (Dragon Slayer, Sun Blade against Undead), and "weapons": ["Longbow", "Shortbow"] when it is only with those weapons (Bracers of Archery: "dice": "2").
   "weaponMasteries": 2                                    how many kinds of weapons it can use the mastery property of (a list of 20 for a number that grows)
   "proficiencies": { "armor": ["Heavy"], "weapons": ["Martial"] }   armor or weapon proficiencies a feature adds. armor: "Light", "Medium", "Heavy", "Shield". weapons: "Simple", "Martial", or a weapon name such as "Longsword"
   "unarmedDie": 6                                         its Unarmed Strike rolls this die (a list of 20 for a die that grows)
@@ -594,6 +597,10 @@ PASSIVE FEATURES: statics
   "spellAttackBonus": 2                                   added to spell attack rolls
   "spellDcBonus": 2                                       added to spell save DCs
   "saveAdvantageVsSpells": true                           Advantage on saving throws against spells
+  "critImmune": true                                      a Critical Hit against the wearer becomes a normal hit (Adamantine Armor)
+  "acVsRanged": 2                                         added to Armor Class against ranged attacks only (Arrow-Catching Shield)
+  "critExtraDice": "1d8"                                  dice added to the damage of a Critical Hit with a weapon or Unarmed Strike
+  "attunementMax": 1                                      the character can be attuned to that many more magic items than 3
   "passives": { ... }                                     standing combat rules, below
 
 passives the Combat Resolver applies:
@@ -1282,6 +1289,9 @@ function compileOutcome(o, ctx) {
     if (/^d(4|6|8|10|12)$/.test(String(e.inspirationDie || ""))) out.inspire = e.inspirationDie;
     if (e.spellSaveDC != null) { const n = evalFormula(e.spellSaveDC, ctx); if (Number.isFinite(n) && n) out.dcBonus = n; }
     if (e.spellAttackAdvantage) out.spellAtkAdv = true;
+    if (e.critImmune) out.critImmune = true; // a Critical Hit against it becomes a normal hit
+    if (e.acVsRanged != null) { const n = evalFormula(e.acVsRanged, ctx); if (Number.isFinite(n) && n) out.acVsRanged = n; }
+    { const sm = pObj(e.scoresMin), am = {}; Object.keys(sm).forEach((a) => { const n = parseInt(sm[a], 10); if (ABILITIES.includes(a) && n > 0) am[a] = n; }); if (Object.keys(am).length) out.abilMin = am; } // a score set for a while (Potion of Giant Strength)
     // the same effects the built-in spells use, under plain names
     [["attackDisadvantage", "atkDis"], ["speedZero", "speedZero"], ["noReactions", "noReact"], ["noHealing", "noHeal"], ["dropTo1Instead", "ward0"], ["endsWhenItActs", "endsOnAct"], ["endsOnDamage", "endsOnDamage"], ["endsAfterNextAttack", "endsOnAttack"], ["endsWhenNextAttacked", "endsWhenAttacked"], ["cannotCastSpells", "noCast"], ["cannotTakeActions", "noAct"], ["repeatSaveOnDamage", "saveOnDamage"], ["outOfPlay", "away"], ["stable", "stable"], ["dashAsBonusAction", "dashBonus"]].forEach(([from, to]) => { if (e[from]) out[to] = true; });
     if (ABILITIES.includes(e.advantageOnChecks) || isPh(e.advantageOnChecks)) out.checkAdv = e.advantageOnChecks;
@@ -1380,7 +1390,7 @@ function compileAbility(ab0, ctx) {
   if (!uses.pool && uses.max != null) {
     const max = evalFormula(uses.max, ctx);
     if (!Number.isFinite(max)) throw new Error("uses.max can't be read");
-    if (max > 0) { out.usesMax = max; out.recharge = uses.recharge === "short" ? "short" : "long"; }
+    if (max > 0) { out.usesMax = max; out.recharge = ["short", "dawn", "none"].includes(uses.recharge) ? uses.recharge : uses.recharge === "after" && durationSeconds(uses.after) > 0 ? "after" : "long"; if (out.recharge === "after") out.wait = durationSeconds(uses.after); }
   }
   // ── the same protocol the spells follow: a choice, a version, Hit Point bands, several attacks, ending things, a cost, a question for the DM ──
   const chs = pArr(ab.choices).slice(0, 2).map((c) => ({ label: pStr(pObj(c).label, 30) || "Choice", options: pArr(pObj(c).options).map((v) => pStr(v, 40)).filter(Boolean).slice(0, 30) })).filter((c) => c.options.length);
@@ -1420,7 +1430,7 @@ function actionSummary(a) {
   oc("on a hit", a.onHit); oc("on a failed save", a.onFail); oc("on a successful save", a.onSuccess); oc("applies", a.onUse);
   if (a.targets) bits.push(a.targets === "any" ? "any number of targets" : `up to ${a.targets} targets`);
   if (a.pool) bits.push(`costs ${a.cost} ${a.pool}`);
-  if (a.usesMax) bits.push(`${a.usesMax} per ${a.recharge === "short" ? "Short Rest" : "Long Rest"}`);
+  if (a.usesMax) bits.push(`${a.usesMax} ${a.recharge === "short" ? "per Short Rest" : a.recharge === "dawn" ? "per dawn" : a.recharge === "none" ? "in all" : a.recharge === "after" ? "at a time" : "per Long Rest"}`);
   return bits.join(" · ");
 }
 function abilityGranted(ab, ch) {
@@ -1880,20 +1890,21 @@ function activeMechanics(ch) {
 // Adds up the passive changes. Formulas are worked out against ctx (this character's numbers).
 function gatherStatics(entries, ctx, gear, level) {
   const d = { acBases: [], acBonus: 0, speedBonus: 0, speedBase: 0, hp: 0, initiative: 0, saveProf: [], saveBonus: 0, saveAdv: [], condImmune: [], condAdv: [], resist: [], senses: [],
-    skillAdv: [], immune: [], moves: [], speedMin: 0, spellAtkBonus: 0, spellDcBonus: 0, halfProf: false, classPicks: 0, anyPicks: 0, spells: [], cantripBonus: 0, skillBonus: {}, cantripDamage: 0, schoolDamage: {}, weaponDamage: [], unarmedDie: 0, unarmedDex: false, monkWeapons: false, masteryCount: 0, profArmor: [], profWeapons: [], passives: {} };
+    why: { ac: [], speed: [], initiative: [], saves: [], hp: [] }, skillAdv: [], immune: [], moves: [], speedMin: 0, spellAtkBonus: 0, spellDcBonus: 0, halfProf: false, classPicks: 0, anyPicks: 0, spells: [], cantripBonus: 0, skillBonus: {}, cantripDamage: 0, schoolDamage: {}, weaponDamage: [], unarmedDie: 0, unarmedDex: false, monkWeapons: false, masteryCount: 0, profArmor: [], profWeapons: [], passives: {} };
   const num = (f) => { const n = evalFormula(f, ctx); return Number.isFinite(n) ? n : 0; };
   const armorCat = gear.armor ? gear.armor.cat : "";
   const when = (w) => w === "noHeavy" ? armorCat !== "Heavy" : w === "noArmor" ? !armorCat : w === "noArmorNoShield" ? !armorCat && !gear.shield : w === "armor" ? !!armorCat : true;
   entries.forEach(e => {
     const s = e.statics; if (!s) return;
     if (s.acBase) pArr(Array.isArray(s.acBase) ? s.acBase : [s.acBase]).forEach(b => d.acBases.push({ value: num(b.formula), shield: b.shield !== false, source: e.name }));
-    if (s.acBonus) { const b = pObj(s.acBonus); if (when(b.when)) d.acBonus += num(b.formula != null ? b.formula : s.acBonus); }
-    if (s.speed) { const b = typeof s.speed === "object" ? s.speed : { formula: s.speed }; if (when(b.when)) d.speedBonus += num(b.formula); }
+    const src = pStr(pObj(e.grantedBy).name || e.name, 60);
+    if (s.acBonus) { const b = pObj(s.acBonus); if (when(b.when)) { const v = num(b.formula != null ? b.formula : s.acBonus); d.acBonus += v; if (v) d.why.ac.push([src, v]); } }
+    if (s.speed) { const b = typeof s.speed === "object" ? s.speed : { formula: s.speed }; if (when(b.when)) { const v = num(b.formula); d.speedBonus += v; if (v) d.why.speed.push([src, v]); } }
     if (s.speedBase) d.speedBase = Math.max(d.speedBase, num(s.speedBase));
-    if (s.hp != null) d.hp += num(s.hp);
-    if (s.initiative != null) d.initiative += num(s.initiative);
+    if (s.hp != null) { d.hp += num(s.hp); if (num(s.hp)) d.why.hp.push([src, num(s.hp)]); }
+    if (s.initiative != null) { d.initiative += num(s.initiative); if (num(s.initiative)) d.why.initiative.push([src, num(s.initiative)]); }
     if (s.saveProficiency) d.saveProf.push(...(s.saveProficiency === "all" ? ABILITIES : pArr(s.saveProficiency).filter(a => ABILITIES.includes(a))));
-    if (s.saveBonus != null) d.saveBonus += num(s.saveBonus);
+    if (s.saveBonus != null) { d.saveBonus += num(s.saveBonus); if (num(s.saveBonus)) d.why.saves.push([src, num(s.saveBonus)]); }
     pArr(s.saveAdvantage).forEach(a => { if (ABILITIES.includes(a)) d.saveAdv.push(a); });
     pArr(s.conditionImmune).forEach(c => { if (CONDITION_NAMES.includes(c)) d.condImmune.push(c); });
     pArr(s.conditionAdvantage).forEach(c => { if (CONDITION_NAMES.includes(c)) d.condAdv.push(c); });
@@ -1906,7 +1917,7 @@ function gatherStatics(entries, ctx, gear, level) {
     if (s.skillBonus) pArr(pObj(s.skillBonus).skills).forEach(k => { d.skillBonus[k] = (d.skillBonus[k] || 0) + num(s.skillBonus.formula); });
     if (s.cantripDamage != null) d.cantripDamage += num(s.cantripDamage);
     if (s.schoolDamage) d.schoolDamage[pStr(pObj(s.schoolDamage).school, 20)] = num(s.schoolDamage.formula);
-    if (s.weaponDamage) pArr(Array.isArray(s.weaponDamage) ? s.weaponDamage : [s.weaponDamage]).forEach(w => { const dice = evalDice(w.dice, ctx); if (dice) d.weaponDamage.push({ dice, type: pStr(w.type, 20), when: w.when || "weapon", ...(pArr(w.vsTypes).length ? { vsTypes: pArr(w.vsTypes).map(x => pStr(x, 20)) } : {}), item: pObj(e.grantedBy).type === "item" ? pStr(e.grantedBy.name, 80) : "" }); });
+    if (s.weaponDamage) pArr(Array.isArray(s.weaponDamage) ? s.weaponDamage : [s.weaponDamage]).forEach(w => { const dice = evalDice(w.dice, ctx); if (dice) d.weaponDamage.push({ dice, type: pStr(w.type, 20), when: w.when || "weapon", ...(pArr(w.weapons).length ? { weapons: pArr(w.weapons).map(x => pStr(x, 30)) } : {}), ...(pArr(w.vsTypes).length ? { vsTypes: pArr(w.vsTypes).map(x => pStr(x, 20)) } : {}), item: pObj(e.grantedBy).type === "item" ? pStr(e.grantedBy.name, 80) : "" }); });
     pArr(s.skillAdvantage).forEach(k => { if (SKILL_ABILITY[k]) d.skillAdv.push(k); }); // Advantage on checks with one skill (Boots of Elvenkind: Stealth)
     pArr(s.immune).forEach(t => d.immune.push(pStr(t, 20))); // Immunity to a damage type
     pArr(s.moves).forEach(t => d.moves.push(pStr(t, 40))); // another way of moving: "Climb Speed equal to your Speed"
@@ -1914,6 +1925,9 @@ function gatherStatics(entries, ctx, gear, level) {
     if (s.spellAttackBonus) d.spellAtkBonus += num(s.spellAttackBonus);
     if (s.spellDcBonus) d.spellDcBonus += num(s.spellDcBonus);
     if (s.saveAdvantageVsSpells) d.passives.saveAdvSpells = true;
+    if (s.critImmune) { d.passives.critImmune = true; d.passives.critImmuneFrom = src; } // Adamantine Armor
+    if (s.acVsRanged) d.passives.acVsRanged = (d.passives.acVsRanged || 0) + num(s.acVsRanged); // Arrow-Catching Shield
+    if (s.critExtraDice) { const dd = evalDice(s.critExtraDice, ctx); if (dd) d.passives.critExtraDice = dd; } // extra dice on a Critical Hit
     if (s.unarmedDie) d.unarmedDie = Math.max(d.unarmedDie, num(s.unarmedDie));
     if (s.unarmedDexterity) d.unarmedDex = true;
     if (s.monkWeapons) d.monkWeapons = true;
@@ -1936,7 +1950,7 @@ function armorClassOf(d, gear, dexMod) {
 // Attacks the character can always make: Unarmed Strike and each weapon on the sheet.
 function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { // mastered: weapons whose mastery property this character can use
   const best = Math.max(ctx.STR, ctx.DEX);
-  const rider = (melee, wn, own) => d.weaponDamage.filter(w => w.when === "all" || w.when === "weapon" || (w.when === "melee" && melee) || (w.when === "this" && wn && w.item && String(wn).startsWith(w.item))).filter(w => !w.vsTypes).map(w => [w.dice, w.type || own || ""]);
+  const rider = (melee, wn, own, base) => d.weaponDamage.filter(w => w.when === "all" || w.when === "weapon" || (w.when === "melee" && melee) || (w.when === "this" && wn && w.item && String(wn).startsWith(w.item))).filter(w => !w.vsTypes && (!w.weapons || w.weapons.some(x => gearNorm(x) === gearNorm(base || "")))).map(w => [w.dice, w.type || own || ""]);
   const riderVs = (melee, wn) => d.weaponDamage.filter(w => w.vsTypes && (w.when === "all" || w.when === "weapon" || (w.when === "melee" && melee) || (w.when === "this" && wn && w.item && String(wn).startsWith(w.item)))).map(w => ({ dice: w.dice, type: w.type, types: w.vsTypes })); // only against some creature types // "this": only the weapon that is the item
   const out = [];
   const uMod = d.unarmedDex ? best : ctx.STR;
@@ -1954,7 +1968,7 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { /
     const make = (label, die, two) => {
       let dice = die;
       if (monk && d.unarmedDie) { const m = /^1d(\d+)$/.exec(die); if (m && +m[1] < d.unarmedDie) dice = `1d${d.unarmedDie}`; }
-      const a = { name: label, type: "attack", activation: "action", atk: pb + mod + plus, weapon: true, abil, dmgList: [[evalDice(`${dice}+${mod + plus}`, ctx), w.type], ...rider(!w.ranged, w.magic ? w.magic.name : "", w.type)], desc: w.magic ? `${info}. ${String(w.magic.description || "").slice(0, 600)}` : info };
+      const a = { name: label, type: "attack", activation: "action", atk: pb + mod + plus, weapon: true, abil, dmgList: [[evalDice(`${dice}+${mod + plus}`, ctx), w.type], ...rider(!w.ranged, w.magic ? w.magic.name : "", w.type, w.plain || w.name)], desc: w.magic ? `${info}. ${String(w.magic.description || "").slice(0, 600)}` : info };
       if (w.mastery && trained && (mastered || []).includes(w.plain || w.name)) { // the Combat Resolver applies the mastery property on a hit (or a miss, for Graze)
         a.mastery = w.mastery; a.masteryMod = mod; a.masteryDc = 8 + mod + ctx.PROF;
         a.desc = `${info}. ${w.mastery}: ${(RULES && RULES.masteries && RULES.masteries[w.mastery]) || ""}`;
@@ -2499,7 +2513,7 @@ function CharacterSheet() {
         if (pObj(e.grantedBy).type === "item") a.item = pStr(e.grantedBy.name, 80);
         const u = pObj(e.uses), cost = Math.max(0, parseInt(u.cost != null ? u.cost : 1, 10) || 0), maxLvl = Math.max(lvl, Math.min(9, parseInt(cs.maxLevel, 10) || lvl));
         if (u.pool) { a.pool = pStr(u.pool, 40); a.cost = cost; if (lvl > 0) { a.pointCosts = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => l < lvl || l > maxLvl ? 0 : cost + (l - lvl) * (parseInt(cs.perLevel, 10) || 1)); a.maxLvl = maxLvl; } }
-        else if (u.max != null) { const n = evalFormula(u.max, spellCtx); if (n > 0) { a.usesMax = n; a.recharge = u.recharge === "short" ? "short" : "long"; } }
+        else if (u.max != null) { const n = evalFormula(u.max, spellCtx); if (n > 0) { a.usesMax = n; a.recharge = ["short", "dawn", "none"].includes(u.recharge) ? u.recharge : u.recharge === "after" && durationSeconds(u.after) > 0 ? "after" : "long"; if (a.recharge === "after") a.wait = durationSeconds(u.after); } }
         out.push(a); } catch (err) {} return; }
       if (!isActivated(e)) return;
       try {
@@ -2526,7 +2540,7 @@ function CharacterSheet() {
     mech.entries.forEach(e => {
       const r = e.resource; if (!r || !r.name) return;
       const max = evalFormula(r.max, spellCtx);
-      if (Number.isFinite(max) && max > 0) { out[pStr(r.name, 40)] = { max: Math.min(999, max), recharge: r.recharge === "short" ? "short" : r.recharge === "dawn" ? "dawn" : r.recharge === "none" ? "none" : "long" }; if (+r.shortRegain > 0) out[pStr(r.name, 40)].shortRegain = +r.shortRegain;
+      if (Number.isFinite(max) && max > 0) { out[pStr(r.name, 40)] = { max: Math.min(999, max), recharge: ["short", "dawn", "none"].includes(r.recharge) ? r.recharge : r.recharge === "after" && durationSeconds(r.after) > 0 ? "after" : "long" }; if (r.recharge === "after" && durationSeconds(r.after) > 0) out[pStr(r.name, 40)].wait = durationSeconds(r.after); if (+r.shortRegain > 0) out[pStr(r.name, 40)].shortRegain = +r.shortRegain;
         if (r.recharge === "dawn" && r.regain) { const d = evalDice(r.regain, spellCtx); if (d) out[pStr(r.name, 40)].regain = d; }
         if (pObj(e.grantedBy).type === "item") out[pStr(r.name, 40)].item = pStr(e.grantedBy.name, 80); }
     });
@@ -2603,6 +2617,7 @@ function CharacterSheet() {
     },
     setKind: (it, kind) => { const put = (prev) => prev.map(p => p.name === it.name ? { ...p, kind } : p); setCharacterItems(put); setPinnedItems(put); },
     attunedCount: characterItems.filter(p => p && p.attuned).length,
+    attuneMax: 3 + mech.entries.reduce((n, e) => n + (parseInt(pObj(e.statics).attunementMax, 10) || 0), 0), // more for a feature that raises it
     setAttuned: (it, on) => { const put = (prev) => prev.map(p => p.name === it.name ? { ...p, attuned: !!on } : p); setCharacterItems(put); setPinnedItems(put); },
   };
 
@@ -2625,6 +2640,12 @@ function CharacterSheet() {
       rules: 1, // this sheet carries its own attacks, features and spells, so the Resolver adds no placeholders
       actions: [...sheetActions, ...takenFeats.flatMap(f => (f.def && f.def.actions) || []), ...spellActions],
       pools,
+      why: (() => { const w = { ...derived.why }; const dx = finalMods.Dexterity;
+        w.ac = [[ac.how.split(" + ")[0], ac.value - derived.acBonus - (gear.shield ? 2 + (gear.shieldBonus || 0) : 0)], ...(gear.shield ? [[gear.shieldName || "Shield", 2 + (gear.shieldBonus || 0)]] : []), ...derived.why.ac, ...(takenFeats.some(f => f.base === "Defense") && gear.armor ? [["Defense", 1]] : []), ...(statAdj.ac ? [["Your adjustment", statAdj.ac]] : [])];
+        w.speed = [[derived.speedBase ? "Speed set by a feature" : `${species || "Species"} Speed`, derived.speedBase || (SPECIES[species] ? SPECIES[species].speed : 30)], ...derived.why.speed, ...(statAdj.speed ? [["Your adjustment", statAdj.speed]] : [])];
+        w.initiative = [["Dexterity", dx], ...(takenFeats.some(f => f.def && f.def.initiativeProf) ? [["Alert", profBonus]] : []), ...derived.why.initiative, ...(statAdj.initiative ? [["Your adjustment", statAdj.initiative]] : [])];
+        return w; })(),
+      attuneMax: 3 + mech.entries.reduce((n, e) => n + (parseInt(pObj(e.statics).attunementMax, 10) || 0), 0),
       resist: Array.from(new Set(derived.resist)),
       immune: Array.from(new Set(derived.immune)),
       moves: Array.from(new Set(derived.moves)),
@@ -4623,8 +4644,8 @@ function InventoryTab({ inv, prof, magic, mundane, components, setComponents, sp
                     <span style={{ fontSize: 11, color: colors.parchment + "88", minWidth: 60, textAlign: "right" }}>{item.rarity || item.cost || ""}</span>
                     <button aria-label={`${inv.important(item) ? "Unmark" : "Mark"} ${item.name} as important`} aria-pressed={inv.important(item)} title={inv.important(item) ? "Shown under Important Items on your character sheet. Click to take it off." : "Show under Important Items on your character sheet"}
                       onClick={() => inv.setImportant(item, !inv.important(item))} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 15, color: inv.important(item) ? colors.brassLight : colors.parchment + "55", padding: "0 2px" }}>{inv.important(item) ? "◆" : "◇"}</button>
-                    {item.attunement && <button data-testid={`attune-${item.name}`} aria-pressed={!!item.attuned} disabled={!item.attuned && inv.attunedCount >= 3}
-                      title={item.attuned ? "Attuned: its magic works. Click to end the Attunement." : inv.attunedCount >= 3 ? "You are already attuned to 3 items, the most you can be" : "Needs Attunement (a Short Rest with the item). Click when you are attuned."}
+                    {item.attunement && <button data-testid={`attune-${item.name}`} aria-pressed={!!item.attuned} disabled={!item.attuned && inv.attunedCount >= inv.attuneMax}
+                      title={item.attuned ? "Attuned: its magic works. Click to end the Attunement." : inv.attunedCount >= inv.attuneMax ? `You are already attuned to ${inv.attuneMax} items, the most you can be` : "Needs Attunement (a Short Rest with the item). Click when you are attuned."}
                       onClick={() => inv.setAttuned(item, !item.attuned)} style={{ background: item.attuned ? colors.brass : "transparent", color: item.attuned ? colors.ink : colors.parchment + "aa", border: `1px solid ${colors.brass}88`, borderRadius: 10, fontSize: 11, padding: "1px 7px", cursor: "pointer" }}>{item.attuned ? "Attuned" : "Attune"}</button>}
                     <ItemControls item={item} inv={inv} colors={colors} small />
                   </div>
