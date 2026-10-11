@@ -511,6 +511,9 @@ versions: when one feature can be used in several different ways and the user pi
 hitPointBands: when what happens depends on the target's current Hit Points, add "hitPointBands": [ { "max": 100, ...fields for a target with that many Hit Points or fewer... }, { "max": 0, ...fields for any other target... } ]. An outcome may contain "dies": true.
 attacks: when one use makes several separate attack rolls that can go at the same or different creatures, add "attacks": 3 (a number or formula). "damage" is then the damage of one attack.
 removes: when the feature ends things on its target, add "removes": { "conditions": ["Poisoned", "Charmed"], "count": 1 or "all", "exhaustion": 1, "effects": "curse" | "spells" | "any", "hitPointMaximum": true }. Leave out what does not apply. The user is shown what the target really has and picks from that.
+extraCost: a second pool it spends at the same time, or alone with no "uses": "extraCost": { "pool": "Wild Shape", "cost": 1 }.
+spendSlot: when using it expends a spell slot, add "spendSlot": "any" (the user picks the level), "pact" (a Pact Magic slot) or a number (a slot of that level or higher). It is blocked when no slot is left.
+regain: what using it gives back: "regain": { "pool": "Bardic Inspiration", "amount": 1 } (uses of a pool), { "slot": 2 } (a spell slot of that level), or { "pactSlots": "half" or "all" } (Pact Magic slots).
 cost: when using it costs gold, add "cost": { "gp": 50, "consumed": true }. The gold must be on hand and is taken when it is used (once only if not consumed).
 items: an activated ability granted by an item ("grantedBy": { "type": "item", "name": ... }) can also be used from the Inventory tab of the character sheet, next to that item.
 creates: when using it makes things that stay around, add "creates": [ { "name": "Spirit Lantern", "duration": { "amount": 1, "unit": "hours" }, "note": "what it does" } ]. Leave "duration" out if it does not expire. A thing with a place but no weight (a light, a ward, an illusion, an eye) is listed as an active effect the user controls. A physical thing the character carries gets "item": true, and may add "count": 10 (how many), "spoilsInto": "Spoiled Food" (what it becomes when its duration ends, instead of vanishing), and "whenUsed": { "activation": "bonus" or "action", "heal": "1", "effect": { "name": "Nourished", "duration": { "amount": 1, "unit": "days" }, "note": "what it does" } } for something eaten, drunk or used up one at a time.
@@ -553,6 +556,9 @@ More effect keys (inside an "effects" entry), each exactly as written here:
   "endsWhenNextAttacked": true        ends after the next attack roll against it
   "outOfPlay": true                   it is elsewhere while this lasts: skipped in the turn order, cannot be targeted
   "stable": true, "dashAsBonusAction": true
+  "halveNextDamage": true             the damage of the next hit it takes is halved, then the effect ends (Uncanny Dodge)
+  "reduceNextDamage": { "dice": "1d10+DEX+LEVEL", "types": ["Bludgeoning", "Piercing", "Slashing"] }   the damage of the next hit (of those types; leave "types" out for any) is reduced by that roll, then the effect ends (Deflect Attacks)
+  "nextSpellFree": { "maxLevel": 5 }  its next spell of that level or lower is cast without a slot (Divine Intervention)
 In a condition's "repeatSave", "onDamage": true means the save is also made each time the creature takes damage. "onFailBecomes": "Unconscious" means a failed repeat save turns it into that condition. "countTo": 3 means the repeat saves are counted: that many successes end it, that many failures give "onFailBecomes". "damageOnFail": { "dice": "4d10", "type": "Psychic" } is dealt on each failed repeat save.
 trigger: for a feature used as a Reaction ("activation": "reaction"), add "trigger" so the Combat Resolver offers it at the right moment. Use one or more of these words, separated by commas: "targeted" (a creature targets you with an attack, before the roll), "hit" (an attack roll hits you), "miss" (an attack roll misses you), "damage" (you take damage), "cast" (a creature you can see casts a spell). Example: "trigger": "hit". If none of these fits, write the trigger in the source's own words, for example "trigger": "when a creature you can see within 30 feet fails a saving throw". The player can still use the Reaction from the sheet at any time.
 statBlock: when using the feature turns the character into a creature or brings one out (a beast form, a summoned spirit, a companion called for a time), add "statBlock": "form" (the character becomes it) or "statBlock": "summon" (it appears beside the character). Using the feature then asks which creature, and its stat block sits on the sheet's Stat Blocks tab until it is dismissed or its time runs out. Give the effect its duration so the app knows when that is. If the creature is new, describe its stat block in the feature's "text".
@@ -607,6 +613,15 @@ PASSIVE FEATURES: statics
   "acVsRanged": 2                                         added to Armor Class against ranged attacks only (Arrow-Catching Shield)
   "critExtraDice": "1d8"                                  dice added to the damage of a Critical Hit with a weapon or Unarmed Strike
   "itemSlots": { "Attunement": 1 }                        more item slots of that kind (Attunement, or a kind from "slotTypes"): the character can be attuned to one more item
+  "spellPicks": [ { "label": "Mystic Arcanum (level 6)", "count": 1, "level": 6, "lists": ["Warlock"], "cast": "once" } ]
+                                                          spells the player chooses on the Spells tab. level: a number, "slot" (any level the character has slots for) or 0 for cantrips. lists: class spell lists to choose from. count can be a list of 20. cast: how the picks are cast (below); leave out for normal casting
+  "spellUses": [ { "spell": "Misty Step", "cast": "short" } ]   a spell the feature lets it cast in a special way. cast: "once" (once per Long Rest, no slot), "short" (once per Short or Long Rest, no slot), "atWill" (no slot, no limit), "ritualOnly" (only as a Ritual). Add "self": true when only on itself, "maxRoll": true when its healing dice count as their highest, "note" for anything else
+  "spellMods": [ { "spell": "Eldritch Blast", "damage": "CHA", "range": "30*LEVEL", "note": "..." } ]   changes to one spell: damage added, range set to a formula
+  "extraSpellLists": ["Cleric", "Druid"]                  those class lists count as the character's own when it prepares spells (Magical Secrets)
+  "languages": ["Thieves' Cant"]                          languages it knows
+  "unarmedForce": true                                    Unarmed Strikes can deal Force damage instead of Bludgeoning
+  "pactWeapon": true                                      its weapons get a "(pact weapon)" version that uses the spellcasting ability and can deal Necrotic, Psychic or Radiant damage
+  "cantripRange": 300                                     range in feet of its damaging cantrips (a list of 20 for a range that grows)
   "passives": { ... }                                     standing combat rules, below
 
 passives the Combat Resolver applies:
@@ -631,6 +646,30 @@ passives the Combat Resolver applies:
   "overcomeDefenses": ["Bludgeoning", "Piercing", "Slashing"]   damage of those types the user deals ignores Resistance (Boon of Irresistible Offense)
   "overwhelmingStrike": "Strength"   on a 20 for an attack roll, extra damage equal to that ability score (Boon of Irresistible Offense)
   "freeCasting": 4             casting with a slot of level 1 up to this, a d4 equal to the slot's level means the slot is not spent (Boon of Spell Recall)
+  "studiedAttacks": true       after a missed attack, Advantage on the next attack against that creature (Studied Attacks)
+  "heroicEachTurn": true       gains Heroic Inspiration at the start of each of its turns if it has none (Heroic Warrior)
+  "heroicOnLongRest": true     gains Heroic Inspiration on a Long Rest (Resourceful)
+  "heroicRally": "5+CON"       regains this many Hit Points at the start of each turn while Bloodied (Survivor)
+  "deathAdv": true             Advantage on Death Saving Throws
+  "deathCritOn": 18            a Death Saving Throw of this or higher counts as a 20
+  "elusive": true              no attack roll has Advantage against it while it isn't Incapacitated (Elusive)
+  "thiefsReflexes": true       two turns in the first round of combat, the second at Initiative minus 10 (Thief's Reflexes)
+  "luck": true                 a 1 on a d20 Test is rerolled once (Luck)
+  "jumpDex": true              jumping uses Dexterity when it is higher
+  "sculptSpells": true         its area spells can leave chosen creatures unharmed: they succeed on the save and take no damage on a success (Sculpt Spells)
+  "concAdvantage": true        Advantage on saves to keep Concentration
+  "grappleNoHand": true        it can Grapple without a free hand
+  "scoreFloor": ["Strength"]   a check or save with that ability uses the score itself if the d20 total is lower (Indomitable Might)
+  "concProtect": ["Hunter's Mark"]   damage can't break Concentration on those spells (Relentless Hunter)
+  "escapeAdv": ["Grappled"]    Advantage on checks and saves to end those conditions (Powerful Build)
+  "advVsMarked": "Hunter's Mark"     Advantage on attacks against a creature under that effect from it (Precise Hunter)
+  "revealMarked": "Hunter's Mark"    it learns the Immunities, Resistances and Vulnerabilities of a creature under that effect from it (Hunter's Lore)
+  "reliableTalent": 10         a d20 under this on a check with a proficient skill counts as this (Reliable Talent)
+  "chargeSaver": 6             using a magic item's charges, a 6 on a d6 means the charge isn't spent
+  "regainOnInitiative": [ { "pool": "Wild Shape", "to": 1, "ifEmpty": true } ]   rolling Initiative refills the pool to this many (ifEmpty: only when none are left)
+  "remindAfter": [ { "after": "Rage", "text": "..." } ]   a reminder shown after using the named action ("*bonus" after any Bonus Action)
+  "longRestSecs": 14400        its Long Rest lasts this many seconds (Trance: 4 hours)
+  "castInForm": true           it can cast spells in a Wild Shape form (Beast Spells)
 
 ---------------------------------------------------------------------
 RESOURCES: pools of uses
@@ -654,6 +693,9 @@ When the player picks one of several options, list them. Each choice is written 
     { "name": "Bulwark", "statics": { "acBonus": { "formula": 1 } } },
     { "name": "Avenger", "activation": "reaction", "target": "creature", "roll": "none", "damage": [ { "dice": "1d8", "type": "Force" } ] } ] } }
 The builder shows a dropdown for the choice on the Features tab.
+Several picks: add "count": 3 (or a list of 20 for a number that grows) inside "options"; the builder shows that many dropdowns.
+A choice that needs something first takes "prereq": { "level": 5, "has": ["Pact of the Blade"] } (class level, and other choices already picked). Add "repeatable": true to a choice that can be picked more than once.
+A choice that gives a feat takes "grantsFeat": "Origin" (the feat category); the builder then asks for that feat.
 If the choice can be changed after a rest, add "changeOn": "short" (a Short or Long Rest) or "changeOn": "long" (a Long Rest only) inside "options". The builder's rest window then lists it as something the player can change.
 
 text: the full rules text, copied as written. It is shown in the combat log.
@@ -669,6 +711,7 @@ A formula is a number or a sum using these words, in capitals:
   SPELLMOD                   the user's spellcasting ability modifier
   SPELLDC                    the user's spell save DC
   SPELLATK                   the user's spell attack bonus
+  PACTLEVEL                  the level of the user's Pact Magic slots (0 without Pact Magic)
 You can use + - * / and brackets. Division rounds down. MAX(a,b) gives the larger and MIN(a,b) the smaller, for rules such as "minimum of 1". Examples: "8+PROF+WIS", "LEVEL*5", "(LEVEL+1)/2", "MAX(1,CHA)".
 
 A dice formula adds dice, written with a small letter d: "2d6", "1d8+STR", "1d10+LEVEL". The number of dice can itself be a formula in brackets: "(LEVEL+1)/2d6" means that many d6.
@@ -828,7 +871,7 @@ const CLASSES = {
 };
 
 const FULL_CASTER_SLOTS = {1:[2],2:[3],3:[4,2],4:[4,3],5:[4,3,2],6:[4,3,3],7:[4,3,3,1],8:[4,3,3,2],9:[4,3,3,3,1],10:[4,3,3,3,2],11:[4,3,3,3,2,1],12:[4,3,3,3,2,1],13:[4,3,3,3,2,1,1],14:[4,3,3,3,2,1,1],15:[4,3,3,3,2,1,1,1],16:[4,3,3,3,2,1,1,1],17:[4,3,3,3,2,1,1,1,1],18:[4,3,3,3,3,1,1,1,1],19:[4,3,3,3,3,2,1,1,1],20:[4,3,3,3,3,2,2,1,1]};
-const HALF_CASTER_SLOTS = {1:[],2:[2],3:[3],4:[3],5:[4,2],6:[4,2],7:[4,3],8:[4,3],9:[4,3,2],10:[4,3,2],11:[4,3,3],12:[4,3,3],13:[4,3,3,1],14:[4,3,3,1],15:[4,3,3,2],16:[4,3,3,2],17:[4,3,3,3,1],18:[4,3,3,3,1],19:[4,3,3,3,2],20:[4,3,3,3,2]};
+const HALF_CASTER_SLOTS = {1:[2],2:[2],3:[3],4:[3],5:[4,2],6:[4,2],7:[4,3],8:[4,3],9:[4,3,2],10:[4,3,2],11:[4,3,3],12:[4,3,3],13:[4,3,3,1],14:[4,3,3,1],15:[4,3,3,2],16:[4,3,3,2],17:[4,3,3,3,1],18:[4,3,3,3,1],19:[4,3,3,3,2],20:[4,3,3,3,2]};
 const PACT_SLOTS = {1:{slots:1,level:1},2:{slots:2,level:1},3:{slots:2,level:2},4:{slots:2,level:2},5:{slots:2,level:3},6:{slots:2,level:3},7:{slots:2,level:4},8:{slots:2,level:4},9:{slots:2,level:5},10:{slots:2,level:5},11:{slots:3,level:5},12:{slots:3,level:5},13:{slots:3,level:5},14:{slots:3,level:5},15:{slots:3,level:5},16:{slots:3,level:5},17:{slots:4,level:5},18:{slots:4,level:5},19:{slots:4,level:5},20:{slots:4,level:5}};
 const CANTRIPS_KNOWN = {Bard:{1:2,4:3,10:4},Cleric:{1:3,4:4,10:5},Druid:{1:2,4:3,10:4},Sorcerer:{1:4,4:5,10:6},Warlock:{1:2,4:3,10:4},Wizard:{1:3,4:4,10:5}};
 
@@ -1339,6 +1382,9 @@ function compileOutcome(o, ctx) {
     const xa = pObj(e.extraDamageOnAttacks); if (xa.dice) { const d = evalDice(xa.dice, ctx); if (d) out.atkDmg = { dice: d, type: pStr(xa.type, 20) }; }
     if (e.healEachTurn != null) { const d = evalDice(e.healEachTurn, ctx); if (d && d !== "0") out.healEachTurn = d; }
     const td = pObj(e.damageEachTurn); if (td.dice) { const d = evalDice(td.dice, ctx); if (d) out.turnDmg = { dice: d, type: pStr(td.type, 20), when: td.when === "start" ? "start" : "end", ...(td.once ? { once: true } : {}) }; }
+    if (e.halveNextDamage) out.halveNext = true;
+    { const rn = pObj(e.reduceNextDamage); if (rn.dice) { const dd = evalDice(rn.dice, ctx); if (dd) out.reduceNext = { dice: dd, ...(pArr(rn.types).length ? { types: pArr(rn.types).map(t => pStr(t, 20)) } : {}) }; } }
+    if (e.nextSpellFree) { const n = evalFormula(pObj(e.nextSpellFree).maxLevel, ctx); out.freeCast = Number.isFinite(n) && n > 0 ? Math.min(9, n) : 9; } // the next spell up to that level needs no slot (Divine Intervention)
     if (e.note) out.note = pStr(e.note, 300);
     return out;
   }).filter(Boolean);
@@ -1436,6 +1482,9 @@ function compileAbility(ab0, ctx) {
   if (Object.keys(rm).length) out.remove = { conds: pArr(rm.conditions).map((x) => pStr(x, 20)).filter((x) => CONDITION_NAMES.includes(x)), count: rm.count === "all" ? "all" : 1, exhaustion: Math.max(0, parseInt(rm.exhaustion, 10) || 0), effects: ["curse", "spells", "any"].includes(rm.effects) ? rm.effects : "", hpMax: !!rm.hitPointMaximum, maxLevel: 0 };
   const cost = pObj(ab.cost); if (+cost.gp > 0) { out.gp = +cost.gp; if (cost.consumed) out.gpConsumed = true; }
   if (ab.askDM) out.askDM = pStr(ab.askDM, 300);
+  { const x = pObj(ab.extraCost); if (x.pool) out.extraCost = { pool: pStr(x.pool, 40), cost: Math.max(1, evalFormula(x.cost == null ? 1 : x.cost, ctx) || 1) }; }
+  if (ab.spendSlot != null) out.spendSlot = ab.spendSlot === "any" || ab.spendSlot === "pact" ? ab.spendSlot : Math.max(1, Math.min(9, parseInt(ab.spendSlot, 10) || 1)); // it costs a spell slot: the lowest one left, a Pact Magic slot, or that level
+  { const g = pObj(ab.regain); if (g.pool) out.regainPool = { pool: pStr(g.pool, 40), amount: Math.max(1, evalFormula(g.amount == null ? 1 : g.amount, ctx) || 1) }; if (g.slot) { const lv = evalFormula(g.slot, ctx); if (lv >= 1 && lv <= 9) out.regainSlot = lv; } if (g.pactSlots === "half" || g.pactSlots === "all") out.regainPact = g.pactSlots; } // what it gives back
   const made = pArr(ab.creates).slice(0, 4).map((c0) => { const c = pObj(c0), u = pObj(c.whenUsed), ue = pObj(u.effect); return { name: pStr(c.name, 60), note: pStr(c.note, 300), left: durationSeconds(c.duration) || 0, kind: c.item ? "item" : "effect", ...(+c.count > 0 ? { count: +c.count } : {}), ...(c.spoilsInto ? { spoil: pStr(c.spoilsInto, 40) } : {}), ...(Object.keys(u).length ? { use: { heal: u.heal != null ? (evalDice(u.heal, ctx) || "") : "", act: u.activation === "bonus" ? "bonus" : "action", effName: pStr(ue.name, 40), effLeft: durationSeconds(ue.duration) || 0, effNote: pStr(ue.note, 200) } } : {}) }; }).filter((c) => c.name); if (made.length) out.creates = made;
   if (ab.castOn) out.castOn = true;
   if (ab.message) out.message = true;
@@ -1592,7 +1641,9 @@ function checkPack(raw) {
     pack.items.push({ name, rarity, type: pStr(it.type, 60) || "Wondrous Item", attunement: !!it.attunement || slot === "Attunement", ...(slot && slot !== "Attunement" ? { slot } : {}), description: pStr(it.description, 3000), ...(parseInt(it.bonus, 10) > 0 ? { bonus: Math.min(5, parseInt(it.bonus, 10)) } : {}) });
   });
   // Abilities are test-run at level 1 and level 20 with ordinary numbers, so a bad formula is caught now.
-  const probe = (LEVEL) => ({ STR: 3, DEX: 3, CON: 3, INT: 3, WIS: 3, CHA: 3, PROF: LEVEL >= 17 ? 6 : 2, LEVEL, SPELLMOD: 3, SPELLDC: 13, SPELLATK: 5 });
+  const probe = (LEVEL) => ({ STR: 3, DEX: 3, CON: 3, INT: 3, WIS: 3, CHA: 3, PROF: LEVEL >= 17 ? 6 : 2, LEVEL, SPELLMOD: 3, SPELLDC: 13, SPELLATK: 5, PACTLEVEL: LEVEL >= 9 ? 5 : LEVEL >= 7 ? 4 : LEVEL >= 5 ? 3 : LEVEL >= 3 ? 2 : 1 });
+  if (pArr(raw.abilities).length > 800) warnings.push(`This pack has ${pArr(raw.abilities).length} abilities. Only the first 800 were kept: split the rest into a second pack.`);
+  if (pArr(raw.items).length > 600) warnings.push(`This pack has ${pArr(raw.items).length} items. Only the first 600 were kept: split the rest into a second pack.`);
   pArr(raw.abilities).slice(0, 800).forEach((ab, i) => {
     const label = `Ability ${pStr(pObj(ab).name, 60) || "#" + (i + 1)}`;
     const g = pObj(pObj(ab).grantedBy);
@@ -1911,10 +1962,16 @@ function activeMechanics(ch) {
     if (!abilityGranted(raw, ch)) return;
     const e = resolveLevels(atLevelOf(raw, ch.level), ch.level);
     if (e.options && Array.isArray(e.options.choices)) {
-      const key = optionKey(raw), picked = ch.featureChoices[key] || "";
-      optionSlots.push({ key, label: e.options.label || e.name, feature: e.name, choices: e.options.choices.map(c => c.name), picked, changeOn: e.options.changeOn === "short" || e.options.changeOn === "long" ? e.options.changeOn : "" });
-      const c = e.options.choices.find(x => x.name === picked);
-      if (c) entries.push({ ...resolveLevels(atLevelOf(c, ch.level), ch.level), feature: e.name, grantedBy: raw.grantedBy });
+      const base = optionKey(raw), n = Math.max(1, Math.min(20, parseInt(e.options.count, 10) || 1)); // "count": how many picks (a list of 20 for a number that grows)
+      const keys = Array.from({ length: n }, (_, i) => i ? `${base}#${i + 1}` : base), pickedAll = keys.map(k => ch.featureChoices[k] || "");
+      const meets = (c) => { const q = pObj(c.prereq); if (q.level && ch.level < (parseInt(q.level, 10) || 0)) return false; if (pArr(q.has).some(h => !pickedAll.includes(h))) return false; return true; }; // prerequisites: a level, another pick
+      keys.forEach((key, i) => {
+        const picked = pickedAll[i], others = pickedAll.filter((x, j) => j !== i);
+        const choices = e.options.choices.filter(c => meets(c) && (c.repeatable || c.name === picked || !others.includes(c.name))).map(c => c.name);
+        optionSlots.push({ key, label: (e.options.label || e.name) + (n > 1 ? ` ${i + 1}` : ""), feature: e.name, choices, picked, changeOn: e.options.changeOn === "short" || e.options.changeOn === "long" ? e.options.changeOn : "" });
+        const c = e.options.choices.find(x => x.name === picked);
+        if (c && meets(c)) entries.push({ ...resolveLevels(atLevelOf(c, ch.level), ch.level), feature: e.name, grantedBy: raw.grantedBy, pickKey: key });
+      });
       const { options, ...rest } = e;
       if (rest.statics || rest.resource || isActivated(rest)) entries.push(rest);
       return;
@@ -1926,7 +1983,7 @@ function activeMechanics(ch) {
 // Adds up the passive changes. Formulas are worked out against ctx (this character's numbers).
 function gatherStatics(entries, ctx, gear, level) {
   const d = { acBases: [], acBonus: 0, speedBonus: 0, speedBase: 0, hp: 0, initiative: 0, saveProf: [], saveBonus: 0, saveAdv: [], condImmune: [], condAdv: [], resist: [], senses: [],
-    why: { ac: [], speed: [], initiative: [], saves: [], hp: [] }, skillAdv: [], immune: [], moves: [], speedMin: 0, spellAtkBonus: 0, spellDcBonus: 0, halfProf: false, classPicks: 0, anyPicks: 0, spells: [], cantripBonus: 0, skillBonus: {}, cantripDamage: 0, schoolDamage: {}, weaponDamage: [], unarmedDie: 0, unarmedDex: false, monkWeapons: false, masteryCount: 0, profArmor: [], profWeapons: [], passives: {} };
+    why: { ac: [], speed: [], initiative: [], saves: [], hp: [] }, spellPicks: [], spellUses: [], spellMods: [], extraLists: [], languages: [], skillAdv: [], immune: [], moves: [], speedMin: 0, spellAtkBonus: 0, spellDcBonus: 0, halfProf: false, classPicks: 0, anyPicks: 0, spells: [], cantripBonus: 0, skillBonus: {}, cantripDamage: 0, schoolDamage: {}, weaponDamage: [], unarmedDie: 0, unarmedDex: false, monkWeapons: false, masteryCount: 0, profArmor: [], profWeapons: [], passives: {} };
   const num = (f) => { const n = evalFormula(f, ctx); return Number.isFinite(n) ? n : 0; };
   const armorCat = gear.armor ? gear.armor.cat : "";
   const when = (w) => w === "noHeavy" ? armorCat !== "Heavy" : w === "noArmor" ? !armorCat : w === "noArmorNoShield" ? !armorCat && !gear.shield : w === "armor" ? !!armorCat : true;
@@ -1950,8 +2007,16 @@ function gatherStatics(entries, ctx, gear, level) {
     if (s.skillPicks) { d.classPicks += parseInt(pObj(s.skillPicks).class, 10) || 0; d.anyPicks += parseInt(pObj(s.skillPicks).any, 10) || 0; }
     if (s.spells) Object.keys(pObj(s.spells)).forEach(l => { if (+l <= level) pArr(s.spells[l]).forEach(n => d.spells.push({ name: pStr(n, 60), source: e.feature || e.name })); });
     if (s.cantripBonus) d.cantripBonus += num(s.cantripBonus);
+    pArr(s.spellPicks).forEach((q, i) => { const o = pObj(q); const cnt = num(o.count != null ? o.count : 1); if (cnt > 0) d.spellPicks.push({ key: `${e.pickKey || optionKey(e)}|${i}`, label: pStr(o.label, 80) || e.name, source: e.name, count: Math.min(12, cnt), level: o.level === "slot" ? "slot" : Math.max(0, Math.min(9, parseInt(o.level, 10) || 0)), upTo: !!o.upTo, lists: o.lists === "any" ? "any" : pArr(o.lists).map(x => pStr(x, 30)), ritual: !!o.ritual, school: pStr(o.school, 20), cast: ["slot", "once", "short", "atWill", "ritualOnly", "book"].includes(o.cast) ? o.cast : "slot", ability: ABILITIES.includes(o.ability) ? o.ability : "", self: !!o.self }); });
+    pArr(s.spellUses).forEach(q => { const o = pObj(q); const n = pStr(o.spell, 60); if (n) d.spellUses.push({ spell: n, cast: ["once", "short", "atWill"].includes(o.cast) ? o.cast : "atWill", self: !!o.self, maxRoll: !!o.maxRoll, note: pStr(o.note, 200), source: e.name }); });
+    pArr(s.spellMods).forEach(q => { const o = pObj(q); const n = pStr(o.spell, 60); if (n) d.spellMods.push({ spell: n, damage: o.damage != null ? num(o.damage) : 0, range: o.range != null ? num(o.range) : 0, note: pStr(o.note, 200), source: e.name }); });
+    pArr(s.extraSpellLists).forEach(x => d.extraLists.push(pStr(x, 30)));
+    pArr(s.languages).forEach(x => d.languages.push(pStr(x, 40)));
+    if (s.unarmedForce) d.unarmedForce = true;
+    if (s.pactWeapon) d.pactWeapon = true;
     if (s.skillBonus) pArr(pObj(s.skillBonus).skills).forEach(k => { d.skillBonus[k] = (d.skillBonus[k] || 0) + num(s.skillBonus.formula); });
     if (s.cantripDamage != null) d.cantripDamage += num(s.cantripDamage);
+    if (s.cantripRange != null) d.cantripRange = (d.cantripRange || 0) + num(s.cantripRange);
     if (s.schoolDamage) d.schoolDamage[pStr(pObj(s.schoolDamage).school, 20)] = num(s.schoolDamage.formula);
     if (s.weaponDamage) pArr(Array.isArray(s.weaponDamage) ? s.weaponDamage : [s.weaponDamage]).forEach(w => { const dice = evalDice(w.dice, ctx); if (dice) d.weaponDamage.push({ dice, type: pStr(w.type, 20), when: w.when || "weapon", ...(pArr(w.weapons).length ? { weapons: pArr(w.weapons).map(x => pStr(x, 30)) } : {}), ...(pArr(w.vsTypes).length ? { vsTypes: pArr(w.vsTypes).map(x => pStr(x, 20)) } : {}), item: pObj(e.grantedBy).type === "item" ? pStr(e.grantedBy.name, 80) : "" }); });
     pArr(s.skillAdvantage).forEach(k => { if (SKILL_ABILITY[k]) d.skillAdv.push(k); }); // Advantage on checks with one skill (Boots of Elvenkind: Stealth)
@@ -1993,6 +2058,7 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { /
   out.push({ name: "Unarmed Strike", type: "attack", activation: "action", atk: ctx.PROF + uMod, unarmed: true, abil: d.unarmedDex && ctx.DEX > ctx.STR ? "Dexterity" : "Strength",
     dmgList: [[evalDice(d.unarmedDie ? `1d${d.unarmedDie}+${uMod}` : `1+${ctx.STR}`, ctx), "Bludgeoning"], ...rider(true)],
     desc: d.unarmedDie ? "Martial Arts: you roll your Martial Arts die for the damage and can use Dexterity." : "Instead of using a weapon to make a melee attack, you can use a punch, kick, head-butt, or similar forceful blow." });
+  if (d.unarmedForce) { const u = out[0]; u.modes = [{ name: "Bludgeoning", a: { ...u } }, { name: "Force (Empowered Strikes)", a: { ...u, dmgList: [[u.dmgList[0][0], "Force"], ...u.dmgList.slice(1)] } }]; u.modeDefault = 0; }
   weaponNames.forEach(n => {
     const w = weaponOf(n); if (!w) return;
     const plus = w.bonus || 0; // a magic weapon's bonus to attack and damage rolls
@@ -2016,7 +2082,11 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { /
       if (w.ranged) a.ranged = true;
       if (finesse) a.finesse = true;
       if (two || w.props.includes("Two-Handed")) a.twoHanded = true;
+      if (a.mastery && (d.passives || {}).tacticalMaster) { const own = a.mastery; a.modes = [own, ...["Push", "Sap", "Slow"].filter(x => x !== own)].map(m => ({ name: m === own ? `${m} (its own)` : `${m} (Tactical Master)`, a: { ...a, mastery: m } })); a.modeDefault = 0; }
       out.push(a);
+      if (d.pactWeapon && !w.ranged && ctx.CHA > mod) { // Pact of the Blade: the bonded weapon can use Charisma, with proficiency
+        const ch = ctx.CHA, pa = { ...a, name: `${label} (pact weapon)`, atk: ctx.PROF + ch + plus, abil: "Charisma", dmgList: [[evalDice(`${dice}+${ch + plus}`, ctx), w.type], ...a.dmgList.slice(1)], desc: `Pact of the Blade: your bonded weapon uses Charisma and you are proficient with it. ${a.desc || ""}` };
+        delete pa.modes; pa.modes = ["", "Necrotic", "Psychic", "Radiant"].map(t => ({ name: t || w.type, a: { ...pa, dmgList: [[pa.dmgList[0][0], t || w.type], ...pa.dmgList.slice(1)] } })); pa.modeDefault = 0; out.push(pa); }
     };
     make(w.name, w.dice, false);
     if (w.versatile) make(`${w.name} (two hands)`, w.versatile, true);
@@ -2240,9 +2310,13 @@ function CharacterSheet() {
   }, [pointBuy, bgBonuses, asiBonuses, abilityMode, customScores, abilityAdj]);
 
   // Every feat this character has, where it came from, what was chosen for it, and whether it goes past the rules.
-  const slots = useMemo(() => featSlots(className, subclassName, level, species, bgEff.feat), [className, subclassName, level, species, bgEff]);
+  const slots = useMemo(() => { const out = featSlots(className, subclassName, level, species, bgEff.feat);
+    const ch0 = { className, subclassName, level, species, lineage, background, feats: [], items: [], spells: [] };
+    [...BUILTIN_MECHANICS, ...PACK_ABILITIES].forEach(raw => { const o = pObj(raw.options); if (!pArr(o.choices).some(c => c && c.grantsFeat) || !abilityGranted(raw, ch0)) return; // "grantsFeat": a choice that gives a feat of that category
+      const base = optionKey(raw); Object.keys(featureChoices).filter(k => k === base || k.startsWith(base + "#")).forEach(k => { const c = o.choices.find(x => x.name === featureChoices[k] && x.grantsFeat); if (c) out.push({ id: `gf-${k}`, label: `${c.name}`, cats: pArr(c.grantsFeat).length ? pArr(c.grantsFeat) : [String(c.grantsFeat)] }); }); });
+    return out; }, [className, subclassName, level, species, lineage, background, bgEff, featureChoices]);
   const takenFeats = useMemo(() => {
-    const ch = { level, scores: baseScores, caster: !!(cls && cls.casterType) };
+    const ch = { level, scores: baseScores, caster: !!(cls && cls.casterType), className };
     const out = [];
     const add = (key, where, name, choices, cats, extra) => {
       if (!name) return;
@@ -2313,7 +2387,7 @@ function CharacterSheet() {
     const spellMod = ability ? finalMods[ability] : 0;
     let atkB = 0, dcB = 0; mech.entries.forEach(e => { const st = pObj(e.statics); atkB += parseInt(st.spellAttackBonus, 10) || 0; dcB += parseInt(st.spellDcBonus, 10) || 0; }); // a staff or wand's bonus to spell attacks and save DCs
     return { STR: finalMods.Strength, DEX: finalMods.Dexterity, CON: finalMods.Constitution, INT: finalMods.Intelligence, WIS: finalMods.Wisdom, CHA: finalMods.Charisma,
-      PROF: profBonus, LEVEL: level, SPELLMOD: spellMod, SPELLDC: 8 + profBonus + spellMod + dcB, SPELLATK: profBonus + spellMod + atkB };
+      PROF: profBonus, LEVEL: level, PACTLEVEL: cls && cls.casterType === "pact" && PACT_SLOTS[level] ? PACT_SLOTS[level].level : 0, SPELLMOD: spellMod, SPELLDC: 8 + profBonus + spellMod + dcB, SPELLATK: profBonus + spellMod + atkB };
   }, [cls, finalMods, profBonus, level, takenFeats, mech]);
   // Every weapon in the inventory is a weapon the character can attack with. A magic weapon counts once its kind is chosen.
   const weapons = useMemo(() => {
@@ -2355,7 +2429,7 @@ function CharacterSheet() {
     const entries = [];
     // Species traits
     if (SPECIES[species]) {
-      SPECIES[species].traits.forEach(t => entries.push({ level: 1, text: t, source: "Species" }));
+      SPECIES[species].traits.forEach(t => { const nm = String(t).split(": ")[0], m = [...BUILTIN_MECHANICS, ...PACK_ABILITIES].find(x => x && x.grantedBy && x.grantedBy.type === "species" && x.grantedBy.name === species && x.name === nm), lv = Math.max(1, +((m || {}).grantedBy || {}).level || 1); if (lv <= level) entries.push({ level: lv, text: t, source: "Species" }); }); // a trait that starts at a later level (Draconic Flight, Large Form) shows from that level
       const lo = ((SPECIES[species].lineage || {}).options || {})[lineage];
       if (lo) lo.traits.forEach(t => { if ((t.level || 1) <= level) entries.push({ level: t.level || 1, text: `${t.name}: ${t.text}`, source: lineage }); });
     }
@@ -2424,7 +2498,7 @@ function CharacterSheet() {
     return out;
   }, [finalMods, allSkillProfs, skillExpertise, profBonus, derived]);
 
-  const spellInfo = useMemo(() => sortSpells(cls, className, level, spells, derived.cantripBonus), [cls, className, level, spells, derived]);
+  const spellInfo = useMemo(() => sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists), [cls, className, level, spells, derived]);
   // Everything on this sheet that goes past the rules, in words.
   const customizations = useMemo(() => {
     const out = [];
@@ -2542,8 +2616,17 @@ function CharacterSheet() {
       push(sp, { ctx: fctx, once: true, label: `${sp.n} (${f.name}, free)` }); // once without a slot, back on a Long Rest
       if (cls && cls.casterType) push(sp, { ctx: fctx }); // and with any spell slots the character has
     });
+    const abCtx = (ab) => { if (!ABILITIES.includes(ab)) return spellCtx; const m = finalMods[ab]; return { ...spellCtx, SPELLMOD: m, SPELLDC: spellCtx.SPELLDC - spellCtx.SPELLMOD + m, SPELLATK: spellCtx.SPELLATK - spellCtx.SPELLMOD + m }; };
+    derived.spellPicks.filter(q => q.cast !== "book").forEach(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean).forEach(n => { const sp = spellOf(n); if (!sp) return; // spells chosen through a feature (Mystic Arcanum, Magical Discoveries, Pact of the Tome)
+      push(sp, { ...tune, ctx: abCtx(q.ability), cast: q.cast, self: q.self, ...(q.cast !== "slot" ? { label: `${sp.n} (${q.source})` } : {}) }); }));
+    if (derived.cantripRange) out.filter(a => a.spell && a.slot === 0 && a.range && a.range.feet >= 10 && (spellOf(a.name) || {}).c && spellOf(a.name).c.includes(className)).forEach(a => { a.range = { ...a.range, feet: a.range.feet + derived.cantripRange }; }); // Improved Elemental Fury
+    derived.spellUses.forEach(u => { const sp = spellOf(u.spell); if (sp) push(sp, { ...tune, cast: u.cast, self: u.self, maxRoll: u.maxRoll, note: u.note, label: `${sp.n} (${u.source})` }); }); // Armor of Shadows: Mage Armor at will
+    derived.spellMods.forEach(m => out.filter(a => a.name === m.spell || a.name.startsWith(m.spell + " (")).forEach(a => { // Agonizing Blast, Eldritch Spear, Repelling Blast
+      if (m.damage && a.dmgList && a.dmgList.length) a.dmgList = [[evalDice(`${a.dmgList[0][0]}+${m.damage}`, spellCtx) || a.dmgList[0][0], a.dmgList[0][1]], ...a.dmgList.slice(1)];
+      if (m.range && a.range && a.range.feet) a.range = { ...a.range, feet: a.range.feet + m.range };
+      if (m.note) a.desc = `${m.source}: ${m.note} ${a.desc || ""}`.trim(); }));
     return out;
-  }, [spellInfo, spellCtx, takenFeats, cls, derived]);
+  }, [spellInfo, spellCtx, takenFeats, cls, derived, featureChoices, finalMods]);
   const spellSummary = (sp) => { try { const a = spellAction(sp, spellCtx); return a ? actionSummary(a) : ""; } catch (e) { return ""; } };
 
   const classTools = { Rogue: ["Thieves' Tools"], Druid: ["Herbalism Kit"] }[className] || [];
@@ -2690,7 +2773,7 @@ function CharacterSheet() {
       maxHP: effectiveMaxHp, currentHP: displayHp, tempHP: tempHp,
       ac: armorClass, initiativeBonus: initiative, speed,
       features: featureLedger.map(f => f.detail ? `${f.text}. ${f.detail}` : f.text),
-      spells: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name)].map(x => { const sp = spellOf(x); return sp ? `${sp.n} (${spellLine(sp)})` : x; }))),
+      spells: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name), ...derived.spellPicks.flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)), ...derived.spellUses.map(u => u.spell)].map(x => { const sp = spellOf(x); return sp ? `${sp.n} (${spellLine(sp)})` : x; }))),
       feats: takenFeats.map(f => f.name),
       rules: 1, // this sheet carries its own attacks, features and spells, so the Resolver adds no placeholders
       actions: [...sheetActions, ...spellActions],
@@ -2735,8 +2818,8 @@ function CharacterSheet() {
       // for the character sheet in the Combat Resolver
       featureList: featureLedger.map(f => { const cut = f.detail ? -1 : String(f.text).indexOf(": "); return { lv: f.level, src: f.source, n: cut > 0 ? f.text.slice(0, cut) : f.text, d: String(f.detail || (cut > 0 ? f.text.slice(cut + 2) : "")).slice(0, 2500) }; }).slice(0, 120),
       saveProfs: ABILITIES.filter(a => saveInfo[a] === "class" || saveInfo[a] === "added"),
-      spellList: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name)].map(x => spellOf(x)).filter(Boolean))).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n)).slice(0, 120).map(sheetSpell),
-      languages: journal.languages, tools: Array.from(new Set([...knownTools.map(t => t.name), ...journal.tools])),
+      spellList: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name), ...derived.spellPicks.flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)), ...derived.spellUses.map(u => u.spell)].map(x => spellOf(x)).filter(Boolean))).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n)).slice(0, 120).map(sheetSpell),
+      languages: Array.from(new Set([...journal.languages, ...derived.languages])), tools: Array.from(new Set([...knownTools.map(t => t.name), ...journal.tools])),
       importantItems: pinnedItems.map(i => i && i.name).filter(Boolean),
       spellcasting: cls && cls.casterType ? {
         ability: cls.spellAbility,
@@ -3140,7 +3223,7 @@ function CharacterSheet() {
           <FeaturesTab {...{ masteries, setMasteries, masteryCount: derived.masteryCount, className, glowOf, optionSlots: mech.optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay, slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }} />
         )}
         {tab === "spells" && (
-          <SpellsTab {...{ glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }} />
+          <SpellsTab {...{ picks: derived.spellPicks, featureChoices, setFeatureChoices, glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }} />
         )}
         {tab === "journal" && (
           <JournalTab {...{ journal, setJournal, alignment, setAlignment, knownTools, colors, fontDisplay }} />
@@ -3666,6 +3749,10 @@ const FEATS = {
     text: "When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit." },
   "Two-Weapon Fighting": { category: "Fighting Style", prereq: "Fighting Style Feature",
     text: "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage." },
+  "Blessed Warrior": { category: "Fighting Style", prereq: "Paladin Fighting Style feature", needs: { className: "Paladin" },
+    text: "You learn two Cleric cantrips of your choice (see the Cleric class's section for a list of Cleric spells). Guidance and Sacred Flame are recommended. The chosen cantrips count as Paladin spells for you, and Charisma is your spellcasting ability for them. Whenever you gain a Paladin level, you can replace one of these cantrips with another Cleric cantrip." },
+  "Druidic Warrior": { category: "Fighting Style", prereq: "Ranger Fighting Style feature", needs: { className: "Ranger" },
+    text: "You learn two Druid cantrips of your choice (see the Druid class's section for a list of Druid spells). Guidance and Starry Wisp are recommended. The chosen cantrips count as Ranger spells for you, and Wisdom is your spellcasting ability for them. Whenever you gain a Ranger level, you can replace one of these cantrips with another Druid cantrip." },
   "Boon of Combat Prowess": { category: "Epic Boon", prereq: "Level 19+", needs: { level: 19 }, grants: { ability: { from: [], max: 30 } },
     text: "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30. Peerless Aim. When you miss with an attack roll, you can hit instead. Once you use this benefit, you can't use it again until the start of your next turn." },
   "Boon of Dimensional Travel": { category: "Epic Boon", prereq: "Level 19+", needs: { level: 19 }, grants: { ability: { from: [], max: 30 } },
@@ -3713,6 +3800,7 @@ function featProblem(name, cats, ch) {
   if (n.level && ch.level < n.level) return `needs Level ${n.level}+`;
   if (n.score && !n.score.abilities.some(a => ch.scores[a] >= n.score.min)) return `needs ${n.score.abilities.join(" or ")} ${n.score.min}+`;
   if (n.spellcasting && !ch.caster) return "needs the Spellcasting feature";
+  if (n.className && !pArr(n.className).concat(typeof n.className === "string" ? [n.className] : []).some(c => sameName(c, ch.className))) return `only for ${[].concat(n.className).join(" or ")}`;
   return "";
 }
 
@@ -3985,7 +4073,8 @@ function maxSpellLevel(cls, className, level) {
   return (getSpellSlots(className, level) || []).length;
 }
 // Sorts a character's spells into what the rules allow and what goes past them.
-function sortSpells(cls, className, level, names, cantripBonus) {
+function sortSpells(cls, className, level, names, cantripBonus, extraLists) {
+  const onList = (sp) => sp.c.includes(className) || (sp.l > 0 && (extraLists || []).some(l => sp.c.includes(l)));
   const caster = !!(cls && cls.casterType);
   const maxLevel = maxSpellLevel(cls, className, level);
   const cantripMax = caster ? cantripsKnown(className, level) + (cantripBonus || 0) : 0;
@@ -3998,13 +4087,13 @@ function sortSpells(cls, className, level, names, cantripBonus) {
     let problem = "";
     if (sp.l === 0) cantrips++; else prepared++;
     if (!caster) problem = `${className} has no Spellcasting feature`;
-    else if (!sp.c.includes(className)) problem = `not on the ${className} spell list`;
+    else if (!onList(sp)) problem = `not on the ${className} spell list`;
     else if (sp.l > maxLevel) problem = `Level ${sp.l} is higher than a level ${level} ${className} can cast`;
     else if (sp.l === 0 && cantrips > cantripMax) problem = `more cantrips than a level ${level} ${className} knows`;
     else if (sp.l > 0 && prepMax != null && prepared > prepMax) problem = `more prepared spells than a level ${level} ${className} has`;
     return { raw, index, sp, problem };
   });
-  return { list, caster, maxLevel, cantripMax, prepMax, cantrips, prepared };
+  return { list, caster, maxLevel, cantripMax, prepMax, cantrips, prepared, extraLists: extraLists || [] };
 }
 // How a spell resolves in the Combat Resolver, worked out from this character's numbers. Returns null for a spell with no roll.
 // One line of a spell for the character sheet: short school, components, range, save, duration and casting time.
@@ -4032,11 +4121,23 @@ function packRecord(o, max) {
   if (!o || typeof o !== "object" || Array.isArray(o)) return null;
   try { const j = JSON.stringify(o); if (j.length > max) return null; const r = JSON.parse(j); if (r.targets != null && typeof r.targets !== "object") r.targets = {}; if (r.range != null && typeof r.range !== "object") r.range = {}; ["dmg", "selfEffs", "timing"].forEach((k) => { if (r[k] != null && !Array.isArray(r[k])) r[k] = []; }); return r; } catch (e) { return null; }
 }
+// How a spell a feature grants is cast: "once" (no slot, back on a Long Rest), "short" (back on a Short or Long Rest), "atWill" (no slot, no limit). self: only on the caster. maxRoll: dice give their highest number.
+function castWay(out, opts) {
+  const how = opts.once ? "once" : opts.cast;
+  if (how === "once" || how === "short" || how === "atWill") { out.slot = 0; delete out.pool; delete out.pointCosts; }
+  if (how === "once") { out.usesMax = 1; out.recharge = "long"; }
+  if (how === "short") { out.usesMax = 1; out.recharge = "short"; }
+  if (how === "ritualOnly") { out.ritual = true; out.ritualOnly = true; } // Ritual Adept: only as a Ritual, from the spellbook
+  if (opts.self) { out.self = true; if (out.tgt) out.tgt = { ...out.tgt, self: "only" }; }
+  if (opts.maxRoll) ["temp", "healDice", "heal"].forEach(k => { if (typeof out[k] === "string") out[k] = out[k].replace(/(\d+)d(\d+)/g, (m, a, b) => String(+a * +b)); });
+  if (opts.note) out.desc = `${opts.note} ${out.desc || ""}`.trim();
+  return out;
+}
 function spellAction(sp, ctx, opts) {
   // A spell the app has no mechanics for is still cast: it spends its slot and posts its text for the table to resolve.
   const m = sp.m || { k: "info", act: /^bonus/i.test(sp.t || "") ? "bonus" : /^reaction/i.test(sp.t || "") ? "reaction" : /^action/i.test(sp.t || "") ? "action" : "" };
   if (sp.f) { try { return fullSpellAction(sp, ctx, opts); } catch (e) { if (!sp.pack) throw e; } } // the spell has a full record: everything it does, when, to whom and at what range. A pack record that cannot be read falls back to the spell as text.
-  const out = { name: sp.n, spell: true, slot: sp.l, desc: sp.x.slice(0, 1200) };
+  const out = { name: sp.n, spell: true, slot: sp.l, school: sp.s || "", desc: sp.x.slice(0, 1200) };
   if (/^reaction/i.test(String(sp.t || ""))) out.trig = String(sp.t).slice(0, 240); // when the Reaction can be taken: the Combat Resolver offers it at that moment
   if (sp.conc) { out.conc = true; const dm = /(\d+) (round|minute|hour|day)/i.exec(String(sp.d || "")); if (dm) out.concSecs = +dm[1] * { round: 6, minute: 60, hour: 3600, day: 86400 }[dm[2].toLowerCase()]; }
   if (/^(Find Familiar|Find Steed|Conjure |Summon |Animate Dead|Animate Objects|Create Undead|Giant Insect)/.test(sp.n)) out.block = "summon";
@@ -4073,7 +4174,7 @@ function spellAction(sp, ctx, opts) {
   const extra = (sp.l === 0 ? (o.cantripDamage || 0) : 0) + ((o.schoolDamage || {})[sp.s] || 0); // Potent Spellcasting, Empowered Evocation
   if (extra && out.dmgList) out.dmgList = [[evalDice(`${out.dmgList[0][0]}+${extra}`, ctx), out.dmgList[0][1]]];
   if (o.potentCantrip && sp.l === 0 && out.dmgList) { if (out.type === "save") out.halfOnSave = true; if (out.type === "attack") out.missHalf = true; }
-  if (opts && opts.once) { out.slot = 0; out.usesMax = 1; out.recharge = "long"; } // a feat's free casting
+  if (opts && (opts.once || opts.cast)) castWay(out, opts); // cast without a slot: once a Long Rest, once a Short Rest, or at will
   else if (o.points && sp.l > 0) { out.pool = o.points.pool; out.pointCosts = o.points.costs; out.cost = o.points.costs[sp.l - 1] || 1; out.maxLvl = o.points.maxLevel || sp.l; } // a class that spends points, not slots
   return out;
 }
@@ -4117,7 +4218,7 @@ function fullOutcome(o, sp, f) {
 }
 function fullSpellAction(sp, ctx, opts) {
   const f = sp.f, o = opts || {}, t = f.targets || {};
-  const out = { name: sp.n, spell: true, slot: sp.l, desc: sp.x.slice(0, 1200) };
+  const out = { name: sp.n, spell: true, slot: sp.l, school: sp.s || "", desc: sp.x.slice(0, 1200) };
   out.activation = f.act === "long" ? "action" : (["action", "bonus", "reaction"].includes(f.act) ? f.act : "action");
   if (f.act === "long") out.castMin = Math.max(1, +f.castMinutes || 1); // takes longer than a round to cast
   if (out.activation === "reaction") out.trig = String(f.trig || sp.t || "").slice(0, 240);
@@ -4257,7 +4358,7 @@ function fullSpellAction(sp, ctx, opts) {
   const extra = (sp.l === 0 ? (o.cantripDamage || 0) : 0) + ((o.schoolDamage || {})[sp.s] || 0); // Potent Spellcasting, Empowered Evocation
   if (extra && out.dmgList) out.dmgList = [[evalDice(`${out.dmgList[0][0]}+${extra}`, ctx), out.dmgList[0][1]], ...out.dmgList.slice(1)];
   if (o.potentCantrip && sp.l === 0 && out.dmgList) { if (out.type === "save") out.halfOnSave = true; if (out.type === "attack") out.missHalf = true; }
-  if (opts && opts.once) { out.slot = 0; out.usesMax = 1; out.recharge = "long"; } // a feat's free casting
+  if (opts && (opts.once || opts.cast)) castWay(out, opts); // cast without a slot: once a Long Rest, once a Short Rest, or at will
   else if (o.points && sp.l > 0) { out.pool = o.points.pool; out.pointCosts = o.points.costs; out.cost = o.points.costs[sp.l - 1] || 1; out.maxLvl = o.points.maxLevel || sp.l; } // a class that spends points, not slots
   return out;
 }
@@ -4287,7 +4388,7 @@ function SpellRow({ entry, onRemove, colors, fontDisplay, summary }) {
   );
 }
 
-function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
+function SpellsTab({ picks, featureChoices, setFeatureChoices, glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
   const [levelsOff, setLevelsOff] = useState([]);     // spell levels switched off in the Add Spells list (none: every level shows)
   const [sortBy, setSortBy] = useState("level");      // "level" (alphabetical inside each level) or "name"
   const [search, setSearch] = useState("");
@@ -4301,7 +4402,7 @@ function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, prof
   const topLevel = wideLevel ? 9 : maxLevel;
   const q = search.trim().toLowerCase();
   const pool = ALL_SPELLS.filter(sp =>
-    !chosen.has(sp.n) && (wideList || (caster && sp.c.includes(className))) && (sp.l === 0 || sp.l <= topLevel)
+    !chosen.has(sp.n) && (wideList || (caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(l => sp.c.includes(l) && sp.l > 0)))) && (sp.l === 0 || sp.l <= topLevel)
     && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
     .sort((a, b) => (sortBy === "level" ? a.l - b.l : 0) || a.n.localeCompare(b.n));
   const levelChoices = Array.from({ length: topLevel + 1 }).map((_, i) => i); // 0 is cantrips; only the levels this character can reach
@@ -4310,7 +4411,7 @@ function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, prof
   const toggleLevel = (l) => setLevelsOff(levelsOff.includes(l) ? levelsOff.filter(x => x !== l) : [...levelsOff, l]);
   const levelName = (l) => (l === 0 ? "Cantrips" : `Level ${l}`);
   const room = (sp) => (sp.l === 0 ? spellInfo.cantrips < cantripMax : prepMax == null || spellInfo.prepared < prepMax);
-  const legal = (sp) => caster && sp.c.includes(className) && sp.l <= maxLevel && room(sp);
+  const legal = (sp) => caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(l => sp.c.includes(l) && sp.l > 0)) && sp.l <= maxLevel && room(sp);
   const add = (name) => setSpells([...spells.filter(Boolean), name]);
   const remove = (index) => { const next = spells.filter((_, i) => i !== index); setSpells(next.length ? next : [""]); };
   const rows = spellInfo.list.filter(e => e.raw);
@@ -4362,6 +4463,17 @@ function SpellsTab({ glow, grantedSpells, cls, className, level, finalMods, prof
         </Section>
       )}
 
+      {(picks || []).length > 0 && <Section title="Spells Your Features Let You Choose" colors={colors} fontDisplay={fontDisplay}>
+        {picks.map(q => { const k = "spells:" + q.key, cur = String(featureChoices[k] || "").split("|"), top = q.level === "slot" ? maxLevel : q.level;
+          const ok = (sp) => (q.lists === "any" || q.lists.some(l => sp.c.includes(l))) && (q.level === "slot" ? sp.l <= maxLevel : q.upTo ? sp.l <= top : sp.l === top) && (!q.ritual || sp.rit) && (!q.school || sp.s === q.school);
+          const opts = ALL_SPELLS.filter(ok).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n));
+          const set = (i, v) => { const a = Array.from({ length: q.count }, (_, j) => cur[j] || ""); a[i] = v; setFeatureChoices(prev => ({ ...prev, [k]: a.join("|") })); };
+          return <div key={q.key} data-testid="spell-pick" style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 13, color: colors.brassLight, marginBottom: 4 }}>{q.label} <span style={{ opacity: 0.7 }}>({q.count} · {q.level === "slot" ? "a cantrip or a level you have slots for" : q.level === 0 ? "cantrips" : `Level ${top}${q.upTo ? " or lower" : ""}`}{q.lists === "any" ? ", any spell list" : `, ${q.lists.join(" / ")} list`}{q.ritual ? ", Ritual" : ""} · {q.cast === "once" ? "cast once per Long Rest without a slot" : q.cast === "short" ? "cast once per Short Rest without a slot" : q.cast === "atWill" ? "cast at will" : "always prepared"})</span></div>
+            {Array.from({ length: q.count }, (_, i) => <select key={i} aria-label={`${q.label} ${i + 1}`} value={cur[i] || ""} onChange={e => set(i, e.target.value)} style={{ ...fieldStyle(colors), width: 260, marginRight: 8, marginBottom: 4 }}>
+              <option value="">Choose a spell...</option>{opts.filter(sp => sp.n === cur[i] || !cur.includes(sp.n)).map(sp => <option key={sp.n} value={sp.n}>{sp.n} ({sp.l ? `Level ${sp.l}` : "cantrip"})</option>)}</select>)}
+          </div>; })}
+      </Section>}
       <Section title="Your Spells" colors={colors} fontDisplay={fontDisplay}>
         {glow && <div data-testid="spell-glow" data-glow={glow} style={{ border: `2px solid ${glow === "open" ? REST_PURPLE : colors.brassLight}`, color: glow === "open" ? REST_PURPLE : colors.brassLight, borderRadius: 6, padding: "6px 10px", marginBottom: 10, fontSize: 13 }}>{glow === "open" ? "Your rest lets you change spells here." : "Spells changed after your rest."}</div>}
         {rows.length === 0 && grantedSpells.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No spells yet. Add them from the list below.</div>}

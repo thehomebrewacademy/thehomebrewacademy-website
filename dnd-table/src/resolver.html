@@ -263,7 +263,12 @@
     .rest-panel { border: 1px solid rgba(201,162,75,0.4); border-radius: 8px; padding: 10px; margin: 6px 0 10px; }
     .rest-title { text-align: center; color: var(--brass-light); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 13px; }
     .cal-ed { border: 1px dashed rgba(201,162,75,0.4); border-radius: 6px; padding: 6px; margin: 4px 0; display: grid; gap: 4px; }
-    .boon-box { border: 1px solid var(--brass); border-radius: 8px; padding: 8px 10px; margin: 8px 0; background: rgba(201,162,75,0.08); }
+    .fate-dim { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 60; }
+    .fate-dim-note { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--ink); border: 1px solid var(--brass); border-radius: 6px; padding: 6px 12px; color: var(--text-light); }
+    .log-body.fate-choosing { position: relative; z-index: 61; background: var(--ink); }
+    .log-entry.fate-pickable { cursor: pointer; outline: 2px solid var(--brass-light); }
+    .boon-line { font-size: 13px; line-height: 1.5; }
+    .boon-box { border-left: 3px solid var(--brass); padding: 4px 8px; margin: 6px 0; background: rgba(201,162,75,0.08); }
     .boon-item + .boon-item { border-top: 1px solid rgba(201,162,75,0.3); margin-top: 6px; padding-top: 6px; }
     .boon-name { color: var(--brass-light); font-weight: 600; letter-spacing: 0.03em; }
     .boon-text { font-size: 13px; line-height: 1.45; margin: 2px 0 4px; }
@@ -938,12 +943,14 @@ function reactEvents(name, trigger, text) {
 }
 const SPELL_NAMES = new Set((window.HBA_SPELLS || []).map(x => String(x.n || '').toLowerCase()));
 let ROLL_R1 = false, ROLL_LOW3 = false; // the roll switch: reroll each 1 once; a 1 or 2 on a die counts as 3
-let PROMPT = null; // while a roll that was asked for is made: {adv} from the buttons on that prompt (the dice roller's switch waits for the next roll made unasked)
+let PROMPT = null;
+let LUCK_NEXT = false; // Halfling Luck: set by the d20 Test of a creature that has it, used by the roll that follows // while a roll that was asked for is made: {adv} from the buttons on that prompt (the dice roller's switch waits for the next roll made unasked)
 let NEXT_D20 = 0, FUDGE_DONE = null; // the DM can say what the next d20 shows
 function roll20(advantage=0) { // 0=normal, 1=advantage, -1=disadvantage
   if (NEXT_D20) { const n = NEXT_D20; NEXT_D20 = 0; if (FUDGE_DONE) FUDGE_DONE(); return {total:n, rolls:[n]}; }
-  const d = () => { let r = rollD(20); if (ROLL_R1 && r === 1) r = rollD(20); if (ROLL_LOW3 && r < 3) r = 3; return r; };
-  const note = [ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1 & 2 = 3'].filter(Boolean).join(', ');
+  const luck = LUCK_NEXT; LUCK_NEXT = false;
+  const d = () => { let r = rollD(20); if ((ROLL_R1 || luck) && r === 1) r = rollD(20); if (ROLL_LOW3 && r < 3) r = 3; return r; };
+  const note = [ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1s & 2s = 3s', luck && !ROLL_R1 && 'Luck'].filter(Boolean).join(', ');
   if (advantage === 0) { const r = d(); return {total:r, rolls:[r], note}; }
   const r1 = d(), r2 = d();
   return advantage === 1
@@ -964,7 +971,7 @@ function parseDamage(expr, allowNegative, lowAs3) { // lowAs3: Great Weapon Figh
       let {total:t, rolls} = rollDice(Math.min(c, 100), Math.max(1, s));
       if (ROLL_R1 && s > 1 && rolls.includes(1)) { rolls = rolls.map(r => r === 1 ? rollD(s) : r); t = rolls.reduce((a, b) => a + b, 0); }
       if ((lowAs3 || ROLL_LOW3) && s >= 3) { rolls = rolls.map(r => Math.max(3, r)); t = rolls.reduce((a, b) => a + b, 0); }
-      parts.push(`${c}d${s}=[${rolls.join(',')}]${ROLL_R1 || ROLL_LOW3 ? ` (${[ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1 & 2 = 3'].filter(Boolean).join(', ')})` : ''}`);
+      parts.push(`${c}d${s}=[${rolls.join(',')}]${ROLL_R1 || ROLL_LOW3 ? ` (${[ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1s & 2s = 3s'].filter(Boolean).join(', ')})` : ''}`);
       total += sign * t;
     } else {
       parts.push(g);
@@ -1164,6 +1171,20 @@ function cleanPassives(p) {
   [['savageAttacker', 'savage'], ['greatWeaponFighting', 'gwf'], ['grappledAdvantage', 'grappler'], ['peerlessAim', 'prowess']].forEach(([k, to]) => { if (p[k]) out[to] = true; }); // the names the Content Pack prompt uses
   if (p.archery || +p.rangedWeaponAttack) out.archery = p.archery === true ? 2 : Math.max(-10, Math.min(10, Math.round(+p.rangedWeaponAttack || +p.archery || 0)));
   if (+p.blinkSteps > 0) out.blinkSteps = Math.min(300, Math.round(+p.blinkSteps));
+  ['studiedAttacks','heroicEachTurn','heroicOnLongRest','deathAdv','elusive','thiefsReflexes','luck','jumpDex','sculptSpells','concAdvantage','grappleNoHand'].forEach(k => { if (p[k]) out[k] = true; });
+  const strs = x => (Array.isArray(x) ? x : x ? [x] : []).map(v => String(v).slice(0, 40)).filter(Boolean).slice(0, 12);
+  if (p.scoreFloor) out.scoreFloor = strs(p.scoreFloor).filter(a => ABILITIES.includes(a)); // Indomitable Might
+  if (p.concProtect) out.concProtect = strs(p.concProtect); // Relentless Hunter: damage can't break it
+  if (p.escapeAdv) out.escapeAdv = strs(p.escapeAdv).filter(k => CONDITIONS.includes(k)); // Powerful Build
+  if (p.advVsMarked) out.advVsMarked = String(p.advVsMarked).slice(0, 40); // Precise Hunter
+  if (p.revealMarked) out.revealMarked = String(p.revealMarked).slice(0, 40); // Hunter's Lore
+  if (+p.longRestSecs > 0) out.longRestSecs = Math.min(86400, Math.round(+p.longRestSecs));
+  if (+p.reliableTalent > 0) out.reliableTalent = Math.min(20, Math.round(+p.reliableTalent));
+  if (+p.deathCritOn > 1 && +p.deathCritOn <= 20) out.deathCritOn = Math.round(+p.deathCritOn); // Survivor: 18 to 20 counts as a 20
+  if (+p.heroicRally > 0) out.heroicRally = Math.min(99, Math.round(+p.heroicRally)); // Survivor: Hit Points at the start of each turn while Bloodied
+  if (+p.chargeSaver > 0) out.chargeSaver = Math.min(6, Math.round(+p.chargeSaver)); // Use Magic Device: a d6 of this or higher, no charge spent
+  if (Array.isArray(p.regainOnInitiative)) out.regainOnInitiative = p.regainOnInitiative.filter(x => x && x.pool).slice(0, 4).map(x => ({pool: String(x.pool).slice(0, 40), to: Math.max(1, Math.min(99, Math.round(+x.to || 1))), ifEmpty: !!x.ifEmpty}));
+  if (Array.isArray(p.remindAfter)) out.remindAfter = p.remindAfter.filter(x => x && x.after && x.text).slice(0, 6).map(x => ({after: String(x.after).slice(0, 60), text: String(x.text).slice(0, 200)}));
   { const f = p.improveFate && typeof p.improveFate === 'object' ? p.improveFate.dice : p.improveFate; if (f && DMG_RE.test(String(f).replace(/\s/g, ''))) out.improveFate = String(f).replace(/\s/g, ''); }
   if (+p.freeCasting > 0) out.freeCasting = Math.min(9, Math.round(+p.freeCasting));
   if (Array.isArray(p.overcomeDefenses)) out.ignoreRes = p.overcomeDefenses.map(x => String(x).slice(0, 20)).filter(Boolean).slice(0, 13);
@@ -1186,7 +1207,9 @@ const ACTIVATIONS = {action:'Action', bonus:'Bonus Action', reaction:'Reaction',
 function cleanEffect(e) {
   if (!e || typeof e !== 'object' || !String(e.name || '').trim()) return null;
   const out = {name: String(e.name).trim().slice(0, 40)};
-  ['ac','speed','init','d20','saveAbilMod','tempEachTurn','hpMax'].forEach(k => { const n = parseInt(e[k], 10); if (Number.isFinite(n) && n) out[k] = Math.max(-200, Math.min(200, n)); });
+  if (e.halveNext) out.halveNext = true;
+  if (e.reduceNext && DMG_RE.test(String(e.reduceNext.dice || '').replace(/\s/g, ''))) out.reduceNext = {dice: String(e.reduceNext.dice).replace(/\s/g, ''), ...(Array.isArray(e.reduceNext.types) ? {types: e.reduceNext.types.map(t => String(t).slice(0, 20))} : {})};
+  ['ac','speed','init','d20','saveAbilMod','tempEachTurn','hpMax','freeCast'].forEach(k => { const n = parseInt(e[k], 10); if (Number.isFinite(n) && n) out[k] = Math.max(-200, Math.min(200, n)); });
   if (e.critImmune) out.critImmune = true;
   { const n = parseInt(e.acVsRanged, 10); if (n) out.acVsRanged = Math.max(-10, Math.min(10, n)); }
   if (e.abilMin && typeof e.abilMin === 'object') { const am = {}; Object.keys(e.abilMin).forEach(a => { const n = parseInt(e.abilMin[a], 10); if (ABILITIES.includes(a) && n > 0 && n <= 30) am[a] = n; }); if (Object.keys(am).length) out.abilMin = am; }
@@ -1370,6 +1393,13 @@ function cleanAction(a, i) {
   if (a.multi) out.multi = true;
   if (a.remove && typeof a.remove === 'object') out.remove = {conds: (Array.isArray(a.remove.conds) ? a.remove.conds : []).filter(k => CONDITIONS.includes(k)), count: a.remove.count === 'all' ? 'all' : 1, exhaustion: Math.max(0, Math.min(6, +a.remove.exhaustion || 0)), effects: ['curse','spells','any'].includes(a.remove.effects) ? a.remove.effects : '', hpMax: !!a.remove.hpMax, maxLevel: Math.max(0, Math.min(9, +a.remove.maxLevel || 0))};
   if (a.askDM) out.askDM = String(a.askDM).slice(0, 300);
+  if (a.extraCost && a.extraCost.pool) out.extraCost = {pool: String(a.extraCost.pool).slice(0, 40), cost: Math.max(1, Math.min(99, Math.round(+a.extraCost.cost || 1)))};
+  if (a.school) out.school = String(a.school).slice(0, 20);
+  if (a.ritualOnly) out.ritualOnly = true;
+  if (a.spendSlot === 'any' || a.spendSlot === 'pact' || (+a.spendSlot >= 1 && +a.spendSlot <= 9)) out.spendSlot = a.spendSlot === 'any' || a.spendSlot === 'pact' ? a.spendSlot : Math.round(+a.spendSlot);
+  if (a.regainPool && a.regainPool.pool) out.regainPool = {pool: String(a.regainPool.pool).slice(0, 40), amount: Math.max(1, Math.min(99, Math.round(+a.regainPool.amount || 1)))};
+  if (+a.regainSlot >= 1 && +a.regainSlot <= 9) out.regainSlot = Math.round(+a.regainSlot);
+  if (a.regainPact === 'half' || a.regainPact === 'all') out.regainPact = a.regainPact;
   if (a.sctl && typeof a.sctl === 'object') out.sctl = {cmd: ['bonus','action'].includes(a.sctl.cmd) ? a.sctl.cmd : '', secs: Math.max(0, Math.min(MAX_SECONDS, +a.sctl.secs || 0)), after: a.sctl.after !== false, ...(a.sctl.lifeBond ? {lifeBond: true} : {}), ...(a.sctl.endsOnDamage ? {endsOnDamage: true} : {}), ...(a.sctl.noAttack ? {noAttack: true} : {}), ...(+a.sctl.speed > 0 ? {speed: Math.min(300, +a.sctl.speed)} : {}), ...(+a.sctl.count > 1 ? {count: Math.min(12, +a.sctl.count)} : {}), ...(a.sctl.countBy && typeof a.sctl.countBy === 'object' ? {countBy: a.sctl.countBy} : {}), ...(a.sctl.statByChoice && typeof a.sctl.statByChoice === 'object' ? {statByChoice: a.sctl.statByChoice} : {}), ...(Array.isArray(a.sctl.statBySlot) ? {statBySlot: a.sctl.statBySlot.slice(0, 6)} : {}), ...(Array.isArray(a.sctl.ac) ? {ac: [+a.sctl.ac[0] || 10, +a.sctl.ac[1] || 0]} : {}), ...(Array.isArray(a.sctl.hp) ? {hp: [+a.sctl.hp[0] || 1, +a.sctl.hp[1] || 0, +a.sctl.hp[2] || 0]} : {}), ...(a.sctl.block && typeof a.sctl.block === 'object' && a.sctl.block.name && Array.isArray(a.sctl.block.s) ? {block: JSON.parse(JSON.stringify(a.sctl.block).slice(0, 8000))} : {}), stat: String(a.sctl.stat || '').slice(0, 60)};
   if (a.form && typeof a.form === 'object') out.form = {on: a.form.on === 'self' ? 'self' : 'target', limit: String(a.form.limit || '').slice(0, 200), tempHP: !!a.form.tempHP};
   if (a.mv && typeof a.mv === 'object') out.mv = {kind: String(a.mv.kind || '').slice(0, 10), feet: Math.max(0, +a.mv.feet || 0), who: String(a.mv.who || 'self').slice(0, 16), others: Math.max(0, +a.mv.others || 0)};
@@ -1416,11 +1446,11 @@ function cleanAction(a, i) {
   if (a.dmNote) out.dmNote = String(a.dmNote).slice(0, 500);
   if (a.map && typeof a.map === 'object') out.map = {target: String(a.map.target || '').slice(0, 20), auto: !!a.map.auto};
   if (a.message) out.message = true;
-  if (a.escape && typeof a.escape === 'object' && ABILITIES.includes(a.escape.ability)) out.escape = {ability: a.escape.ability, skill: String(a.escape.skill || '').slice(0, 20), dc: Math.max(0, Math.min(40, +a.escape.dc || 0))};
+  if (a.escape && typeof a.escape === 'object' && ABILITIES.includes(a.escape.ability)) out.escape = {ability: a.escape.ability, skill: String(a.escape.skill || '').slice(0, 20), ...(a.escape.alt && ABILITIES.includes(a.escape.alt.ability) ? {alt: {ability: a.escape.alt.ability, skill: String(a.escape.alt.skill || '').slice(0, 20)}} : {}), dc: Math.max(0, Math.min(40, +a.escape.dc || 0))};
   if (a.needItem && typeof a.needItem === 'object' && /^[A-Za-z |]{1,60}$/.test(String(a.needItem.re || ''))) out.needItem = {re: String(a.needItem.re)};
   if (a.zone && typeof a.zone === 'object') out.zone = {enter: !!a.zone.enter, start: !!a.zone.start, end: !!a.zone.end, difficult: !!a.zone.difficult, obscured: String(a.zone.obscured || '').slice(0, 8), once: !!a.zone.once};
   if (!String(i).includes('v')) { // variants of this same spell: one per mode, or per band of the target's Hit Points
-    if (Array.isArray(a.modes)) { const ms = a.modes.slice(0, 12).map((m, j) => { const va = m && m.a ? cleanAction({...m.a, name: a.name}, i + 'v' + j) : null; return va ? {name: String(m.name || 'Mode').slice(0, 40), a: va} : null; }).filter(Boolean); if (ms.length > 1) out.modes = ms; }
+    if (Array.isArray(a.modes)) { const ms = a.modes.slice(0, 12).map((m, j) => { const va = m && m.a ? cleanAction({...m.a, name: a.name}, i + 'v' + j) : null; return va ? {name: String(m.name || 'Mode').slice(0, 40), a: va} : null; }).filter(Boolean); if (ms.length > 1) { out.modes = ms; if (Number.isInteger(a.modeDefault) && ms[a.modeDefault]) out.modeDefault = a.modeDefault; } } // modeDefault: used unless another is picked (a weapon's own damage type)
     if (Array.isArray(a.byHP)) { const bs = a.byHP.slice(0, 8).map((b, j) => { const va = b && b.a ? cleanAction({...b.a, name: a.name}, i + 'vh' + j) : null; return va ? {max: Math.max(0, +b.max || 0), a: va} : null; }).filter(Boolean); if (bs.length) out.byHP = bs; }
   }
   if (a.hand) out.hand = String(a.hand).slice(0, 400); // what the table still does by hand
@@ -1689,6 +1719,13 @@ function d20Test(c, kind, ctx) {
     dice = effectDice(c, 'check', e => !!ctx.skill && e.checkSkill === ctx.skill);
     if (ctx.skill && (((c && c.passives) || {}).skillAdv || []).includes(ctx.skill)) adv.push('an item or feature'); // Boots of Elvenkind: Stealth
   }
+  const pz = (c && c.passives) || {};
+  if (kind === 'attack' && ctx.target) { const tp = ctx.target.passives || {};
+    if (pz.advVsMarked && effs(ctx.target).some(e => String(e.name).startsWith(pz.advVsMarked) && (e.casterId === c.id || e.src === c.id))) adv.push(pz.advVsMarked); // Precise Hunter
+    if (tp.elusive && !hasCond(ctx.target, 'Incapacitated') && !['Paralyzed', 'Petrified', 'Stunned', 'Unconscious'].some(n => hasCond(ctx.target, n))) adv.length = 0; } // Elusive: no attack roll has Advantage against it
+  if (kind === 'check' && ctx.escape && (pz.escapeAdv || []).includes(ctx.escape)) adv.push('Powerful Build'); // checks to end the Grappled condition
+  if (kind === 'save' && ctx.conc && pz.concAdvantage) adv.push('Eldritch Mind');
+  LUCK_NEXT = !!pz.luck; // Halfling Luck: a 1 on the d20 is rolled again
   return {adv, dis, flat, dice, autoFail, bonus: flat + dice.total, bonusText: [dice.text, flatParts.join(', ')].filter(Boolean).join(', ')};
 }
 const testMode = t => t.adv.length && !t.dis.length ? 1 : t.dis.length && !t.adv.length ? -1 : 0;
@@ -1700,7 +1737,7 @@ function modeText(t) {
 }
 // Damage after Immunity, Resistance, Vulnerability and the Resistance cantrip. parts: [{amount, type}]
 function adjustDamage(target, parts, turnKey, ignoreRes) { // ignoreRes: damage types that ignore Resistance (Boon of Irresistible Offense)
-  let total = 0; const notes = [], usedEffects = [];
+  let total = 0; const notes = [], usedEffects = [], spent = [];
   parts.forEach(pt => {
     let amt = pt.amount; const type = pt.type || '';
     const rz = ((target.effects) || []).find(e => e.resistType && e.resistType.toLowerCase() === type.toLowerCase() && e.usedAt !== turnKey && !usedEffects.includes(e.id));
@@ -1713,7 +1750,9 @@ function adjustDamage(target, parts, turnKey, ignoreRes) { // ignoreRes: damage 
     if (type && (listHas(target.vul, type) || effHas('vuln')) && amt) { notes.push(`Vulnerable to ${esc(type)}`); amt *= 2; }
     total += amt;
   });
-  return {total, notes, usedEffects};
+  { const hv = ((target.effects) || []).find(e => e.halveNext && !usedEffects.includes(e.id)); if (hv && total > 0) { total = Math.floor(total / 2); notes.push(`${esc(hv.name)} halves it`); usedEffects.push(hv.id); spent.push(hv.id); } // Uncanny Dodge
+    const rd = ((target.effects) || []).find(e => e.reduceNext && !usedEffects.includes(e.id) && (!e.reduceNext.types || parts.some(pt => e.reduceNext.types.includes(pt.type)))); if (rd && total > 0) { const r = parseDamage(rd.reduceNext.dice); const cut = Math.min(total, r.total); total -= cut; notes.push(`${esc(rd.name)} reduces it by ${r.total}${total === 0 ? ' (to 0)' : ''}`); usedEffects.push(rd.id); spent.push(rd.id); } } // Deflect Attacks, Slow Fall
+  return {total, notes, usedEffects, spent};
 }
 // Stats as they stand right now: the sheet's own value plus whatever effects are on the creature.
 const effs = c => (c && c.effects) || [];
@@ -2449,10 +2488,12 @@ function App() {
   const runningOf = c => (c && c.running || []).filter(r => r && r.a && (!r.turnOnly || r.turnOnly === `${round}:${activeId}`) && (!r.conc || (c.conc && c.conc.name === r.conc)) && (!r.concBy || ((combatants.find(x => x.id === r.concBy) || {}).conc || {}).name === r.concName));
   const runActions = c => runningOf(c).map(r => ({...r.a, id: 'run-' + r.id, runId: r.id, name: r.name, activation: r.act === 'free' ? 'free' : r.act, rerun: true, detail: `Use again · ${ACTIVATIONS[r.act] || 'no action'} · nothing spent`}));
   // Grapple and Shove (options of an Unarmed Strike): the target can be no more than one size larger than you.
+  const bestSave = (t, list) => Array.isArray(list) && list.length ? list.slice().sort((a, b) => ((t.saves || {})[b] ?? mod((t.scores || {})[b] ?? 10)) - ((t.saves || {})[a] ?? mod((t.scores || {})[a] ?? 10)))[0] : '';
   const grabActions = c => { if (!c || !c.sheet || !c.ownActions) return [];
-    const dc = 8 + mod((c.scores || {}).Strength ?? 10) + profBonus(c.level || 1), base = {type: 'save', tag: 'save', activation: 'action', unarmed: true, saveAbility: 'Strength', dc, fromSheet: true, tgt: {kind: 'creature', self: 'no', sizeOver: 1}, range: {kind: 'touch', feet: 0}};
-    return [{...base, id: 'grab-g', name: 'Grapple', onFail: {conds: [{name: 'Grappled'}]}, detail: `Action · DC ${dc} Str or Dex save · Grappled · no more than one size larger than you`, desc: 'An Unarmed Strike option. The target makes a Strength or Dexterity saving throw (it chooses which). On a failure it has the Grappled condition. It can be no more than one size larger than you, and you need a free hand.', hand: 'The target chooses Strength or Dexterity for the save; the app rolls Strength.'},
-      {...base, id: 'grab-s', name: 'Shove', onFail: {conds: [{name: 'Prone'}]}, detail: `Action · DC ${dc} Str or Dex save · Prone, or pushed 5 feet · no more than one size larger than you`, desc: 'An Unarmed Strike option. The target makes a Strength or Dexterity saving throw (it chooses which). On a failure you either push it 5 feet away or give it the Prone condition. It can be no more than one size larger than you.', hand: 'The target chooses Strength or Dexterity; the app rolls Strength and applies Prone. If you push it 5 feet instead, remove Prone.'}];
+    const dc = 8 + mod((c.scores || {}).Strength ?? 10) + profBonus(c.level || 1), base = {type: 'save', tag: 'save', activation: 'action', unarmed: true, saveAbility: 'Strength', saveBest: ['Strength', 'Dexterity'], dc, fromSheet: true, tgt: {kind: 'creature', self: 'no', sizeOver: 1}, range: {kind: 'touch', feet: 0}};
+    return [{...base, id: 'grab-g', name: 'Grapple', freeHand: true, escape: {ability: 'Strength', skill: 'Athletics', alt: {ability: 'Dexterity', skill: 'Acrobatics'}, dc}, onFail: {conds: [{name: 'Grappled'}]}, detail: `Action · DC ${dc} Str or Dex save · Grappled · no more than one size larger than you`, desc: 'An Unarmed Strike option. The target makes a Strength or Dexterity saving throw (it chooses which). On a failure it has the Grappled condition. It can be no more than one size larger than you, and you need a free hand.', hand: ''},
+      {...base, id: 'grab-s', name: 'Shove (Prone)', onFail: {conds: [{name: 'Prone'}]}, detail: `Action · DC ${dc} Str or Dex save · Prone, or pushed 5 feet · no more than one size larger than you`, desc: 'An Unarmed Strike option. The target makes a Strength or Dexterity saving throw (it chooses which). On a failure it has the Prone condition (or pick Shove (push 5 feet away) to push it instead). It can be no more than one size larger than you.', hand: ''},
+      {...base, id: 'grab-p', name: 'Shove (push 5 feet away)', onFail: {},  detail: `Action · DC ${dc} Str or Dex save · pushed 5 feet away (move its token) · no more than one size larger than you`, desc: 'An Unarmed Strike option. The target makes a Strength or Dexterity saving throw (it chooses which). On a failure you push it 5 feet away (or pick Shove (Prone) to knock it Prone instead). It can be no more than one size larger than you.', hand: 'Move the target 5 feet away from you on the map.'}];
   };
   const actions = viewed ? [...buildActions(viewed), ...grabActions(viewed), ...runActions(viewed)] : [];
   const pendingList = isDM ? combatants.filter(c => c.pending) : [];
@@ -2579,13 +2620,13 @@ function App() {
     const b = effectiveInitBonus(c), t = parseInt(typed, 10);
     let v, how;
     if (Number.isFinite(t)) { v = t; how = 'entered by hand'; }
-    else { const sw = curAdv(); useRollSwitch(); const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0)); v = r.total + b; how = `${rollsTxt(r)} ${signed(b)}${(c.passives || {}).initiativeAdvantage ? ' with Advantage' : ''}`; }
+    else { const sw = curAdv(); useRollSwitch(); LUCK_NEXT = !!(c.passives || {}).luck; const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0)); v = r.total + b; how = `${rollsTxt(r)} ${signed(b)}${(c.passives || {}).initiativeAdvantage ? ' with Advantage' : ''}`; }
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, initiative: v, initFor: initCall} : x.after === c.id ? {...x, initiative: v, initFor: initCall} : x));
     setLog(prev => [...prev, stamp({type:'roll', ...(isDM && !c.owner && hideRolls ? {dmOnly: true} : {}), html:`<strong>${esc(c.name)}</strong> · Initiative<br/><span class="log-result">🎲 ${v}</span><div class="log-dice">${esc(how)}</div>`})]);
   };
   // Clicking Init on the sheet: the Initiative roll for the turn order when the DM has called for it, or a roll on its own
   const rollInitFree = (c) => { if (initCall && !(c.initFor === initCall)) { rollInit(c); return; }
-    const b = effectiveInitBonus(c), sw = advantage; useRollSwitch(); const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0));
+    const b = effectiveInitBonus(c), sw = advantage; useRollSwitch(); LUCK_NEXT = !!(c.passives || {}).luck; const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0));
     setLog(prev => [...prev, stamp({type: 'roll', html: `<strong>${esc(c.name)}</strong> · Initiative<br/><span class="log-result">🎲 ${r.total + b}</span><div class="log-dice">${rollsTxt(r)} ${signed(b)}${(c.passives || {}).initiativeAdvantage ? ' with Advantage' : ''}</div>`})]); };
   const glossText = (term) => { const g = (window.HBA_GLOSSARY || []).find(e => e.n.replace(/ \[.*\]$/, '').toLowerCase() === String(term).toLowerCase()); return g ? g.t.replace(/\*\*?|_/g, '').replace(/\\\[|\\\]/g, '') : ''; };
   // The DM shows a creature's card in the Combat Log: to everyone, or to one character only
@@ -2621,15 +2662,35 @@ function App() {
     if (kind === 'prof') return {title: `Proficiency Bonus +${c.pb || 2}`, lines: [['Character level', c.level || '?']], text: glossText('Proficiency')};
     if (kind === 'hp') return {title: `Hit Points ${c.currentHP} of ${totalHP(c)}`, lines: [['Hit Point maximum', c.maxHP], ...why('hp').map(([n, v]) => [n, signed(v)]), ...live('hp'), ...(+c.tempHP ? [['Temporary Hit Points', c.tempHP]] : [])], text: glossText('Hit Points')};
     if (kind === 'action') { const a = buildActions(c).find(x => x.id === arg) || {}; const lines = [];
-      if (a.atk != null && a.type === 'attack') lines.push(['Attack roll', signed(a.atk)]); if (a.dc) lines.push(['Save DC', `${a.dc} ${a.saveAbility || ''}`]);
-      (a.dmgList || []).forEach(d => lines.push(['Damage', `${d[0]} ${d[1] || ''}`])); if (a.usesMax) lines.push(['Uses', `${usesLeft(c, a)} of ${a.usesMax}`]); if (a.pool) lines.push(['Spends', `${a.cost || 1} ${a.pool}`]); if (a.item) lines.push(['From the item', a.item]);
+      if (a.atk != null && a.type === 'attack') lines.push(['Attack roll', signed(a.atk + (a.weapon && a.ranged ? +((c.passives || {}).archery) || 0 : 0))]); if (a.dc) lines.push(['Save DC', `${a.dc} ${a.saveAbility || ''}`]);
+      (a.dmgList || []).forEach(d => lines.push(['Damage', `${d[0]} ${d[1] || ''}`]));
+      { const pz = c.passives || {}; if (a.weapon && a.ranged && +pz.archery) lines.push(['Archery', `${signed(+pz.archery)} to hit (included above)`]);
+        if (a.weapon && a.twoHanded && !a.ranged && pz.gwf) lines.push(['Great Weapon Fighting', 'A 1 or 2 on a damage die counts as 3']);
+        if (a.weapon && pz.savage) lines.push(['Savage Attacker', 'Once per turn on a hit, the damage is rolled twice and the higher kept']);
+        if ((a.weapon || a.unarmed) && pz.grappler) lines.push(['Grappler', 'Advantage against a creature you are grappling']);
+        if (a.unarmed && pz.punchAndGrab) lines.push(['Punch and Grab', 'Once per turn a hit with the Attack action also makes the target save against your Grapple']);
+        if ((a.weapon || a.unarmed) && pz.irresistible) lines.push(['Boon of Irresistible Offense', `Ignores Resistance to Bludgeoning, Piercing and Slashing; +${pz.irresistible} damage on a 20`]);
+        if (pz.prowess) lines.push(['Peerless Aim', c.prowessUsed ? 'Used' : 'A miss can become a hit']); } if (a.usesMax) lines.push(['Uses', `${usesLeft(c, a)} of ${a.usesMax}`]); if (a.pool) lines.push(['Spends', `${a.cost || 1} ${a.pool}`]); if (a.item) lines.push(['From the item', a.item]);
       return {title: a.name || 'Action', lines, text: a.desc || ''}; }
     if (kind === 'item') { const it = (sh.itemsFull || []).find(x => x.name === arg) || {name: arg}; return {title: it.name, lines: [[it.type || 'Item', [it.rarity, it.attune ? (it.attuned ? 'attuned' : 'needs Attunement') : ''].filter(Boolean).join(', ')]], text: it.d || ''}; }
     if (kind === 'cond') return {title: arg, lines: [], text: glossText(arg) || 'No glossary entry.'};
     if (kind === 'eff') { const e = effs(c).find(x => x.id === arg) || {}; return {title: e.name || 'Effect', lines: [['From', e.byName || e.source || ''], ['Time left', +e.left > 0 ? timeText(e.left) : 'until it ends']], text: describeEffect(e) + (e.note ? `. ${e.note}` : '')}; }
+    if (kind === 'card' && !isDM && !canControl(c)) { const hunter = combatants.find(h => canControl(h) && (h.passives || {}).revealMarked && effs(c).some(e => String(e.name).startsWith(h.passives.revealMarked) && (e.casterId === h.id || e.src === h.id)));
+      if (hunter && !c.owner) { const d = defensesOf(c); return {title: c.name, lines: d.length ? d.map(([k, v]) => [{res: 'Resistance', imm: 'Immunity', vul: 'Vulnerability', ci: 'Condition Immunity'}[k] || k, v]) : [['Defenses', 'No Immunities, Resistances or Vulnerabilities']], text: `${hunter.name} knows these while it is marked (Hunter's Lore).`}; } }
     if (kind === 'card' && !isDM && !canControl(c) && !c.owner) return {title: c.name, lines: [], text: "The DM has not shared this creature's card. The DM can show it to everyone in the Combat Log, or to one character."};
     if (kind === 'card') { const vis = isDM || canControl(c) || !veil(c); return {title: c.name, lines: [...(vis ? [['Armor Class', effectiveAC(c)], ['Hit Points', `${c.currentHP} of ${totalHP(c)}${+c.tempHP ? ` + ${c.tempHP} temporary` : ''}`], ['Speed', `${effectiveSpeed(c)} ft.`]] : []), ['Initiative', c.initiative ?? '-'],
       ...(c.conditions || []).map(k => ['Condition', k]), ...effs(c).map(e => ['Effect', `${e.name}${+e.left > 0 ? ` (${timeText(e.left)} left)` : ''}`]), ...defensesOf(c).map(([k, v]) => [{res: 'Resistance', imm: 'Immunity', vul: 'Vulnerability', ci: 'Condition Immunity'}[k], v])], text: c.sub || ''}; }
+    if (kind === 'boon') { const b = (sh.boons || []).find(x => x.name === arg) || {}; return {title: `Epic Boon: ${arg}`, lines: [], text: b.text || ''}; }
+    if (kind === 'feature') { const f = (sh.featureList || [])[+arg] || {}, pz = c.passives || {}, n = String(f.n || '').replace(/^Feat: /, '');
+      const PASSIVE_LINES = [['Alert', pz.initiativeSwap, [['Initiative', `+${c.pb || 2} Proficiency Bonus (in the Initiative breakdown)`], ['Initiative Swap', 'Offered in round 1 of a fight']]],
+        ['Defense', true, [['Armor Class', '+1 while wearing armor (in the Armor Class breakdown)']]], ['Archery', pz.archery, [['Ranged weapon attacks', `${signed(+pz.archery || 2)} (already in To Hit)`]]],
+        ['Great Weapon Fighting', pz.gwf, [['Damage', 'A 1 or 2 on a damage die counts as 3 with a Melee weapon held in two hands']]], ['Two-Weapon Fighting', true, [['Light extra attack', 'Adds your ability modifier to its damage']]],
+        ['Savage Attacker', pz.savage, [['Weapon damage', 'Once per turn on a hit, rolled twice and the higher is used']]], ['Grappler', pz.grappler, [['Attack rolls', 'Advantage against a creature you are grappling'], ['Punch and Grab', 'Once per turn, an Unarmed Strike hit also makes the target save against your Grapple']]],
+        ['Boon of Combat Prowess', pz.prowess, [['Peerless Aim', c.prowessUsed ? 'Used, back at the start of your next turn' : 'Ready: a miss can become a hit']]], ['Boon of Dimensional Travel', pz.blinkSteps, [['Blink Steps', `Teleport up to ${pz.blinkSteps} feet after the Attack or Magic action`]]],
+        ['Boon of Fate', pz.improveFate, [['Improve Fate', c.fateUsed ? 'Used, back on Initiative or a rest' : 'Ready (button in the Epic Boon box)']]], ['Boon of Irresistible Offense', pz.irresistible, [['Overcome Defenses', 'Your Bludgeoning, Piercing and Slashing damage ignores Resistance'], ['Overwhelming Strike', `+${pz.irresistible} damage on a 20`]]],
+        ['Boon of Spell Recall', pz.freeCasting, [['Free Casting', `A d4 when you cast with a Level 1 to ${pz.freeCasting} slot; on its level the slot is not spent`]]], ['Boon of Truesight', true, [['Senses', 'Truesight 60 ft.']]]];
+      const hit = PASSIVE_LINES.find(([k, on]) => on && n.startsWith(k));
+      return {title: n || 'Feature', lines: hit ? hit[2] : [], text: f.d || ''}; }
     if (kind === 'term') return {title: arg, lines: [], text: glossText(arg) || 'No glossary entry.'};
     return null; };
   const onExplainClick = (ev) => { if (!explainOn) return; const el = ev.target.closest && ev.target.closest('[data-ex]'); if (ev.target.closest && ev.target.closest('[data-testid=explain-toggle], [data-testid=explain-box]')) return;
@@ -2648,9 +2709,14 @@ function App() {
   useEffect(() => { if (isDM && initCall && !combatStarted && inPlay.length > 0 && needInit.length === 0) beginCombat(combatants); }, [initCall, combatants]);
   const beginCombat = (list) => {
     setInitCall(0);
-    const sorted = byInit(list);
+    let sorted = byInit(list);
     const first = sorted.find(c => !c.pending);
-    setCombatants(sorted.map(c => ({...c, turn: {}, fateUsed: false, swapDone: false, fight: {dealt: 0, taken: 0}, recovered: null, fightStart: plain({slotsUsed: c.slotsUsed || {}, poolUsed: c.poolUsed || {}, used: c.used || {}})})));
+    const regainLog = [];
+    sorted = sorted.map(c => { const list = (c.passives || {}).regainOnInitiative || []; if (!list.length) return c; const pu = {...(c.poolUsed || {})};
+      list.forEach(r => { const q = ((c.sheet || {}).pools || {})[r.pool]; if (!q) return; const left = q.max - (+pu[r.pool] || 0); if (left >= r.to || (r.ifEmpty && left > 0)) return; const want = Math.min(q.max, r.to); pu[r.pool] = Math.max(0, q.max - want); regainLog.push(`${c.name}: ${r.pool} ${left} to ${want}`); });
+      return {...c, poolUsed: pu}; });
+    if (regainLog.length) setTimeout(() => setLog(prev => [...prev, stamp({type: 'roll', html: `<strong>Rolling Initiative</strong>${regainLog.map(l => `<div class="log-detail">${esc(l)}</div>`).join('')}`})]), 0);
+    setCombatants(sorted.map(c => ({...c, turn: {}, reflexDone: false, reflexNow: false, fateUsed: false, swapDone: false, fight: {dealt: 0, taken: 0}, recovered: null, fightStart: plain({slotsUsed: c.slotsUsed || {}, poolUsed: c.poolUsed || {}, used: c.used || {}})})));
     setActiveId(first ? first.id : '');
     setCombatStarted(true);
     setLog([stamp({type:'round',text:`Round 1`})]);
@@ -2662,10 +2728,16 @@ function App() {
     if (!inPlay.some(c => c.currentHP > 0)) return;
     { const cur = combatants.find(c => c.id === activeId); if (cur && +cur.extraTurns > 0) { // Time Stop: the same creature goes again
       setCombatants(prev => prev.map(c => c.id === cur.id ? {...c, extraTurns: +c.extraTurns - 1, turn: {}} : c)); setLog(prev => [...prev, stamp({type:'round', text:`${cur.name} takes another turn (${+cur.extraTurns - 1} more after this)`})]); setSelectedAction(null); setTargetIds([]); return; } }
+    { const cur = combatants.find(c => c.id === activeId), base = cur && cur.reflexNow ? (combatants.find(c => c.id === cur.reflexFrom) || cur) : cur; // Thief's Reflexes: a second turn in the first round, at Initiative minus 10
+      if (round === 1 && base) { const n = inPlay.findIndex(c => c.id === base.id) + 1, nextInit = n > 0 && n < inPlay.length ? effectiveInit(inPlay[n]) : -Infinity, curInit = effectiveInit(base);
+        const rc = inPlay.find(c => (c.passives || {}).thiefsReflexes && !c.reflexDone && c.currentHP > 0 && !isAway(c) && effectiveInit(c) - 10 <= curInit && effectiveInit(c) - 10 > nextInit);
+        if (rc) { setCombatants(prev => prev.map(c => c.id === rc.id ? {...c, reflexDone: true, reflexNow: true, reflexFrom: base.id, turn: {}} : c.id === cur.id && cur.reflexNow ? {...c, reflexNow: false} : c));
+          setLog(prev => [...prev, stamp({type: 'round', text: `${rc.name} takes a second turn (Thief's Reflexes, Initiative ${effectiveInit(rc) - 10})`})]); setActiveId(rc.id); setSelectedAction(null); setTargetIds([]); return; } } }
     let work = combatants; const entries = [], due = [];
+    { const cur = combatants.find(c => c.id === activeId); if (cur && cur.reflexNow) work = work.map(c => c.id === cur.id ? {...c, reflexNow: false} : c); }
     // Saves that fall at the end of the turn that is finishing
     if (inPlay.some(c => c.id === activeId)) due.push(...dueCondSaves(work, activeId, 'end'));
-    let idx = inPlay.findIndex(c => c.id === activeId);
+    let idx = inPlay.findIndex(c => c.id === (((combatants.find(x => x.id === activeId) || {}).reflexNow && (combatants.find(x => x.id === activeId) || {}).reflexFrom) || activeId));
     let safety = 0;
     let wrapped = false;
     do {
@@ -2685,6 +2757,9 @@ function App() {
       const trackers = world.trackers.map(x => { if (x.per !== 'round') return x; const k = (x.rounds || 0) + 1; if (k < (x.every || 1)) return {...x, rounds: k}; const r = stepTracker({...x, rounds: 0}, 1); lines.push(...r.lines); return r.x; });
       setWorld({...world, trackers}); if (lines.length) entries.push(stamp({type: 'roll', ...(world.show ? {} : {dmOnly: true}), html: `<strong>The world</strong>${lines.map(l => `<div class="log-detail">${esc(l)}</div>`).join('')}`})); }
     const upId = inPlay[idx].id;
+    { const up = work.find(c => c.id === upId), pz = (up && up.passives) || {};
+      if (up && pz.heroicEachTurn && !up.heroic) { work = work.map(c => c.id === upId ? {...c, heroic: true} : c); entries.push(stamp({type: 'roll', forId: upId, html: `<strong>${esc(up.name)}</strong> gains Heroic Inspiration (Heroic Warrior)`})); }
+      if (up && +pz.heroicRally > 0 && up.currentHP > 0 && up.currentHP * 2 <= totalHP(up)) { const gain = Math.min(+pz.heroicRally, totalHP(up) - up.currentHP); if (gain > 0) { work = work.map(c => c.id === upId ? {...c, currentHP: c.currentHP + gain} : c); entries.push(stamp({type: 'heal', forId: upId, html: `<strong>${esc(up.name)}</strong> regains <span class="log-heal-val">${gain}</span> Hit Points (Heroic Rally)`})); } } }
     // Saves that fall at the start of the turn that is beginning
     due.push(...dueCondSaves(work, upId, 'start'));
     if (due.length) setPrompts(prev => [...prev, ...due.filter(d => !prev.some(q => q.kind === 'repeat' && q.targetId === d.targetId && q.cond === d.cond)).map(d => ({id: newId(), kind: 'repeat', ...d}))]);
@@ -2697,7 +2772,7 @@ function App() {
         [...(c.effects || []).filter(e => e.turnDmg && e.turnDmg.when === when && !e.turnOfCaster), ...work.filter(x => x.id !== cid && x.currentHP > 0).flatMap(x => (x.effects || []).filter(e => e.turnDmg && e.turnOfCaster && e.casterId === cid && e.turnDmg.when === when).map(e => ({...e, _on: x.id})))].forEach(e0 => { const e = e0, cidT = e0._on || cid, c = work.find(x => x.id === cidT); const cur = work.find(x => x.id === cidT), r = parseDamage(e.turnDmg.dice), adj = adjustDamage(cur, [{amount: r.total, type: e.turnDmg.type, dice: e.turnDmg.dice}], turnKey, false), temp = +cur.tempHP || 0, soak = Math.min(temp, adj.total);
           work = work.map(x => x.id !== cidT ? x : {...x, tempHP: temp - soak, currentHP: Math.max(0, x.currentHP - (adj.total - soak)), effects: e.turnDmg.once ? (x.effects || []).filter(y => y.id !== e.id) : x.effects});
           entries.push(stamp({type:'attack', forId: cidT, by: '', html:`<strong>${esc(c.name)}</strong> · ${esc(e.name)}<br/><span class="log-dmg">${adj.total} damage</span> <span class="log-detail">${esc(e.turnDmg.type)}</span><div class="log-dice">${esc(e.turnDmg.dice)} = ${r.total}${adj.notes.length ? ' · ' + adj.notes.join(' · ') : ''}</div>`}));
-          if (adj.total > 0 && cur.conc) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: cidT, actorId: '', actorName: 'Damage', action: {name: `Concentration on ${cur.conc.name}`, dc: Math.min(30, Math.max(10, Math.floor(adj.total / 2))), saveAbility: 'Constitution', concSave: cur.conc.name}})]); });
+          if (adj.total > 0 && cur.conc && !(((cur.passives || {}).concProtect || []).includes(cur.conc.name))) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: cidT, actorId: '', actorName: 'Damage', action: {name: `Concentration on ${cur.conc.name}`, dc: Math.min(30, Math.max(10, Math.floor(adj.total / 2))), saveAbility: 'Constitution', concSave: cur.conc.name}})]); });
         { const ts = (c.effects || []).filter(e => e.turnSave && e.turnSave.when === when && +e.dc > 0).map(e => plain({id: newId(), kind: 'save', by: myId, targetId: c.id, actorId: e.casterId || '', actorName: e.byName || 'The spell', action: {name: `${e.name} (each turn)`, dc: e.dc, saveAbility: e.turnSave.abil, onFail: {effs: [{name: `${e.name}: failed`, note: e.turnSave.text, left: 6}]}}}));
           if (ts.length) setPrompts(prev => [...prev, ...ts]); }
         if (when === 'end') work = work.map(x => x.id !== cid ? x : {...x, running: (x.running || []).map(r => r.grow && r.a && r.a.dmgList ? {...r, grown: (+r.grown || 0) + 1, a: {...r.a, dmgList: r.a.dmgList.map((d, i) => i ? d : [`${d[0]}+${r.grow}`, d[1]])}} : r)});
@@ -2738,7 +2813,7 @@ function App() {
     PROMPT = {adv: (m.hi ? 1 : 0) - (m.lo ? 1 : 0)}; ROLL_R1 = !!m.r1; ROLL_LOW3 = !!m.low3;
     try { return fn(); } finally { PROMPT = null; ROLL_R1 = keep[0]; ROLL_LOW3 = keep[1]; if (String(key).startsWith('init-')) setPromptMods(p => { const n = {...p}; delete n[key]; return n; }); } };
   const promptSwitch = (key) => { const m = promptMods[key] || {}, b = (k, t, tip) => <button key={k} className={`die-btn ${m[k] ? 'has' : ''}`} data-testid={'p-' + k} style={{padding: '1px 6px', fontSize: 12}} aria-pressed={!!m[k]} title={tip} onClick={() => setPromptMods(p => ({...p, [key]: {...(p[key] || {}), [k]: !m[k]}}))}>{t}</button>;
-    return <span className="prompt-switch" data-testid="prompt-switch">{b('hi', '⏫ Adv', 'Roll it with Advantage (roll twice, keep the higher)')}{b('lo', '⏬ Dis', 'Roll it with Disadvantage (roll twice, keep the lower)')}{b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once')}{b('low3', '1 & 2 = 3', 'A 1 or a 2 on a die counts as a 3')}</span>; };
+    return <span className="prompt-switch" data-testid="prompt-switch">{b('hi', '⏫ Adv', 'Roll it with Advantage (roll twice, keep the higher)')}{b('lo', '⏬ Dis', 'Roll it with Disadvantage (roll twice, keep the lower)')}{b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once')}{b('low3', '1s & 2s = 3s', 'A 1 or a 2 on a die counts as a 3')}</span>; };
   const curAdv = () => PROMPT ? PROMPT.adv : advantage;
   const useRollSwitch = () => { if (PROMPT) return; if (advantage || dmgTwiceRef.current) { setAdvantage(0); dmgTwiceRef.current = 0; setDmgTwice(0); } if (rollMods.hi || rollMods.lo || rollMods.r1 || rollMods.low3) { setRollMods(m => ({...m, hi: false, lo: false, r1: false, low3: false})); setTimeout(() => { ROLL_R1 = false; ROLL_LOW3 = false; }, 0); } }; // the roll being made right now still uses them
   const useLow3 = () => { if (PROMPT) return; if (ROLL_LOW3 || ROLL_R1) { ROLL_LOW3 = false; ROLL_R1 = false; setRollMods(m => ({...m, low3: false, r1: false})); } };
@@ -2747,7 +2822,7 @@ function App() {
     return <span className="roll-switch" data-testid={'roll-switch-' + where}>
       <span className="roll-switch-row"><span className="pp-muted" style={{fontSize: 12}} title="Each lit button applies to the next roll you make yourself, then turns off. A roll you are asked for has its own buttons">Next roll:</span>
         {b('hi', '2x ⏫ Highest', 'Roll twice and keep the higher', 'roll-high')}{b('lo', '2x ⏬ Lowest', 'Roll twice and keep the lower', 'roll-low')}</span>
-      <span className="roll-switch-row">{b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once', 'roll-r1')}{b('low3', '1 & 2 = 3', 'On the next roll, a 1 or a 2 on a die counts as a 3', 'roll-low3')}
+      <span className="roll-switch-row">{b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once', 'roll-r1')}{b('low3', '1s & 2s = 3s', 'On the next roll, a 1 or a 2 on a die counts as a 3', 'roll-low3')}
         <button className="die-btn" data-testid="roll-clear" style={{padding: '2px 7px'}} title="Turn every button here off" onClick={clearRollMods}>Clear all</button></span></span>; };
   const rollDamageOnce = (action, crit, lowAs3) => {
     const list = action.dmgList && action.dmgList.length ? action.dmgList : [[action.dmg, action.dmgType]];
@@ -2767,6 +2842,7 @@ function App() {
     const dealt = halve ? parts.map(pt => ({...pt, amount: Math.floor(pt.amount / 2)})) : parts;
     const adj = adjustDamage(tgt, dealt, turnKey, ignoreRes);
     if (adj.usedEffects.length) setCombatants(prev => prev.map(c => c.id !== tgt.id ? c : {...c, effects: (c.effects || []).map(e => adj.usedEffects.includes(e.id) ? {...e, usedAt: turnKey} : e)}));
+    if ((adj.spent || []).length) setCombatants(prev => prev.map(c => c.id !== tgt.id ? c : {...c, effects: (c.effects || []).filter(e => !adj.spent.includes(e.id))})); // used up by this damage
     if (adj.total > 0) updateHP(tgt.id, -adj.total);
     if (adj.total > 0) endByFlag(tgt, 'endsOnDamage', 'It took damage.');
     { const act = actionRef.current || {}, by = combatants.find(c => c.id === actingRef.current), soakT = Math.min(+tgt.tempHP || 0, adj.total), real = adj.total - soakT, drops = real > 0 && tgt.currentHP > 0 && tgt.currentHP - real <= 0;
@@ -2790,8 +2866,8 @@ function App() {
     }
     if (adj.total > 0 && combatStarted) { const by = actingRef.current; setCombatants(prev => prev.map(c => c.id === tgt.id ? {...c, fight: {...(c.fight || {}), taken: (+((c.fight || {}).taken) || 0) + adj.total}} : c.id === by ? {...c, fight: {...(c.fight || {}), dealt: (+((c.fight || {}).dealt) || 0) + adj.total}} : c)); }
     const concDC = Math.min(30, Math.max(10, Math.floor(adj.total / 2)));
-    const concNote = adj.total > 0 && tgt.conc ? `<div class="log-detail" style="color:#fff176">${esc(tgt.name)} is asked for a DC ${concDC} Constitution saving throw to maintain Concentration on ${esc(tgt.conc.name)}.</div>` : '';
-    if (adj.total > 0 && tgt.conc) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: tgt.id, actorId: '', actorName: 'Damage',
+    const concNote = adj.total > 0 && tgt.conc && (((tgt.passives || {}).concProtect || []).includes(tgt.conc.name)) ? `<div class="log-detail">Damage can't break ${esc(tgt.name)}'s Concentration on ${esc(tgt.conc.name)}.</div>` : adj.total > 0 && tgt.conc ? `<div class="log-detail" style="color:#fff176">${esc(tgt.name)} is asked for a DC ${concDC} Constitution saving throw to maintain Concentration on ${esc(tgt.conc.name)}.</div>` : '';
+    if (adj.total > 0 && tgt.conc && !(((tgt.passives || {}).concProtect || []).includes(tgt.conc.name))) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: tgt.id, actorId: '', actorName: 'Damage',
       action: {name: `Concentration on ${tgt.conc.name}`, dc: concDC, saveAbility: 'Constitution', concSave: tgt.conc.name}})]);
     const rolled = parts.map(pt => `${pt.amount} ${esc(pt.type)}`.trim()).join(' + ');
     const raw = parts.reduce((t, pt) => t + pt.amount, 0);
@@ -2869,7 +2945,7 @@ function App() {
     actingRef.current = actor ? actor.id : ''; actionRef.current = action;
     const saveAbility = action.saveAbility;
     const saveMod = tgt.saves?.[saveAbility] ?? mod(tgt.scores?.[saveAbility]??10);
-    const t = d20Test(tgt, 'save', {ability: saveAbility, conditions: ((action.onFail || {}).conds || []).map(k => k.name), spell: !!action.spell});
+    const t = d20Test(tgt, 'save', {ability: saveAbility, conditions: ((action.onFail || {}).conds || []).map(k => k.name), spell: !!action.spell, conc: !!action.concSave});
     if (action.advNow) t.adv.push(action.advIf || 'the circumstances');
     effs(tgt).forEach(e => { if (e.saveAdvVs && ((action.onFail || {}).conds || []).some(k => k.name === e.saveAdvVs || String(action.name).includes(e.saveAdvVs))) t.adv.push(e.name); });
     if (action.auto && (action.auto.disTypes || []).includes(creatureType(tgt))) t.dis.push(`it is a ${creatureType(tgt)}`);
@@ -2877,20 +2953,22 @@ function App() {
     const roll = keep || d20Spent(roll20(testMode(t))); // the d20 is the roll asked for; damage that follows is not changed by its buttons
     const sec = x => isDM && !tgt.owner ? `<span class="dm-secret">${x}</span>` : x; // the DM's own numbers can be kept from players
     let saveTotal = roll.total + saveMod + t.bonus;
+    { const sc = +((tgt.scores || {})[saveAbility]); if (((tgt.passives || {}).scoreFloor || []).includes(saveAbility) && saveTotal < sc) { t.bonusText = [t.bonusText, `Indomitable Might: total becomes ${sc}`].filter(Boolean).join(', '); saveTotal = sc; } }
     let inspired = null;
     if (!t.autoFail && saveTotal < action.dc) { inspired = tryInspire(tgt, action.dc - saveTotal); if (inspired) saveTotal += inspired.add; }
-    const passed = ruled ? ruled === 'pass' : (!t.autoFail && saveTotal >= action.dc);
+    if (+action.coverBonus) { saveTotal += +action.coverBonus; t.bonusText = [t.bonusText, `${+action.coverBonus === 5 ? 'Three-Quarters' : 'Half'} Cover +${action.coverBonus}`].filter(Boolean).join(', '); }
+    const passed = action.sculpted ? true : ruled ? ruled === 'pass' : (!t.autoFail && saveTotal >= action.dc); // Sculpt Spells: it succeeds, and takes no damage
     const hasDmg = (action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0');
     let dmgHtml = '';
     const evade = (tgt.passives || {}).evasion && saveAbility === 'Dexterity' && action.halfOnSave && !hasCond(tgt, 'Incapacitated'); // Evasion: none on a success, half on a failure
-    const parts = Array.isArray(action.rolled) && action.rolled.length ? action.rolled : hasDmg ? rollDamageParts(action, false) : [];
+    const parts = action.sculpted ? [] : Array.isArray(action.rolled) && action.rolled.length ? action.rolled : hasDmg ? rollDamageParts(action, false) : [];
     if (parts.length && evade) dmgHtml = passed ? '<div class="log-detail">Evasion: no damage</div>' : dealDamage(tgt, parts, true).html + '<div class="log-detail">Evasion: half damage</div>';
     else if (parts.length && passed && action.fullOnSave) dmgHtml = dealDamage(tgt, parts, false).html; // the damage came with the hit; the save only decides the rest
     else if (parts.length && (!passed || action.halfOnSave)) dmgHtml = dealDamage(tgt, parts, passed).html;
     const condHtml = applyOutcome(tgt, passed ? action.onSuccess : action.onFail, action, actor);
     const extras = [t.bonusText, inspired && inspired.text].filter(Boolean).join(', ');
     return {
-      roll, d20: t.autoFail ? null : {tot: saveTotal, vs: action.dc, k: 'save'},
+      roll, d20: t.autoFail ? null : {tot: saveTotal, vs: action.dc, k: 'save', seq: turnSeq(), die: roll.total, who: tgt.id},
       type: passed ? 'save-pass' : 'save-fail',
       html:`<strong>${actorName}</strong> → <strong>${targetName}</strong><br/>
             <span class="log-result">${esc(action.name)}</span><br/>
@@ -2940,19 +3018,19 @@ function App() {
   const canEndConc = e => { const t = e && e.concEnd ? combatants.find(c => c.id === e.concEnd.id) : null; return !!(t && canControl(t) && t.conc && t.conc.name === e.concEnd.name); };
   const canOverride = e => isDM && e && e.ov && !e.void && round - (+e.ov.r || 0) <= 1;
   // The DM reverses a result that is still in the Combat Log: what it did is undone, then it is resolved the other way with the same roll.
-  const overrideEntry = (e, why, newTot) => {
+  const overrideEntry = (e, why, newTot, tag) => {
     if (!why && !canOverride(e)) return;
     const ov = why ? {...e.ov, why, newTot} : e.ov;
     if (room && db) db.ref('rooms/' + room + '/log/' + e.id + '/void').set(true);
     setLogRaw(prev => prev.map(x => x.id === e.id ? {...x, void: true} : x));
     undoDelta(ov.d);
-    if (ov.k === 'atk') resolve({...ov.ctx, replay: true, force: ov.hit ? 'miss' : 'hit', forceWhy: why || ''});
+    if (ov.k === 'atk') resolve({...ov.ctx, replay: true, force: ov.hit ? 'miss' : 'hit', forceWhy: why || '', ...(tag ? {tag} : {}), ...(e.d20 && e.d20.cover ? {cover: e.d20.cover} : {})});
     else {
       const tgt = combatants.find(c => c.id === ov.q.targetId); if (!tgt) return;
       const actor = combatants.find(c => c.id === ov.q.actorId) || null, ruled = ov.passed ? 'fail' : 'pass';
       const tr = track(() => resolveSave(ov.q.action, ov.q.actorName || 'Someone', actor, tgt, ruled, ov.roll, why));
       const {roll, ...rest} = tr.res; if (!rest.d20) delete rest.d20; if (ov.why && rest.d20) rest.d20 = {...rest.d20, tot: ov.newTot ?? rest.d20.tot};
-      setLog(prev => [...prev, stamp({...rest, ...concFail(ov.q.action, rest, tgt), forId: tgt.id, by: myId, ov: plain({k: 'save', r: round, passed: ruled === 'pass', d: tr.d, q: ov.q, roll})})]);
+      setLog(prev => [...prev, stamp({...rest, ...(tag ? {tag} : {}), ...concFail(ov.q.action, rest, tgt), forId: tgt.id, by: myId, ov: plain({k: 'save', r: round, passed: ruled === 'pass', d: tr.d, q: ov.q, roll})})]);
     }
   };
   removePromptRef.current = removePrompt;
@@ -3154,10 +3232,14 @@ function App() {
     if (ammoKind(a) && (ammoOn || c.ammoOn) && ammoOf(c, ammoKind(a)).left <= 0) return `No ${ammoKind(a)} left.`;
     if (a.gp && compMode !== 'full' && (a.gpConsumed || !(c.paid || {})[String(a.name)]) && (+c.gold || 0) < a.gp) return `The Material component costs ${a.gp} GP${a.gpConsumed ? ' each time' : ''} and ${c.name} has ${+c.gold || 0} GP.`;
     if (a.weapon && tracked) {
-      const base = a.name.replace(/ \(two hands\)$/, ''), i = hands.indexOf(base);
+      const base = a.name.replace(/ \((two hands|Light, extra attack)\)$/, ''), i = hands.indexOf(base);
       if (i < 0) return `${base} is not in hand.`;
       if (a.twoHanded) { const other = hands[1 - i]; if (other && other !== base) return `${base} needs both hands, and the other hand holds ${other}.`; }
     }
+    if (a.extraCost && poolLeft(c, a.extraCost.pool) < a.extraCost.cost) return `It needs ${a.extraCost.cost} ${a.extraCost.pool}, and ${poolLeft(c, a.extraCost.pool)} ${poolLeft(c, a.extraCost.pool) === 1 ? 'is' : 'are'} left.`;
+    if (a.spell && (c.blocks || []).some(b => b.kind === 'form' && /wild shape/i.test(String(b.source || b.name || '')))) { if (!(c.passives || {}).castInForm) return "Spells can't be cast in Wild Shape."; if (a.matCost || a.matConsumed) return 'Beast Spells: not a spell whose Material component has a cost or is used up.'; }
+    if (a.spendSlot && !(a.spendSlot === 'pact' ? ((c.sheet || {}).pact && slotsLeft(c, c.sheet.pact.level) > 0) : a.spendSlot === 'any' ? [1, 2, 3, 4, 5, 6, 7, 8, 9].some(l => slotsLeft(c, l) > 0) : slotsLeft(c, +a.spendSlot) > 0)) return 'It costs a spell slot, and none is left.';
+    if (a.freeHand && tracked && !hands.includes('') && !(c.passives || {}).grappleNoHand) return 'Grapple needs a free hand to grab the target.';
     if (a.spell && compMode && a.comp) {
       const foci = focusItems(c), has = k => a.comp.includes(k);
       if (has('V') && silenced(c)) return 'Verbal component: it cannot be spoken while Silenced.';
@@ -3271,7 +3353,7 @@ function App() {
       setCompOwned(active.id, action.name, false);
       setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> · ${esc(action.name)}<br/><div class="log-dice">Material component consumed: ${esc(action.mat || '')}</div>`})]);
     }
-    const asRitual = !!(action.ritual && action.slot && (castLevel === -1 || castOptions(active, action).length === 0));
+    const asRitual = !!(action.ritual && action.slot && (action.ritualOnly || castLevel === -1 || castOptions(active, action).length === 0));
     if (asRitual) { castLvl = action.slot; setCastLevel(0); setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(active.name)}</strong> casts <span class="log-result">${esc(action.name)}</span> as a Ritual<div class="log-detail">It takes 10 minutes longer to cast and uses no spell slot.</div>`})]); }
     if (action.gp && active.sheet && active.ownActions && compMode !== 'full') { // a Material component with a cost is paid for in gold
       const nm = String(action.name), owed = action.gpConsumed || !(active.paid || {})[nm];
@@ -3309,10 +3391,12 @@ function App() {
       castLvl = lvl;
       if (action.pointCosts) action = {...upcast(action, lvl), cost: action.pointCosts[lvl - 1]}; // the points are taken just below, with the pool
       else {
-      const fc = (active.passives || {}).freeCasting, fr = fc && lvl <= fc ? rollD(4) : 0; // Boon of Spell Recall: on a d4 equal to the slot's level, the slot is not spent
+      const freeEff = effs(active).find(e => +e.freeCast >= lvl);
+      if (freeEff) { setTimeout(() => removeEffect(active.id, freeEff.id), 0); setLog(prev => [...prev, stamp({type: 'roll', forId: active.id, html: `<strong>${esc(active.name)}</strong> casts ${esc(String(action.name).replace(/ \(Level \d slot\)$/, ''))} without a spell slot<div class="log-detail">${esc(freeEff.name)}</div>`})]); }
+      const fc = !freeEff && (active.passives || {}).freeCasting, fr = fc && lvl <= fc ? rollD(4) : 0; // Boon of Spell Recall: on a d4 equal to the slot's level, the slot is not spent
       if (fc && lvl <= fc) setLog(prev => [...prev, stamp({type: 'roll', forId: active.id, html: `<strong>${esc(active.name)}</strong> · Free Casting<br/><span class="log-result">🎲 d4: ${fr}</span> ${fr === lvl ? `the Level ${lvl} slot is not spent` : `the Level ${lvl} slot is spent`}`})]);
       if (fc && fr === lvl) setNotices(prev => [...prev, {id: newId(), title: 'Free Casting', name: active.name, html: `<strong>${esc(active.name)}</strong> rolled a <strong>${fr}</strong> on the d4 for Free Casting, the same as the slot's level, so the Level ${lvl} spell slot used for ${esc(String(action.name).replace(/ \(Level \d slot\)$/, ''))} is not spent. You still have it.`}]);
-      if (fr !== lvl) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, slotsUsed: {...(c.slotsUsed || {}), [lvl]: (+((c.slotsUsed || {})[lvl]) || 0) + 1}}));
+      if (fr !== lvl && !freeEff) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, slotsUsed: {...(c.slotsUsed || {}), [lvl]: (+((c.slotsUsed || {})[lvl]) || 0) + 1}}));
       action = upcast(action, lvl);
       }
       setCastLevel(0);
@@ -3339,10 +3423,22 @@ function App() {
       setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, running: [...(c.running || []).filter(r => r.name !== nm), plain({id: newId(), name: nm, act: action.again, conc: action.conc ? (action.concAs || nm) : '', usedAt: turnKey, a: keep, ...(action.zone ? {zone: zoneText(action)} : {})})].slice(-6)}));
     }
     const wt = world && world.on ? world.t : null; // when it was spent, for what comes back after a number of days
-    if (action.pool) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, poolUsed: {...(c.poolUsed || {}), [action.pool]: (+((c.poolUsed || {})[action.pool]) || 0) + (action.cost || 1)}, ...(wt != null && !((c.poolAt || {})[action.pool] != null) ? {poolAt: {...(c.poolAt || {}), [action.pool]: wt}} : {})}));
+    const saver = action.pool && ((((active.sheet || {}).pools || {})[action.pool]) || {}).item && +(active.passives || {}).chargeSaver ? rollD(6) : 0;
+    if (saver) setLog(prev => [...prev, stamp({type: 'roll', forId: active.id, html: `<strong>${esc(active.name)}</strong> · Use Magic Device<br/><span class="log-result">🎲 d6: ${saver}</span> ${saver >= active.passives.chargeSaver ? `no charges of ${esc(action.pool)} are spent` : 'the charges are spent'}`})]);
+    if (action.pool && !(saver && saver >= active.passives.chargeSaver)) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, poolUsed: {...(c.poolUsed || {}), [action.pool]: (+((c.poolUsed || {})[action.pool]) || 0) + (action.cost || 1)}, ...(wt != null && !((c.poolAt || {})[action.pool] != null) ? {poolAt: {...(c.poolAt || {}), [action.pool]: wt}} : {})}));
     else if (action.usesMax) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, used: {...(c.used || {}), [action.id]: (+((c.used || {})[action.id]) || 0) + 1}, ...(wt != null && !((c.usedAt || {})[action.id] != null) ? {usedAt: {...(c.usedAt || {}), [action.id]: wt}} : {})}));
     }
 
+    if (!re && action.extraCost) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, poolUsed: {...(c.poolUsed || {}), [action.extraCost.pool]: (+((c.poolUsed || {})[action.extraCost.pool]) || 0) + action.extraCost.cost}}));
+    if (!re && (action.spendSlot || action.regainPool || action.regainSlot || action.regainPact)) { const notes = [];
+      setCombatants(prev => prev.map(c => { if (c.id !== active.id) return c; let x = {...c, slotsUsed: {...(c.slotsUsed || {})}, poolUsed: {...(c.poolUsed || {})}}; const mx = ((c.sheet || {}).slotMax) || [], pact = (c.sheet || {}).pact;
+        if (action.spendSlot) { const lv = action.spendSlot === 'pact' ? (pact ? pact.level : 0) : action.spendSlot === 'any' ? [1, 2, 3, 4, 5, 6, 7, 8, 9].find(l => slotsLeft(c, l) > 0) : +action.spendSlot;
+          if (lv && slotsLeft(c, lv) > 0) { x.slotsUsed[lv] = (+x.slotsUsed[lv] || 0) + 1; notes.push(`a Level ${lv} spell slot is spent`); } }
+        if (action.regainPool) { const k = action.regainPool.pool, had = +x.poolUsed[k] || 0, back = Math.min(had, action.regainPool.amount || 1); if (back) { x.poolUsed[k] = had - back; notes.push(`${back} ${k} back`); } else notes.push(`${k} is already full`); }
+        if (action.regainSlot) { const lv = action.regainSlot; if (+x.slotsUsed[lv] > 0) { x.slotsUsed[lv] -= 1; notes.push(`a Level ${lv} spell slot back`); } else notes.push(`no Level ${lv} slot was spent`); }
+        if (action.regainPact && pact) { const used = +x.slotsUsed[pact.level] || 0, back = action.regainPact === 'all' ? used : Math.min(used, Math.ceil(pact.slots / 2)); x.slotsUsed[pact.level] = used - back; notes.push(back ? `${back} Pact Magic slot${back === 1 ? '' : 's'} back` : 'no Pact Magic slots were spent'); }
+        return x; }));
+      setTimeout(() => notes.length && setLog(prev => [...prev, stamp({type: 'roll', forId: active.id, html: `<strong>${esc(active.name)}</strong> · ${esc(action.name)}<div class="log-detail">${esc(notes.join(' · '))}</div>`})]), 0); }
     let entries = [];
     const actorName = esc(active.name);
     const baseSlot = (actions.find(a => a.id === selectedAction) || {}).slot || 0;
@@ -3394,11 +3490,13 @@ function App() {
       if (feat.grappler && target && (target.conditions || []).includes('Grappled') && (condInfoOf(target, 'Grappled') || {}).src === active.name) t.adv.push('Grappler');
       if (advNow === 1) t.adv.push('chosen');
       if (advNow === -1) t.dis.push('chosen');
+      if (!re && flanked) t.adv.push('flanking');
       const roll = re && re.roll && !stepInfo ? re.roll : (atkRef.current = 1, d20Spent(roll20(testMode(t)))); // a ruling keeps the roll everyone already saw
       let total = roll.total + action.atk + t.bonus;
       const acVsR = target && action.ranged ? (+((target.passives || {}).acVsRanged) || 0) + sumEff(target, 'acVsRanged') : 0;
       if (acVsR) featNotes.push(`${target.name} has ${signed(acVsR)} AC against ranged attacks`);
-      const targetAC = target ? effectiveAC(target) + acVsR : 10;
+      const coverAC = !re && target ? +cover[target.id] || 0 : re && re.cover ? +re.cover : 0; if (coverAC) featNotes.push(`${coverAC === 5 ? 'Three-Quarters' : 'Half'} Cover: +${coverAC} Armor Class`);
+      const targetAC = target ? effectiveAC(target) + acVsR + coverAC : 10;
       const critOn = feat.criticalOn && (action.weapon || action.unarmed) ? feat.criticalOn : 20; // Improved Critical
       const nat20 = roll.total >= critOn, nat1 = roll.total === 1;
       let inspired = null;
@@ -3425,6 +3523,7 @@ function App() {
       // one-shot effects used up by this attack roll: Sap on the attacker, Vex on the target
       effs(active).filter(e => e.atkDis && e.name === 'Sap').forEach(e => removeEffect(active.id, e.id));
       if (target) effs(target).filter(e => e.advFrom === active.id).forEach(e => removeEffect(target.id, e.id));
+      if (!hit && target && (active.passives || {}).studiedAttacks) setTimeout(() => setCombatants(prev => prev.map(c => c.id !== target.id ? c : {...c, effects: [...(c.effects || []).filter(e => e.name !== `Studied Attacks (${active.name})`), plain({id: newId(), name: `Studied Attacks (${active.name})`.slice(0, 40), left: 12, advFrom: active.id, note: `${active.name} has Advantage on its next attack roll against it.`})]})), 0);
       if ((action.refundOn === 'miss' && !hit) || (action.refundOn === 'hit' && hit)) { refund(active.id, action, castLvl); featNotes.push('The use is not spent on this result'); }
       let masteryHtml = '';
       if (action.mastery && target) { // Weapon Mastery
@@ -3452,9 +3551,10 @@ function App() {
         const gwf = feat.gwf && action.weapon && action.twoHanded && !action.ranged; // Great Weapon Fighting
         let parts = hasDmg ? rollDamageParts(action, isCrit, gwf) : [];
         if (gwf && hasDmg) featNotes.push('Great Weapon Fighting: a 1 or 2 on a damage die counts as 3');
-        if (feat.punchAndGrab && action.unarmed && action.activation === 'action' && active.pgAt !== turnKey) { const g = grabActions(active).find(x => x.id === 'grab-g'); // Grappler: Punch and Grab
-          if (g) { featNotes.push(`Punch and Grab: ${active.name} can also use the Grapple option on ${target.name} (offered now)`);
-            setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, pgAt: turnKey, running: [...(c.running || []), plain({id: newId().slice(0, 12), name: `Punch and Grab: Grapple ${target.name}`, act: 'free', once: true, turnOnly: turnKey, a: {...g, activation: 'free', name: 'Grapple (Punch and Grab)'}})]})); } }
+        if (feat.punchAndGrab && action.unarmed && action.activation === 'action' && active.pgAt !== turnKey) { const g = grabActions(active).find(x => x.id === 'grab-g'); // Grappler: Punch and Grab, the Damage and the Grapple from one hit
+          if (g) { featNotes.push(`Punch and Grab: ${target.name} also makes a save against the Grapple (DC ${g.dc})`);
+            setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, pgAt: turnKey}));
+            setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: target.id, actorId: active.id, actorName: active.name, action: {name: 'Grapple (Punch and Grab)', dc: g.dc, saveAbility: bestSave(target, g.saveBest) || 'Strength', onFail: g.onFail, escape: g.escape, desc: 'Grappler: the Damage and the Grapple option from the same Unarmed Strike.'}})]); } }
         if (feat.savage && action.weapon && hasDmg && active.savageAt !== turnKey) { // Savage Attacker: roll twice, keep either, once per turn
           const again = rollDamageParts(action, isCrit, gwf);
           const sum = l => l.reduce((n, pt) => n + pt.amount, 0);
@@ -3522,10 +3622,11 @@ function App() {
     else if (action.type === 'save' && target) {
       // The target's own player (or the DM) rolls this one: it goes up as a prompt.
       if (action.conc && action.concSecs && action.onFail && action.onFail.conds) action = {...action, onFail: {...action.onFail, conds: action.onFail.conds.map(k => ({...k, left: action.concSecs}))}}; // one clock: the condition lasts as long as the Concentration
-      const {name, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc} = action;
+      const {name, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc} = action;
+      const saveAbility = bestSave(target, action.saveBest) || action.saveAbility; // "Strength or Dexterity (it chooses)": the better one
       const dc = action.dc + (action.spell ? sumEff(active, 'dcBonus') : 0); // Innate Sorcery raises a spell's DC
       setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: target.id, actorId: active.id, actorName: active.name,
-        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc, conc: !!action.conc, form: action.form || null, escape: action.escape || null, auto: action.auto || null, rerun: !!action.rerun, zone: action.zone || null, advIf: action.advIf || '', concSecs: action.concSecs || 0, rolled: sharedDamage,
+        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc, conc: !!action.conc, ...(cover[target.id] && saveAbility === 'Dexterity' ? {coverBonus: +cover[target.id]} : {}), ...(sculpt.includes(target.id) ? {sculpted: true} : {}), form: action.form || null, escape: action.escape || null, auto: action.auto || null, rerun: !!action.rerun, zone: action.zone || null, advIf: action.advIf || '', concSecs: action.concSecs || 0, rolled: sharedDamage,
           refund: action.refundOn && target === picked[0] ? {on: action.refundOn, pool: action.pool, cost: action.cost, usesMax: action.usesMax, id: action.id, slotLvl: castLvl} : null}})]);
       entries.push({
         type:'roll',
@@ -3595,13 +3696,14 @@ function App() {
       offerReactions('damage', deltaOf(combatants, after).filter(d => d.hp < 0 && d.id !== active.id).map(d => d.id), `${active.name} damaged`, active);
       const i = entries.findIndex(e => ['hit', 'miss', 'crit'].includes(e.type));
       if (stepInfo && picked.length === 1 && i >= 0) entries[i] = {...entries[i], ov: plain({k: 'atk', r: round, hit: !!stepInfo.hit, d: deltaOf(combatants, after),
-        ctx: {actorId: active.id, action, castLvl, pickedIds: picked.map(x => x.id), adv: advNow, sneak: sneakNow, roll: stepInfo.roll}}), d20: {tot: stepInfo.total, vs: stepInfo.vs, nat: stepInfo.nat, k: 'atk'}};
+        ctx: {actorId: active.id, action, castLvl, pickedIds: picked.map(x => x.id), adv: advNow, sneak: sneakNow, roll: stepInfo.roll}}), d20: {tot: stepInfo.total, vs: stepInfo.vs, nat: stepInfo.nat, k: 'atk', seq: turnSeq(), die: (stepInfo.roll || {}).total, who: active.id}};
       const gone = prompts.filter(q => q.kind === 'incoming' && q.by === myId).map(q => q.id); // the "is attacking" notice goes once the result is sent
       if (gone.length) { setPrompts(prev => prev.filter(q => !gone.includes(q.id))); if (room && db) setTimeout(() => gone.forEach(id => db.ref('rooms/' + room + '/prompts/' + id).remove()), 400); }
     }
-    setLog(prev=>[...prev,...entries.map(stamp)]);
+    setLog(prev=>[...prev,...entries.map(e => stamp(re && re.tag ? {...e, tag: re.tag} : e))]);
     }
     if (!re && !armed && isCasting(active, action) && combatStarted) offerReactions('cast', inPlay.filter(c => c.id !== active.id).map(c => c.id), `${active.name} is casting ${String(action.name).replace(/ \(Level \d slot\)$/, '')} near`, active);
+    if (!re) { const rm = ((active.passives || {}).remindAfter || []).filter(r => r.after === '*bonus' ? action.activation === 'bonus' : String(action.name).startsWith(r.after)); if (rm.length) setReminders(prev => [...prev.filter(x => x.id !== active.id), {id: active.id, texts: rm.map(r => r.text)}]); }
     if (!re && +(active.passives || {}).blinkSteps > 0 && action.activation === 'action' && (action.weapon || action.unarmed || action.spell)) setBlink({id: active.id, feet: +active.passives.blinkSteps, key: turnKey}); // Boon of Dimensional Travel
     if (!re && action.remove && (action.self ? active : picked[0])) startRemove(action.self ? active : picked[0], action, (picks[action.id] || [])[0]);
     if (!re && action.form && action.type !== 'save') { const ft = action.form.on === 'self' ? active : picked[0]; if (ft) setBlockPick({cId: ft.id, kind: 'form', any: true, conc: action.conc ? String(action.name).replace(/ \(Level \d slot\)$/, '') : '', source: String(action.name).replace(/ \(Level \d slot\)$/, ''), left: action.concSecs || 0, tempHP: action.form.tempHP, limit: action.form.limit, by: active.id, q: ''}); }
@@ -3610,15 +3712,16 @@ function App() {
     setArmed(null);
     if (re) return;
     setSelectedAction(null);
-    setAdvantage(0);
+    setAdvantage(0); setCover({}); setFlanked(false); setSculpt([]);
   };
 
   // Ability checks, skill checks and saving throws rolled straight from the sheet.
+  const lastDie = useRef(0);
   const rollTest = (c, kind, ability, skill, dc, why) => {
     const score = (c.scores || {})[ability] ?? 10;
     const base = kind === 'save' ? ((c.saves || {})[ability] ?? mod(score))
       : (skill && c.sheet && c.sheet.skills && Number.isFinite(+c.sheet.skills[skill])) ? +c.sheet.skills[skill] : mod(score);
-    const t = d20Test(c, kind, {ability, skill});
+    const esc0 = /^Escape (\w+)/.exec(String(why || '')), t = d20Test(c, kind, {ability, skill, escape: esc0 ? esc0[1] : ''});
     effs(c).forEach(e => { if (kind === 'check' && e.checkAdvSkill && e.checkAdvSkill === skill) t.adv.push(e.name); });
     if (curAdv() === 1 && canControl(c)) t.adv.push('chosen'); if (curAdv() === -1 && canControl(c)) t.dis.push('chosen'); useRollSwitch();
     const mr = effs(c).find(e => e.minRoll && e.minRoll.kind === kind && (!e.minRoll.abil || e.minRoll.abil === ability));
@@ -3626,11 +3729,16 @@ function App() {
     let body, total = null;
     if (t.autoFail) body = `<strong style="color:var(--danger)">Fails automatically (${esc(t.autoFail)})</strong>`;
     else {
-      const roll = roll20(testMode(t)); if (mr && roll.total < mr.minRoll.value) { roll.rolls.push(`counts as ${mr.minRoll.value} (${mr.name})`); roll.total = mr.minRoll.value; } total = roll.total + base + t.bonus;
-      body = `<span class="log-result">🎲 ${roll.total + base + t.bonus}</span><div class="log-dice">${rollsTxt(roll)} ${signed(base)}${t.bonusText ? ` (${t.bonusText})` : ''}</div>${modeText(t) ? `<div class="log-detail">${modeText(t)}</div>` : ''}`;
+      const roll = roll20(testMode(t)); if (mr && roll.total < mr.minRoll.value) { roll.rolls.push(`counts as ${mr.minRoll.value} (${mr.name})`); roll.total = mr.minRoll.value; }
+      const pz = c.passives || {}, profd = skill && (((c.sheet || {}).skillProfs) || []).includes(skill);
+      if (kind === 'check' && profd && +pz.reliableTalent && roll.total < +pz.reliableTalent) { roll.rolls.push(`counts as ${pz.reliableTalent} (Reliable Talent)`); roll.total = +pz.reliableTalent; }
+      total = roll.total + base + t.bonus;
+      if ((pz.scoreFloor || []).includes(ability) && total < score) { roll.rolls.push(`total becomes your ${ability} score, ${score} (Indomitable Might)`); total = score; }
+      lastDie.current = roll.total;
+      body = `<span class="log-result">🎲 ${total}</span><div class="log-dice">${rollsTxt(roll)} ${signed(base)}${t.bonusText ? ` (${t.bonusText})` : ''}</div>${modeText(t) ? `<div class="log-detail">${modeText(t)}</div>` : ''}`;
     }
     if (dc) body += `<div class="log-detail">${why ? esc(why) + ' · ' : ''}DC ${+dc} · <strong style="color:${total != null && total >= +dc ? 'var(--success)' : 'var(--danger)'}">${total != null && total >= +dc ? 'Success' : 'Failure'}</strong></div>`;
-    setLog(prev => [...prev, stamp({type: dc ? (total != null && total >= +dc ? 'save-pass' : 'save-fail') : 'roll', ...(total != null ? {d20: {tot: total, vs: dc ? +dc : 0, k: kind}} : {}), html:`<strong>${esc(c.name)}</strong> · ${esc(label)}<br/>${body}`})]);
+    setLog(prev => [...prev, stamp({type: dc ? (total != null && total >= +dc ? 'save-pass' : 'save-fail') : 'roll', ...(total != null ? {d20: {tot: total, vs: dc ? +dc : 0, k: kind, seq: turnSeq(), die: lastDie.current, who: c.id}} : {}), html:`<strong>${esc(c.name)}</strong> · ${esc(label)}<br/>${body}`})]);
     return total;
   };
 
@@ -3649,8 +3757,8 @@ function App() {
   // Death Saving Throws: at 0 Hit Points a character rolls at the start of its turn. 10+ is a success, 1 is two failures, 20 brings it back with 1 Hit Point.
   const isStable = c => !!(c.stable || effs(c).some(e => e.stable));
   const rollDeathSave = (c) => { if (!c || c.currentHP > 0 || c.dead || isStable(c)) return;
-    const t = {adv: effs(c).filter(e => e.deathAdv).map(e => e.name), dis: []}; if (curAdv() === 1) t.adv.push('chosen'); if (curAdv() === -1) t.dis.push('chosen'); useRollSwitch();
-    const r = roll20(testMode(t)), n = r.total, ds = c.death || {s: 0, f: 0};
+    const t = {adv: effs(c).filter(e => e.deathAdv).map(e => e.name), dis: []}; if ((c.passives || {}).deathAdv) t.adv.push('Survivor'); if (curAdv() === 1) t.adv.push('chosen'); if (curAdv() === -1) t.dis.push('chosen'); useRollSwitch();
+    LUCK_NEXT = !!(c.passives || {}).luck; const r = roll20(testMode(t)), crit = +(c.passives || {}).deathCritOn || 20, n = r.total >= crit ? 20 : r.total, ds = c.death || {s: 0, f: 0}; // Survivor: 18 to 20 counts as a 20
     let next = {...ds}, out = '', change = {};
     if (n === 20) { change = {currentHP: 1, death: {s: 0, f: 0}}; out = 'a 20: back up with 1 Hit Point'; }
     else if (n === 1) { next.f = Math.min(3, ds.f + 2); out = 'a 1: two failures'; }
@@ -3804,7 +3912,8 @@ function App() {
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, made: (x.made || []).map(y => y.id !== b.id ? y : {...y, count: (+y.count || 1) - 1}).filter(y => !(y.id === b.id && !(y.count > 0)))}
       : x.id === t.id ? {...x, made: (() => { const have = (x.made || []).find(y => y.kind === 'item' && y.name === b.name && y.src === b.src && b.count); return have ? x.made.map(y => y === have ? {...y, count: (+y.count || 1) + 1} : y) : [...(x.made || []), plain(one)].slice(-12); })()} : x));
     setLog(prev => [...prev, stamp({type:'roll', forId: t.id, by: myId, html:`<strong>${esc(c.name)}</strong> gives <span class="log-result">${esc(b.name)}</span> to <strong>${esc(t.name)}</strong>`})]); };
-  const tryEscape = (c, es, cond, eff) => { const total = rollTest(c, 'check', es.ability, es.skill || '', es.dc, `Escape ${cond || (eff && eff.name) || ''} (takes an action)`);
+  const tryEscape = (c, es0, cond, eff) => { const sk = x => { const v = ((c.sheet || {}).skills || {})[x.skill]; return Number.isFinite(+v) ? +v : mod((c.scores || {})[x.ability] ?? 10); };
+    const es = es0.alt && sk(es0.alt) > sk(es0) ? {...es0, ...es0.alt} : es0; const total = rollTest(c, 'check', es.ability, es.skill || '', es.dc, `Escape ${cond || (eff && eff.name) || ''} (takes an action)`);
     if (total != null && total >= es.dc) { if (cond) removeCondition(c.id, cond); (c.effects || []).filter(e => e.escape && (!eff || e.id === eff.id || cond)).forEach(e => removeEffect(c.id, e.id)); } };
   const removeEffect = (id, effId) => setCombatants(prev => reorder(prev.map(c => c.id === id ? withOnEnd({...c, effects: (c.effects || []).filter(e => e.id !== effId)}, (c.effects || []).filter(e => e.id === effId)) : c)));
 
@@ -3826,6 +3935,7 @@ function App() {
   const restoreUses = (c0, longRest) => {
     let c = c0;
     if (longRest && !(world && world.on)) { const d = dawnRegain(c); c = d.c; regainLines.current = d.lines; } else regainLines.current = []; // without a tracked time of day, dawn comes with the Long Rest
+    if (longRest && (c.passives || {}).heroicOnLongRest && !c.heroic) c = {...c, heroic: true}; // Resourceful
     if (longRest && c.hitDiceUsed) c = {...c, hitDiceUsed: 0}; // a Long Rest gives back all spent Hit Point Dice
     if (c.fateUsed) c = {...c, fateUsed: false}; // Improve Fate comes back on a Short or Long Rest
     if (c.slotsUsed && (longRest || (c.sheet || {}).pact)) c = {...c, slotsUsed: {}}; // Long Rest, or Pact Magic on a Short Rest
@@ -4415,9 +4525,10 @@ function App() {
   };
   // Anything that takes time. During a rest it comes off the rest's clock; otherwise the DM is asked to move time forward (unless that kind of reminder is switched off, or a fight is on).
   const TIME_KINDS = {cast: 'casting time', armor: 'armor', other: 'other things that take time'};
+  const restLenFor = c => rest && rest.kind === 'long' && +(c.passives || {}).longRestSecs ? Math.min(rest.len, +c.passives.longRestSecs) : rest ? rest.len : 0; // Trance: an Elf's Long Rest is 4 hours
   const takesTime = (c, type, what, secs) => {
     if (!c || !(secs > 0)) return;
-    if (rest) { const me = rest.chars[c.id] || {used: 0}, len = me.len ?? rest.len, used = me.used + secs, runsOut = me.used <= len && used > len;
+    if (rest) { const me = rest.chars[c.id] || {used: 0}, len = me.len ?? restLenFor(c), used = me.used + secs, runsOut = me.used <= len && used > len;
       setRest(r => r ? {...r, chars: {...r.chars, [c.id]: {...(r.chars[c.id] || {}), used: ((r.chars[c.id] || {}).used || 0) + secs, ...(runsOut ? {over: true} : {})}}} : r);
       if (runsOut) dmNote(`${c.name}'s rest time ran out: ${what} goes ${timeText(used - len)} past the end of the rest.`);
       return; }
@@ -4437,21 +4548,52 @@ function App() {
   const setRestLength = () => { const secs = restSecs(); if (!isDM || !rest || !(secs > 0)) return; setRest(r => r ? {...r, len: secs} : r); setRestStd(v => ({...v, [rest.kind]: secs})); setRestSet({...restSet, n: ''});
     setLog(prev => [...prev, stamp({type: 'round', text: `The DM sets a ${rest.kind === 'long' ? 'Long' : 'Short'} Rest at this table to ${timeText(secs)}`})]); };
   const [hdPick, setHdPick] = useState(null);
-  const [fatePick, setFatePick] = useState(null); // Improve Fate: {entry, cId}
+  const [fatePick, setFatePick] = useState(null); // the Improve Fate window: {cId, entryId}
+  const [fateChoose, setFateChoose] = useState(null); // picking a roll in the Combat Log for Improve Fate: the character's id
+  const [cover, setCover] = useState({}); // the attacker says the target has cover: {targetId: 2 or 5}
+  const [flanked, setFlanked] = useState(false); // Flanking (an optional rule): Advantage on this attack
+  const [sculpt, setSculpt] = useState([]); // Sculpt Spells: creatures that automatically succeed
+  const [reminders, setReminders] = useState([]); // what a feature lets a creature do right after an action: [{id, texts}]
   const [blink, setBlink] = useState(null); // Blink Steps after the Attack or Magic action: {id, feet, key}
   const [swapTo, setSwapTo] = useState({}); // Alert's Initiative Swap: {characterId: allyId}
   const INCAP = ['Incapacitated', 'Paralyzed', 'Petrified', 'Stunned', 'Unconscious'];
+  const turnSeq = () => combatStarted ? round * 1000 + Math.max(0, inPlay.findIndex(c => c.id === activeId)) : 0;
+  const recentRoll = (e) => { if (!e || !e.d20) return false; const cur = turnSeq(); if (!cur || !e.d20.seq) { const ds = log.filter(x => x.d20 && !x.void); return ds.slice(-5).includes(e); } // out of a fight: one of the last few rolls
+    const idx = cur % 1000, prev = idx > 0 ? cur - 1 : (Math.floor(cur / 1000) - 1) * 1000 + Math.max(0, inPlay.length - 1); return e.d20.seq >= prev; }; // this turn or the one before
   const lastD20 = () => { for (let i = log.length - 1; i >= 0; i--) { const e = log[i]; if (e && e.d20 && !e.void && !e.sys && !(e.dmOnly && !isDM)) return e; } return null; };
-  const useFate = (c, sign) => { const entry = lastD20(); if (!c || c.fateUsed || !entry) return;
+  const useFate = (c, sign, entry0) => { const entry = entry0 || lastD20(); if (!c || c.fateUsed || !entry) return; const old = !recentRoll(entry);
     const dice = (c.passives || {}).improveFate || '2d4', r = parseDamage(dice), n = sign * r.total, d = entry.d20, newTot = d.tot + n;
     const what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
     const was = d.vs ? (d.k === 'atk' ? (d.nat === 20 || (d.nat !== 1 && d.tot >= d.vs)) : d.tot >= d.vs) : null, now = d.vs ? (d.k === 'atk' ? (d.nat === 20 || (d.nat !== 1 && newTot >= d.vs)) : newTot >= d.vs) : null;
     const flips = was !== null && was !== now, word = ok => d.k === 'atk' ? (ok ? 'a hit' : 'a miss') : (ok ? 'a success' : 'a failure');
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, fateUsed: true} : x));
     setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> · Improve Fate on: ${esc(what)}<br/><span class="log-result">${d.tot} → ${newTot}</span> (${n >= 0 ? '+' : ''}${n}: ${esc(dice)} ${esc(r.parts.join(' + '))})<div class="log-detail">${d.vs ? (flips ? `It becomes ${word(now)}.` : `Still ${word(now)}.`) : ''} Usable again after rolling Initiative or a Short or Long Rest.</div>`})]);
-    if (flips && entry.ov) setTimeout(() => overrideEntry(entry, `Improve Fate (${c.name})`, newTot), 300); // the result is undone and resolved the other way, with the same roll
-    else if (flips) dmNote(`${c.name}'s Improve Fate makes "${what}" ${word(now)}. Change what it did with ✎ on that entry.`);
-    else if (!isDM) dmNote(`${c.name} used Improve Fate on "${what}": ${d.tot} → ${newTot}${d.vs ? `, still ${word(now)}` : ''}.`); };
+    setFatePick(null); setFateChoose(null); const tag = newId().slice(0, 14);
+    if (flips && entry.ov) setTimeout(() => overrideEntry(entry, `Improve Fate (${c.name})`, newTot, tag), 300); // the result is undone and resolved the other way, with the same roll
+    tellChange({by: c, field: 'fateUsed', tag, flips: flips && !!entry.ov, entry, text: `${c.name} used Improve Fate (${n >= 0 ? '+' : ''}${n}) on "${what}": ${d.tot} → ${newTot}${d.vs ? (flips ? `, now ${word(now)}` : `, still ${word(now)}`) : ''}.${old ? ' The roll was from before the last turn.' : ''}${flips && !entry.ov ? ' Change what it did with ✎ on that entry.' : ''}`}); };
+  // Something changed a roll after it was made (Improve Fate, Heroic Inspiration, cover): whoever rolled it is told, and the DM, who can reject it
+  const tellChange = ({by, field, tag, entry, text}) => { const who = entry && entry.d20 && entry.d20.who; const roller = combatants.find(x => x.id === who);
+    if (roller && roller.id !== by.id && !(isDM && !roller.owner)) setPrompts(prev => [...prev, plain({id: newId(), kind: 'tell', targetId: roller.id, by: myId, text: String(text).slice(0, 300)})]);
+    setPrompts(prev => [...prev, plain({id: newId(), kind: 'note', targetId: by.id, by: myId, text: String(text).slice(0, 300), reject: {tag, cId: by.id, field}})]); };
+  const rejectChange = (q) => { removePrompt(q.id); const r = q.reject || {}; const e = log.filter(x => x.tag === r.tag && !x.void).pop(); if (e && e.ov) overrideEntry(e, 'The DM rejected the change', null);
+    if (r.field === 'fateUsed') setCombatants(prev => prev.map(c => c.id === r.cId ? {...c, fateUsed: false} : c)); if (r.field === 'heroic') setCombatants(prev => prev.map(c => c.id === r.cId ? {...c, heroic: true} : c));
+    setLog(prev => [...prev, stamp({type: 'roll', html: `<strong>The DM</strong> rejected: ${esc(q.text || '')}`})]); };
+  // Heroic Inspiration: reroll one die of your own last d20 roll, after the fact
+  const lastOwnD20 = c => { for (let i = log.length - 1; i >= 0; i--) { const e = log[i]; if (e && e.d20 && !e.void && e.d20.who === c.id && e.d20.die) return e; } return null; };
+  const useHeroic = (c) => { const entry = lastOwnD20(c); if (!c || !c.heroic || !entry) return; const d = entry.d20, nd = rollD(20), newTot = d.tot - d.die + nd;
+    const what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
+    const ok = t => d.vs ? (d.k === 'atk' ? (nd === 20 || (nd !== 1 && t >= d.vs)) : t >= d.vs) : null, was = d.vs ? (d.k === 'atk' ? (d.nat === 20 || (d.nat !== 1 && d.tot >= d.vs)) : d.tot >= d.vs) : null, now = ok(newTot), flips = was !== null && was !== now;
+    setCombatants(prev => prev.map(x => x.id === c.id ? {...x, heroic: false} : x)); const tag = newId().slice(0, 14);
+    setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> · Heroic Inspiration: rerolls the d20 of ${esc(what)}<br/><span class="log-result">${d.die} → ${nd}</span> total ${d.tot} → ${newTot}${flips ? ` · the result changes` : ''}`})]);
+    if (flips && entry.ov) setTimeout(() => overrideEntry(entry, `Heroic Inspiration (${c.name})`, newTot, tag), 300);
+    tellChange({by: c, field: 'heroic', tag, entry, text: `${c.name} used Heroic Inspiration on "${what}": ${d.tot} → ${newTot}.${flips && !entry.ov ? ' Change what it did with ✎ on that entry.' : ''}`}); };
+  // Cover after the fact: within two rounds, the target of an attack says it had cover
+  const applyCover = (entry, bonus) => { const d = entry.d20 || {}; if (!bonus || d.k !== 'atk') return; const t = combatants.find(x => x.id === ((entry.ov || {}).ctx || {}).pickedIds?.[0]); if (!t) return;
+    const was = d.nat === 20 || (d.nat !== 1 && d.tot >= d.vs), now = d.nat === 20 || (d.nat !== 1 && d.tot >= d.vs + bonus), flips = was !== now, tag = newId().slice(0, 14);
+    const what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
+    setLog(prev => [...prev, stamp({type: 'roll', forId: t.id, coverOf: entry.id, html: `<strong>${esc(t.name)}</strong> had ${bonus === 5 ? 'Three-Quarters' : 'Half'} Cover against: ${esc(what)}<div class="log-detail">Armor Class ${d.vs} → ${d.vs + bonus}: ${now ? 'still a hit' : was ? 'now a miss' : 'still a miss'}.</div>`})]);
+    if (flips && entry.ov) setTimeout(() => overrideEntry({...entry, d20: {...d, cover: bonus}}, `${bonus === 5 ? 'Three-Quarters' : 'Half'} Cover (+${bonus})`, d.tot, tag), 300);
+    tellChange({by: t, field: '', tag, entry, text: `${t.name} says it had ${bonus === 5 ? 'Three-Quarters' : 'Half'} Cover against "${what}" (Armor Class +${bonus})${flips ? ': the hit becomes a miss' : ''}.`}); };
   const askSwap = (c, allyId) => { const a = combatants.find(x => x.id === allyId); if (!a || !c) return;
     if ([c, a].some(x => (x.conditions || []).some(k => INCAP.includes(k)))) { window.alert('No swap: you or that ally has the Incapacitated condition.'); return; }
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, swapDone: true} : x));
@@ -4463,7 +4605,7 @@ function App() {
     setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> and <strong>${esc(a.name)}</strong> swap Initiative (Alert)<div class="log-detail">${esc(c.name)} ${ia}, ${esc(a.name)} ${ic}.</div>`})]); }; // the Spend Hit Point Dice window: {cId, n, last}
   const spendHitDice = (c, n) => { const left = Math.max(0, c.level - (+c.hitDiceUsed || 0)); n = Math.max(1, Math.min(left, Math.round(+n || 1))); if (!left || !canControl(c)) return;
     const die = c.hitDie || 8, cm = mod((c.scores || {}).Constitution || 10), rolls = [];
-    const mods = [ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1 & 2 = 3'].filter(Boolean).join(', ');
+    const mods = [ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1s & 2s = 3s'].filter(Boolean).join(', ');
     for (let i = 0; i < n; i++) { let r = rollD(die); if (ROLL_R1 && r === 1) r = rollD(die); if (ROLL_LOW3 && r < 3 && die >= 3) r = 3; rolls.push(r); } useRollSwitch();
     const heal = rolls.reduce((t, r) => t + Math.max(0, r + cm), 0), hp = Math.min(totalHP(c), c.currentHP + heal);
     setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, hitDiceUsed: (+x.hitDiceUsed || 0) + n, currentHP: Math.min(totalHP(x), x.currentHP + heal)}));
@@ -4583,7 +4725,7 @@ function App() {
     const others = actions.filter(a => !a.weapon && !a.unarmed && !(a.spell && list.some(s => s.n === a.name)));
     const actOf = (n) => spellActs.find(a => a.name === n);
     const cantrips = list.filter(s => s.l === 0), levels = [1,2,3,4,5,6,7,8,9].filter(l => list.some(s => s.l === l));
-    const str = (c.scores || {}).Strength ?? 10;
+    const str = (c.passives || {}).jumpDex ? Math.max((c.scores || {}).Strength ?? 10, (c.scores || {}).Dexterity ?? 10) : (c.scores || {}).Strength ?? 10; // Second-Story Work: Dexterity for jumps
     const hitLeft = Math.max(0, c.level - (+c.hitDiceUsed || 0));
     const res = [c.res && `Resistant: ${c.res}`, c.ci && `Immune: ${c.ci}`].filter(Boolean);
     const slotCircles = (lvl) => { const max = ((sh.slotMax || [])[lvl - 1]) || 0, left = slotsLeft(c, lvl); return max ? (
@@ -4709,18 +4851,18 @@ function App() {
                 </div>
               </div>
               {(() => { const d = defensesOf(c); return d.length ? <div className="pp-line" data-testid="pp-defenses"><span><strong>Defenses</strong> {d.map(([k, v], i) => <span key={k} className={`def-chip def-${k}`} title={{res: 'Resistance: takes half damage of these types', imm: 'Immunity: takes no damage of these types', vul: 'Vulnerability: takes double damage of these types', ci: 'Cannot be given these conditions'}[k]}>{{res: '🛡 Resistant', imm: '⛔ Immune', vul: '⚠ Vulnerable', ci: '✋ Condition immune'}[k]}: {v}</span>)}</span></div> : null; })()}
-              {(sh.boons || []).length > 0 && <div className="boon-box" data-testid="boon-box">{sh.boons.map(b => { const pz = c.passives || {}, le = pz.improveFate ? lastD20() : null; return (
-                <div key={b.name} className="boon-item">
-                  <div className="boon-name">Epic Boon: {b.name}</div>
-                  <div className="boon-text">{b.text}</div>
-                  {/Fate/.test(b.name) && pz.improveFate && <div className="boon-ctl" data-testid="boon-fate">{c.fateUsed ? <span className="pp-muted">Used. It comes back when you roll Initiative or finish a Short or Long Rest.</span> : le ? <>
-                    <span className="pp-muted">Last roll: {String(le.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 70)} ({le.d20.tot})</span>
-                    {ctl && <><button className="pp-chip on" data-testid="fate-bonus" onClick={() => useFate(c, 1)}>Apply +{pz.improveFate} to the last roll</button><button className="pp-chip" data-testid="fate-penalty" onClick={() => useFate(c, -1)}>Apply −{pz.improveFate}</button></>}</> : <span className="pp-muted">Ready. No d20 roll in the log yet.</span>}</div>}
-                  {/Combat Prowess/.test(b.name) && pz.prowess && <div className="boon-ctl" data-testid="boon-prowess"><span className={c.prowessUsed ? 'pp-muted' : ''}>{c.prowessUsed ? 'Peerless Aim is used. It comes back at the start of your next turn.' : 'Peerless Aim is ready: when you miss, you are asked if you want to hit instead.'}</span></div>}
-                  {/Spell Recall/.test(b.name) && pz.freeCasting && <div className="boon-ctl"><span className="pp-muted">Automatic: the d4 is rolled each time you cast with a Level 1 to {pz.freeCasting} slot.</span></div>}
-                  {/Irresistible/.test(b.name) && pz.irresistible ? <div className="boon-ctl"><span className="pp-muted">Automatic: your attacks ignore that Resistance, and a 20 adds {pz.irresistible} damage.</span></div> : null}
-                  {/Dimensional Travel/.test(b.name) && pz.blinkSteps ? <div className="boon-ctl"><span className="pp-muted">You are reminded after each Attack or Magic action.</span></div> : null}
-                </div>); })}</div>}
+              {(sh.boons || []).length > 0 && <div className="boon-box" data-testid="boon-box">{sh.boons.map(b => { const pz = c.passives || {}; const BOON_LINE = {
+                  'Boon of Combat Prowess': c.prowessUsed ? 'Peerless Aim is used until the start of your next turn.' : 'Peerless Aim: when you miss, you can hit instead (you are asked).',
+                  'Boon of Dimensional Travel': `Blink Steps: after the Attack or Magic action, teleport up to ${pz.blinkSteps || 30} feet.`,
+                  'Boon of Fate': c.fateUsed ? 'Improve Fate is used until you roll Initiative or rest.' : `Improve Fate: ${pz.improveFate || '2d4'} added to or taken from a d20 roll you see.`,
+                  'Boon of Irresistible Offense': `Your Bludgeoning, Piercing and Slashing damage ignores Resistance; a 20 to hit adds ${pz.irresistible || ''} damage.`,
+                  'Boon of Spell Recall': 'Free Casting: a d4 with each Level 1 to 4 slot; on the slot\'s level, you keep the slot.',
+                  'Boon of Truesight': 'Truesight 60 ft.'}[String(b.name).replace(/ \(.*$/, '')] || String(b.text || '').split(/(?<=\.)\s/)[0];
+                return <div key={b.name} className="boon-line" data-ex={`boon:${b.name}`}><span className="boon-name">{b.name}</span> <span className="boon-text">{BOON_LINE}</span>
+                  {/Fate/.test(b.name) && pz.improveFate && ctl && !c.fateUsed && <button className="pp-chip on" data-testid="boon-fate" onClick={() => setFatePick({cId: c.id})}>Improve Fate</button>}</div>; })}</div>}
+              {c.type === 'player' && (c.heroic || isDM) && <div className="pp-line" data-testid="heroic-line"><span><strong>Heroic Inspiration</strong> {c.heroic ? 'You have it: reroll one die of your last d20 Test.' : 'None'}</span>
+                {c.heroic && ctl && <button className="pp-chip on" data-testid="heroic-use" disabled={!lastOwnD20(c)} title={lastOwnD20(c) ? 'Reroll the d20 of your last d20 Test and use the new roll' : 'No d20 Test of yours in the log yet'} onClick={() => useHeroic(c)}>Use</button>}
+                {isDM && <button className="pp-chip" data-testid="heroic-toggle" onClick={() => { setCombatants(prev => prev.map(x => x.id === c.id ? {...x, heroic: !x.heroic} : x)); setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>The DM</strong> ${c.heroic ? 'takes' : 'gives'} Heroic Inspiration ${c.heroic ? 'from' : 'to'} <strong>${esc(c.name)}</strong>`})]); }}>{c.heroic ? 'Take' : 'Give'}</button>}</div>}
               <div className="pp-line"><span><strong>Senses</strong> {effectiveSenses(c).join(', ') || 'None'}</span><span><strong>Speeds</strong> {speedText(c)} &nbsp; <strong>Long Jump</strong> {str} ft. &nbsp; <strong>High Jump</strong> {Math.max(0, 3 + mod(str))} ft.</span></div>
 
               {combatStarted && (() => { const turn = c.turn || {}, mine = !!(active && active.id === c.id), sp = effectiveSpeed(c), moved = +turn.moved || 0;
@@ -4803,7 +4945,7 @@ function App() {
                 <div key={a.id} data-ex={`action:${a.id}`} className={rowCls(a, 'pp-attack')} style={dim(a)} onClick={() => ctl && sel(a)} onContextMenu={back(a)}>
                   <span><span className="a-name">{a.name}{leftText(a)}</span>{(a.mprop || a.mastery) ? <span className={`pp-mast ${a.mastery ? 'on' : ''}`} data-testid="mastery-chip" title={a.mastery ? `You have the ${a.mastery} mastery property with this weapon` : `You do not have this weapon's mastery property`}>{a.mprop || a.mastery}</span> : null}</span>
                   <span>{a.rng ? `${a.rng} - ${a.reach || 0}` : `0 - ${a.reach || 5}`}</span>
-                  <span>{a.type === 'save' ? `DC ${a.dc}` : <>{signed(a.atk)}{advMark('attack', {abil: a.abil, weapon: !!a.weapon, ranged: !!a.ranged, spell: !!a.spell})}</>}</span>
+                  <span>{a.type === 'save' ? `DC ${a.dc}` : <>{signed(a.atk + (a.weapon && a.ranged ? +((c.passives || {}).archery) || 0 : 0))}{advMark('attack', {abil: a.abil, weapon: !!a.weapon, ranged: !!a.ranged, spell: !!a.spell})}</>}</span>
                   <span>{(a.dmgList || []).length ? a.dmgList.map(d => `${d[0]} ${DMG_SHORT[d[1]] || String(d[1] || '').slice(0, 3)}`).join(' + ') : (((a.onFail || {}).conds || [])[0] || {}).name || ''}</span>
                 </div>))}
               {renderHands(c, ctl)}
@@ -4915,7 +5057,7 @@ function App() {
         <div data-testid="paper-features">
           {feats.length === 0 && <div className="pp-center pp-muted">No features listed.</div>}
           {feats.map((f, i) => (
-            <div key={i} className="pp-entry" data-testid="feature-entry">
+            <div key={i} className="pp-entry" data-testid="feature-entry" data-ex={`feature:${i}`}>
               <div className="pp-ename">{f.n}{(f.lv || f.src) ? <span className="pp-tag">{[f.lv ? `Level ${f.lv}` : '', f.src].filter(Boolean).join(' · ')}</span> : null}
                 {ctl && <span className="pp-use">
                   {actions.filter(a => !a.spell && (a.name === f.n || a.name.startsWith(f.n + ' ') || a.name.startsWith(f.n + ':') || a.name.startsWith(f.n + ' ('))).map(a => <button key={a.id} className={`pp-chip ${selectedAction === a.id ? 'on' : ''}`} data-testid="feature-use" title={limited(a) ? 'Right-click to give back a use' : undefined} onClick={() => sel(a)} onContextMenu={back(a)}>{a.name === f.n ? 'Use' : `Use ${a.name}`}{leftText(a)}</button>)}
@@ -4949,7 +5091,7 @@ function App() {
   // A version or Hit Point band replaces how the spell resolves, so the common record's own outcome is set aside first.
   const baseOf = a => { const {type, dmgList, onHit, onFail, onSuccess, onUse, selfEffs, saveAbility, dc, halfOnSave, healDice, atk, ranged, self, ...keep} = a; return keep; };
   // A spell with several versions is used as the one chosen. A variant only changes how it resolves.
-  const pickMode = a => { if (!a || !a.modes || modePick[a.id] == null || !a.modes[modePick[a.id]]) return a; const m = a.modes[modePick[a.id]]; const {id, name, detail, ...rest} = m.a; return {...baseOf(a), ...rest, modeName: m.name}; };
+  const pickMode = a => { const ix = a && a.modes ? (modePick[a.id] ?? a.modeDefault) : null; if (!a || !a.modes || ix == null || !a.modes[ix]) return a; const m = a.modes[ix]; const {id, name, detail, ...rest} = m.a; return {...baseOf(a), ...rest, modeName: m.name}; };
   // Swaps the ability a weapon attack uses: the attack bonus and the damage modifier move by the difference, and the damage die can change.
   // What a spell like Shillelagh can go on: the weapons on the sheet and the items carried, by name.
   const itemFits = (c, a) => { const re = new RegExp('^(' + a.needItem.re + ')', 'i'), out = actions.filter(x => x.weapon && re.test(x.name)), have = new Set(out.map(x => x.name.replace(/ \(.*$/, '')));
@@ -5000,7 +5142,7 @@ function App() {
   const cannotWhy = !selAction ? 'Nothing chosen' : !actorNow ? 'Not your turn (a Reaction can be used at any time)'
     : (needsTargetNow && freeT == null && !inPlay.find(c => c.id === targetId)) ? 'Pick a target'
     : (limited(selAction) && usesLeft(viewed, selAction) <= 0) ? 'No uses left'
-    : (selAction.modes && modePick[selAction.id] == null) ? 'Choose which version to use'
+    : (selAction.modes && modePick[selAction.id] == null && selAction.modeDefault == null) ? 'Choose which version to use'
     : (selAction.viaWeapon && !selAction.weapon) ? 'Choose the weapon it is cast with'
     : (selAction.storeSpell && !storeOptions(selAction).some(x => x.id === storePick[selAction.id])) ? 'Choose the spell to store in it'
     : (selAction.choicePerTarget && selAction.choices && targetIds.some(tid => !((picks[selAction.id + ':' + tid] || [])[0]))) ? `Choose: ${selAction.choices[0].label} for each target`
@@ -5104,7 +5246,7 @@ function App() {
   // What is waiting on this person: Reactions they can take, and rolls they are asked to make. These pop up in the middle of the screen.
   const myAskIds = [...flowPrompts.filter(({q, c}) => canControl(c) && ((q.kind === 'incoming' && q.react && !q.answer) || (q.kind === 'confirm' && !q.answer) || (q.kind === 'offer' && reactionsFor(c, q.ev).length > 0))).map(x => x.q.id),
     ...openPrompts.filter(({c}) => canControl(c)).map(x => x.q.id)];
-  const sidePrompts = prompts.filter(q => q.kind === 'swap' || (q.kind === 'note' && isDM) || q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn').map(q => ({q, c: combatants.find(x => x.id === q.targetId)})).filter(x => x.c);
+  const sidePrompts = prompts.filter(q => q.kind === 'swap' || q.kind === 'tell' || (q.kind === 'note' && isDM) || q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn').map(q => ({q, c: combatants.find(x => x.id === q.targetId)})).filter(x => x.c);
   sidePrompts.forEach(({q, c}) => { if (((q.kind === 'askdm' || q.kind === 'time') && isDM) || ((q.kind === 'form' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn') && canControl(c))) myAskIds.push(q.id); });
   const askKey = myAskIds.join(','), askPop = myAskIds.length > 0 && askLater !== askKey && !targeting;
   const targets = inPlay.filter(c => viewed && c.id !== viewed.id && c.currentHP > 0);
@@ -5206,17 +5348,24 @@ function App() {
             </div>
           </div>
         </div>); })()}
-      {false && fatePick && (() => { const c = combatants.find(x => x.id === fatePick.cId); if (!c) return null; return (
+      {fatePick && !fateChoose && (() => { const c = combatants.find(x => x.id === fatePick.cId), e = log.find(x => x.id === fatePick.entryId) || lastD20(); if (!c) return null; const dice = (c.passives || {}).improveFate || '2d4', old = e && !recentRoll(e); return (
         <div className="modal-overlay" onClick={() => setFatePick(null)}>
-          <div className="modal" data-testid="fate-modal" style={{maxWidth: 420}} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">{c.name}: Improve Fate</div>
+          <div className="modal" data-testid="fate-modal" style={{maxWidth: 440}} onClick={ev => ev.stopPropagation()}>
+            <div className="modal-header">Use Improve Fate?</div>
             <div className="modal-body">
-              <div className="log-entry"><div className="log-html" dangerouslySetInnerHTML={{__html: sanitizeLogHtml(fatePick.entry.html)}}/></div>
-              <div className="buff-note">Roll {c.passives.improveFate} and apply it to that d20 roll, for a creature within 60 feet of {c.name}. Once used, it comes back when {c.name} rolls Initiative or finishes a Short or Long Rest.</div>
-              <div className="do-row"><button className="btn btn-primary" data-testid="fate-bonus" onClick={() => useFate(c, fatePick.entry, 1)}>🎲 As a bonus</button><button className="btn btn-ghost" data-testid="fate-penalty" onClick={() => useFate(c, fatePick.entry, -1)}>🎲 As a penalty</button><button className="btn btn-ghost btn-sm" onClick={() => setFatePick(null)}>Cancel</button></div>
+              {e ? <><div className="pp-muted" style={{fontSize: 12}}>{fatePick.entryId ? 'The roll you chose' : 'The last roll'}:</div><div className="log-entry" data-testid="fate-roll"><div className="log-html" dangerouslySetInnerHTML={{__html: sanitizeLogHtml(e.html)}}/></div>
+                {old && <div className="buff-note" data-testid="fate-old" style={{color: '#fff176'}}>This roll is from before the last turn. If you use it, the DM is told.</div>}</> : <div className="buff-note">There is no d20 roll in the Combat Log yet.</div>}
+              <div className="buff-note">Roll {dice} and add it to that d20 roll or take it away, for {c.name} or a creature within 60 feet.</div>
+              <div className="do-row">
+                {e && <button className="btn btn-primary" data-testid="fate-bonus" onClick={() => useFate(c, 1, e)}>Yes: add {dice}</button>}
+                {e && <button className="btn btn-ghost" data-testid="fate-penalty" onClick={() => useFate(c, -1, e)}>Yes: take away {dice}</button>}
+                <button className="btn btn-ghost" data-testid="fate-choose" onClick={() => setFateChoose(c.id)}>Choose from the Combat Log</button>
+                <button className="btn btn-ghost btn-sm" data-testid="fate-cancel" onClick={() => setFatePick(null)}>Cancel</button>
+              </div>
             </div>
           </div>
         </div>); })()}
+      {fateChoose && <div className="fate-dim" data-testid="fate-dim" onClick={() => { setFateChoose(null); }}><div className="fate-dim-note">Pick a d20 roll in the Combat Log. Click here to go back.</div></div>}
       {changePick && <div className="modal-overlay" onClick={() => setChangePick(null)}>
         <div className="modal" data-testid="change-modal" style={{maxWidth: 480}} onClick={e => e.stopPropagation()}>
           <div className="modal-header">Change what this did</div>
@@ -5299,8 +5448,10 @@ function App() {
           </div>
         </div>); })()}
       {(() => { const swappers = combatStarted && round === 1 ? combatants.filter(c => canControl(c) && (c.passives || {}).initiativeSwap && !c.swapDone && !c.pending) : [], bl = blink && combatants.find(c => c.id === blink.id && canControl(c));
-        return (dropped.length > 0 || againNow.length > 0 || swappers.length > 0 || bl) && !targeting && (
+        const rms = reminders.filter(r => combatants.some(c => c.id === r.id && canControl(c)));
+        return (dropped.length > 0 || againNow.length > 0 || swappers.length > 0 || bl || rms.length > 0) && !targeting && (
         <div className="turn-bar" data-testid="turn-bar">
+          {rms.map(r => <span key={r.id} className="p-btns" data-testid="remind-item"><span><strong>{(combatants.find(c => c.id === r.id) || {}).name}:</strong> {r.texts.join(' ')}</span><button className="btn btn-ghost btn-sm" data-testid="remind-ok" onClick={() => setReminders(prev => prev.filter(x => x.id !== r.id))}>OK</button></span>)}
           {bl && <span className="p-btns" data-testid="blink-item"><span><strong>Blink Steps:</strong> {bl.name} can teleport up to {blink.feet} feet to an unoccupied space it can see.</span><button className="btn btn-ghost btn-sm" data-testid="blink-ok" onClick={() => setBlink(null)}>OK</button></span>}
           {swappers.map(c => { const allies = combatants.filter(x => x.id !== c.id && x.type !== 'monster' && !x.pending && !x.summonOf); return <span key={c.id} className="p-btns" data-testid="swap-item"><span><strong>Alert:</strong> {c.name} can swap Initiative with a willing ally.</span>
             <select aria-label="Swap with" data-testid="swap-ally" value={swapTo[c.id] || ''} onChange={e => setSwapTo({...swapTo, [c.id]: e.target.value})}><option value="">Who?</option>{allies.map(x => <option key={x.id} value={x.id}>{x.name} ({x.initiative})</option>)}</select>
@@ -5355,11 +5506,13 @@ function App() {
                 <span className="p-btns">{react}{noR}</span>
               </div>);
           })}
-          {sidePrompts.map(({q, c}) => q.kind === 'swap' ? (
+          {sidePrompts.map(({q, c}) => q.kind === 'tell' ? (canControl(c) ?
+            <div key={q.id} className="prompt-item yours" data-testid="prompt-tell"><span>{q.text}</span><span className="p-btns"><button className="btn btn-ghost btn-sm" data-testid="tell-ok" onClick={() => removePrompt(q.id)}>OK</button></span></div> : null
+          ) : q.kind === 'swap' ? (
             <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`} data-testid="prompt-swap"><span><strong>{q.fromName}</strong> (Alert) asks to swap Initiative with <strong>{c.name}</strong>.</span>
               {canControl(c) ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="swap-yes" onClick={() => doSwap(q, true)}>Swap</button><button className="btn btn-ghost btn-sm" data-testid="swap-no" onClick={() => doSwap(q, false)}>No</button></span> : <span className="prompt-wait">Waiting for {c.name}</span>}</div>
           ) : q.kind === 'note' ? (
-            <div key={q.id} className="prompt-item yours" data-testid="prompt-note"><span>{q.text}</span><span className="p-btns"><button className="btn btn-ghost btn-sm" data-testid="note-ok" onClick={() => removePrompt(q.id)}>OK</button></span></div>
+            <div key={q.id} className="prompt-item yours" data-testid="prompt-note"><span>{q.text}</span><span className="p-btns"><button className="btn btn-ghost btn-sm" data-testid="note-ok" onClick={() => removePrompt(q.id)}>OK</button>{q.reject && <button className="btn btn-ghost btn-sm" data-testid="note-reject" title="Undo this change" onClick={() => rejectChange(q)}>Reject</button>}</span></div>
           ) : q.kind === 'dawn' ? (
             <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`} data-testid="prompt-dawn">
               <span><strong>{c.name}</strong>: dawn. Roll for the charges your items regain.</span>
@@ -5443,7 +5596,7 @@ function App() {
               <div className="rest-panel" data-testid="rest-panel">
                 <div className="rest-title">{rest.kind === 'long' ? 'Long Rest' : 'Short Rest'} · {timeText(rest.len)}</div>
                 {rest.paused && <div className="buff-note" data-testid="rest-paused" style={{margin: '4px 0', textAlign: 'center'}}>Initiative is paused until the rest is over.</div>}
-                <div className="rest-clocks">{mine.map(c => { const me = rest.chars[c.id] || {used: 0}, len = me.len ?? rest.len, left = len - me.used; return (
+                <div className="rest-clocks">{mine.map(c => { const me = rest.chars[c.id] || {used: 0}, len = me.len ?? restLenFor(c), left = len - me.used; return (
                   <div key={c.id} className="rest-who" data-testid="rest-who">
                     <RestRing left={left} total={len} size={big} label={c.name}/>
                     <div className="rest-name"><strong>{c.name}</strong>{me.len != null && me.len !== rest.len ? <span className="pp-muted"> · own clock {timeText(len)}</span> : null}</div>
@@ -5710,6 +5863,14 @@ function App() {
                   </div>
                 ))}
 
+                {selAction && canControl(viewed) && targetIds.length > 0 && (selAction.type === 'attack' || (selAction.type === 'save' && selAction.saveAbility === 'Dexterity')) && (
+                  <div className="advantage-row cover-row" data-testid="cover-row" style={{flexWrap: 'wrap', alignItems: 'center'}}>
+                    {targetIds.map(id => { const t0 = inPlay.find(c => c.id === id); return t0 ? <label key={id} className="rule-label" style={{margin: 0}}>{targetIds.length > 1 ? `${t0.name}: ` : ''}Cover <select aria-label={`Cover for ${t0.name}`} data-testid="cover-pick" value={cover[id] || 0} onChange={e => setCover({...cover, [id]: +e.target.value})}><option value={0}>None</option><option value={2}>Half (+2)</option><option value={5}>Three-Quarters (+5)</option></select></label> : null; })}
+                    {selAction.type === 'attack' && <label className="rule-label" style={{margin: 0}} title="An optional rule some tables use: Advantage when an ally is on the opposite side of the target"><input type="checkbox" data-testid="flank-pick" checked={flanked} onChange={e => setFlanked(e.target.checked)}/> Flanking</label>}
+                  </div>)}
+                {selAction && canControl(viewed) && selAction.spell && selAction.school === 'Evocation' && selAction.type === 'save' && (viewed.passives || {}).sculptSpells && targetIds.length > 0 && (() => { const most = 1 + (castLevel > 0 ? castLevel : selAction.slot || 0); return (
+                  <div className="advantage-row" data-testid="sculpt-row" style={{flexWrap: 'wrap'}}><span className="pp-muted" title="They automatically succeed on their saves and take no damage">Sculpt Spells (up to {most}):</span>
+                    {targetIds.map(id => { const t0 = inPlay.find(c => c.id === id); return t0 ? <label key={id} className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="sculpt-pick" checked={sculpt.includes(id)} disabled={!sculpt.includes(id) && sculpt.length >= most} onChange={e => setSculpt(e.target.checked ? [...sculpt, id] : sculpt.filter(x => x !== id))}/> {t0.name}</label> : null; })}</div>); })()}
                 {/* What the chosen action needs */}
                 {selAction && canControl(viewed) && (
                   <div className="do-row" data-testid="do-row">
@@ -5739,7 +5900,7 @@ function App() {
                   <div className="manual-roll" data-testid="mode-box">
                     <span className="label">Which version</span>
                     <div className="advantage-row" style={{flexWrap:'wrap'}}>
-                      {selAction.modes.map((m, i) => <div key={i} data-testid="mode-pick" className={`adv-btn ${modePick[selAction.id] === i ? 'active-adv' : ''}`} onClick={() => setModePick({...modePick, [selAction.id]: i})}>{m.name}</div>)}
+                      {selAction.modes.map((m, i) => <div key={i} data-testid="mode-pick" className={`adv-btn ${(modePick[selAction.id] ?? selAction.modeDefault) === i ? 'active-adv' : ''}`} onClick={() => setModePick({...modePick, [selAction.id]: i})}>{m.name}</div>)}
                     </div>
                   </div>
                 )}
@@ -6066,7 +6227,7 @@ function App() {
           <div className="panel-header">{isDM ? <span className="log-tabs"><button data-testid="logtab-combat" className={logTab === 'combat' ? 'on' : ''} onClick={() => setLogTab('combat')}>Combat Log</button><button data-testid="logtab-system" className={logTab === 'system' ? 'on' : ''} onClick={() => setLogTab('system')}>System Log</button></span> : 'Combat Log'}
             <label className="rule-label" style={{float:'right', fontFamily:"'Crimson Text', serif", textTransform:'none', letterSpacing:0, color:'var(--text-muted)'}} title="A pop-up for the result of what you do and for anything that affects your creatures"><input type="checkbox" data-testid="notices-toggle" checked={noticesOn} onChange={e=>setNoticesOn(e.target.checked)}/> Pop-ups</label>
           </div>
-          <div className="log-body">
+          <div className={`log-body ${fateChoose ? 'fate-choosing' : ''}`}>
             {log.length===0 && <div className="empty-state">Results will appear here</div>}
             {log.map((entry, i) => (
               entry.type==='round'
@@ -6074,7 +6235,8 @@ function App() {
                 : (entry.dmOnly && !isDM) || (entry.priv && !isDM && !entry.priv.some(id => canControl(combatants.find(c => c.id === id)))) ? null
                 : isDM && (logTab === 'system') !== !!entry.sys ? null
                 : !isDM && entry.sys ? null
-                : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result ${entry.void ? 'void' : ''} ${entry.flag ? 'flagged' : ''}`}>
+                : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result ${entry.void ? 'void' : ''} ${entry.flag ? 'flagged' : ''} ${fateChoose && entry.d20 && !entry.void ? 'fate-pickable' : ''}`} data-testid={fateChoose && entry.d20 && !entry.void ? 'fate-pickable' : undefined}
+                    onClickCapture={fateChoose && entry.d20 && !entry.void ? (ev => { ev.stopPropagation(); ev.preventDefault(); const cid = fateChoose; setFateChoose(null); setFatePick({cId: cid, entryId: entry.id}); }) : undefined}>
                     {entry.flag && <div className="log-flag" data-testid="log-flag" role="button" title="Click for the reason" onClick={() => setOpenFlag({...openFlag, [entry.id]: !openFlag[entry.id]})}>❗ Used against the rules{openFlag[entry.id] && <span className="why" data-testid="log-flag-why">Error: {entry.flag}</span>}</div>}
                     {isDM && dmHist.current[entry.id] && <button className="log-star" data-testid="log-undo" title="Take back only what this did (DM). Shift-click: go back to just before it, undoing everything after too" aria-label="Take back" onClick={(ev) => ev.shiftKey ? undoToEntry(entry) : reverseEntry(entry)}>↶</button>}
                     {isDM && dmHist.current[entry.id] && <button className="log-star" data-testid="log-change" title="Change what this did (DM)" aria-label="Change the result" onClick={() => openChange(entry)}>✎</button>}
@@ -6085,6 +6247,8 @@ function App() {
                     {entry.dmOnly && <div className="log-detail" style={{color:'#fff176'}}>Only you can see this roll.</div>}
                     {canOverride(entry) && <div className="log-ov"><button className="btn btn-ghost btn-sm" data-testid="log-override" title="Undo what this did and resolve it the other way, with the same roll. Open for one round." onClick={() => overrideEntry(entry)}>
                       Override: {(entry.ov.k === 'atk' ? entry.ov.hit : entry.ov.passed) ? 'cause to fail' : 'cause to succeed'}</button></div>}
+                    {(() => { const ctx = (entry.ov || {}).ctx || {}, t = combatants.find(x => x.id === (ctx.pickedIds || [])[0]); if (!t || entry.void || !entry.d20 || entry.d20.k !== 'atk' || entry.d20.cover || !canControl(t) || round - (+entry.ov.r || 0) > 2 || log.some(x => x.coverOf === entry.id)) return null;
+                      return <div className="log-ov" data-testid="cover-late"><span>{t.name} had cover?</span><button className="btn btn-ghost btn-sm" data-testid="cover-late-half" onClick={() => applyCover(entry, 2)}>Half (+2)</button><button className="btn btn-ghost btn-sm" data-testid="cover-late-tq" onClick={() => applyCover(entry, 5)}>Three-Quarters (+5)</button></div>; })()}
                     {canEndConc(entry) && <div className="log-ov"><button className="btn btn-ghost btn-sm" data-testid="conc-end" onClick={() => endConcentration(entry.concEnd.id, 'After a failed Constitution saving throw to maintain Concentration.')}>End Concentration on {entry.concEnd.name}</button></div>}
                   </div>
             ))}
