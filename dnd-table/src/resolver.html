@@ -263,6 +263,11 @@
     .rest-panel { border: 1px solid rgba(201,162,75,0.4); border-radius: 8px; padding: 10px; margin: 6px 0 10px; }
     .rest-title { text-align: center; color: var(--brass-light); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 13px; }
     .cal-ed { border: 1px dashed rgba(201,162,75,0.4); border-radius: 6px; padding: 6px; margin: 4px 0; display: grid; gap: 4px; }
+    .boon-box { border: 1px solid var(--brass); border-radius: 8px; padding: 8px 10px; margin: 8px 0; background: rgba(201,162,75,0.08); }
+    .boon-item + .boon-item { border-top: 1px solid rgba(201,162,75,0.3); margin-top: 6px; padding-top: 6px; }
+    .boon-name { color: var(--brass-light); font-weight: 600; letter-spacing: 0.03em; }
+    .boon-text { font-size: 13px; line-height: 1.45; margin: 2px 0 4px; }
+    .boon-ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
     .rest-clocks { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 6px 0; }
     .rest-who { display: flex; flex-direction: column; align-items: center; gap: 3px; }
     .rest-name { font-size: 13px; text-align: center; }
@@ -1794,7 +1799,7 @@ function sheetToFields(data) {
     armorOptions: (Array.isArray(data.armorOptions) ? data.armorOptions : []).slice(0, 20).filter(o => o && typeof o === 'object' && Number.isFinite(+o.ac)).map(o => ({name: str(o.name, 80), ac: num(o.ac, 10), cat: str(o.cat, 10), don: Math.max(0, num(o.don, 0)), doff: Math.max(0, num(o.doff, 0))})),
     why: (() => { const w = data.why && typeof data.why === 'object' ? data.why : {}, out = {}; ['ac', 'speed', 'initiative', 'saves', 'hp'].forEach(k => { out[k] = (Array.isArray(w[k]) ? w[k] : []).filter(x => Array.isArray(x) && x.length === 2 && Number.isFinite(+x[1])).slice(0, 12).map(x => [str(x[0], 60), +x[1]]); }); return out; })(),
     itemsFull: (Array.isArray((data.builder || {}).characterItems) ? data.builder.characterItems : []).slice(0, 80).filter(i => i && typeof i === 'object' && i.name).map(i => ({name: str(i.name, 80), type: str(i.type || i.category, 60), rarity: str(i.rarity, 20), attune: !!(i.attunement || i.slot), slot: str(i.slot || (i.attunement ? 'Attunement' : ''), 30), attuned: !!i.attuned, d: str(i.description, 3000), cost: str(i.cost, 20), weight: str(i.weight, 20)})),
-    shield: !!data.shield, feats: list(data.feats, 40, 60), components: list(data.components, 80, 60),
+    shield: !!data.shield, boons: (Array.isArray(data.boons) ? data.boons : []).slice(0, 4).filter(b => b && b.name).map(b => ({name: str(b.name, 60), text: str(b.text, 600)})), feats: list(data.feats, 40, 60), components: list(data.components, 80, 60),
     featureList: (Array.isArray(data.featureList) ? data.featureList : []).slice(0, 120).filter(f => f && typeof f === 'object' && f.n).map(f => ({n: str(f.n, 80), lv: Math.max(0, Math.min(20, num(f.lv, 0))), src: str(f.src, 24), d: str(f.d, 2500)})),
     saveProfs: list(data.saveProfs, 6, 20), languages: list(data.languages, 40, 40), tools: list(data.tools, 40, 60), importantItems: list(data.importantItems, 40, 80),
     spellList: (Array.isArray(data.spellList) ? data.spellList : []).slice(0, 120).filter(s => s && typeof s === 'object' && s.n).map(s => ({n: str(s.n, 60), l: Math.max(0, Math.min(9, num(s.l, 0))), s: str(s.s, 6), k: str(s.k, 8), r: str(s.r, 24), sv: str(s.sv, 5), d: str(s.d, 22), t: str(s.t, 22), sum: str(s.sum, 130), up: str(s.up, 140)})),
@@ -2859,7 +2864,7 @@ function App() {
   };
 
   // A saving throw, rolled with the target's numbers as they stand when the button is pressed.
-  const resolveSave = (action, actorNameRaw, actor, tgt, ruled, keep) => {
+  const resolveSave = (action, actorNameRaw, actor, tgt, ruled, keep, rulingBy) => {
     const actorName = esc(actorNameRaw), targetName = esc(tgt.name);
     actingRef.current = actor ? actor.id : ''; actionRef.current = action;
     const saveAbility = action.saveAbility;
@@ -2885,7 +2890,7 @@ function App() {
     const condHtml = applyOutcome(tgt, passed ? action.onSuccess : action.onFail, action, actor);
     const extras = [t.bonusText, inspired && inspired.text].filter(Boolean).join(', ');
     return {
-      roll,
+      roll, d20: t.autoFail ? null : {tot: saveTotal, vs: action.dc, k: 'save'},
       type: passed ? 'save-pass' : 'save-fail',
       html:`<strong>${actorName}</strong> → <strong>${targetName}</strong><br/>
             <span class="log-result">${esc(action.name)}</span><br/>
@@ -2893,7 +2898,7 @@ function App() {
               ? `<strong style="color:var(--danger)">Fails automatically (${esc(t.autoFail)})</strong>`
               : `${sec(`Roll: ${rollsTxt(roll)} ${signed(saveMod)}${extras ? ` (${extras})` : ''} = <strong>${saveTotal}</strong> · `)}<strong style="color:${passed?'var(--success)':'var(--danger)'}">${passed?'Saved!':'Failed!'}</strong>`}
             ${modeText(t) && !t.autoFail ? `<div class="log-detail">${modeText(t)}</div>` : ''}
-            ${ruled ? `<div class="log-detail" style="color:#fff176">The DM ruled that it ${ruled === 'pass' ? 'succeeds' : 'fails'}.</div>` : ''}
+            ${ruled ? `<div class="log-detail" style="color:#fff176">${rulingBy ? esc(rulingBy) : 'The DM ruled'} that it ${ruled === 'pass' ? 'succeeds' : 'fails'}.</div>` : ''}
             ${dmgHtml}${condHtml}
             ${action.desc?`<div class="log-detail">${esc(action.desc)}</div>`:''}`
     };
@@ -2935,18 +2940,18 @@ function App() {
   const canEndConc = e => { const t = e && e.concEnd ? combatants.find(c => c.id === e.concEnd.id) : null; return !!(t && canControl(t) && t.conc && t.conc.name === e.concEnd.name); };
   const canOverride = e => isDM && e && e.ov && !e.void && round - (+e.ov.r || 0) <= 1;
   // The DM reverses a result that is still in the Combat Log: what it did is undone, then it is resolved the other way with the same roll.
-  const overrideEntry = (e) => {
-    if (!canOverride(e)) return;
-    const ov = e.ov;
+  const overrideEntry = (e, why, newTot) => {
+    if (!why && !canOverride(e)) return;
+    const ov = why ? {...e.ov, why, newTot} : e.ov;
     if (room && db) db.ref('rooms/' + room + '/log/' + e.id + '/void').set(true);
     setLogRaw(prev => prev.map(x => x.id === e.id ? {...x, void: true} : x));
     undoDelta(ov.d);
-    if (ov.k === 'atk') resolve({...ov.ctx, replay: true, force: ov.hit ? 'miss' : 'hit'});
+    if (ov.k === 'atk') resolve({...ov.ctx, replay: true, force: ov.hit ? 'miss' : 'hit', forceWhy: why || ''});
     else {
       const tgt = combatants.find(c => c.id === ov.q.targetId); if (!tgt) return;
       const actor = combatants.find(c => c.id === ov.q.actorId) || null, ruled = ov.passed ? 'fail' : 'pass';
-      const tr = track(() => resolveSave(ov.q.action, ov.q.actorName || 'Someone', actor, tgt, ruled, ov.roll));
-      const {roll, ...rest} = tr.res;
+      const tr = track(() => resolveSave(ov.q.action, ov.q.actorName || 'Someone', actor, tgt, ruled, ov.roll, why));
+      const {roll, ...rest} = tr.res; if (!rest.d20) delete rest.d20; if (ov.why && rest.d20) rest.d20 = {...rest.d20, tot: ov.newTot ?? rest.d20.tot};
       setLog(prev => [...prev, stamp({...rest, ...concFail(ov.q.action, rest, tgt), forId: tgt.id, by: myId, ov: plain({k: 'save', r: round, passed: ruled === 'pass', d: tr.d, q: ov.q, roll})})]);
     }
   };
@@ -2964,7 +2969,7 @@ function App() {
       const why = !ruled && ((au.failTypes || []).includes(ty) ? `fails automatically: it is a ${ty}` : (au.passTypes || []).includes(ty) ? `succeeds automatically: it is a ${ty}` : au.passCR && crv > 0 ? 'succeeds automatically: its Challenge Rating is not 0' : '');
       if (why) { ruled = /fails/.test(why) ? 'fail' : 'pass'; setLog(prev => [...prev, stamp({type: ruled === 'fail' ? 'save-fail' : 'save-pass', forId: tgt.id, html:`<strong>${esc(tgt.name)}</strong> ${esc(why)} (${esc(q.action.name)})`})]); }
       const tr = track(() => resolveSave(q.action, q.actorName || 'Someone', actor, tgt, ruled));
-      const {roll: svRoll, ...svRest} = tr.res;
+      const {roll: svRoll, ...svRest} = tr.res; if (!svRest.d20) delete svRest.d20;
       offerReactions('damage', tr.d.filter(d => d.hp < 0 && d.id !== q.actorId).map(d => d.id), `${q.actorName || 'Something'} damaged`, actor);
       const ovq = {action: q.action, actorName: q.actorName || '', actorId: q.actorId || '', targetId: tgt.id};
       const entry = {...svRest, ...concFail(q.action, svRest, tgt), forId: tgt.id, by: q.by || '', ov: plain({k: 'save', r: round, passed: svRest.type === 'save-pass', d: tr.d, q: ovq, roll: svRoll})};
@@ -3306,6 +3311,7 @@ function App() {
       else {
       const fc = (active.passives || {}).freeCasting, fr = fc && lvl <= fc ? rollD(4) : 0; // Boon of Spell Recall: on a d4 equal to the slot's level, the slot is not spent
       if (fc && lvl <= fc) setLog(prev => [...prev, stamp({type: 'roll', forId: active.id, html: `<strong>${esc(active.name)}</strong> · Free Casting<br/><span class="log-result">🎲 d4: ${fr}</span> ${fr === lvl ? `the Level ${lvl} slot is not spent` : `the Level ${lvl} slot is spent`}`})]);
+      if (fc && fr === lvl) setNotices(prev => [...prev, {id: newId(), title: 'Free Casting', name: active.name, html: `<strong>${esc(active.name)}</strong> rolled a <strong>${fr}</strong> on the d4 for Free Casting, the same as the slot's level, so the Level ${lvl} spell slot used for ${esc(String(action.name).replace(/ \(Level \d slot\)$/, ''))} is not spent. You still have it.`}]);
       if (fr !== lvl) setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, slotsUsed: {...(c.slotsUsed || {}), [lvl]: (+((c.slotsUsed || {})[lvl]) || 0) + 1}}));
       action = upcast(action, lvl);
       }
@@ -3398,7 +3404,7 @@ function App() {
       let inspired = null;
       if (!nat20 && !nat1 && total < targetAC) { inspired = tryInspire(active, targetAC - total); if (inspired) total += inspired.add; }
       let hit = nat20 || (!nat1 && total >= targetAC);
-      if (forced === 'hit') { hit = true; featNotes.push('The DM ruled that it hits'); }
+      if (forced === 'hit') { hit = true; featNotes.push(re && re.forceWhy ? `${re.forceWhy}: it hits` : 'The DM ruled that it hits'); }
       if (!hit && feat.prowess && !active.prowessUsed && target && (!canControl(active) || window.confirm(`${active.name} missed ${target.name}. Use Peerless Aim to hit instead? It comes back at the start of ${active.name}'s next turn.`))) { // Boon of Combat Prowess: a miss becomes a hit, once until its next turn
         hit = true; featNotes.push('Boon of Combat Prowess turns the miss into a hit');
         setCombatants(prev => prev.map(c => c.id === active.id ? {...c, prowessUsed: true} : c));
@@ -3408,13 +3414,13 @@ function App() {
           if (dr.some(x => x >= 3)) { hit = false; featNotes.push(`${im.name}: rolled ${dr.join(', ')}. A duplicate is hit and destroyed, ${im.images - 1} left`);
             setCombatants(prev => prev.map(c => c.id !== target.id ? c : {...c, effects: (c.effects || []).map(e => e.id === im.id ? {...e, images: e.images - 1} : e).filter(e => e.id !== im.id || e.images > 0)})); }
           else featNotes.push(`${im.name}: rolled ${dr.join(', ')}. No duplicate takes the hit`); } }
-      if (forced === 'miss') { hit = false; featNotes.push('The DM ruled that it misses'); }
+      if (forced === 'miss') { hit = false; featNotes.push(re && re.forceWhy ? `${re.forceWhy}: it misses` : 'The DM ruled that it misses'); }
       const autoCrit = hit && !action.ranged && target && ['Paralyzed','Unconscious'].find(n => hasCond(target, n));
       const critArmorOff = (() => { const pz = target && target.passives || {}, from = pz.critImmuneFrom || '', tsh = (target && target.sheet) || {}; return !!from && (tsh.armorOptions || []).some(o => o.name && o.name.startsWith(from)) && !String(tsh.armor || '').startsWith(from); })(); // armor that is not being worn does nothing
       const critWard = target && hit && (nat20 || !!autoCrit) && ((target.passives || {}).critImmune && !critArmorOff ? 'its armor' : (effs(target).find(e => e.critImmune) || {}).name);
       if (critWard) featNotes.push(`Critical Hit reduced: ${critWard === 'its armor' ? (target.passives.critImmuneFrom || 'an item') : critWard} turns it into a normal hit`);
       const isCrit = hit && (nat20 || !!autoCrit) && !critWard;
-      if (!stepInfo) stepInfo = {hit, crit: hit && isCrit, total, roll};
+      if (!stepInfo) stepInfo = {hit, crit: hit && isCrit, total, roll, vs: targetAC, nat: nat20 ? 20 : nat1 ? 1 : 0};
       if (hit && !action.ranged && (action.weapon || action.unarmed)) setCombatants(prev => prev.map(c => c.id === active.id ? {...c, turn: {...(c.turn || {}), meleeHit: true}} : c));
       // one-shot effects used up by this attack roll: Sap on the attacker, Vex on the target
       effs(active).filter(e => e.atkDis && e.name === 'Sap').forEach(e => removeEffect(active.id, e.id));
@@ -3589,7 +3595,7 @@ function App() {
       offerReactions('damage', deltaOf(combatants, after).filter(d => d.hp < 0 && d.id !== active.id).map(d => d.id), `${active.name} damaged`, active);
       const i = entries.findIndex(e => ['hit', 'miss', 'crit'].includes(e.type));
       if (stepInfo && picked.length === 1 && i >= 0) entries[i] = {...entries[i], ov: plain({k: 'atk', r: round, hit: !!stepInfo.hit, d: deltaOf(combatants, after),
-        ctx: {actorId: active.id, action, castLvl, pickedIds: picked.map(x => x.id), adv: advNow, sneak: sneakNow, roll: stepInfo.roll}})};
+        ctx: {actorId: active.id, action, castLvl, pickedIds: picked.map(x => x.id), adv: advNow, sneak: sneakNow, roll: stepInfo.roll}}), d20: {tot: stepInfo.total, vs: stepInfo.vs, nat: stepInfo.nat, k: 'atk'}};
       const gone = prompts.filter(q => q.kind === 'incoming' && q.by === myId).map(q => q.id); // the "is attacking" notice goes once the result is sent
       if (gone.length) { setPrompts(prev => prev.filter(q => !gone.includes(q.id))); if (room && db) setTimeout(() => gone.forEach(id => db.ref('rooms/' + room + '/prompts/' + id).remove()), 400); }
     }
@@ -3624,7 +3630,7 @@ function App() {
       body = `<span class="log-result">🎲 ${roll.total + base + t.bonus}</span><div class="log-dice">${rollsTxt(roll)} ${signed(base)}${t.bonusText ? ` (${t.bonusText})` : ''}</div>${modeText(t) ? `<div class="log-detail">${modeText(t)}</div>` : ''}`;
     }
     if (dc) body += `<div class="log-detail">${why ? esc(why) + ' · ' : ''}DC ${+dc} · <strong style="color:${total != null && total >= +dc ? 'var(--success)' : 'var(--danger)'}">${total != null && total >= +dc ? 'Success' : 'Failure'}</strong></div>`;
-    setLog(prev => [...prev, stamp({type: dc ? (total != null && total >= +dc ? 'save-pass' : 'save-fail') : 'roll', html:`<strong>${esc(c.name)}</strong> · ${esc(label)}<br/>${body}`})]);
+    setLog(prev => [...prev, stamp({type: dc ? (total != null && total >= +dc ? 'save-pass' : 'save-fail') : 'roll', ...(total != null ? {d20: {tot: total, vs: dc ? +dc : 0, k: kind}} : {}), html:`<strong>${esc(c.name)}</strong> · ${esc(label)}<br/>${body}`})]);
     return total;
   };
 
@@ -4435,11 +4441,17 @@ function App() {
   const [blink, setBlink] = useState(null); // Blink Steps after the Attack or Magic action: {id, feet, key}
   const [swapTo, setSwapTo] = useState({}); // Alert's Initiative Swap: {characterId: allyId}
   const INCAP = ['Incapacitated', 'Paralyzed', 'Petrified', 'Stunned', 'Unconscious'];
-  const useFate = (c, entry, sign) => { if (!c || c.fateUsed) return; const dice = (c.passives || {}).improveFate || '2d4', r = parseDamage(dice), n = sign * r.total, what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').trim().slice(0, 90);
+  const lastD20 = () => { for (let i = log.length - 1; i >= 0; i--) { const e = log[i]; if (e && e.d20 && !e.void && !e.sys && !(e.dmOnly && !isDM)) return e; } return null; };
+  const useFate = (c, sign) => { const entry = lastD20(); if (!c || c.fateUsed || !entry) return;
+    const dice = (c.passives || {}).improveFate || '2d4', r = parseDamage(dice), n = sign * r.total, d = entry.d20, newTot = d.tot + n;
+    const what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
+    const was = d.vs ? (d.k === 'atk' ? (d.nat === 20 || (d.nat !== 1 && d.tot >= d.vs)) : d.tot >= d.vs) : null, now = d.vs ? (d.k === 'atk' ? (d.nat === 20 || (d.nat !== 1 && newTot >= d.vs)) : newTot >= d.vs) : null;
+    const flips = was !== null && was !== now, word = ok => d.k === 'atk' ? (ok ? 'a hit' : 'a miss') : (ok ? 'a success' : 'a failure');
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, fateUsed: true} : x));
-    setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> · Improve Fate on: ${esc(what)}<br/><span class="log-result">${n >= 0 ? '+' : ''}${n}</span> to that d20 roll (${esc(dice)}: ${esc(r.parts.join(' + '))})<div class="log-detail">Usable again after rolling Initiative or a Short or Long Rest.</div>`})]);
-    if (!isDM) dmNote(`${c.name} used Improve Fate: ${n >= 0 ? '+' : ''}${n} on "${what}". If that changes the result, use ✎ on that entry.`);
-    setFatePick(null); };
+    setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> · Improve Fate on: ${esc(what)}<br/><span class="log-result">${d.tot} → ${newTot}</span> (${n >= 0 ? '+' : ''}${n}: ${esc(dice)} ${esc(r.parts.join(' + '))})<div class="log-detail">${d.vs ? (flips ? `It becomes ${word(now)}.` : `Still ${word(now)}.`) : ''} Usable again after rolling Initiative or a Short or Long Rest.</div>`})]);
+    if (flips && entry.ov) setTimeout(() => overrideEntry(entry, `Improve Fate (${c.name})`, newTot), 300); // the result is undone and resolved the other way, with the same roll
+    else if (flips) dmNote(`${c.name}'s Improve Fate makes "${what}" ${word(now)}. Change what it did with ✎ on that entry.`);
+    else if (!isDM) dmNote(`${c.name} used Improve Fate on "${what}": ${d.tot} → ${newTot}${d.vs ? `, still ${word(now)}` : ''}.`); };
   const askSwap = (c, allyId) => { const a = combatants.find(x => x.id === allyId); if (!a || !c) return;
     if ([c, a].some(x => (x.conditions || []).some(k => INCAP.includes(k)))) { window.alert('No swap: you or that ally has the Incapacitated condition.'); return; }
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, swapDone: true} : x));
@@ -4697,6 +4709,18 @@ function App() {
                 </div>
               </div>
               {(() => { const d = defensesOf(c); return d.length ? <div className="pp-line" data-testid="pp-defenses"><span><strong>Defenses</strong> {d.map(([k, v], i) => <span key={k} className={`def-chip def-${k}`} title={{res: 'Resistance: takes half damage of these types', imm: 'Immunity: takes no damage of these types', vul: 'Vulnerability: takes double damage of these types', ci: 'Cannot be given these conditions'}[k]}>{{res: '🛡 Resistant', imm: '⛔ Immune', vul: '⚠ Vulnerable', ci: '✋ Condition immune'}[k]}: {v}</span>)}</span></div> : null; })()}
+              {(sh.boons || []).length > 0 && <div className="boon-box" data-testid="boon-box">{sh.boons.map(b => { const pz = c.passives || {}, le = pz.improveFate ? lastD20() : null; return (
+                <div key={b.name} className="boon-item">
+                  <div className="boon-name">Epic Boon: {b.name}</div>
+                  <div className="boon-text">{b.text}</div>
+                  {/Fate/.test(b.name) && pz.improveFate && <div className="boon-ctl" data-testid="boon-fate">{c.fateUsed ? <span className="pp-muted">Used. It comes back when you roll Initiative or finish a Short or Long Rest.</span> : le ? <>
+                    <span className="pp-muted">Last roll: {String(le.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 70)} ({le.d20.tot})</span>
+                    {ctl && <><button className="pp-chip on" data-testid="fate-bonus" onClick={() => useFate(c, 1)}>Apply +{pz.improveFate} to the last roll</button><button className="pp-chip" data-testid="fate-penalty" onClick={() => useFate(c, -1)}>Apply −{pz.improveFate}</button></>}</> : <span className="pp-muted">Ready. No d20 roll in the log yet.</span>}</div>}
+                  {/Combat Prowess/.test(b.name) && pz.prowess && <div className="boon-ctl" data-testid="boon-prowess"><span className={c.prowessUsed ? 'pp-muted' : ''}>{c.prowessUsed ? 'Peerless Aim is used. It comes back at the start of your next turn.' : 'Peerless Aim is ready: when you miss, you are asked if you want to hit instead.'}</span></div>}
+                  {/Spell Recall/.test(b.name) && pz.freeCasting && <div className="boon-ctl"><span className="pp-muted">Automatic: the d4 is rolled each time you cast with a Level 1 to {pz.freeCasting} slot.</span></div>}
+                  {/Irresistible/.test(b.name) && pz.irresistible ? <div className="boon-ctl"><span className="pp-muted">Automatic: your attacks ignore that Resistance, and a 20 adds {pz.irresistible} damage.</span></div> : null}
+                  {/Dimensional Travel/.test(b.name) && pz.blinkSteps ? <div className="boon-ctl"><span className="pp-muted">You are reminded after each Attack or Magic action.</span></div> : null}
+                </div>); })}</div>}
               <div className="pp-line"><span><strong>Senses</strong> {effectiveSenses(c).join(', ') || 'None'}</span><span><strong>Speeds</strong> {speedText(c)} &nbsp; <strong>Long Jump</strong> {str} ft. &nbsp; <strong>High Jump</strong> {Math.max(0, 3 + mod(str))} ft.</span></div>
 
               {combatStarted && (() => { const turn = c.turn || {}, mine = !!(active && active.id === c.id), sp = effectiveSpeed(c), moved = +turn.moved || 0;
@@ -5182,7 +5206,7 @@ function App() {
             </div>
           </div>
         </div>); })()}
-      {fatePick && (() => { const c = combatants.find(x => x.id === fatePick.cId); if (!c) return null; return (
+      {false && fatePick && (() => { const c = combatants.find(x => x.id === fatePick.cId); if (!c) return null; return (
         <div className="modal-overlay" onClick={() => setFatePick(null)}>
           <div className="modal" data-testid="fate-modal" style={{maxWidth: 420}} onClick={e => e.stopPropagation()}>
             <div className="modal-header">{c.name}: Improve Fate</div>
@@ -6054,7 +6078,6 @@ function App() {
                     {entry.flag && <div className="log-flag" data-testid="log-flag" role="button" title="Click for the reason" onClick={() => setOpenFlag({...openFlag, [entry.id]: !openFlag[entry.id]})}>❗ Used against the rules{openFlag[entry.id] && <span className="why" data-testid="log-flag-why">Error: {entry.flag}</span>}</div>}
                     {isDM && dmHist.current[entry.id] && <button className="log-star" data-testid="log-undo" title="Take back only what this did (DM). Shift-click: go back to just before it, undoing everything after too" aria-label="Take back" onClick={(ev) => ev.shiftKey ? undoToEntry(entry) : reverseEntry(entry)}>↶</button>}
                     {isDM && dmHist.current[entry.id] && <button className="log-star" data-testid="log-change" title="Change what this did (DM)" aria-label="Change the result" onClick={() => openChange(entry)}>✎</button>}
-                    {(() => { const f = !entry.sys && /Roll: \d|🎲 \d+\/\d+|Roll \d/.test(String(entry.html || '')) && i >= log.length - 8 && combatants.find(c => canControl(c) && (c.passives || {}).improveFate && !c.fateUsed && (isDM ? c.owner === myId || !c.owner : c.owner === myId)); return f ? <button className="log-star" data-testid="log-fate" title={`Improve Fate (${f.name}): roll ${f.passives.improveFate} and add it to this d20 roll or take it away`} onClick={() => setFatePick({entry, cId: f.id})}>✦</button> : null; })()}
                     <button className="log-star" data-testid="log-note" title={noteSaved === entry.id ? 'Saved to your Notes' : 'Save this to your Notes (under this fight)'} aria-label="Save to notes" onClick={() => noteFromLog(entry)}>{noteSaved === entry.id ? '✓' : '📝'}</button>
                     <button className={`log-star ${stars.some(x => x.id === entry.id) ? 'on' : ''}`} data-testid="log-star" title="Star this to keep it for after the fight" aria-label="Star this entry" onClick={() => toggleStar(entry)}>{stars.some(x => x.id === entry.id) ? '★' : '☆'}</button>
                     <div className="log-html" dangerouslySetInnerHTML={{__html:sanitizeLogHtml(entry.html)}}/>

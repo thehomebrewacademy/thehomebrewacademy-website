@@ -2712,6 +2712,10 @@ function CharacterSheet() {
       moves: Array.from(new Set(derived.moves)),
       conditionImmune: Array.from(new Set(derived.condImmune)),
       lineage, armor, shield, weapons, masteries,
+      boons: takenFeats.filter(f => f.def && f.def.category === "Epic Boon").map(f => { // shown in a box of its own on the sheet, unless all it gives is something to activate
+        const es = mech.entries.filter(e => e.grantedBy && e.grantedBy.type === "feat" && (e.grantedBy.name === f.name || e.grantedBy.name === f.base));
+        if (es.length && es.every(e => isActivated(e) && !e.statics)) return null;
+        return { name: f.name, text: String(f.def.text || "").replace(/^Ability Score Increase\.[^.]*\.\s*/, "").slice(0, 600) }; }).filter(Boolean),
       passives: (() => {
         const out = { ...derived.passives }; // feats' passives come from their abilities in mechanics.js, like any feature
         if (out.overwhelmingStrike) { const io = takenFeats.find(f => f.base === "Boon of Irresistible Offense"); const ab = io && ABILITIES.includes(io.choices.ability) ? io.choices.ability : ABILITIES.includes(out.overwhelmingStrike) ? out.overwhelmingStrike : "";
