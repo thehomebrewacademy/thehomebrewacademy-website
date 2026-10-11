@@ -510,6 +510,9 @@ versions: when one feature can be used in several different ways and the user pi
 hitPointBands: when what happens depends on the target's current Hit Points, add "hitPointBands": [ { "max": 100, ...fields for a target with that many Hit Points or fewer... }, { "max": 0, ...fields for any other target... } ]. An outcome may contain "dies": true.
 attacks: when one use makes several separate attack rolls that can go at the same or different creatures, add "attacks": 3 (a number or formula). "damage" is then the damage of one attack.
 removes: when the feature ends things on its target, add "removes": { "conditions": ["Poisoned", "Charmed"], "count": 1 or "all", "exhaustion": 1, "effects": "curse" | "spells" | "any", "hitPointMaximum": true }. Leave out what does not apply. The user is shown what the target really has and picks from that.
+extraCost: a second pool it spends at the same time, or alone with no "uses": "extraCost": { "pool": "Wild Shape", "cost": 1 }.
+spendSlot: when using it expends a spell slot, add "spendSlot": "any" (the user picks the level), "pact" (a Pact Magic slot) or a number (a slot of that level or higher). It is blocked when no slot is left.
+regain: what using it gives back: "regain": { "pool": "Bardic Inspiration", "amount": 1 } (uses of a pool), { "slot": 2 } (a spell slot of that level), or { "pactSlots": "half" or "all" } (Pact Magic slots).
 cost: when using it costs gold, add "cost": { "gp": 50, "consumed": true }. The gold must be on hand and is taken when it is used (once only if not consumed).
 items: an activated ability granted by an item ("grantedBy": { "type": "item", "name": ... }) can also be used from the Inventory tab of the character sheet, next to that item.
 creates: when using it makes things that stay around, add "creates": [ { "name": "Spirit Lantern", "duration": { "amount": 1, "unit": "hours" }, "note": "what it does" } ]. Leave "duration" out if it does not expire. A thing with a place but no weight (a light, a ward, an illusion, an eye) is listed as an active effect the user controls. A physical thing the character carries gets "item": true, and may add "count": 10 (how many), "spoilsInto": "Spoiled Food" (what it becomes when its duration ends, instead of vanishing), and "whenUsed": { "activation": "bonus" or "action", "heal": "1", "effect": { "name": "Nourished", "duration": { "amount": 1, "unit": "days" }, "note": "what it does" } } for something eaten, drunk or used up one at a time.
@@ -552,6 +555,9 @@ More effect keys (inside an "effects" entry), each exactly as written here:
   "endsWhenNextAttacked": true        ends after the next attack roll against it
   "outOfPlay": true                   it is elsewhere while this lasts: skipped in the turn order, cannot be targeted
   "stable": true, "dashAsBonusAction": true
+  "halveNextDamage": true             the damage of the next hit it takes is halved, then the effect ends (Uncanny Dodge)
+  "reduceNextDamage": { "dice": "1d10+DEX+LEVEL", "types": ["Bludgeoning", "Piercing", "Slashing"] }   the damage of the next hit (of those types; leave "types" out for any) is reduced by that roll, then the effect ends (Deflect Attacks)
+  "nextSpellFree": { "maxLevel": 5 }  its next spell of that level or lower is cast without a slot (Divine Intervention)
 In a condition's "repeatSave", "onDamage": true means the save is also made each time the creature takes damage. "onFailBecomes": "Unconscious" means a failed repeat save turns it into that condition. "countTo": 3 means the repeat saves are counted: that many successes end it, that many failures give "onFailBecomes". "damageOnFail": { "dice": "4d10", "type": "Psychic" } is dealt on each failed repeat save.
 trigger: for a feature used as a Reaction ("activation": "reaction"), add "trigger" so the Combat Resolver offers it at the right moment. Use one or more of these words, separated by commas: "targeted" (a creature targets you with an attack, before the roll), "hit" (an attack roll hits you), "miss" (an attack roll misses you), "damage" (you take damage), "cast" (a creature you can see casts a spell). Example: "trigger": "hit". If none of these fits, write the trigger in the source's own words, for example "trigger": "when a creature you can see within 30 feet fails a saving throw". The player can still use the Reaction from the sheet at any time.
 statBlock: when using the feature turns the character into a creature or brings one out (a beast form, a summoned spirit, a companion called for a time), add "statBlock": "form" (the character becomes it) or "statBlock": "summon" (it appears beside the character). Using the feature then asks which creature, and its stat block sits on the sheet's Stat Blocks tab until it is dismissed or its time runs out. Give the effect its duration so the app knows when that is. If the creature is new, describe its stat block in the feature's "text".
@@ -606,6 +612,15 @@ PASSIVE FEATURES: statics
   "acVsRanged": 2                                         added to Armor Class against ranged attacks only (Arrow-Catching Shield)
   "critExtraDice": "1d8"                                  dice added to the damage of a Critical Hit with a weapon or Unarmed Strike
   "itemSlots": { "Attunement": 1 }                        more item slots of that kind (Attunement, or a kind from "slotTypes"): the character can be attuned to one more item
+  "spellPicks": [ { "label": "Mystic Arcanum (level 6)", "count": 1, "level": 6, "lists": ["Warlock"], "cast": "once" } ]
+                                                          spells the player chooses on the Spells tab. level: a number, "slot" (any level the character has slots for) or 0 for cantrips. lists: class spell lists to choose from. count can be a list of 20. cast: how the picks are cast (below); leave out for normal casting
+  "spellUses": [ { "spell": "Misty Step", "cast": "short" } ]   a spell the feature lets it cast in a special way. cast: "once" (once per Long Rest, no slot), "short" (once per Short or Long Rest, no slot), "atWill" (no slot, no limit), "ritualOnly" (only as a Ritual). Add "self": true when only on itself, "maxRoll": true when its healing dice count as their highest, "note" for anything else
+  "spellMods": [ { "spell": "Eldritch Blast", "damage": "CHA", "range": "30*LEVEL", "note": "..." } ]   changes to one spell: damage added, range set to a formula
+  "extraSpellLists": ["Cleric", "Druid"]                  those class lists count as the character's own when it prepares spells (Magical Secrets)
+  "languages": ["Thieves' Cant"]                          languages it knows
+  "unarmedForce": true                                    Unarmed Strikes can deal Force damage instead of Bludgeoning
+  "pactWeapon": true                                      its weapons get a "(pact weapon)" version that uses the spellcasting ability and can deal Necrotic, Psychic or Radiant damage
+  "cantripRange": 300                                     range in feet of its damaging cantrips (a list of 20 for a range that grows)
   "passives": { ... }                                     standing combat rules, below
 
 passives the Combat Resolver applies:
@@ -630,6 +645,30 @@ passives the Combat Resolver applies:
   "overcomeDefenses": ["Bludgeoning", "Piercing", "Slashing"]   damage of those types the user deals ignores Resistance (Boon of Irresistible Offense)
   "overwhelmingStrike": "Strength"   on a 20 for an attack roll, extra damage equal to that ability score (Boon of Irresistible Offense)
   "freeCasting": 4             casting with a slot of level 1 up to this, a d4 equal to the slot's level means the slot is not spent (Boon of Spell Recall)
+  "studiedAttacks": true       after a missed attack, Advantage on the next attack against that creature (Studied Attacks)
+  "heroicEachTurn": true       gains Heroic Inspiration at the start of each of its turns if it has none (Heroic Warrior)
+  "heroicOnLongRest": true     gains Heroic Inspiration on a Long Rest (Resourceful)
+  "heroicRally": "5+CON"       regains this many Hit Points at the start of each turn while Bloodied (Survivor)
+  "deathAdv": true             Advantage on Death Saving Throws
+  "deathCritOn": 18            a Death Saving Throw of this or higher counts as a 20
+  "elusive": true              no attack roll has Advantage against it while it isn't Incapacitated (Elusive)
+  "thiefsReflexes": true       two turns in the first round of combat, the second at Initiative minus 10 (Thief's Reflexes)
+  "luck": true                 a 1 on a d20 Test is rerolled once (Luck)
+  "jumpDex": true              jumping uses Dexterity when it is higher
+  "sculptSpells": true         its area spells can leave chosen creatures unharmed: they succeed on the save and take no damage on a success (Sculpt Spells)
+  "concAdvantage": true        Advantage on saves to keep Concentration
+  "grappleNoHand": true        it can Grapple without a free hand
+  "scoreFloor": ["Strength"]   a check or save with that ability uses the score itself if the d20 total is lower (Indomitable Might)
+  "concProtect": ["Hunter's Mark"]   damage can't break Concentration on those spells (Relentless Hunter)
+  "escapeAdv": ["Grappled"]    Advantage on checks and saves to end those conditions (Powerful Build)
+  "advVsMarked": "Hunter's Mark"     Advantage on attacks against a creature under that effect from it (Precise Hunter)
+  "revealMarked": "Hunter's Mark"    it learns the Immunities, Resistances and Vulnerabilities of a creature under that effect from it (Hunter's Lore)
+  "reliableTalent": 10         a d20 under this on a check with a proficient skill counts as this (Reliable Talent)
+  "chargeSaver": 6             using a magic item's charges, a 6 on a d6 means the charge isn't spent
+  "regainOnInitiative": [ { "pool": "Wild Shape", "to": 1, "ifEmpty": true } ]   rolling Initiative refills the pool to this many (ifEmpty: only when none are left)
+  "remindAfter": [ { "after": "Rage", "text": "..." } ]   a reminder shown after using the named action ("*bonus" after any Bonus Action)
+  "longRestSecs": 14400        its Long Rest lasts this many seconds (Trance: 4 hours)
+  "castInForm": true           it can cast spells in a Wild Shape form (Beast Spells)
 
 ---------------------------------------------------------------------
 RESOURCES: pools of uses
@@ -653,6 +692,9 @@ When the player picks one of several options, list them. Each choice is written 
     { "name": "Bulwark", "statics": { "acBonus": { "formula": 1 } } },
     { "name": "Avenger", "activation": "reaction", "target": "creature", "roll": "none", "damage": [ { "dice": "1d8", "type": "Force" } ] } ] } }
 The builder shows a dropdown for the choice on the Features tab.
+Several picks: add "count": 3 (or a list of 20 for a number that grows) inside "options"; the builder shows that many dropdowns.
+A choice that needs something first takes "prereq": { "level": 5, "has": ["Pact of the Blade"] } (class level, and other choices already picked). Add "repeatable": true to a choice that can be picked more than once.
+A choice that gives a feat takes "grantsFeat": "Origin" (the feat category); the builder then asks for that feat.
 If the choice can be changed after a rest, add "changeOn": "short" (a Short or Long Rest) or "changeOn": "long" (a Long Rest only) inside "options". The builder's rest window then lists it as something the player can change.
 
 text: the full rules text, copied as written. It is shown in the combat log.
@@ -668,6 +710,7 @@ A formula is a number or a sum using these words, in capitals:
   SPELLMOD                   the user's spellcasting ability modifier
   SPELLDC                    the user's spell save DC
   SPELLATK                   the user's spell attack bonus
+  PACTLEVEL                  the level of the user's Pact Magic slots (0 without Pact Magic)
 You can use + - * / and brackets. Division rounds down. MAX(a,b) gives the larger and MIN(a,b) the smaller, for rules such as "minimum of 1". Examples: "8+PROF+WIS", "LEVEL*5", "(LEVEL+1)/2", "MAX(1,CHA)".
 
 A dice formula adds dice, written with a small letter d: "2d6", "1d8+STR", "1d10+LEVEL". The number of dice can itself be a formula in brackets: "(LEVEL+1)/2d6" means that many d6.
@@ -1389,7 +1432,7 @@ var FULL_CASTER_SLOTS = {
   20: [4, 3, 3, 3, 3, 2, 2, 1, 1]
 };
 var HALF_CASTER_SLOTS = {
-  1: [],
+  1: [2],
   2: [2],
   3: [3],
   4: [3],
@@ -3491,6 +3534,24 @@ function compileOutcome(o, ctx) {
         once: true
       } : {});
     }
+    if (e.halveNextDamage) out.halveNext = true;
+    {
+      var rn = pObj(e.reduceNextDamage);
+      if (rn.dice) {
+        var dd = evalDice(rn.dice, ctx);
+        if (dd) out.reduceNext = _objectSpread({
+          dice: dd
+        }, pArr(rn.types).length ? {
+          types: pArr(rn.types).map(function (t) {
+            return pStr(t, 20);
+          })
+        } : {});
+      }
+    }
+    if (e.nextSpellFree) {
+      var _n5 = evalFormula(pObj(e.nextSpellFree).maxLevel, ctx);
+      out.freeCast = Number.isFinite(_n5) && _n5 > 0 ? Math.min(9, _n5) : 9;
+    } // the next spell up to that level needs no slot (Divine Intervention)
     if (e.note) out.note = pStr(e.note, 300);
     return out;
   }).filter(Boolean);
@@ -3678,10 +3739,10 @@ function compileAbility(ab0, ctx) {
     };
   });
   if (ab.attacks != null) {
-    var _n5 = evalFormula(ab.attacks, ctx);
-    if (Number.isFinite(_n5) && _n5 > 1) {
+    var _n6 = evalFormula(ab.attacks, ctx);
+    if (Number.isFinite(_n6) && _n6 > 1) {
       out.multi = true;
-      out.targets = Math.min(20, _n5);
+      out.targets = Math.min(20, _n6);
       delete out.self;
     }
   }
@@ -3704,6 +3765,26 @@ function compileAbility(ab0, ctx) {
     if (cost.consumed) out.gpConsumed = true;
   }
   if (ab.askDM) out.askDM = pStr(ab.askDM, 300);
+  {
+    var x = pObj(ab.extraCost);
+    if (x.pool) out.extraCost = {
+      pool: pStr(x.pool, 40),
+      cost: Math.max(1, evalFormula(x.cost == null ? 1 : x.cost, ctx) || 1)
+    };
+  }
+  if (ab.spendSlot != null) out.spendSlot = ab.spendSlot === "any" || ab.spendSlot === "pact" ? ab.spendSlot : Math.max(1, Math.min(9, parseInt(ab.spendSlot, 10) || 1)); // it costs a spell slot: the lowest one left, a Pact Magic slot, or that level
+  {
+    var _g = pObj(ab.regain);
+    if (_g.pool) out.regainPool = {
+      pool: pStr(_g.pool, 40),
+      amount: Math.max(1, evalFormula(_g.amount == null ? 1 : _g.amount, ctx) || 1)
+    };
+    if (_g.slot) {
+      var lv = evalFormula(_g.slot, ctx);
+      if (lv >= 1 && lv <= 9) out.regainSlot = lv;
+    }
+    if (_g.pactSlots === "half" || _g.pactSlots === "all") out.regainPact = _g.pactSlots;
+  } // what it gives back
   var made = pArr(ab.creates).slice(0, 4).map(function (c0) {
     var c = pObj(c0),
       u = pObj(c.whenUsed),
@@ -4165,9 +4246,12 @@ function checkPack(raw) {
       LEVEL: LEVEL,
       SPELLMOD: 3,
       SPELLDC: 13,
-      SPELLATK: 5
+      SPELLATK: 5,
+      PACTLEVEL: LEVEL >= 9 ? 5 : LEVEL >= 7 ? 4 : LEVEL >= 5 ? 3 : LEVEL >= 3 ? 2 : 1
     };
   };
+  if (pArr(raw.abilities).length > 800) warnings.push("This pack has ".concat(pArr(raw.abilities).length, " abilities. Only the first 800 were kept: split the rest into a second pack."));
+  if (pArr(raw.items).length > 600) warnings.push("This pack has ".concat(pArr(raw.items).length, " items. Only the first 600 were kept: split the rest into a second pack."));
   pArr(raw.abilities).slice(0, 800).forEach(function (ab, i) {
     var label = "Ability ".concat(pStr(pObj(ab).name, 60) || "#" + (i + 1));
     var g = pObj(pObj(ab).grantedBy);
@@ -5116,25 +5200,51 @@ function activeMechanics(ch) {
     if (!abilityGranted(raw, ch)) return;
     var e = resolveLevels(atLevelOf(raw, ch.level), ch.level);
     if (e.options && Array.isArray(e.options.choices)) {
-      var key = optionKey(raw),
-        picked = ch.featureChoices[key] || "";
-      optionSlots.push({
-        key: key,
-        label: e.options.label || e.name,
-        feature: e.name,
-        choices: e.options.choices.map(function (c) {
-          return c.name;
+      var base = optionKey(raw),
+        n = Math.max(1, Math.min(20, parseInt(e.options.count, 10) || 1)); // "count": how many picks (a list of 20 for a number that grows)
+      var keys = Array.from({
+          length: n
+        }, function (_, i) {
+          return i ? "".concat(base, "#").concat(i + 1) : base;
         }),
-        picked: picked,
-        changeOn: e.options.changeOn === "short" || e.options.changeOn === "long" ? e.options.changeOn : ""
+        pickedAll = keys.map(function (k) {
+          return ch.featureChoices[k] || "";
+        });
+      var meets = function meets(c) {
+        var q = pObj(c.prereq);
+        if (q.level && ch.level < (parseInt(q.level, 10) || 0)) return false;
+        if (pArr(q.has).some(function (h) {
+          return !pickedAll.includes(h);
+        })) return false;
+        return true;
+      }; // prerequisites: a level, another pick
+      keys.forEach(function (key, i) {
+        var picked = pickedAll[i],
+          others = pickedAll.filter(function (x, j) {
+            return j !== i;
+          });
+        var choices = e.options.choices.filter(function (c) {
+          return meets(c) && (c.repeatable || c.name === picked || !others.includes(c.name));
+        }).map(function (c) {
+          return c.name;
+        });
+        optionSlots.push({
+          key: key,
+          label: (e.options.label || e.name) + (n > 1 ? " ".concat(i + 1) : ""),
+          feature: e.name,
+          choices: choices,
+          picked: picked,
+          changeOn: e.options.changeOn === "short" || e.options.changeOn === "long" ? e.options.changeOn : ""
+        });
+        var c = e.options.choices.find(function (x) {
+          return x.name === picked;
+        });
+        if (c && meets(c)) entries.push(_objectSpread(_objectSpread({}, resolveLevels(atLevelOf(c, ch.level), ch.level)), {}, {
+          feature: e.name,
+          grantedBy: raw.grantedBy,
+          pickKey: key
+        }));
       });
-      var c = e.options.choices.find(function (x) {
-        return x.name === picked;
-      });
-      if (c) entries.push(_objectSpread(_objectSpread({}, resolveLevels(atLevelOf(c, ch.level), ch.level)), {}, {
-        feature: e.name,
-        grantedBy: raw.grantedBy
-      }));
       var options = e.options,
         rest = _objectWithoutProperties(e, _excluded5);
       if (rest.statics || rest.resource || isActivated(rest)) entries.push(rest);
@@ -5170,6 +5280,11 @@ function gatherStatics(entries, ctx, gear, level) {
       saves: [],
       hp: []
     },
+    spellPicks: [],
+    spellUses: [],
+    spellMods: [],
+    extraLists: [],
+    languages: [],
     skillAdv: [],
     immune: [],
     moves: [],
@@ -5276,10 +5391,62 @@ function gatherStatics(entries, ctx, gear, level) {
       });
     });
     if (s.cantripBonus) d.cantripBonus += num(s.cantripBonus);
+    pArr(s.spellPicks).forEach(function (q, i) {
+      var o = pObj(q);
+      var cnt = num(o.count != null ? o.count : 1);
+      if (cnt > 0) d.spellPicks.push({
+        key: "".concat(e.pickKey || optionKey(e), "|").concat(i),
+        label: pStr(o.label, 80) || e.name,
+        source: e.name,
+        count: Math.min(12, cnt),
+        level: o.level === "slot" ? "slot" : Math.max(0, Math.min(9, parseInt(o.level, 10) || 0)),
+        upTo: !!o.upTo,
+        lists: o.lists === "any" ? "any" : pArr(o.lists).map(function (x) {
+          return pStr(x, 30);
+        }),
+        ritual: !!o.ritual,
+        school: pStr(o.school, 20),
+        cast: ["slot", "once", "short", "atWill", "ritualOnly", "book"].includes(o.cast) ? o.cast : "slot",
+        ability: ABILITIES.includes(o.ability) ? o.ability : "",
+        self: !!o.self
+      });
+    });
+    pArr(s.spellUses).forEach(function (q) {
+      var o = pObj(q);
+      var n = pStr(o.spell, 60);
+      if (n) d.spellUses.push({
+        spell: n,
+        cast: ["once", "short", "atWill"].includes(o.cast) ? o.cast : "atWill",
+        self: !!o.self,
+        maxRoll: !!o.maxRoll,
+        note: pStr(o.note, 200),
+        source: e.name
+      });
+    });
+    pArr(s.spellMods).forEach(function (q) {
+      var o = pObj(q);
+      var n = pStr(o.spell, 60);
+      if (n) d.spellMods.push({
+        spell: n,
+        damage: o.damage != null ? num(o.damage) : 0,
+        range: o.range != null ? num(o.range) : 0,
+        note: pStr(o.note, 200),
+        source: e.name
+      });
+    });
+    pArr(s.extraSpellLists).forEach(function (x) {
+      return d.extraLists.push(pStr(x, 30));
+    });
+    pArr(s.languages).forEach(function (x) {
+      return d.languages.push(pStr(x, 40));
+    });
+    if (s.unarmedForce) d.unarmedForce = true;
+    if (s.pactWeapon) d.pactWeapon = true;
     if (s.skillBonus) pArr(pObj(s.skillBonus).skills).forEach(function (k) {
       d.skillBonus[k] = (d.skillBonus[k] || 0) + num(s.skillBonus.formula);
     });
     if (s.cantripDamage != null) d.cantripDamage += num(s.cantripDamage);
+    if (s.cantripRange != null) d.cantripRange = (d.cantripRange || 0) + num(s.cantripRange);
     if (s.schoolDamage) d.schoolDamage[pStr(pObj(s.schoolDamage).school, 20)] = num(s.schoolDamage.formula);
     if (s.weaponDamage) pArr(Array.isArray(s.weaponDamage) ? s.weaponDamage : [s.weaponDamage]).forEach(function (w) {
       var dice = evalDice(w.dice, ctx);
@@ -5400,6 +5567,19 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) {
     dmgList: [[evalDice(d.unarmedDie ? "1d".concat(d.unarmedDie, "+").concat(uMod) : "1+".concat(ctx.STR), ctx), "Bludgeoning"]].concat(_toConsumableArray(rider(true))),
     desc: d.unarmedDie ? "Martial Arts: you roll your Martial Arts die for the damage and can use Dexterity." : "Instead of using a weapon to make a melee attack, you can use a punch, kick, head-butt, or similar forceful blow."
   });
+  if (d.unarmedForce) {
+    var u = out[0];
+    u.modes = [{
+      name: "Bludgeoning",
+      a: _objectSpread({}, u)
+    }, {
+      name: "Force (Empowered Strikes)",
+      a: _objectSpread(_objectSpread({}, u), {}, {
+        dmgList: [[u.dmgList[0][0], "Force"]].concat(_toConsumableArray(u.dmgList.slice(1)))
+      })
+    }];
+    u.modeDefault = 0;
+  }
   weaponNames.forEach(function (n) {
     var w = weaponOf(n);
     if (!w) return;
@@ -5448,7 +5628,43 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) {
       if (w.ranged) a.ranged = true;
       if (finesse) a.finesse = true;
       if (two || w.props.includes("Two-Handed")) a.twoHanded = true;
+      if (a.mastery && (d.passives || {}).tacticalMaster) {
+        var own = a.mastery;
+        a.modes = [own].concat(_toConsumableArray(["Push", "Sap", "Slow"].filter(function (x) {
+          return x !== own;
+        }))).map(function (m) {
+          return {
+            name: m === own ? "".concat(m, " (its own)") : "".concat(m, " (Tactical Master)"),
+            a: _objectSpread(_objectSpread({}, a), {}, {
+              mastery: m
+            })
+          };
+        });
+        a.modeDefault = 0;
+      }
       out.push(a);
+      if (d.pactWeapon && !w.ranged && ctx.CHA > mod) {
+        // Pact of the Blade: the bonded weapon can use Charisma, with proficiency
+        var ch = ctx.CHA,
+          pa = _objectSpread(_objectSpread({}, a), {}, {
+            name: "".concat(label, " (pact weapon)"),
+            atk: ctx.PROF + ch + plus,
+            abil: "Charisma",
+            dmgList: [[evalDice("".concat(dice, "+").concat(ch + plus), ctx), w.type]].concat(_toConsumableArray(a.dmgList.slice(1))),
+            desc: "Pact of the Blade: your bonded weapon uses Charisma and you are proficient with it. ".concat(a.desc || "")
+          });
+        delete pa.modes;
+        pa.modes = ["", "Necrotic", "Psychic", "Radiant"].map(function (t) {
+          return {
+            name: t || w.type,
+            a: _objectSpread(_objectSpread({}, pa), {}, {
+              dmgList: [[pa.dmgList[0][0], t || w.type]].concat(_toConsumableArray(pa.dmgList.slice(1)))
+            })
+          };
+        });
+        pa.modeDefault = 0;
+        out.push(pa);
+      }
     };
     make(w.name, w.dice, false);
     if (w.versatile) make("".concat(w.name, " (two hands)"), w.versatile, true);
@@ -6086,13 +6302,45 @@ function CharacterSheet() {
 
   // Every feat this character has, where it came from, what was chosen for it, and whether it goes past the rules.
   var slots = useMemo(function () {
-    return featSlots(className, subclassName, level, species, bgEff.feat);
-  }, [className, subclassName, level, species, bgEff]);
+    var out = featSlots(className, subclassName, level, species, bgEff.feat);
+    var ch0 = {
+      className: className,
+      subclassName: subclassName,
+      level: level,
+      species: species,
+      lineage: lineage,
+      background: background,
+      feats: [],
+      items: [],
+      spells: []
+    };
+    [].concat(_toConsumableArray(BUILTIN_MECHANICS), PACK_ABILITIES).forEach(function (raw) {
+      var o = pObj(raw.options);
+      if (!pArr(o.choices).some(function (c) {
+        return c && c.grantsFeat;
+      }) || !abilityGranted(raw, ch0)) return; // "grantsFeat": a choice that gives a feat of that category
+      var base = optionKey(raw);
+      Object.keys(featureChoices).filter(function (k) {
+        return k === base || k.startsWith(base + "#");
+      }).forEach(function (k) {
+        var c = o.choices.find(function (x) {
+          return x.name === featureChoices[k] && x.grantsFeat;
+        });
+        if (c) out.push({
+          id: "gf-".concat(k),
+          label: "".concat(c.name),
+          cats: pArr(c.grantsFeat).length ? pArr(c.grantsFeat) : [String(c.grantsFeat)]
+        });
+      });
+    });
+    return out;
+  }, [className, subclassName, level, species, lineage, background, bgEff, featureChoices]);
   var takenFeats = useMemo(function () {
     var ch = {
       level: level,
       scores: baseScores,
-      caster: !!(cls && cls.casterType)
+      caster: !!(cls && cls.casterType),
+      className: className
     };
     var out = [];
     var add = function add(key, where, name, choices, cats, extra) {
@@ -6245,6 +6493,7 @@ function CharacterSheet() {
       CHA: finalMods.Charisma,
       PROF: profBonus,
       LEVEL: level,
+      PACTLEVEL: cls && cls.casterType === "pact" && PACT_SLOTS[level] ? PACT_SLOTS[level].level : 0,
       SPELLMOD: spellMod,
       SPELLDC: 8 + profBonus + spellMod + dcB,
       SPELLATK: profBonus + spellMod + atkB
@@ -6324,12 +6573,17 @@ function CharacterSheet() {
     // Species traits
     if (SPECIES[species]) {
       SPECIES[species].traits.forEach(function (t) {
-        return entries.push({
-          level: 1,
+        var nm = String(t).split(": ")[0],
+          m = [].concat(_toConsumableArray(BUILTIN_MECHANICS), PACK_ABILITIES).find(function (x) {
+            return x && x.grantedBy && x.grantedBy.type === "species" && x.grantedBy.name === species && x.name === nm;
+          }),
+          lv = Math.max(1, +((m || {}).grantedBy || {}).level || 1);
+        if (lv <= level) entries.push({
+          level: lv,
           text: t,
           source: "Species"
         });
-      });
+      }); // a trait that starts at a later level (Draconic Flight, Large Form) shows from that level
       var lo = ((SPECIES[species].lineage || {}).options || {})[lineage];
       if (lo) lo.traits.forEach(function (t) {
         if ((t.level || 1) <= level) entries.push({
@@ -6443,7 +6697,7 @@ function CharacterSheet() {
     return out;
   }, [finalMods, allSkillProfs, skillExpertise, profBonus, derived]);
   var spellInfo = useMemo(function () {
-    return sortSpells(cls, className, level, spells, derived.cantripBonus);
+    return sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists);
   }, [cls, className, level, spells, derived]);
   // Everything on this sheet that goes past the rules, in words.
   var customizations = useMemo(function () {
@@ -6733,8 +6987,61 @@ function CharacterSheet() {
         ctx: fctx
       }); // and with any spell slots the character has
     });
+    var abCtx = function abCtx(ab) {
+      if (!ABILITIES.includes(ab)) return spellCtx;
+      var m = finalMods[ab];
+      return _objectSpread(_objectSpread({}, spellCtx), {}, {
+        SPELLMOD: m,
+        SPELLDC: spellCtx.SPELLDC - spellCtx.SPELLMOD + m,
+        SPELLATK: spellCtx.SPELLATK - spellCtx.SPELLMOD + m
+      });
+    };
+    derived.spellPicks.filter(function (q) {
+      return q.cast !== "book";
+    }).forEach(function (q) {
+      return String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean).forEach(function (n) {
+        var sp = spellOf(n);
+        if (!sp) return; // spells chosen through a feature (Mystic Arcanum, Magical Discoveries, Pact of the Tome)
+        push(sp, _objectSpread(_objectSpread({}, tune), {}, {
+          ctx: abCtx(q.ability),
+          cast: q.cast,
+          self: q.self
+        }, q.cast !== "slot" ? {
+          label: "".concat(sp.n, " (").concat(q.source, ")")
+        } : {}));
+      });
+    });
+    if (derived.cantripRange) out.filter(function (a) {
+      return a.spell && a.slot === 0 && a.range && a.range.feet >= 10 && (spellOf(a.name) || {}).c && spellOf(a.name).c.includes(className);
+    }).forEach(function (a) {
+      a.range = _objectSpread(_objectSpread({}, a.range), {}, {
+        feet: a.range.feet + derived.cantripRange
+      });
+    }); // Improved Elemental Fury
+    derived.spellUses.forEach(function (u) {
+      var sp = spellOf(u.spell);
+      if (sp) push(sp, _objectSpread(_objectSpread({}, tune), {}, {
+        cast: u.cast,
+        self: u.self,
+        maxRoll: u.maxRoll,
+        note: u.note,
+        label: "".concat(sp.n, " (").concat(u.source, ")")
+      }));
+    }); // Armor of Shadows: Mage Armor at will
+    derived.spellMods.forEach(function (m) {
+      return out.filter(function (a) {
+        return a.name === m.spell || a.name.startsWith(m.spell + " (");
+      }).forEach(function (a) {
+        // Agonizing Blast, Eldritch Spear, Repelling Blast
+        if (m.damage && a.dmgList && a.dmgList.length) a.dmgList = [[evalDice("".concat(a.dmgList[0][0], "+").concat(m.damage), spellCtx) || a.dmgList[0][0], a.dmgList[0][1]]].concat(_toConsumableArray(a.dmgList.slice(1)));
+        if (m.range && a.range && a.range.feet) a.range = _objectSpread(_objectSpread({}, a.range), {}, {
+          feet: a.range.feet + m.range
+        });
+        if (m.note) a.desc = "".concat(m.source, ": ").concat(m.note, " ").concat(a.desc || "").trim();
+      });
+    });
     return out;
-  }, [spellInfo, spellCtx, takenFeats, cls, derived]);
+  }, [spellInfo, spellCtx, takenFeats, cls, derived, featureChoices, finalMods]);
   var spellSummary = function spellSummary(sp) {
     try {
       var a = spellAction(sp, spellCtx);
@@ -7152,6 +7459,10 @@ function CharacterSheet() {
       }),
       spells: Array.from(new Set([].concat(_toConsumableArray(spells.filter(Boolean)), _toConsumableArray(featSpells), _toConsumableArray(derived.spells.map(function (g) {
         return g.name;
+      })), _toConsumableArray(derived.spellPicks.flatMap(function (q) {
+        return String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean);
+      })), _toConsumableArray(derived.spellUses.map(function (u) {
+        return u.spell;
       }))).map(function (x) {
         var sp = spellOf(x);
         return sp ? "".concat(sp.n, " (").concat(spellLine(sp), ")") : x;
@@ -7290,12 +7601,16 @@ function CharacterSheet() {
       }),
       spellList: Array.from(new Set([].concat(_toConsumableArray(spells.filter(Boolean)), _toConsumableArray(featSpells), _toConsumableArray(derived.spells.map(function (g) {
         return g.name;
+      })), _toConsumableArray(derived.spellPicks.flatMap(function (q) {
+        return String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean);
+      })), _toConsumableArray(derived.spellUses.map(function (u) {
+        return u.spell;
       }))).map(function (x) {
         return spellOf(x);
       }).filter(Boolean))).sort(function (a, b) {
         return a.l - b.l || a.n.localeCompare(b.n);
       }).slice(0, 120).map(sheetSpell),
-      languages: journal.languages,
+      languages: Array.from(new Set([].concat(_toConsumableArray(journal.languages), _toConsumableArray(derived.languages)))),
       tools: Array.from(new Set([].concat(_toConsumableArray(knownTools.map(function (t) {
         return t.name;
       })), _toConsumableArray(journal.tools)))),
@@ -8296,6 +8611,9 @@ function CharacterSheet() {
     takenFeats: takenFeats,
     custom: custom
   }), tab === "spells" && /*#__PURE__*/React.createElement(SpellsTab, {
+    picks: derived.spellPicks,
+    featureChoices: featureChoices,
+    setFeatureChoices: setFeatureChoices,
     glow: glowOf("spells"),
     grantedSpells: derived.spells,
     cls: cls,
@@ -9948,6 +10266,22 @@ var FEATS = {
     prereq: "Fighting Style Feature",
     text: "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage."
   },
+  "Blessed Warrior": {
+    category: "Fighting Style",
+    prereq: "Paladin Fighting Style feature",
+    needs: {
+      className: "Paladin"
+    },
+    text: "You learn two Cleric cantrips of your choice (see the Cleric class's section for a list of Cleric spells). Guidance and Sacred Flame are recommended. The chosen cantrips count as Paladin spells for you, and Charisma is your spellcasting ability for them. Whenever you gain a Paladin level, you can replace one of these cantrips with another Cleric cantrip."
+  },
+  "Druidic Warrior": {
+    category: "Fighting Style",
+    prereq: "Ranger Fighting Style feature",
+    needs: {
+      className: "Ranger"
+    },
+    text: "You learn two Druid cantrips of your choice (see the Druid class's section for a list of Druid spells). Guidance and Starry Wisp are recommended. The chosen cantrips count as Ranger spells for you, and Wisdom is your spellcasting ability for them. Whenever you gain a Ranger level, you can replace one of these cantrips with another Druid cantrip."
+  },
   "Boon of Combat Prowess": {
     category: "Epic Boon",
     prereq: "Level 19+",
@@ -10127,6 +10461,9 @@ function featProblem(name, cats, ch) {
     return ch.scores[a] >= n.score.min;
   })) return "needs ".concat(n.score.abilities.join(" or "), " ").concat(n.score.min, "+");
   if (n.spellcasting && !ch.caster) return "needs the Spellcasting feature";
+  if (n.className && !pArr(n.className).concat(typeof n.className === "string" ? [n.className] : []).some(function (c) {
+    return sameName(c, ch.className);
+  })) return "only for ".concat([].concat(n.className).join(" or "));
   return "";
 }
 
@@ -10922,7 +11259,12 @@ function maxSpellLevel(cls, className, level) {
   return (getSpellSlots(className, level) || []).length;
 }
 // Sorts a character's spells into what the rules allow and what goes past them.
-function sortSpells(cls, className, level, names, cantripBonus) {
+function sortSpells(cls, className, level, names, cantripBonus, extraLists) {
+  var onList = function onList(sp) {
+    return sp.c.includes(className) || sp.l > 0 && (extraLists || []).some(function (l) {
+      return sp.c.includes(l);
+    });
+  };
   var caster = !!(cls && cls.casterType);
   var maxLevel = maxSpellLevel(cls, className, level);
   var cantripMax = caster ? cantripsKnown(className, level) + (cantripBonus || 0) : 0;
@@ -10940,7 +11282,7 @@ function sortSpells(cls, className, level, names, cantripBonus) {
     };
     var problem = "";
     if (sp.l === 0) cantrips++;else prepared++;
-    if (!caster) problem = "".concat(className, " has no Spellcasting feature");else if (!sp.c.includes(className)) problem = "not on the ".concat(className, " spell list");else if (sp.l > maxLevel) problem = "Level ".concat(sp.l, " is higher than a level ").concat(level, " ").concat(className, " can cast");else if (sp.l === 0 && cantrips > cantripMax) problem = "more cantrips than a level ".concat(level, " ").concat(className, " knows");else if (sp.l > 0 && prepMax != null && prepared > prepMax) problem = "more prepared spells than a level ".concat(level, " ").concat(className, " has");
+    if (!caster) problem = "".concat(className, " has no Spellcasting feature");else if (!onList(sp)) problem = "not on the ".concat(className, " spell list");else if (sp.l > maxLevel) problem = "Level ".concat(sp.l, " is higher than a level ").concat(level, " ").concat(className, " can cast");else if (sp.l === 0 && cantrips > cantripMax) problem = "more cantrips than a level ".concat(level, " ").concat(className, " knows");else if (sp.l > 0 && prepMax != null && prepared > prepMax) problem = "more prepared spells than a level ".concat(level, " ").concat(className, " has");
     return {
       raw: raw,
       index: index,
@@ -10955,7 +11297,8 @@ function sortSpells(cls, className, level, names, cantripBonus) {
     cantripMax: cantripMax,
     prepMax: prepMax,
     cantrips: cantrips,
-    prepared: prepared
+    prepared: prepared,
+    extraLists: extraLists || []
   };
 }
 // How a spell resolves in the Combat Resolver, worked out from this character's numbers. Returns null for a spell with no roll.
@@ -11018,6 +11361,40 @@ function packRecord(o, max) {
     return null;
   }
 }
+// How a spell a feature grants is cast: "once" (no slot, back on a Long Rest), "short" (back on a Short or Long Rest), "atWill" (no slot, no limit). self: only on the caster. maxRoll: dice give their highest number.
+function castWay(out, opts) {
+  var how = opts.once ? "once" : opts.cast;
+  if (how === "once" || how === "short" || how === "atWill") {
+    out.slot = 0;
+    delete out.pool;
+    delete out.pointCosts;
+  }
+  if (how === "once") {
+    out.usesMax = 1;
+    out.recharge = "long";
+  }
+  if (how === "short") {
+    out.usesMax = 1;
+    out.recharge = "short";
+  }
+  if (how === "ritualOnly") {
+    out.ritual = true;
+    out.ritualOnly = true;
+  } // Ritual Adept: only as a Ritual, from the spellbook
+  if (opts.self) {
+    out.self = true;
+    if (out.tgt) out.tgt = _objectSpread(_objectSpread({}, out.tgt), {}, {
+      self: "only"
+    });
+  }
+  if (opts.maxRoll) ["temp", "healDice", "heal"].forEach(function (k) {
+    if (typeof out[k] === "string") out[k] = out[k].replace(/(\d+)d(\d+)/g, function (m, a, b) {
+      return String(+a * +b);
+    });
+  });
+  if (opts.note) out.desc = "".concat(opts.note, " ").concat(out.desc || "").trim();
+  return out;
+}
 function spellAction(sp, ctx, opts) {
   // A spell the app has no mechanics for is still cast: it spends its slot and posts its text for the table to resolve.
   var m = sp.m || {
@@ -11035,6 +11412,7 @@ function spellAction(sp, ctx, opts) {
     name: sp.n,
     spell: true,
     slot: sp.l,
+    school: sp.s || "",
     desc: sp.x.slice(0, 1200)
   };
   if (/^reaction/i.test(String(sp.t || ""))) out.trig = String(sp.t).slice(0, 240); // when the Reaction can be taken: the Combat Resolver offers it at that moment
@@ -11122,11 +11500,7 @@ function spellAction(sp, ctx, opts) {
     if (out.type === "save") out.halfOnSave = true;
     if (out.type === "attack") out.missHalf = true;
   }
-  if (opts && opts.once) {
-    out.slot = 0;
-    out.usesMax = 1;
-    out.recharge = "long";
-  } // a feat's free casting
+  if (opts && (opts.once || opts.cast)) castWay(out, opts); // cast without a slot: once a Long Rest, once a Short Rest, or at will
   else if (o.points && sp.l > 0) {
     out.pool = o.points.pool;
     out.pointCosts = o.points.costs;
@@ -11237,6 +11611,7 @@ function fullSpellAction(sp, ctx, opts) {
     name: sp.n,
     spell: true,
     slot: sp.l,
+    school: sp.s || "",
     desc: sp.x.slice(0, 1200)
   };
   out.activation = f.act === "long" ? "action" : ["action", "bonus", "reaction"].includes(f.act) ? f.act : "action";
@@ -11673,11 +12048,7 @@ function fullSpellAction(sp, ctx, opts) {
     if (out.type === "save") out.halfOnSave = true;
     if (out.type === "attack") out.missHalf = true;
   }
-  if (opts && opts.once) {
-    out.slot = 0;
-    out.usesMax = 1;
-    out.recharge = "long";
-  } // a feat's free casting
+  if (opts && (opts.once || opts.cast)) castWay(out, opts); // cast without a slot: once a Long Rest, once a Short Rest, or at will
   else if (o.points && sp.l > 0) {
     out.pool = o.points.pool;
     out.pointCosts = o.points.costs;
@@ -11782,7 +12153,10 @@ function SpellRow(_ref64) {
   }, /*#__PURE__*/React.createElement("strong", null, "Using a Higher-Level Spell Slot."), " ", sp.h) : null));
 }
 function SpellsTab(_ref65) {
-  var glow = _ref65.glow,
+  var picks = _ref65.picks,
+    featureChoices = _ref65.featureChoices,
+    setFeatureChoices = _ref65.setFeatureChoices,
+    glow = _ref65.glow,
     grantedSpells = _ref65.grantedSpells,
     cls = _ref65.cls,
     className = _ref65.className,
@@ -11838,7 +12212,9 @@ function SpellsTab(_ref65) {
   var topLevel = wideLevel ? 9 : maxLevel;
   var q = search.trim().toLowerCase();
   var pool = ALL_SPELLS.filter(function (sp) {
-    return !chosen.has(sp.n) && (wideList || caster && sp.c.includes(className)) && (sp.l === 0 || sp.l <= topLevel) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q));
+    return !chosen.has(sp.n) && (wideList || caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(function (l) {
+      return sp.c.includes(l) && sp.l > 0;
+    }))) && (sp.l === 0 || sp.l <= topLevel) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q));
   }).sort(function (a, b) {
     return (sortBy === "level" ? a.l - b.l : 0) || a.n.localeCompare(b.n);
   });
@@ -11863,7 +12239,9 @@ function SpellsTab(_ref65) {
     return sp.l === 0 ? spellInfo.cantrips < cantripMax : prepMax == null || spellInfo.prepared < prepMax;
   };
   var legal = function legal(sp) {
-    return caster && sp.c.includes(className) && sp.l <= maxLevel && room(sp);
+    return caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(function (l) {
+      return sp.c.includes(l) && sp.l > 0;
+    })) && sp.l <= maxLevel && room(sp);
   };
   var add = function add(name) {
     return setSpells([].concat(_toConsumableArray(spells.filter(Boolean)), [name]));
@@ -12004,7 +12382,76 @@ function SpellsTab(_ref65) {
       fontSize: 14,
       opacity: 0.8
     }
-  }, className, " has no Spellcasting feature. ", custom ? "Further Customization is on, so you can still add spells below. They will show in red." : "Turn on Further Customization to add spells anyway.")), /*#__PURE__*/React.createElement(Section, {
+  }, className, " has no Spellcasting feature. ", custom ? "Further Customization is on, so you can still add spells below. They will show in red." : "Turn on Further Customization to add spells anyway.")), (picks || []).length > 0 && /*#__PURE__*/React.createElement(Section, {
+    title: "Spells Your Features Let You Choose",
+    colors: colors,
+    fontDisplay: fontDisplay
+  }, picks.map(function (q) {
+    var k = "spells:" + q.key,
+      cur = String(featureChoices[k] || "").split("|"),
+      top = q.level === "slot" ? maxLevel : q.level;
+    var ok = function ok(sp) {
+      return (q.lists === "any" || q.lists.some(function (l) {
+        return sp.c.includes(l);
+      })) && (q.level === "slot" ? sp.l <= maxLevel : q.upTo ? sp.l <= top : sp.l === top) && (!q.ritual || sp.rit) && (!q.school || sp.s === q.school);
+    };
+    var opts = ALL_SPELLS.filter(ok).sort(function (a, b) {
+      return a.l - b.l || a.n.localeCompare(b.n);
+    });
+    var set = function set(i, v) {
+      var a = Array.from({
+        length: q.count
+      }, function (_, j) {
+        return cur[j] || "";
+      });
+      a[i] = v;
+      setFeatureChoices(function (prev) {
+        return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, k, a.join("|")));
+      });
+    };
+    return /*#__PURE__*/React.createElement("div", {
+      key: q.key,
+      "data-testid": "spell-pick",
+      style: {
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        color: colors.brassLight,
+        marginBottom: 4
+      }
+    }, q.label, " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        opacity: 0.7
+      }
+    }, "(", q.count, " \xB7 ", q.level === "slot" ? "a cantrip or a level you have slots for" : q.level === 0 ? "cantrips" : "Level ".concat(top).concat(q.upTo ? " or lower" : ""), q.lists === "any" ? ", any spell list" : ", ".concat(q.lists.join(" / "), " list"), q.ritual ? ", Ritual" : "", " \xB7 ", q.cast === "once" ? "cast once per Long Rest without a slot" : q.cast === "short" ? "cast once per Short Rest without a slot" : q.cast === "atWill" ? "cast at will" : "always prepared", ")")), Array.from({
+      length: q.count
+    }, function (_, i) {
+      return /*#__PURE__*/React.createElement("select", {
+        key: i,
+        "aria-label": "".concat(q.label, " ").concat(i + 1),
+        value: cur[i] || "",
+        onChange: function onChange(e) {
+          return set(i, e.target.value);
+        },
+        style: _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
+          width: 260,
+          marginRight: 8,
+          marginBottom: 4
+        })
+      }, /*#__PURE__*/React.createElement("option", {
+        value: ""
+      }, "Choose a spell..."), opts.filter(function (sp) {
+        return sp.n === cur[i] || !cur.includes(sp.n);
+      }).map(function (sp) {
+        return /*#__PURE__*/React.createElement("option", {
+          key: sp.n,
+          value: sp.n
+        }, sp.n, " (", sp.l ? "Level ".concat(sp.l) : "cantrip", ")");
+      }));
+    }));
+  })), /*#__PURE__*/React.createElement(Section, {
     title: "Your Spells",
     colors: colors,
     fontDisplay: fontDisplay

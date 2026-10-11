@@ -310,6 +310,127 @@
     );
   });
 
+  // ── What the class and subclass features above still needed (SRD 5.2.1): each one is written in the same format a Content Pack uses. ──
+  const find = (who, name) => M.find((m) => m.name === name && (m.grantedBy.name === who || m.grantedBy.class === who));
+  const set = (who, name, patch) => { const m = find(who, name); if (m) Object.assign(m, patch); };
+  const md = (n, die) => `${n}d${die}`;
+  const BPS = ["Bludgeoning", "Piercing", "Slashing"];
+  // Reactions that change the damage of the attack that triggered them
+  set("Rogue", "Uncanny Dodge", { trigger: "hit", onUse: { effects: [{ name: "Uncanny Dodge", duration: rounds(1), halveNextDamage: true, note: "The damage of the attack that hit you is halved." }] }, text: "When an attacker that you can see hits you with an attack roll, you can take a Reaction to halve the attack's damage against you (round down)." });
+  set("Monk", "Deflect Attacks", { trigger: "hit", onUse: { effects: [{ name: "Deflect Attacks", duration: rounds(1), reduceNextDamage: { dice: "1d10+DEX+LEVEL", types: BPS }, note: "The damage of the attack that hit you is reduced. If it drops to 0, you can redirect it (Deflect Attacks: Redirect)." }] },
+    atLevel: { 13: { onUse: { effects: [{ name: "Deflect Attacks", duration: rounds(1), reduceNextDamage: { dice: "1d10+DEX+LEVEL" }, note: "Deflect Energy: any damage type. If it drops to 0, you can redirect it (Deflect Attacks: Redirect)." }] } } } });
+  M.push(cls("Monk", 3, "Deflect Attacks: Redirect", { activation: "free", target: "creature", roll: "save", save: { ability: "Dexterity", dc: "8+WIS+PROF" }, uses: { pool: "Focus Points", cost: 1 },
+    damage: [{ dice: ["2d6+DEX", "2d6+DEX", "2d6+DEX", "2d6+DEX", "2d8+DEX", "2d8+DEX", "2d8+DEX", "2d8+DEX", "2d8+DEX", "2d8+DEX", "2d10+DEX", "2d10+DEX", "2d10+DEX", "2d10+DEX", "2d10+DEX", "2d10+DEX", "2d12+DEX", "2d12+DEX", "2d12+DEX", "2d12+DEX"], type: "" }],
+    text: "If Deflect Attacks reduces the damage to 0, you can expend 1 Focus Point to redirect some of the attack's force: a creature you can see within 5 feet (melee) or 60 feet (ranged, not behind Total Cover) makes a Dexterity saving throw or takes two rolls of your Martial Arts die plus your Dexterity modifier, of the attack's damage type." }));
+  set("Monk", "Slow Fall", { onUse: { effects: [{ name: "Slow Fall", duration: rounds(1), reduceNextDamage: { dice: "5*LEVEL" }, note: "The falling damage you take is reduced." }] }, text: "When you fall, you can take a Reaction to reduce any damage you take from the fall by an amount equal to five times your Monk level." });
+  set("Hunter", "Superior Hunter's Defense", { trigger: "damage", onUse: { effects: [{ name: "Superior Hunter's Defense", duration: rounds(1), halveNextDamage: true, note: "Resistance to that damage, and to other damage of the same type, until the end of the current turn." }] } });
+  // Barbarian
+  M.push(cls("Barbarian", 7, "Instinctive Pounce", { statics: { passives: { remindAfter: [{ after: "Rage", text: "Instinctive Pounce: as part of that Bonus Action, you can move up to half your Speed." }] } } }),
+    cls("Barbarian", 18, "Indomitable Might", { statics: { passives: { scoreFloor: ["Strength"] } } }));
+  // Bard
+  M.push(cls("Bard", 5, "Font of Inspiration", { activation: "free", target: "self", roll: "none", spendSlot: "any", regain: { pool: "Bardic Inspiration", amount: 1 }, text: "You can expend a spell slot (no action required) to regain one expended use of Bardic Inspiration. The lowest slot you have left is spent." }),
+    cls("Bard", 10, "Magical Secrets", { statics: { extraSpellLists: ["Cleric", "Druid", "Wizard"] } }),
+    cls("Bard", 18, "Superior Inspiration", { statics: { passives: { regainOnInitiative: [{ pool: "Bardic Inspiration", to: 2 }] } } }),
+    sub("Bard", "College of Lore", 6, "Magical Discoveries", { statics: { spellPicks: [{ label: "Magical Discoveries", count: 2, level: "slot", lists: ["Cleric", "Druid", "Wizard"] }] } }));
+  // Cleric
+  { const b = find("Cleric", "Blessed Strikes"); const ps = b && b.options.choices.find((c) => c.name === "Potent Spellcasting");
+    if (ps) ps.atLevel = { 14: { activation: "free", target: "creature", roll: "none", onUse: { tempHP: "2*WIS" }, text: "Improved Blessed Strikes: when you cast a Cleric cantrip and deal damage to a creature with it, you can give yourself or another creature within 60 feet Temporary Hit Points equal to twice your Wisdom modifier. Use this after the damage." } }; }
+  set("Cleric", "Divine Intervention", { onUse: { effects: [{ name: "Divine Intervention", duration: rounds(1), nextSpellFree: { maxLevel: 5 }, note: "Cast any Cleric spell of level 5 or lower that doesn't require a Reaction, without a spell slot or Material components." }] },
+    atLevel: { 20: { onUse: { effects: [{ name: "Divine Intervention", duration: rounds(1), nextSpellFree: { maxLevel: 9 }, note: "Greater Divine Intervention: you can choose Wish. If you do, you can't use Divine Intervention again until you finish 2d4 Long Rests (keep count with the DM)." }] } } } });
+  // Druid
+  M.push(cls("Druid", 5, "Wild Resurgence: Slot for Wild Shape", { activation: "free", target: "self", roll: "none", spendSlot: "any", regain: { pool: "Wild Shape", amount: 1 }, text: "Once on each of your turns, if you have no uses of Wild Shape left, you can expend a spell slot (no action required) to give yourself one use." }),
+    cls("Druid", 5, "Wild Resurgence: Wild Shape for a Slot", { activation: "free", target: "self", roll: "none", uses: { max: 1, recharge: "long" }, extraCost: { pool: "Wild Shape", cost: 1 }, regain: { slot: 1 }, text: "You can expend one use of Wild Shape (no action required) to give yourself a level 1 spell slot, once per Long Rest." }),
+    cls("Druid", 20, "Archdruid", { statics: { passives: { regainOnInitiative: [{ pool: "Wild Shape", to: 1 }] } }, activation: "free", target: "self", roll: "none", uses: { max: 1, recharge: "long" },
+      versions: [1, 2, 3, 4].map((n) => ({ name: `Nature Magician: ${n} Wild Shape for a Level ${2 * n} slot`, extraCost: { pool: "Wild Shape", cost: n }, regain: { slot: 2 * n } })),
+      text: "Evergreen Wild Shape: when you roll Initiative with no uses of Wild Shape left, you regain one. Nature Magician: convert unexpended uses of Wild Shape into one spell slot, 2 spell levels per use, once per Long Rest. Longevity: you age one year for every ten." }));
+  { const e = find("Druid", "Elemental Fury"); const ps = e && e.options.choices.find((c) => c.name === "Potent Spellcasting"); if (ps) ps.atLevel = { 15: { statics: { cantripDamage: "WIS", cantripRange: 300 } } }; }
+  M.push(cls("Druid", 18, "Beast Spells", { statics: { passives: { castInForm: true } } }));
+  // Fighter
+  M.push(cls("Fighter", 5, "Tactical Shift", { statics: { passives: { remindAfter: [{ after: "Second Wind", text: "Tactical Shift: you can move up to half your Speed without provoking Opportunity Attacks." }] } } }),
+    cls("Fighter", 9, "Tactical Master", { statics: { passives: { tacticalMaster: true } } }),
+    cls("Fighter", 13, "Studied Attacks", { statics: { passives: { studiedAttacks: true } } }),
+    sub("Fighter", "Champion", 10, "Heroic Warrior", { statics: { passives: { heroicEachTurn: true } } }),
+    sub("Fighter", "Champion", 18, "Survivor", { statics: { passives: { deathAdv: true, deathCritOn: 18, heroicRally: "5+CON" } } }));
+  // Monk
+  M.push(cls("Monk", 6, "Empowered Strikes", { statics: { unarmedForce: true } }),
+    cls("Monk", 9, "Acrobatic Movement", { statics: { moves: ["Along vertical surfaces and across liquids on your turn (no armor or Shield)"] } }),
+    cls("Monk", 15, "Perfect Focus", { statics: { passives: { regainOnInitiative: [{ pool: "Focus Points", to: 4 }] } } }),
+    sub("Monk", "Warrior of the Open Hand", 11, "Fleet Step", { statics: { passives: { remindAfter: [{ after: "*bonus", text: "Fleet Step: you can also use Step of the Wind right after that Bonus Action." }] } } }));
+  { const pd = find("Monk", "Patient Defense"); if (pd) pd.atLevel = { 10: { onUse: { ...pd.onUse, tempHP: "2d10" } }, 17: { onUse: { ...pd.onUse, tempHP: "2d12" } } }; }
+  set("Monk", "Step of the Wind", { text: "You can take the Dash action as a Bonus Action. Alternatively, you can expend 1 Focus Point to take both the Disengage and Dash actions as a Bonus Action, and your jump distance is doubled for the turn. From Monk level 10 (Heightened Focus), you can bring a willing Large or smaller creature within 5 feet with you until the end of your turn; its movement doesn't provoke Opportunity Attacks." });
+  // Paladin
+  M.push(cls("Paladin", 14, "Restoring Touch", { feature: "Lay On Hands", activation: "bonus", target: "creature", roll: "none", uses: { pool: "Lay On Hands", cost: 5 }, removes: { conditions: ["Blinded", "Charmed", "Deafened", "Frightened", "Paralyzed", "Stunned"], count: 1 },
+      text: "When you use Lay On Hands on a creature, you can also remove one of these conditions from it, expending 5 Hit Points from the pool for each: Blinded, Charmed, Deafened, Frightened, Paralyzed or Stunned. Those points don't restore Hit Points." }),
+    sub("Paladin", "Oath of Devotion", 15, "Smite of Protection", { statics: { passives: { remindAfter: [{ after: "Divine Smite", text: "Smite of Protection: you and your allies in your Aura of Protection have Half Cover until the start of your next turn (use Smite of Protection on them)." }] } },
+      activation: "free", target: "creature", targets: "any", roll: "none", onUse: { effects: [{ name: "Half Cover (Smite of Protection)", duration: rounds(1), ac: 2, note: "+2 to Armor Class and Dexterity saving throws while in the Paladin's aura, until the start of the Paladin's next turn." }] } }));
+  { const ap = find("Paladin", "Aura of Protection"); if (ap) ap.atLevel = { 18: { onUse: { effects: [{ name: "Aura of Protection", savingThrows: "MAX(1,CHA)", note: "Aura Expansion: a 30-foot Emanation. Only while within it; remove it when the creature leaves." }] } } }; }
+  // Ranger
+  M.push(cls("Ranger", 13, "Relentless Hunter", { statics: { passives: { concProtect: ["Hunter's Mark"] } } }),
+    cls("Ranger", 17, "Precise Hunter", { statics: { passives: { advVsMarked: "Hunter's Mark" } } }),
+    sub("Ranger", "Hunter", 3, "Hunter's Lore", { statics: { passives: { revealMarked: "Hunter's Mark" } } }));
+  // Rogue
+  M.push(cls("Rogue", 1, "Thieves' Cant", { statics: { languages: ["Thieves' Cant"] } }),
+    cls("Rogue", 7, "Reliable Talent", { statics: { passives: { reliableTalent: 10 } } }),
+    cls("Rogue", 18, "Elusive", { statics: { passives: { elusive: true } } }),
+    sub("Rogue", "Thief", 3, "Second-Story Work", { statics: { moves: ["Climb Speed equal to your Speed"], passives: { jumpDex: true } } }),
+    sub("Rogue", "Thief", 9, "Cunning Strike: Stealth Attack", { feature: "Supreme Sneak", activation: "free", target: "self", roll: "none", text: "Cost: 1d6 of your Sneak Attack. If you have the Hide action's Invisible condition, this attack doesn't end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover." }),
+    sub("Rogue", "Thief", 13, "Use Magic Device", { statics: { itemSlots: { Attunement: 1 }, passives: { chargeSaver: 6 } } }),
+    sub("Rogue", "Thief", 17, "Thief's Reflexes", { statics: { passives: { thiefsReflexes: true } } }));
+  // Sorcerer
+  { const is = find("Sorcerer", "Innate Sorcery"); if (is) M.push(cls("Sorcerer", 7, "Innate Sorcery (2 Sorcery Points)", { feature: "Sorcery Incarnate", activation: "bonus", target: "self", roll: "none", uses: { pool: "Sorcery Points", cost: 2 }, onUse: is.onUse,
+    text: "Sorcery Incarnate: if you have no uses of Innate Sorcery left, you can use it by spending 2 Sorcery Points. While it is active, you can use up to two Metamagic options on each spell you cast." })); }
+  M.push(cls("Sorcerer", 20, "Metamagic (Arcane Apotheosis)", { feature: "Arcane Apotheosis", activation: "free", target: "self", roll: "none", text: "While your Innate Sorcery is active, you can use one Metamagic option on each of your turns without spending Sorcery Points on it." }));
+  // Warlock
+  set("Warlock", "Magical Cunning", { onUse: {}, regain: { pactSlots: "half" }, text: "You can perform an esoteric rite for 1 minute. At the end of it, you regain expended Pact Magic spell slots but no more than half your maximum (round up). Once per Long Rest.", atLevel: { 20: { regain: { pactSlots: "all" }, text: "Eldritch Master: when you use Magical Cunning, you regain all your expended Pact Magic spell slots." } } });
+  M.push(cls("Warlock", 11, "Mystic Arcanum", { statics: { spellPicks: [{ label: "Mystic Arcanum (level 6)", count: 1, level: 6, lists: ["Warlock"], cast: "once" }] },
+    atLevel: { 13: { statics: { spellPicks: [6, 7].map((l) => ({ label: `Mystic Arcanum (level ${l})`, count: 1, level: l, lists: ["Warlock"], cast: "once" })) } },
+      15: { statics: { spellPicks: [6, 7, 8].map((l) => ({ label: `Mystic Arcanum (level ${l})`, count: 1, level: l, lists: ["Warlock"], cast: "once" })) } },
+      17: { statics: { spellPicks: [6, 7, 8, 9].map((l) => ({ label: `Mystic Arcanum (level ${l})`, count: 1, level: l, lists: ["Warlock"], cast: "once" })) } } } }));
+  const inv = (name, rest, prereq) => ({ name, ...(prereq ? { prereq } : {}), ...rest });
+  const free = (spell, self, extra) => ({ statics: { spells: { 1: [spell] }, spellUses: [{ spell, cast: "atWill", ...(self ? { self: true } : {}), ...(extra || {}) }] } });
+  const DMG_CANTRIPS = ["Chill Touch", "Eldritch Blast", "Mind Sliver", "Poison Spray", "Shocking Grasp", "Thunderclap", "Toll the Dead"];
+  M.push(cls("Warlock", 1, "Eldritch Invocations", { options: { label: "Invocation", count: [1, 3, 3, 3, 5, 5, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10], choices: [
+    ...DMG_CANTRIPS.map((c) => inv(`Agonizing Blast (${c})`, { statics: { spellMods: [{ spell: c, damage: "CHA", note: "Agonizing Blast adds your Charisma modifier to its damage." }] } }, { level: 2 })),
+    inv("Armor of Shadows", free("Mage Armor", true)),
+    inv("Ascendant Step", free("Levitate", true), { level: 5 }),
+    inv("Devil's Sight", { statics: { senses: ["Devil's Sight 120 ft. (sees normally in Dim Light and magical or nonmagical Darkness)"] } }, { level: 2 }),
+    inv("Devouring Blade", { statics: { passives: { attacks: 3 } } }, { level: 12, has: ["Thirsting Blade"] }),
+    inv("Eldritch Mind", { statics: { passives: { concAdvantage: true } } }),
+    inv("Eldritch Smite", { activation: "free", target: "creature", roll: "none", spendSlot: "pact", damage: [{ dice: "(1+PACTLEVEL)d8", type: "Force" }], text: "Once per turn when you hit a creature with your pact weapon, you can expend a Pact Magic spell slot to deal an extra 1d8 Force damage plus another 1d8 per level of the slot, and you can give the target the Prone condition if it is Huge or smaller. Use this after the hit." }, { level: 5, has: ["Pact of the Blade"] }),
+    ...["Chill Touch", "Eldritch Blast", "Mind Sliver", "Poison Spray", "Thunderclap", "Toll the Dead"].map((c) => inv(`Eldritch Spear (${c})`, { statics: { spellMods: [{ spell: c, range: "30*LEVEL", note: "Eldritch Spear adds 30 feet per Warlock level to its range." }] } }, { level: 2 })),
+    inv("Fiendish Vigor", free("False Life", true, { maxRoll: true, note: "Fiendish Vigor: the Temporary Hit Points are the highest number." }), { level: 2 }),
+    inv("Gaze of Two Minds", { activation: "bonus", target: "creature", roll: "none", onUse: { effects: [{ name: "Gaze of Two Minds", duration: rounds(2), note: "The Warlock perceives through this creature's senses. Maintain it with a Bonus Action each turn." }] } }, { level: 5 }),
+    inv("Gift of the Depths", { statics: { moves: ["Swim Speed equal to your Speed (and breathe underwater)"], spells: { 1: ["Water Breathing"] }, spellUses: [{ spell: "Water Breathing", cast: "once" }] } }, { level: 5 }),
+    inv("Gift of the Protectors", { activation: "action", target: "creature", targets: "MAX(1,CHA)", roll: "none", uses: { max: 1, recharge: "long" }, onUse: { effects: [{ name: "Gift of the Protectors", dropTo1Instead: true, note: "Its name is in the Book of Shadows: the first time any named creature drops to 0 Hit Points (not killed outright), it drops to 1 instead. Once per Long Rest for all of them." }] } }, { level: 9, has: ["Pact of the Tome"] }),
+    inv("Investment of the Chain Master", { text: "Your familiar gains a Fly or Swim Speed of 40 feet; you can command it to take the Attack action as a Bonus Action; its Bludgeoning, Piercing or Slashing damage can be Necrotic or Radiant; it uses your spell save DC; and you can take a Reaction to give it Resistance to damage it takes.", activation: "bonus", target: "self", roll: "none" }, { level: 5, has: ["Pact of the Chain"] }),
+    inv("Lessons of the First Ones", { grantsFeat: "Origin", repeatable: true }, { level: 2 }),
+    inv("Lifedrinker", { activation: "free", target: "creature", roll: "none", damage: [{ dice: "1d6", type: "Necrotic" }], text: "Once per turn when you hit a creature with your pact weapon, you deal an extra 1d6 Necrotic, Psychic or Radiant damage, and you can expend a Hit Point Die to regain Hit Points equal to its roll plus your Constitution modifier (minimum 1). Use this after the hit." }, { level: 9, has: ["Pact of the Blade"] }),
+    inv("Mask of Many Faces", free("Disguise Self"), { level: 2 }),
+    inv("Master of Myriad Forms", free("Alter Self"), { level: 5 }),
+    inv("Misty Visions", free("Silent Image"), { level: 2 }),
+    inv("One with Shadows", free("Invisibility", true, { note: "One with Shadows: only while in Dim Light or Darkness." }), { level: 5 }),
+    inv("Otherworldly Leap", free("Jump", true), { level: 2 }),
+    inv("Pact of the Blade", { statics: { pactWeapon: true }, activation: "bonus", target: "self", roll: "none", text: "As a Bonus Action, you conjure a pact weapon (a Simple or Martial Melee weapon) or bond with a magic weapon you touch. You are proficient with it, it is a Spellcasting Focus, its attacks can use Charisma, and it can deal Necrotic, Psychic or Radiant damage. The weapon's (pact weapon) attack uses this." }),
+    inv("Pact of the Chain", free("Find Familiar", false, { note: "Pact of the Chain: cast it as a Magic action. Special forms: Imp, Pseudodragon, Quasit, Skeleton, Sphinx of Wonder, Sprite or Venomous Snake." })),
+    inv("Pact of the Tome", { statics: { spellPicks: [{ label: "Book of Shadows cantrips", count: 3, level: 0, lists: "any" }, { label: "Book of Shadows rituals", count: 2, level: 1, lists: "any", ritual: true }] } }),
+    ...["Chill Touch", "Eldritch Blast", "Shocking Grasp"].map((c) => inv(`Repelling Blast (${c})`, { statics: { spellMods: [{ spell: c, note: "Repelling Blast: when it hits a Large or smaller creature, you can push the creature up to 10 feet straight away from you." }] } }, { level: 2 })),
+    inv("Thirsting Blade", { statics: { passives: { attacks: 2 } } }, { level: 5, has: ["Pact of the Blade"] }),
+    inv("Visions of Distant Realms", free("Arcane Eye"), { level: 9 }),
+    inv("Whispers of the Grave", free("Speak with Dead"), { level: 7 }),
+    inv("Witch Sight", { statics: { senses: ["Truesight 30 ft."] } }, { level: 15 })
+  ] } }));
+  // Wizard
+  M.push(cls("Wizard", 1, "Ritual Adept", { statics: { spellPicks: [{ label: "Ritual Adept: Ritual spells in your spellbook", count: 10, level: "slot", lists: ["Wizard"], ritual: true, cast: "ritualOnly" }] } }),
+    cls("Wizard", 18, "Spell Mastery", { statics: { spellPicks: [{ label: "Spell Mastery (level 1)", count: 1, level: 1, lists: ["Wizard"], cast: "atWill" }, { label: "Spell Mastery (level 2)", count: 1, level: 2, lists: ["Wizard"], cast: "atWill" }] } }),
+    cls("Wizard", 20, "Signature Spells", { statics: { spellPicks: [{ label: "Signature Spells", count: 2, level: 3, lists: ["Wizard"], cast: "short" }] } }),
+    sub("Wizard", "Evoker", 3, "Evocation Savant", { statics: { spellPicks: [{ label: "Evocation Savant (free in your spellbook, prepare them as usual)", count: 2, level: 2, upTo: true, lists: ["Wizard"], school: "Evocation", cast: "book" }] } }),
+    sub("Wizard", "Evoker", 6, "Sculpt Spells", { statics: { passives: { sculptSpells: true } } }));
+  // Species traits that still needed it
+  M.push(spc("Halfling", "Luck", { statics: { passives: { luck: true } } }),
+    spc("Goliath", "Powerful Build", { statics: { passives: { escapeAdv: ["Grappled"] } } }),
+    spc("Human", "Resourceful", { statics: { passives: { heroicOnLongRest: true } } }),
+    spc("Elf", "Trance", { statics: { passives: { longRestSecs: 14400 } } }));
+
   // Feats (SRD 5.2.1). A feat's Ability Score Increase and its choices (skills, Magic Initiate spells) are picked in the builder;
   // everything else it does is written here, in the same format a Content Pack uses.
   const feat = (f, name, rest) => ({ name, grantedBy: { type: "feat", name: f }, ...rest });

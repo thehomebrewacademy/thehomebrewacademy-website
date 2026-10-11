@@ -263,7 +263,12 @@
     .rest-panel { border: 1px solid rgba(201,162,75,0.4); border-radius: 8px; padding: 10px; margin: 6px 0 10px; }
     .rest-title { text-align: center; color: var(--brass-light); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 13px; }
     .cal-ed { border: 1px dashed rgba(201,162,75,0.4); border-radius: 6px; padding: 6px; margin: 4px 0; display: grid; gap: 4px; }
-    .boon-box { border: 1px solid var(--brass); border-radius: 8px; padding: 8px 10px; margin: 8px 0; background: rgba(201,162,75,0.08); }
+    .fate-dim { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 60; }
+    .fate-dim-note { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--ink); border: 1px solid var(--brass); border-radius: 6px; padding: 6px 12px; color: var(--text-light); }
+    .log-body.fate-choosing { position: relative; z-index: 61; background: var(--ink); }
+    .log-entry.fate-pickable { cursor: pointer; outline: 2px solid var(--brass-light); }
+    .boon-line { font-size: 13px; line-height: 1.5; }
+    .boon-box { border-left: 3px solid var(--brass); padding: 4px 8px; margin: 6px 0; background: rgba(201,162,75,0.08); }
     .boon-item + .boon-item { border-top: 1px solid rgba(201,162,75,0.3); margin-top: 6px; padding-top: 6px; }
     .boon-name { color: var(--brass-light); font-weight: 600; letter-spacing: 0.03em; }
     .boon-text { font-size: 13px; line-height: 1.45; margin: 2px 0 4px; }
@@ -799,7 +804,7 @@ function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArra
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
 function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
 function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
-function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n3 = 0, F = function F() {}; return { s: F, n: function n() { return _n3 >= r.length ? { done: !0 } : { done: !1, value: r[_n3++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
+function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n5 = 0, F = function F() {}; return { s: F, n: function n() { return _n5 >= r.length ? { done: !0 } : { done: !1, value: r[_n5++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
 function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
 function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
 function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
@@ -1356,7 +1361,8 @@ var SPELL_NAMES = new Set((window.HBA_SPELLS || []).map(function (x) {
 }));
 var ROLL_R1 = false,
   ROLL_LOW3 = false; // the roll switch: reroll each 1 once; a 1 or 2 on a die counts as 3
-var PROMPT = null; // while a roll that was asked for is made: {adv} from the buttons on that prompt (the dice roller's switch waits for the next roll made unasked)
+var PROMPT = null;
+var LUCK_NEXT = false; // Halfling Luck: set by the d20 Test of a creature that has it, used by the roll that follows // while a roll that was asked for is made: {adv} from the buttons on that prompt (the dice roller's switch waits for the next roll made unasked)
 var NEXT_D20 = 0,
   FUDGE_DONE = null; // the DM can say what the next d20 shows
 function roll20() {
@@ -1371,13 +1377,15 @@ function roll20() {
       rolls: [n]
     };
   }
+  var luck = LUCK_NEXT;
+  LUCK_NEXT = false;
   var d = function d() {
     var r = rollD(20);
-    if (ROLL_R1 && r === 1) r = rollD(20);
+    if ((ROLL_R1 || luck) && r === 1) r = rollD(20);
     if (ROLL_LOW3 && r < 3) r = 3;
     return r;
   };
-  var note = [ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1 & 2 = 3'].filter(Boolean).join(', ');
+  var note = [ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1s & 2s = 3s', luck && !ROLL_R1 && 'Luck'].filter(Boolean).join(', ');
   if (advantage === 0) {
     var r = d();
     return {
@@ -1441,7 +1449,7 @@ function parseDamage(expr, allowNegative, lowAs3) {
             return a + b;
           }, 0);
         }
-        parts.push("".concat(c, "d").concat(s, "=[").concat(rolls.join(','), "]").concat(ROLL_R1 || ROLL_LOW3 ? " (".concat([ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1 & 2 = 3'].filter(Boolean).join(', '), ")") : ''));
+        parts.push("".concat(c, "d").concat(s, "=[").concat(rolls.join(','), "]").concat(ROLL_R1 || ROLL_LOW3 ? " (".concat([ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1s & 2s = 3s'].filter(Boolean).join(', '), ")") : ''));
         total += sign * t;
       } else {
         parts.push(g);
@@ -1968,6 +1976,45 @@ function cleanPassives(p) {
   }); // the names the Content Pack prompt uses
   if (p.archery || +p.rangedWeaponAttack) out.archery = p.archery === true ? 2 : Math.max(-10, Math.min(10, Math.round(+p.rangedWeaponAttack || +p.archery || 0)));
   if (+p.blinkSteps > 0) out.blinkSteps = Math.min(300, Math.round(+p.blinkSteps));
+  ['studiedAttacks', 'heroicEachTurn', 'heroicOnLongRest', 'deathAdv', 'elusive', 'thiefsReflexes', 'luck', 'jumpDex', 'sculptSpells', 'concAdvantage', 'grappleNoHand'].forEach(function (k) {
+    if (p[k]) out[k] = true;
+  });
+  var strs = function strs(x) {
+    return (Array.isArray(x) ? x : x ? [x] : []).map(function (v) {
+      return String(v).slice(0, 40);
+    }).filter(Boolean).slice(0, 12);
+  };
+  if (p.scoreFloor) out.scoreFloor = strs(p.scoreFloor).filter(function (a) {
+    return ABILITIES.includes(a);
+  }); // Indomitable Might
+  if (p.concProtect) out.concProtect = strs(p.concProtect); // Relentless Hunter: damage can't break it
+  if (p.escapeAdv) out.escapeAdv = strs(p.escapeAdv).filter(function (k) {
+    return CONDITIONS.includes(k);
+  }); // Powerful Build
+  if (p.advVsMarked) out.advVsMarked = String(p.advVsMarked).slice(0, 40); // Precise Hunter
+  if (p.revealMarked) out.revealMarked = String(p.revealMarked).slice(0, 40); // Hunter's Lore
+  if (+p.longRestSecs > 0) out.longRestSecs = Math.min(86400, Math.round(+p.longRestSecs));
+  if (+p.reliableTalent > 0) out.reliableTalent = Math.min(20, Math.round(+p.reliableTalent));
+  if (+p.deathCritOn > 1 && +p.deathCritOn <= 20) out.deathCritOn = Math.round(+p.deathCritOn); // Survivor: 18 to 20 counts as a 20
+  if (+p.heroicRally > 0) out.heroicRally = Math.min(99, Math.round(+p.heroicRally)); // Survivor: Hit Points at the start of each turn while Bloodied
+  if (+p.chargeSaver > 0) out.chargeSaver = Math.min(6, Math.round(+p.chargeSaver)); // Use Magic Device: a d6 of this or higher, no charge spent
+  if (Array.isArray(p.regainOnInitiative)) out.regainOnInitiative = p.regainOnInitiative.filter(function (x) {
+    return x && x.pool;
+  }).slice(0, 4).map(function (x) {
+    return {
+      pool: String(x.pool).slice(0, 40),
+      to: Math.max(1, Math.min(99, Math.round(+x.to || 1))),
+      ifEmpty: !!x.ifEmpty
+    };
+  });
+  if (Array.isArray(p.remindAfter)) out.remindAfter = p.remindAfter.filter(function (x) {
+    return x && x.after && x.text;
+  }).slice(0, 6).map(function (x) {
+    return {
+      after: String(x.after).slice(0, 60),
+      text: String(x.text).slice(0, 200)
+    };
+  });
   {
     var f = p.improveFate && _typeof(p.improveFate) === 'object' ? p.improveFate.dice : p.improveFate;
     if (f && DMG_RE.test(String(f).replace(/\s/g, ''))) out.improveFate = String(f).replace(/\s/g, '');
@@ -2014,7 +2061,15 @@ function cleanEffect(e) {
   var out = {
     name: String(e.name).trim().slice(0, 40)
   };
-  ['ac', 'speed', 'init', 'd20', 'saveAbilMod', 'tempEachTurn', 'hpMax'].forEach(function (k) {
+  if (e.halveNext) out.halveNext = true;
+  if (e.reduceNext && DMG_RE.test(String(e.reduceNext.dice || '').replace(/\s/g, ''))) out.reduceNext = _objectSpread({
+    dice: String(e.reduceNext.dice).replace(/\s/g, '')
+  }, Array.isArray(e.reduceNext.types) ? {
+    types: e.reduceNext.types.map(function (t) {
+      return String(t).slice(0, 20);
+    })
+  } : {});
+  ['ac', 'speed', 'init', 'd20', 'saveAbilMod', 'tempEachTurn', 'hpMax', 'freeCast'].forEach(function (k) {
     var n = parseInt(e[k], 10);
     if (Number.isFinite(n) && n) out[k] = Math.max(-200, Math.min(200, n));
   });
@@ -2449,6 +2504,19 @@ function cleanAction(a, i) {
     maxLevel: Math.max(0, Math.min(9, +a.remove.maxLevel || 0))
   };
   if (a.askDM) out.askDM = String(a.askDM).slice(0, 300);
+  if (a.extraCost && a.extraCost.pool) out.extraCost = {
+    pool: String(a.extraCost.pool).slice(0, 40),
+    cost: Math.max(1, Math.min(99, Math.round(+a.extraCost.cost || 1)))
+  };
+  if (a.school) out.school = String(a.school).slice(0, 20);
+  if (a.ritualOnly) out.ritualOnly = true;
+  if (a.spendSlot === 'any' || a.spendSlot === 'pact' || +a.spendSlot >= 1 && +a.spendSlot <= 9) out.spendSlot = a.spendSlot === 'any' || a.spendSlot === 'pact' ? a.spendSlot : Math.round(+a.spendSlot);
+  if (a.regainPool && a.regainPool.pool) out.regainPool = {
+    pool: String(a.regainPool.pool).slice(0, 40),
+    amount: Math.max(1, Math.min(99, Math.round(+a.regainPool.amount || 1)))
+  };
+  if (+a.regainSlot >= 1 && +a.regainSlot <= 9) out.regainSlot = Math.round(+a.regainSlot);
+  if (a.regainPact === 'half' || a.regainPact === 'all') out.regainPact = a.regainPact;
   if (a.sctl && _typeof(a.sctl) === 'object') out.sctl = _objectSpread(_objectSpread(_objectSpread(_objectSpread(_objectSpread(_objectSpread(_objectSpread(_objectSpread(_objectSpread(_objectSpread(_objectSpread(_objectSpread({
     cmd: ['bonus', 'action'].includes(a.sctl.cmd) ? a.sctl.cmd : '',
     secs: Math.max(0, Math.min(MAX_SECONDS, +a.sctl.secs || 0)),
@@ -2642,11 +2710,17 @@ function cleanAction(a, i) {
     auto: !!a.map.auto
   };
   if (a.message) out.message = true;
-  if (a.escape && _typeof(a.escape) === 'object' && ABILITIES.includes(a.escape.ability)) out.escape = {
+  if (a.escape && _typeof(a.escape) === 'object' && ABILITIES.includes(a.escape.ability)) out.escape = _objectSpread(_objectSpread({
     ability: a.escape.ability,
-    skill: String(a.escape.skill || '').slice(0, 20),
+    skill: String(a.escape.skill || '').slice(0, 20)
+  }, a.escape.alt && ABILITIES.includes(a.escape.alt.ability) ? {
+    alt: {
+      ability: a.escape.alt.ability,
+      skill: String(a.escape.alt.skill || '').slice(0, 20)
+    }
+  } : {}), {}, {
     dc: Math.max(0, Math.min(40, +a.escape.dc || 0))
-  };
+  });
   if (a.needItem && _typeof(a.needItem) === 'object' && /^[A-Za-z |]{1,60}$/.test(String(a.needItem.re || ''))) out.needItem = {
     re: String(a.needItem.re)
   };
@@ -2670,8 +2744,11 @@ function cleanAction(a, i) {
           a: va
         } : null;
       }).filter(Boolean);
-      if (ms.length > 1) out.modes = ms;
-    }
+      if (ms.length > 1) {
+        out.modes = ms;
+        if (Number.isInteger(a.modeDefault) && ms[a.modeDefault]) out.modeDefault = a.modeDefault;
+      }
+    } // modeDefault: used unless another is picked (a weapon's own damage type)
     if (Array.isArray(a.byHP)) {
       var bs = a.byHP.slice(0, 8).map(function (b, j) {
         var va = b && b.a ? cleanAction(_objectSpread(_objectSpread({}, b.a), {}, {
@@ -3239,6 +3316,19 @@ function d20Test(c, kind, ctx) {
     });
     if (ctx.skill && ((c && c.passives || {}).skillAdv || []).includes(ctx.skill)) adv.push('an item or feature'); // Boots of Elvenkind: Stealth
   }
+  var pz = c && c.passives || {};
+  if (kind === 'attack' && ctx.target) {
+    var tp = ctx.target.passives || {};
+    if (pz.advVsMarked && effs(ctx.target).some(function (e) {
+      return String(e.name).startsWith(pz.advVsMarked) && (e.casterId === c.id || e.src === c.id);
+    })) adv.push(pz.advVsMarked); // Precise Hunter
+    if (tp.elusive && !hasCond(ctx.target, 'Incapacitated') && !['Paralyzed', 'Petrified', 'Stunned', 'Unconscious'].some(function (n) {
+      return hasCond(ctx.target, n);
+    })) adv.length = 0;
+  } // Elusive: no attack roll has Advantage against it
+  if (kind === 'check' && ctx.escape && (pz.escapeAdv || []).includes(ctx.escape)) adv.push('Powerful Build'); // checks to end the Grappled condition
+  if (kind === 'save' && ctx.conc && pz.concAdvantage) adv.push('Eldritch Mind');
+  LUCK_NEXT = !!pz.luck; // Halfling Luck: a 1 on the d20 is rolled again
   return {
     adv: adv,
     dis: dis,
@@ -3263,7 +3353,8 @@ function adjustDamage(target, parts, turnKey, ignoreRes) {
   // ignoreRes: damage types that ignore Resistance (Boon of Irresistible Offense)
   var total = 0;
   var notes = [],
-    usedEffects = [];
+    usedEffects = [],
+    spent = [];
   parts.forEach(function (pt) {
     var amt = pt.amount;
     var type = pt.type || '';
@@ -3297,10 +3388,35 @@ function adjustDamage(target, parts, turnKey, ignoreRes) {
     }
     total += amt;
   });
+  {
+    var hv = (target.effects || []).find(function (e) {
+      return e.halveNext && !usedEffects.includes(e.id);
+    });
+    if (hv && total > 0) {
+      total = Math.floor(total / 2);
+      notes.push("".concat(esc(hv.name), " halves it"));
+      usedEffects.push(hv.id);
+      spent.push(hv.id);
+    } // Uncanny Dodge
+    var rd = (target.effects || []).find(function (e) {
+      return e.reduceNext && !usedEffects.includes(e.id) && (!e.reduceNext.types || parts.some(function (pt) {
+        return e.reduceNext.types.includes(pt.type);
+      }));
+    });
+    if (rd && total > 0) {
+      var r = parseDamage(rd.reduceNext.dice);
+      var cut = Math.min(total, r.total);
+      total -= cut;
+      notes.push("".concat(esc(rd.name), " reduces it by ").concat(r.total).concat(total === 0 ? ' (to 0)' : ''));
+      usedEffects.push(rd.id);
+      spent.push(rd.id);
+    }
+  } // Deflect Attacks, Slow Fall
   return {
     total: total,
     notes: notes,
-    usedEffects: usedEffects
+    usedEffects: usedEffects,
+    spent: spent
   };
 }
 // Stats as they stand right now: the sheet's own value plus whatever effects are on the creature.
@@ -6429,6 +6545,12 @@ function App() {
     });
   };
   // Grapple and Shove (options of an Unarmed Strike): the target can be no more than one size larger than you.
+  var bestSave = function bestSave(t, list) {
+    return Array.isArray(list) && list.length ? list.slice().sort(function (a, b) {
+      var _b, _b2, _a, _a2;
+      return ((_b = (t.saves || {})[b]) !== null && _b !== void 0 ? _b : mod((_b2 = (t.scores || {})[b]) !== null && _b2 !== void 0 ? _b2 : 10)) - ((_a = (t.saves || {})[a]) !== null && _a !== void 0 ? _a : mod((_a2 = (t.scores || {})[a]) !== null && _a2 !== void 0 ? _a2 : 10));
+    })[0] : '';
+  };
   var grabActions = function grabActions(c) {
     var _Strength;
     if (!c || !c.sheet || !c.ownActions) return [];
@@ -6439,6 +6561,7 @@ function App() {
         activation: 'action',
         unarmed: true,
         saveAbility: 'Strength',
+        saveBest: ['Strength', 'Dexterity'],
         dc: dc,
         fromSheet: true,
         tgt: {
@@ -6454,6 +6577,16 @@ function App() {
     return [_objectSpread(_objectSpread({}, base), {}, {
       id: 'grab-g',
       name: 'Grapple',
+      freeHand: true,
+      escape: {
+        ability: 'Strength',
+        skill: 'Athletics',
+        alt: {
+          ability: 'Dexterity',
+          skill: 'Acrobatics'
+        },
+        dc: dc
+      },
       onFail: {
         conds: [{
           name: 'Grappled'
@@ -6461,18 +6594,25 @@ function App() {
       },
       detail: "Action \xB7 DC ".concat(dc, " Str or Dex save \xB7 Grappled \xB7 no more than one size larger than you"),
       desc: 'An Unarmed Strike option. The target makes a Strength or Dexterity saving throw (it chooses which). On a failure it has the Grappled condition. It can be no more than one size larger than you, and you need a free hand.',
-      hand: 'The target chooses Strength or Dexterity for the save; the app rolls Strength.'
+      hand: ''
     }), _objectSpread(_objectSpread({}, base), {}, {
       id: 'grab-s',
-      name: 'Shove',
+      name: 'Shove (Prone)',
       onFail: {
         conds: [{
           name: 'Prone'
         }]
       },
       detail: "Action \xB7 DC ".concat(dc, " Str or Dex save \xB7 Prone, or pushed 5 feet \xB7 no more than one size larger than you"),
-      desc: 'An Unarmed Strike option. The target makes a Strength or Dexterity saving throw (it chooses which). On a failure you either push it 5 feet away or give it the Prone condition. It can be no more than one size larger than you.',
-      hand: 'The target chooses Strength or Dexterity; the app rolls Strength and applies Prone. If you push it 5 feet instead, remove Prone.'
+      desc: 'An Unarmed Strike option. The target makes a Strength or Dexterity saving throw (it chooses which). On a failure it has the Prone condition (or pick Shove (push 5 feet away) to push it instead). It can be no more than one size larger than you.',
+      hand: ''
+    }), _objectSpread(_objectSpread({}, base), {}, {
+      id: 'grab-p',
+      name: 'Shove (push 5 feet away)',
+      onFail: {},
+      detail: "Action \xB7 DC ".concat(dc, " Str or Dex save \xB7 pushed 5 feet away (move its token) \xB7 no more than one size larger than you"),
+      desc: 'An Unarmed Strike option. The target makes a Strength or Dexterity saving throw (it chooses which). On a failure you push it 5 feet away (or pick Shove (Prone) to knock it Prone instead). It can be no more than one size larger than you.',
+      hand: 'Move the target 5 feet away from you on the map.'
     })];
   };
   var actions = viewed ? [].concat(_toConsumableArray(buildActions(viewed)), _toConsumableArray(grabActions(viewed)), _toConsumableArray(runActions(viewed))) : [];
@@ -6744,6 +6884,7 @@ function App() {
     } else {
       var sw = curAdv();
       useRollSwitch();
+      LUCK_NEXT = !!(c.passives || {}).luck;
       var r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0));
       v = r.total + b;
       how = "".concat(rollsTxt(r), " ").concat(signed(b)).concat((c.passives || {}).initiativeAdvantage ? ' with Advantage' : '');
@@ -6778,6 +6919,7 @@ function App() {
     var b = effectiveInitBonus(c),
       sw = advantage;
     useRollSwitch();
+    LUCK_NEXT = !!(c.passives || {}).luck;
     var r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0));
     setLog(function (prev) {
       return [].concat(_toConsumableArray(prev), [stamp({
@@ -6989,11 +7131,21 @@ function App() {
         return x.id === arg;
       }) || {};
       var lines = [];
-      if (a.atk != null && a.type === 'attack') lines.push(['Attack roll', signed(a.atk)]);
+      if (a.atk != null && a.type === 'attack') lines.push(['Attack roll', signed(a.atk + (a.weapon && a.ranged ? +(c.passives || {}).archery || 0 : 0))]);
       if (a.dc) lines.push(['Save DC', "".concat(a.dc, " ").concat(a.saveAbility || '')]);
       (a.dmgList || []).forEach(function (d) {
         return lines.push(['Damage', "".concat(d[0], " ").concat(d[1] || '')]);
       });
+      {
+        var pz = c.passives || {};
+        if (a.weapon && a.ranged && +pz.archery) lines.push(['Archery', "".concat(signed(+pz.archery), " to hit (included above)")]);
+        if (a.weapon && a.twoHanded && !a.ranged && pz.gwf) lines.push(['Great Weapon Fighting', 'A 1 or 2 on a damage die counts as 3']);
+        if (a.weapon && pz.savage) lines.push(['Savage Attacker', 'Once per turn on a hit, the damage is rolled twice and the higher kept']);
+        if ((a.weapon || a.unarmed) && pz.grappler) lines.push(['Grappler', 'Advantage against a creature you are grappling']);
+        if (a.unarmed && pz.punchAndGrab) lines.push(['Punch and Grab', 'Once per turn a hit with the Attack action also makes the target save against your Grapple']);
+        if ((a.weapon || a.unarmed) && pz.irresistible) lines.push(['Boon of Irresistible Offense', "Ignores Resistance to Bludgeoning, Piercing and Slashing; +".concat(pz.irresistible, " damage on a 20")]);
+        if (pz.prowess) lines.push(['Peerless Aim', c.prowessUsed ? 'Used' : 'A miss can become a hit']);
+      }
       if (a.usesMax) lines.push(['Uses', "".concat(usesLeft(c, a), " of ").concat(a.usesMax)]);
       if (a.pool) lines.push(['Spends', "".concat(a.cost || 1, " ").concat(a.pool)]);
       if (a.item) lines.push(['From the item', a.item]);
@@ -7030,6 +7182,31 @@ function App() {
         text: describeEffect(e) + (e.note ? ". ".concat(e.note) : '')
       };
     }
+    if (kind === 'card' && !isDM && !canControl(c)) {
+      var hunter = combatants.find(function (h) {
+        return canControl(h) && (h.passives || {}).revealMarked && effs(c).some(function (e) {
+          return String(e.name).startsWith(h.passives.revealMarked) && (e.casterId === h.id || e.src === h.id);
+        });
+      });
+      if (hunter && !c.owner) {
+        var d = defensesOf(c);
+        return {
+          title: c.name,
+          lines: d.length ? d.map(function (_ref44) {
+            var _ref45 = _slicedToArray(_ref44, 2),
+              k = _ref45[0],
+              v = _ref45[1];
+            return [{
+              res: 'Resistance',
+              imm: 'Immunity',
+              vul: 'Vulnerability',
+              ci: 'Condition Immunity'
+            }[k] || k, v];
+          }) : [['Defenses', 'No Immunities, Resistances or Vulnerabilities']],
+          text: "".concat(hunter.name, " knows these while it is marked (Hunter's Lore).")
+        };
+      }
+    }
     if (kind === 'card' && !isDM && !canControl(c) && !c.owner) return {
       title: c.name,
       lines: [],
@@ -7044,10 +7221,10 @@ function App() {
           return ['Condition', k];
         })), _toConsumableArray(effs(c).map(function (e) {
           return ['Effect', "".concat(e.name).concat(+e.left > 0 ? " (".concat(timeText(e.left), " left)") : '')];
-        })), _toConsumableArray(defensesOf(c).map(function (_ref44) {
-          var _ref45 = _slicedToArray(_ref44, 2),
-            k = _ref45[0],
-            v = _ref45[1];
+        })), _toConsumableArray(defensesOf(c).map(function (_ref46) {
+          var _ref47 = _slicedToArray(_ref46, 2),
+            k = _ref47[0],
+            v = _ref47[1];
           return [{
             res: 'Resistance',
             imm: 'Immunity',
@@ -7056,6 +7233,33 @@ function App() {
           }[k], v];
         }))),
         text: c.sub || ''
+      };
+    }
+    if (kind === 'boon') {
+      var b = (sh.boons || []).find(function (x) {
+        return x.name === arg;
+      }) || {};
+      return {
+        title: "Epic Boon: ".concat(arg),
+        lines: [],
+        text: b.text || ''
+      };
+    }
+    if (kind === 'feature') {
+      var f = (sh.featureList || [])[+arg] || {},
+        _pz = c.passives || {},
+        _n = String(f.n || '').replace(/^Feat: /, '');
+      var PASSIVE_LINES = [['Alert', _pz.initiativeSwap, [['Initiative', "+".concat(c.pb || 2, " Proficiency Bonus (in the Initiative breakdown)")], ['Initiative Swap', 'Offered in round 1 of a fight']]], ['Defense', true, [['Armor Class', '+1 while wearing armor (in the Armor Class breakdown)']]], ['Archery', _pz.archery, [['Ranged weapon attacks', "".concat(signed(+_pz.archery || 2), " (already in To Hit)")]]], ['Great Weapon Fighting', _pz.gwf, [['Damage', 'A 1 or 2 on a damage die counts as 3 with a Melee weapon held in two hands']]], ['Two-Weapon Fighting', true, [['Light extra attack', 'Adds your ability modifier to its damage']]], ['Savage Attacker', _pz.savage, [['Weapon damage', 'Once per turn on a hit, rolled twice and the higher is used']]], ['Grappler', _pz.grappler, [['Attack rolls', 'Advantage against a creature you are grappling'], ['Punch and Grab', 'Once per turn, an Unarmed Strike hit also makes the target save against your Grapple']]], ['Boon of Combat Prowess', _pz.prowess, [['Peerless Aim', c.prowessUsed ? 'Used, back at the start of your next turn' : 'Ready: a miss can become a hit']]], ['Boon of Dimensional Travel', _pz.blinkSteps, [['Blink Steps', "Teleport up to ".concat(_pz.blinkSteps, " feet after the Attack or Magic action")]]], ['Boon of Fate', _pz.improveFate, [['Improve Fate', c.fateUsed ? 'Used, back on Initiative or a rest' : 'Ready (button in the Epic Boon box)']]], ['Boon of Irresistible Offense', _pz.irresistible, [['Overcome Defenses', 'Your Bludgeoning, Piercing and Slashing damage ignores Resistance'], ['Overwhelming Strike', "+".concat(_pz.irresistible, " damage on a 20")]]], ['Boon of Spell Recall', _pz.freeCasting, [['Free Casting', "A d4 when you cast with a Level 1 to ".concat(_pz.freeCasting, " slot; on its level the slot is not spent")]]], ['Boon of Truesight', true, [['Senses', 'Truesight 60 ft.']]]];
+      var hit = PASSIVE_LINES.find(function (_ref48) {
+        var _ref49 = _slicedToArray(_ref48, 2),
+          k = _ref49[0],
+          on = _ref49[1];
+        return on && _n.startsWith(k);
+      });
+      return {
+        title: _n || 'Feature',
+        lines: hit ? hit[2] : [],
+        text: f.d || ''
       };
     }
     if (kind === 'term') return {
@@ -7122,9 +7326,39 @@ function App() {
     var first = sorted.find(function (c) {
       return !c.pending;
     });
+    var regainLog = [];
+    sorted = sorted.map(function (c) {
+      var list = (c.passives || {}).regainOnInitiative || [];
+      if (!list.length) return c;
+      var pu = _objectSpread({}, c.poolUsed || {});
+      list.forEach(function (r) {
+        var q = ((c.sheet || {}).pools || {})[r.pool];
+        if (!q) return;
+        var left = q.max - (+pu[r.pool] || 0);
+        if (left >= r.to || r.ifEmpty && left > 0) return;
+        var want = Math.min(q.max, r.to);
+        pu[r.pool] = Math.max(0, q.max - want);
+        regainLog.push("".concat(c.name, ": ").concat(r.pool, " ").concat(left, " to ").concat(want));
+      });
+      return _objectSpread(_objectSpread({}, c), {}, {
+        poolUsed: pu
+      });
+    });
+    if (regainLog.length) setTimeout(function () {
+      return setLog(function (prev) {
+        return [].concat(_toConsumableArray(prev), [stamp({
+          type: 'roll',
+          html: "<strong>Rolling Initiative</strong>".concat(regainLog.map(function (l) {
+            return "<div class=\"log-detail\">".concat(esc(l), "</div>");
+          }).join(''))
+        })]);
+      });
+    }, 0);
     setCombatants(sorted.map(function (c) {
       return _objectSpread(_objectSpread({}, c), {}, {
         turn: {},
+        reflexDone: false,
+        reflexNow: false,
         fateUsed: false,
         swapDone: false,
         fight: {
@@ -7181,15 +7415,71 @@ function App() {
         return;
       }
     }
+    {
+      var _cur = combatants.find(function (c) {
+          return c.id === activeId;
+        }),
+        base = _cur && _cur.reflexNow ? combatants.find(function (c) {
+          return c.id === _cur.reflexFrom;
+        }) || _cur : _cur; // Thief's Reflexes: a second turn in the first round, at Initiative minus 10
+      if (round === 1 && base) {
+        var n = inPlay.findIndex(function (c) {
+            return c.id === base.id;
+          }) + 1,
+          nextInit = n > 0 && n < inPlay.length ? effectiveInit(inPlay[n]) : -Infinity,
+          curInit = effectiveInit(base);
+        var rc = inPlay.find(function (c) {
+          return (c.passives || {}).thiefsReflexes && !c.reflexDone && c.currentHP > 0 && !isAway(c) && effectiveInit(c) - 10 <= curInit && effectiveInit(c) - 10 > nextInit;
+        });
+        if (rc) {
+          setCombatants(function (prev) {
+            return prev.map(function (c) {
+              return c.id === rc.id ? _objectSpread(_objectSpread({}, c), {}, {
+                reflexDone: true,
+                reflexNow: true,
+                reflexFrom: base.id,
+                turn: {}
+              }) : c.id === _cur.id && _cur.reflexNow ? _objectSpread(_objectSpread({}, c), {}, {
+                reflexNow: false
+              }) : c;
+            });
+          });
+          setLog(function (prev) {
+            return [].concat(_toConsumableArray(prev), [stamp({
+              type: 'round',
+              text: "".concat(rc.name, " takes a second turn (Thief's Reflexes, Initiative ").concat(effectiveInit(rc) - 10, ")")
+            })]);
+          });
+          setActiveId(rc.id);
+          setSelectedAction(null);
+          setTargetIds([]);
+          return;
+        }
+      }
+    }
     var work = combatants;
     var entries = [],
       due = [];
+    {
+      var _cur2 = combatants.find(function (c) {
+        return c.id === activeId;
+      });
+      if (_cur2 && _cur2.reflexNow) work = work.map(function (c) {
+        return c.id === _cur2.id ? _objectSpread(_objectSpread({}, c), {}, {
+          reflexNow: false
+        }) : c;
+      });
+    }
     // Saves that fall at the end of the turn that is finishing
     if (inPlay.some(function (c) {
       return c.id === activeId;
     })) due.push.apply(due, _toConsumableArray(dueCondSaves(work, activeId, 'end')));
     var idx = inPlay.findIndex(function (c) {
-      return c.id === activeId;
+      return c.id === ((combatants.find(function (x) {
+        return x.id === activeId;
+      }) || {}).reflexNow && (combatants.find(function (x) {
+        return x.id === activeId;
+      }) || {}).reflexFrom || activeId);
     });
     var safety = 0;
     var wrapped = false;
@@ -7243,6 +7533,39 @@ function App() {
       })));
     }
     var upId = inPlay[idx].id;
+    {
+      var _up = work.find(function (c) {
+          return c.id === upId;
+        }),
+        pz = _up && _up.passives || {};
+      if (_up && pz.heroicEachTurn && !_up.heroic) {
+        work = work.map(function (c) {
+          return c.id === upId ? _objectSpread(_objectSpread({}, c), {}, {
+            heroic: true
+          }) : c;
+        });
+        entries.push(stamp({
+          type: 'roll',
+          forId: upId,
+          html: "<strong>".concat(esc(_up.name), "</strong> gains Heroic Inspiration (Heroic Warrior)")
+        }));
+      }
+      if (_up && +pz.heroicRally > 0 && _up.currentHP > 0 && _up.currentHP * 2 <= totalHP(_up)) {
+        var gain = Math.min(+pz.heroicRally, totalHP(_up) - _up.currentHP);
+        if (gain > 0) {
+          work = work.map(function (c) {
+            return c.id === upId ? _objectSpread(_objectSpread({}, c), {}, {
+              currentHP: c.currentHP + gain
+            }) : c;
+          });
+          entries.push(stamp({
+            type: 'heal',
+            forId: upId,
+            html: "<strong>".concat(esc(_up.name), "</strong> regains <span class=\"log-heal-val\">").concat(gain, "</span> Hit Points (Heroic Rally)")
+          }));
+        }
+      }
+    }
     // Saves that fall at the start of the turn that is beginning
     due.push.apply(due, _toConsumableArray(dueCondSaves(work, upId, 'start')));
     if (due.length) setPrompts(function (prev) {
@@ -7360,7 +7683,7 @@ function App() {
             by: '',
             html: "<strong>".concat(esc(c.name), "</strong> \xB7 ").concat(esc(e.name), "<br/><span class=\"log-dmg\">").concat(adj.total, " damage</span> <span class=\"log-detail\">").concat(esc(e.turnDmg.type), "</span><div class=\"log-dice\">").concat(esc(e.turnDmg.dice), " = ").concat(r.total).concat(adj.notes.length ? ' · ' + adj.notes.join(' · ') : '', "</div>")
           }));
-          if (adj.total > 0 && cur.conc) setPrompts(function (prev) {
+          if (adj.total > 0 && cur.conc && !((cur.passives || {}).concProtect || []).includes(cur.conc.name)) setPrompts(function (prev) {
             return [].concat(_toConsumableArray(prev), [plain({
               id: newId(),
               kind: 'save',
@@ -7494,17 +7817,17 @@ function App() {
       return +e.tempEachTurn > 0;
     });
     if (hero.length) {
-      var n = Math.max.apply(Math, _toConsumableArray(hero.map(function (e) {
+      var _n2 = Math.max.apply(Math, _toConsumableArray(hero.map(function (e) {
         return +e.tempEachTurn;
       })));
       work = work.map(function (c) {
         return c.id === up.id ? _objectSpread(_objectSpread({}, c), {}, {
-          tempHP: Math.max(+c.tempHP || 0, n)
+          tempHP: Math.max(+c.tempHP || 0, _n2)
         }) : c;
       });
       entries.push(stamp({
         type: 'heal',
-        html: "<strong>".concat(esc(up.name), "</strong> has ").concat(n, " Temporary Hit Points from <span class=\"log-result\">").concat(esc(hero[0].name), "</span>")
+        html: "<strong>".concat(esc(up.name), "</strong> has ").concat(_n2, " Temporary Hit Points from <span class=\"log-result\">").concat(esc(hero[0].name), "</span>")
       }));
     }
     work = work.map(function (c) {
@@ -7601,7 +7924,7 @@ function App() {
     return /*#__PURE__*/React.createElement("span", {
       className: "prompt-switch",
       "data-testid": "prompt-switch"
-    }, b('hi', '⏫ Adv', 'Roll it with Advantage (roll twice, keep the higher)'), b('lo', '⏬ Dis', 'Roll it with Disadvantage (roll twice, keep the lower)'), b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once'), b('low3', '1 & 2 = 3', 'A 1 or a 2 on a die counts as a 3'));
+    }, b('hi', '⏫ Adv', 'Roll it with Advantage (roll twice, keep the higher)'), b('lo', '⏬ Dis', 'Roll it with Disadvantage (roll twice, keep the lower)'), b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once'), b('low3', '1s & 2s = 3s', 'A 1 or a 2 on a die counts as a 3'));
   };
   var curAdv = function curAdv() {
     return PROMPT ? PROMPT.adv : advantage;
@@ -7678,7 +8001,7 @@ function App() {
       title: "Each lit button applies to the next roll you make yourself, then turns off. A roll you are asked for has its own buttons"
     }, "Next roll:"), b('hi', '2x ⏫ Highest', 'Roll twice and keep the higher', 'roll-high'), b('lo', '2x ⏬ Lowest', 'Roll twice and keep the lower', 'roll-low')), /*#__PURE__*/React.createElement("span", {
       className: "roll-switch-row"
-    }, b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once', 'roll-r1'), b('low3', '1 & 2 = 3', 'On the next roll, a 1 or a 2 on a die counts as a 3', 'roll-low3'), /*#__PURE__*/React.createElement("button", {
+    }, b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once', 'roll-r1'), b('low3', '1s & 2s = 3s', 'On the next roll, a 1 or a 2 on a die counts as a 3', 'roll-low3'), /*#__PURE__*/React.createElement("button", {
       className: "die-btn",
       "data-testid": "roll-clear",
       style: {
@@ -7690,10 +8013,10 @@ function App() {
   };
   var rollDamageOnce = function rollDamageOnce(action, crit, lowAs3) {
     var list = action.dmgList && action.dmgList.length ? action.dmgList : [[action.dmg, action.dmgType]];
-    return list.map(function (_ref46) {
-      var _ref47 = _slicedToArray(_ref46, 2),
-        expr = _ref47[0],
-        type = _ref47[1];
+    return list.map(function (_ref50) {
+      var _ref51 = _slicedToArray(_ref50, 2),
+        expr = _ref51[0],
+        type = _ref51[1];
       var e = String(expr || '0');
       if (crit) e = e.replace(/(\d+)d(\d+)/g, function (_, c, s) {
         return "".concat(c * 2, "d").concat(s);
@@ -7759,6 +8082,15 @@ function App() {
         });
       });
     });
+    if ((adj.spent || []).length) setCombatants(function (prev) {
+      return prev.map(function (c) {
+        return c.id !== tgt.id ? c : _objectSpread(_objectSpread({}, c), {}, {
+          effects: (c.effects || []).filter(function (e) {
+            return !adj.spent.includes(e.id);
+          })
+        });
+      });
+    }); // used up by this damage
     if (adj.total > 0) updateHP(tgt.id, -adj.total);
     if (adj.total > 0) endByFlag(tgt, 'endsOnDamage', 'It took damage.');
     {
@@ -7942,8 +8274,8 @@ function App() {
       });
     }
     var concDC = Math.min(30, Math.max(10, Math.floor(adj.total / 2)));
-    var concNote = adj.total > 0 && tgt.conc ? "<div class=\"log-detail\" style=\"color:#fff176\">".concat(esc(tgt.name), " is asked for a DC ").concat(concDC, " Constitution saving throw to maintain Concentration on ").concat(esc(tgt.conc.name), ".</div>") : '';
-    if (adj.total > 0 && tgt.conc) setPrompts(function (prev) {
+    var concNote = adj.total > 0 && tgt.conc && ((tgt.passives || {}).concProtect || []).includes(tgt.conc.name) ? "<div class=\"log-detail\">Damage can't break ".concat(esc(tgt.name), "'s Concentration on ").concat(esc(tgt.conc.name), ".</div>") : adj.total > 0 && tgt.conc ? "<div class=\"log-detail\" style=\"color:#fff176\">".concat(esc(tgt.name), " is asked for a DC ").concat(concDC, " Constitution saving throw to maintain Concentration on ").concat(esc(tgt.conc.name), ".</div>") : '';
+    if (adj.total > 0 && tgt.conc && !((tgt.passives || {}).concProtect || []).includes(tgt.conc.name)) setPrompts(function (prev) {
       return [].concat(_toConsumableArray(prev), [plain({
         id: newId(),
         kind: 'save',
@@ -8141,10 +8473,10 @@ function App() {
           });
         });
       });
-      notes.push(Object.entries(outcome.setScores).map(function (_ref48) {
-        var _ref49 = _slicedToArray(_ref48, 2),
-          k = _ref49[0],
-          v = _ref49[1];
+      notes.push(Object.entries(outcome.setScores).map(function (_ref52) {
+        var _ref53 = _slicedToArray(_ref52, 2),
+          k = _ref53[0],
+          v = _ref53[1];
         return "".concat(k, " becomes ").concat(v);
       }).join(', '));
     }
@@ -8208,7 +8540,8 @@ function App() {
       conditions: ((action.onFail || {}).conds || []).map(function (k) {
         return k.name;
       }),
-      spell: !!action.spell
+      spell: !!action.spell,
+      conc: !!action.concSave
     });
     if (action.advNow) t.adv.push(action.advIf || 'the circumstances');
     effs(tgt).forEach(function (e) {
@@ -8226,16 +8559,27 @@ function App() {
       return isDM && !tgt.owner ? "<span class=\"dm-secret\">".concat(x, "</span>") : x;
     }; // the DM's own numbers can be kept from players
     var saveTotal = roll.total + saveMod + t.bonus;
+    {
+      var sc = +(tgt.scores || {})[saveAbility];
+      if (((tgt.passives || {}).scoreFloor || []).includes(saveAbility) && saveTotal < sc) {
+        t.bonusText = [t.bonusText, "Indomitable Might: total becomes ".concat(sc)].filter(Boolean).join(', ');
+        saveTotal = sc;
+      }
+    }
     var inspired = null;
     if (!t.autoFail && saveTotal < action.dc) {
       inspired = tryInspire(tgt, action.dc - saveTotal);
       if (inspired) saveTotal += inspired.add;
     }
-    var passed = ruled ? ruled === 'pass' : !t.autoFail && saveTotal >= action.dc;
+    if (+action.coverBonus) {
+      saveTotal += +action.coverBonus;
+      t.bonusText = [t.bonusText, "".concat(+action.coverBonus === 5 ? 'Three-Quarters' : 'Half', " Cover +").concat(action.coverBonus)].filter(Boolean).join(', ');
+    }
+    var passed = action.sculpted ? true : ruled ? ruled === 'pass' : !t.autoFail && saveTotal >= action.dc; // Sculpt Spells: it succeeds, and takes no damage
     var hasDmg = action.dmgList && action.dmgList.length || action.dmg && action.dmg !== '0';
     var dmgHtml = '';
     var evade = (tgt.passives || {}).evasion && saveAbility === 'Dexterity' && action.halfOnSave && !hasCond(tgt, 'Incapacitated'); // Evasion: none on a success, half on a failure
-    var parts = Array.isArray(action.rolled) && action.rolled.length ? action.rolled : hasDmg ? rollDamageParts(action, false) : [];
+    var parts = action.sculpted ? [] : Array.isArray(action.rolled) && action.rolled.length ? action.rolled : hasDmg ? rollDamageParts(action, false) : [];
     if (parts.length && evade) dmgHtml = passed ? '<div class="log-detail">Evasion: no damage</div>' : dealDamage(tgt, parts, true).html + '<div class="log-detail">Evasion: half damage</div>';else if (parts.length && passed && action.fullOnSave) dmgHtml = dealDamage(tgt, parts, false).html; // the damage came with the hit; the save only decides the rest
     else if (parts.length && (!passed || action.halfOnSave)) dmgHtml = dealDamage(tgt, parts, passed).html;
     var condHtml = applyOutcome(tgt, passed ? action.onSuccess : action.onFail, action, actor);
@@ -8245,7 +8589,10 @@ function App() {
       d20: t.autoFail ? null : {
         tot: saveTotal,
         vs: action.dc,
-        k: 'save'
+        k: 'save',
+        seq: turnSeq(),
+        die: roll.total,
+        who: tgt.id
       },
       type: passed ? 'save-pass' : 'save-fail',
       html: "<strong>".concat(actorName, "</strong> \u2192 <strong>").concat(targetName, "</strong><br/>\n            <span class=\"log-result\">").concat(esc(action.name), "</span><br/>\n            DC ").concat(action.dc, " ").concat(esc(saveAbility), " save \xB7 ").concat(t.autoFail ? "<strong style=\"color:var(--danger)\">Fails automatically (".concat(esc(t.autoFail), ")</strong>") : "".concat(sec("Roll: ".concat(rollsTxt(roll), " ").concat(signed(saveMod)).concat(extras ? " (".concat(extras, ")") : '', " = <strong>").concat(saveTotal, "</strong> \xB7 ")), "<strong style=\"color:").concat(passed ? 'var(--success)' : 'var(--danger)', "\">").concat(passed ? 'Saved!' : 'Failed!', "</strong>"), "\n            ").concat(modeText(t) && !t.autoFail ? "<div class=\"log-detail\">".concat(modeText(t), "</div>") : '', "\n            ").concat(ruled ? "<div class=\"log-detail\" style=\"color:#fff176\">".concat(rulingBy ? esc(rulingBy) : 'The DM ruled', " that it ").concat(ruled === 'pass' ? 'succeeds' : 'fails', ".</div>") : '', "\n            ").concat(dmgHtml).concat(condHtml, "\n            ").concat(action.desc ? "<div class=\"log-detail\">".concat(esc(action.desc), "</div>") : '')
@@ -8301,16 +8648,16 @@ function App() {
       deferRef.current = null;
     }
     var after = combatants;
-    ops.forEach(function (_ref50) {
-      var _ref51 = _slicedToArray(_ref50, 2),
-        k = _ref51[0],
-        u = _ref51[1];
+    ops.forEach(function (_ref54) {
+      var _ref55 = _slicedToArray(_ref54, 2),
+        k = _ref55[0],
+        u = _ref55[1];
       if (k === 'c') after = typeof u === 'function' ? u(after) : u;
     });
-    ops.forEach(function (_ref52) {
-      var _ref53 = _slicedToArray(_ref52, 2),
-        k = _ref53[0],
-        u = _ref53[1];
+    ops.forEach(function (_ref56) {
+      var _ref57 = _slicedToArray(_ref56, 2),
+        k = _ref57[0],
+        u = _ref57[1];
       return k === 'c' ? setCombatantsRaw(u) : k === 'p' ? setPromptsRaw(u) : setLogRaw(u);
     });
     return {
@@ -8361,7 +8708,7 @@ function App() {
     return isDM && e && e.ov && !e["void"] && round - (+e.ov.r || 0) <= 1;
   };
   // The DM reverses a result that is still in the Combat Log: what it did is undone, then it is resolved the other way with the same roll.
-  var overrideEntry = function overrideEntry(e, why, newTot) {
+  var overrideEntry = function overrideEntry(e, why, newTot, tag) {
     if (!why && !canOverride(e)) return;
     var ov = why ? _objectSpread(_objectSpread({}, e.ov), {}, {
       why: why,
@@ -8376,11 +8723,15 @@ function App() {
       });
     });
     undoDelta(ov.d);
-    if (ov.k === 'atk') resolve(_objectSpread(_objectSpread({}, ov.ctx), {}, {
+    if (ov.k === 'atk') resolve(_objectSpread(_objectSpread(_objectSpread({}, ov.ctx), {}, {
       replay: true,
       force: ov.hit ? 'miss' : 'hit',
       forceWhy: why || ''
-    }));else {
+    }, tag ? {
+      tag: tag
+    } : {}), e.d20 && e.d20.cover ? {
+      cover: e.d20.cover
+    } : {}));else {
       var _ov$newTot;
       var tgt = combatants.find(function (c) {
         return c.id === ov.q.targetId;
@@ -8401,7 +8752,9 @@ function App() {
         tot: (_ov$newTot = ov.newTot) !== null && _ov$newTot !== void 0 ? _ov$newTot : _rest3.d20.tot
       });
       setLog(function (prev) {
-        return [].concat(_toConsumableArray(prev), [stamp(_objectSpread(_objectSpread(_objectSpread({}, _rest3), concFail(ov.q.action, _rest3, tgt)), {}, {
+        return [].concat(_toConsumableArray(prev), [stamp(_objectSpread(_objectSpread(_objectSpread(_objectSpread({}, _rest3), tag ? {
+          tag: tag
+        } : {}), concFail(ov.q.action, _rest3, tgt)), {}, {
           forId: tgt.id,
           by: myId,
           ov: plain({
@@ -9056,9 +9409,9 @@ function App() {
     if (!caster || !caster.conc) return;
     setCombatants(function (prev) {
       return reorder(prev.map(function (c) {
-        var out = c.id === casterId ? function (_ref54) {
-          var conc = _ref54.conc,
-            rest = _objectWithoutProperties(_ref54, _excluded7);
+        var out = c.id === casterId ? function (_ref58) {
+          var conc = _ref58.conc,
+            rest = _objectWithoutProperties(_ref58, _excluded7);
           return _objectSpread(_objectSpread(_objectSpread({}, rest), rest.blocks ? {
             blocks: rest.blocks.filter(function (b) {
               return b.conc !== caster.conc.name;
@@ -9199,7 +9552,7 @@ function App() {
     if (ammoKind(a) && (ammoOn || c.ammoOn) && ammoOf(c, ammoKind(a)).left <= 0) return "No ".concat(ammoKind(a), " left.");
     if (a.gp && compMode !== 'full' && (a.gpConsumed || !(c.paid || {})[String(a.name)]) && (+c.gold || 0) < a.gp) return "The Material component costs ".concat(a.gp, " GP").concat(a.gpConsumed ? ' each time' : '', " and ").concat(c.name, " has ").concat(+c.gold || 0, " GP.");
     if (a.weapon && tracked) {
-      var base = a.name.replace(/ \(two hands\)$/, ''),
+      var base = a.name.replace(/ \((two hands|Light, extra attack)\)$/, ''),
         i = hands.indexOf(base);
       if (i < 0) return "".concat(base, " is not in hand.");
       if (a.twoHanded) {
@@ -9207,6 +9560,17 @@ function App() {
         if (other && other !== base) return "".concat(base, " needs both hands, and the other hand holds ").concat(other, ".");
       }
     }
+    if (a.extraCost && poolLeft(c, a.extraCost.pool) < a.extraCost.cost) return "It needs ".concat(a.extraCost.cost, " ").concat(a.extraCost.pool, ", and ").concat(poolLeft(c, a.extraCost.pool), " ").concat(poolLeft(c, a.extraCost.pool) === 1 ? 'is' : 'are', " left.");
+    if (a.spell && (c.blocks || []).some(function (b) {
+      return b.kind === 'form' && /wild shape/i.test(String(b.source || b.name || ''));
+    })) {
+      if (!(c.passives || {}).castInForm) return "Spells can't be cast in Wild Shape.";
+      if (a.matCost || a.matConsumed) return 'Beast Spells: not a spell whose Material component has a cost or is used up.';
+    }
+    if (a.spendSlot && !(a.spendSlot === 'pact' ? (c.sheet || {}).pact && slotsLeft(c, c.sheet.pact.level) > 0 : a.spendSlot === 'any' ? [1, 2, 3, 4, 5, 6, 7, 8, 9].some(function (l) {
+      return slotsLeft(c, l) > 0;
+    }) : slotsLeft(c, +a.spendSlot) > 0)) return 'It costs a spell slot, and none is left.';
+    if (a.freeHand && tracked && !hands.includes('') && !(c.passives || {}).grappleNoHand) return 'Grapple needs a free hand to grab the target.';
     if (a.spell && compMode && a.comp) {
       var foci = focusItems(c),
         has = function has(k) {
@@ -9331,12 +9695,12 @@ function App() {
     if (a.up && /^\d+d\d+$/.test(a.up)) {
       var _a$up$split$map = a.up.split('d').map(Number),
         _a$up$split$map2 = _slicedToArray(_a$up$split$map, 2),
-        _n = _a$up$split$map2[0],
+        _n3 = _a$up$split$map2[0],
         _d2 = _a$up$split$map2[1];
       eachEff(function (e) {
         return e.failDmg ? _objectSpread(_objectSpread({}, e), {}, {
           failDmg: _objectSpread(_objectSpread({}, e.failDmg), {}, {
-            dice: "".concat(e.failDmg.dice, "+").concat(_n * extra, "d").concat(_d2)
+            dice: "".concat(e.failDmg.dice, "+").concat(_n3 * extra, "d").concat(_d2)
           })
         }) : e;
       });
@@ -9344,12 +9708,12 @@ function App() {
     if (a.upTurn) {
       var _a$upTurn$split$map = a.upTurn.split('d').map(Number),
         _a$upTurn$split$map2 = _slicedToArray(_a$upTurn$split$map, 2),
-        _n2 = _a$upTurn$split$map2[0],
+        _n4 = _a$upTurn$split$map2[0],
         _d3 = _a$upTurn$split$map2[1];
       eachEff(function (e) {
         return e.turnDmg ? _objectSpread(_objectSpread({}, e), {}, {
           turnDmg: _objectSpread(_objectSpread({}, e.turnDmg), {}, {
-            dice: "".concat(e.turnDmg.dice, "+").concat(_n2 * extra, "d").concat(_d3)
+            dice: "".concat(e.turnDmg.dice, "+").concat(_n4 * extra, "d").concat(_d3)
           })
         }) : e;
       });
@@ -9605,7 +9969,7 @@ function App() {
           })]);
         });
       }
-      var asRitual = !!(action.ritual && action.slot && (castLevel === -1 || castOptions(active, action).length === 0));
+      var asRitual = !!(action.ritual && action.slot && (action.ritualOnly || castLevel === -1 || castOptions(active, action).length === 0));
       if (asRitual) {
         castLvl = action.slot;
         setCastLevel(0);
@@ -9828,7 +10192,22 @@ function App() {
           cost: action.pointCosts[lvl - 1]
         }); // the points are taken just below, with the pool
         else {
-          var fc = (active.passives || {}).freeCasting,
+          var freeEff = effs(active).find(function (e) {
+            return +e.freeCast >= lvl;
+          });
+          if (freeEff) {
+            setTimeout(function () {
+              return removeEffect(active.id, freeEff.id);
+            }, 0);
+            setLog(function (prev) {
+              return [].concat(_toConsumableArray(prev), [stamp({
+                type: 'roll',
+                forId: active.id,
+                html: "<strong>".concat(esc(active.name), "</strong> casts ").concat(esc(String(action.name).replace(/ \(Level \d slot\)$/, '')), " without a spell slot<div class=\"log-detail\">").concat(esc(freeEff.name), "</div>")
+              })]);
+            });
+          }
+          var fc = !freeEff && (active.passives || {}).freeCasting,
             fr = fc && lvl <= fc ? rollD(4) : 0; // Boon of Spell Recall: on a d4 equal to the slot's level, the slot is not spent
           if (fc && lvl <= fc) setLog(function (prev) {
             return [].concat(_toConsumableArray(prev), [stamp({
@@ -9845,7 +10224,7 @@ function App() {
               html: "<strong>".concat(esc(active.name), "</strong> rolled a <strong>").concat(fr, "</strong> on the d4 for Free Casting, the same as the slot's level, so the Level ").concat(lvl, " spell slot used for ").concat(esc(String(action.name).replace(/ \(Level \d slot\)$/, '')), " is not spent. You still have it.")
             }]);
           });
-          if (fr !== lvl) setCombatants(function (prev) {
+          if (fr !== lvl && !freeEff) setCombatants(function (prev) {
             return prev.map(function (c) {
               return c.id !== active.id ? c : _objectSpread(_objectSpread({}, c), {}, {
                 slotsUsed: _objectSpread(_objectSpread({}, c.slotsUsed || {}), {}, _defineProperty({}, lvl, (+(c.slotsUsed || {})[lvl] || 0) + 1))
@@ -9977,9 +10356,9 @@ function App() {
                     });
                     ['onHit', 'onFail', 'onSuccess', 'onUse'].forEach(function (k) {
                       if (o[k] && o[k].effs) o[k] = _objectSpread(_objectSpread({}, o[k]), {}, {
-                        effs: o[k].effs.map(function (_ref55) {
-                          var conc = _ref55.conc,
-                            e = _objectWithoutProperties(_ref55, _excluded11);
+                        effs: o[k].effs.map(function (_ref59) {
+                          var conc = _ref59.conc,
+                            e = _objectWithoutProperties(_ref59, _excluded11);
                           return e;
                         })
                       });
@@ -10018,7 +10397,7 @@ function App() {
           _again = _action.again,
           block = _action.block,
           _fromSheet = _action.fromSheet,
-          _up = _action.up,
+          _up2 = _action.up,
           _upEff = _action.upEff,
           _detail2 = _action.detail,
           _keep2 = _objectWithoutProperties(_action, _excluded12);
@@ -10042,7 +10421,15 @@ function App() {
         });
       }
       var wt = world && world.on ? world.t : null; // when it was spent, for what comes back after a number of days
-      if (action.pool) setCombatants(function (prev) {
+      var saver = action.pool && (((active.sheet || {}).pools || {})[action.pool] || {}).item && +(active.passives || {}).chargeSaver ? rollD(6) : 0;
+      if (saver) setLog(function (prev) {
+        return [].concat(_toConsumableArray(prev), [stamp({
+          type: 'roll',
+          forId: active.id,
+          html: "<strong>".concat(esc(active.name), "</strong> \xB7 Use Magic Device<br/><span class=\"log-result\">\uD83C\uDFB2 d6: ").concat(saver, "</span> ").concat(saver >= active.passives.chargeSaver ? "no charges of ".concat(esc(action.pool), " are spent") : 'the charges are spent')
+        })]);
+      });
+      if (action.pool && !(saver && saver >= active.passives.chargeSaver)) setCombatants(function (prev) {
         return prev.map(function (c) {
           return c.id !== active.id ? c : _objectSpread(_objectSpread({}, c), {}, {
             poolUsed: _objectSpread(_objectSpread({}, c.poolUsed || {}), {}, _defineProperty({}, action.pool, (+(c.poolUsed || {})[action.pool] || 0) + (action.cost || 1)))
@@ -10059,6 +10446,68 @@ function App() {
           } : {});
         });
       });
+    }
+    if (!re && action.extraCost) setCombatants(function (prev) {
+      return prev.map(function (c) {
+        return c.id !== active.id ? c : _objectSpread(_objectSpread({}, c), {}, {
+          poolUsed: _objectSpread(_objectSpread({}, c.poolUsed || {}), {}, _defineProperty({}, action.extraCost.pool, (+(c.poolUsed || {})[action.extraCost.pool] || 0) + action.extraCost.cost))
+        });
+      });
+    });
+    if (!re && (action.spendSlot || action.regainPool || action.regainSlot || action.regainPact)) {
+      var notes = [];
+      setCombatants(function (prev) {
+        return prev.map(function (c) {
+          if (c.id !== active.id) return c;
+          var x = _objectSpread(_objectSpread({}, c), {}, {
+            slotsUsed: _objectSpread({}, c.slotsUsed || {}),
+            poolUsed: _objectSpread({}, c.poolUsed || {})
+          });
+          var mx = (c.sheet || {}).slotMax || [],
+            pact = (c.sheet || {}).pact;
+          if (action.spendSlot) {
+            var lv = action.spendSlot === 'pact' ? pact ? pact.level : 0 : action.spendSlot === 'any' ? [1, 2, 3, 4, 5, 6, 7, 8, 9].find(function (l) {
+              return slotsLeft(c, l) > 0;
+            }) : +action.spendSlot;
+            if (lv && slotsLeft(c, lv) > 0) {
+              x.slotsUsed[lv] = (+x.slotsUsed[lv] || 0) + 1;
+              notes.push("a Level ".concat(lv, " spell slot is spent"));
+            }
+          }
+          if (action.regainPool) {
+            var _k = action.regainPool.pool,
+              had = +x.poolUsed[_k] || 0,
+              back = Math.min(had, action.regainPool.amount || 1);
+            if (back) {
+              x.poolUsed[_k] = had - back;
+              notes.push("".concat(back, " ").concat(_k, " back"));
+            } else notes.push("".concat(_k, " is already full"));
+          }
+          if (action.regainSlot) {
+            var _lv = action.regainSlot;
+            if (+x.slotsUsed[_lv] > 0) {
+              x.slotsUsed[_lv] -= 1;
+              notes.push("a Level ".concat(_lv, " spell slot back"));
+            } else notes.push("no Level ".concat(_lv, " slot was spent"));
+          }
+          if (action.regainPact && pact) {
+            var used = +x.slotsUsed[pact.level] || 0,
+              _back = action.regainPact === 'all' ? used : Math.min(used, Math.ceil(pact.slots / 2));
+            x.slotsUsed[pact.level] = used - _back;
+            notes.push(_back ? "".concat(_back, " Pact Magic slot").concat(_back === 1 ? '' : 's', " back") : 'no Pact Magic slots were spent');
+          }
+          return x;
+        });
+      });
+      setTimeout(function () {
+        return notes.length && setLog(function (prev) {
+          return [].concat(_toConsumableArray(prev), [stamp({
+            type: 'roll',
+            forId: active.id,
+            html: "<strong>".concat(esc(active.name), "</strong> \xB7 ").concat(esc(action.name), "<div class=\"log-detail\">").concat(esc(notes.join(' · ')), "</div>")
+          })]);
+        });
+      }, 0);
     }
     var entries = [];
     var actorName = esc(active.name);
@@ -10122,11 +10571,11 @@ function App() {
           return [t, i, av];
         });
       });
-      runs.forEach(function (_ref56) {
-        var _ref57 = _slicedToArray(_ref56, 3),
-          target = _ref57[0],
-          ti = _ref57[1],
-          actionV = _ref57[2];
+      runs.forEach(function (_ref60) {
+        var _ref61 = _slicedToArray(_ref60, 3),
+          target = _ref61[0],
+          ti = _ref61[1],
+          actionV = _ref61[2];
         var action = actionV;
         var firstEntry = entries.length;
         var targetName = esc((target === null || target === void 0 ? void 0 : target.name) || '???');
@@ -10221,11 +10670,14 @@ function App() {
           if (feat.grappler && target && (target.conditions || []).includes('Grappled') && (condInfoOf(target, 'Grappled') || {}).src === active.name) t.adv.push('Grappler');
           if (advNow === 1) t.adv.push('chosen');
           if (advNow === -1) t.dis.push('chosen');
+          if (!re && flanked) t.adv.push('flanking');
           var roll = re && re.roll && !stepInfo ? re.roll : (atkRef.current = 1, d20Spent(roll20(testMode(t)))); // a ruling keeps the roll everyone already saw
           var total = roll.total + action.atk + t.bonus;
           var acVsR = target && action.ranged ? (+(target.passives || {}).acVsRanged || 0) + sumEff(target, 'acVsRanged') : 0;
           if (acVsR) featNotes.push("".concat(target.name, " has ").concat(signed(acVsR), " AC against ranged attacks"));
-          var targetAC = target ? effectiveAC(target) + acVsR : 10;
+          var coverAC = !re && target ? +cover[target.id] || 0 : re && re.cover ? +re.cover : 0;
+          if (coverAC) featNotes.push("".concat(coverAC === 5 ? 'Three-Quarters' : 'Half', " Cover: +").concat(coverAC, " Armor Class"));
+          var targetAC = target ? effectiveAC(target) + acVsR + coverAC : 10;
           var critOn = feat.criticalOn && (action.weapon || action.unarmed) ? feat.criticalOn : 20; // Improved Critical
           var nat20 = roll.total >= critOn,
             nat1 = roll.total === 1;
@@ -10330,6 +10782,23 @@ function App() {
           }).forEach(function (e) {
             return removeEffect(target.id, e.id);
           });
+          if (!hit && target && (active.passives || {}).studiedAttacks) setTimeout(function () {
+            return setCombatants(function (prev) {
+              return prev.map(function (c) {
+                return c.id !== target.id ? c : _objectSpread(_objectSpread({}, c), {}, {
+                  effects: [].concat(_toConsumableArray((c.effects || []).filter(function (e) {
+                    return e.name !== "Studied Attacks (".concat(active.name, ")");
+                  })), [plain({
+                    id: newId(),
+                    name: "Studied Attacks (".concat(active.name, ")").slice(0, 40),
+                    left: 12,
+                    advFrom: active.id,
+                    note: "".concat(active.name, " has Advantage on its next attack roll against it.")
+                  })])
+                });
+              });
+            });
+          }, 0);
           if (action.refundOn === 'miss' && !hit || action.refundOn === 'hit' && hit) {
             refund(active.id, action, castLvl);
             featNotes.push('The use is not spent on this result');
@@ -10424,26 +10893,33 @@ function App() {
             if (feat.punchAndGrab && action.unarmed && action.activation === 'action' && active.pgAt !== turnKey) {
               var g = grabActions(active).find(function (x) {
                 return x.id === 'grab-g';
-              }); // Grappler: Punch and Grab
+              }); // Grappler: Punch and Grab, the Damage and the Grapple from one hit
               if (g) {
-                featNotes.push("Punch and Grab: ".concat(active.name, " can also use the Grapple option on ").concat(target.name, " (offered now)"));
+                featNotes.push("Punch and Grab: ".concat(target.name, " also makes a save against the Grapple (DC ").concat(g.dc, ")"));
                 setCombatants(function (prev) {
                   return prev.map(function (c) {
                     return c.id !== active.id ? c : _objectSpread(_objectSpread({}, c), {}, {
-                      pgAt: turnKey,
-                      running: [].concat(_toConsumableArray(c.running || []), [plain({
-                        id: newId().slice(0, 12),
-                        name: "Punch and Grab: Grapple ".concat(target.name),
-                        act: 'free',
-                        once: true,
-                        turnOnly: turnKey,
-                        a: _objectSpread(_objectSpread({}, g), {}, {
-                          activation: 'free',
-                          name: 'Grapple (Punch and Grab)'
-                        })
-                      })])
+                      pgAt: turnKey
                     });
                   });
+                });
+                setPrompts(function (prev) {
+                  return [].concat(_toConsumableArray(prev), [plain({
+                    id: newId(),
+                    kind: 'save',
+                    by: myId,
+                    targetId: target.id,
+                    actorId: active.id,
+                    actorName: active.name,
+                    action: {
+                      name: 'Grapple (Punch and Grab)',
+                      dc: g.dc,
+                      saveAbility: bestSave(target, g.saveBest) || 'Strength',
+                      onFail: g.onFail,
+                      escape: g.escape,
+                      desc: 'Grappler: the Damage and the Grapple option from the same Unarmed Strike.'
+                    }
+                  })]);
                 });
               }
             }
@@ -10691,7 +11167,6 @@ function App() {
           }); // one clock: the condition lasts as long as the Concentration
           var _action3 = action,
             _name = _action3.name,
-            saveAbility = _action3.saveAbility,
             dmgList = _action3.dmgList,
             dmg = _action3.dmg,
             dmgType = _action3.dmgType,
@@ -10699,6 +11174,7 @@ function App() {
             onFail = _action3.onFail,
             onSuccess = _action3.onSuccess,
             desc = _action3.desc;
+          var saveAbility = bestSave(target, action.saveBest) || action.saveAbility; // "Strength or Dexterity (it chooses)": the better one
           var _dc = action.dc + (action.spell ? sumEff(active, 'dcBonus') : 0); // Innate Sorcery raises a spell's DC
           setPrompts(function (prev) {
             return [].concat(_toConsumableArray(prev), [plain({
@@ -10708,7 +11184,7 @@ function App() {
               targetId: target.id,
               actorId: active.id,
               actorName: active.name,
-              action: {
+              action: _objectSpread(_objectSpread(_objectSpread({
                 name: _name,
                 dc: _dc,
                 saveAbility: saveAbility,
@@ -10719,7 +11195,12 @@ function App() {
                 onFail: onFail,
                 onSuccess: onSuccess,
                 desc: desc,
-                conc: !!action.conc,
+                conc: !!action.conc
+              }, cover[target.id] && saveAbility === 'Dexterity' ? {
+                coverBonus: +cover[target.id]
+              } : {}), sculpt.includes(target.id) ? {
+                sculpted: true
+              } : {}), {}, {
                 form: action.form || null,
                 escape: action.escape || null,
                 auto: action.auto || null,
@@ -10736,7 +11217,7 @@ function App() {
                   id: action.id,
                   slotLvl: castLvl
                 } : null
-              }
+              })
             })]);
           });
           entries.push({
@@ -10970,16 +11451,16 @@ function App() {
       if (step) {
         // applied at once; the DM can reverse it from the Combat Log for a round
         var after = combatants;
-        stepHold.forEach(function (_ref58) {
-          var _ref59 = _slicedToArray(_ref58, 2),
-            k = _ref59[0],
-            u = _ref59[1];
+        stepHold.forEach(function (_ref62) {
+          var _ref63 = _slicedToArray(_ref62, 2),
+            k = _ref63[0],
+            u = _ref63[1];
           if (k === 'c') after = typeof u === 'function' ? u(after) : u;
         });
-        stepHold.forEach(function (_ref60) {
-          var _ref61 = _slicedToArray(_ref60, 2),
-            k = _ref61[0],
-            u = _ref61[1];
+        stepHold.forEach(function (_ref64) {
+          var _ref65 = _slicedToArray(_ref64, 2),
+            k = _ref65[0],
+            u = _ref65[1];
           return k === 'c' ? setCombatantsRaw(u) : k === 'p' ? setPromptsRaw(u) : setLogRaw(u);
         });
         offerReactions('damage', deltaOf(combatants, after).filter(function (d) {
@@ -11012,7 +11493,10 @@ function App() {
             tot: stepInfo.total,
             vs: stepInfo.vs,
             nat: stepInfo.nat,
-            k: 'atk'
+            k: 'atk',
+            seq: turnSeq(),
+            die: (stepInfo.roll || {}).total,
+            who: active.id
           }
         });
         var _gone3 = prompts.filter(function (q) {
@@ -11034,7 +11518,11 @@ function App() {
         }
       }
       setLog(function (prev) {
-        return [].concat(_toConsumableArray(prev), _toConsumableArray(entries.map(stamp)));
+        return [].concat(_toConsumableArray(prev), _toConsumableArray(entries.map(function (e) {
+          return stamp(re && re.tag ? _objectSpread(_objectSpread({}, e), {}, {
+            tag: re.tag
+          }) : e);
+        })));
       });
     }
     if (!re && !armed && isCasting(active, action) && combatStarted) offerReactions('cast', inPlay.filter(function (c) {
@@ -11042,6 +11530,21 @@ function App() {
     }).map(function (c) {
       return c.id;
     }), "".concat(active.name, " is casting ").concat(String(action.name).replace(/ \(Level \d slot\)$/, ''), " near"), active);
+    if (!re) {
+      var rm = ((active.passives || {}).remindAfter || []).filter(function (r) {
+        return r.after === '*bonus' ? action.activation === 'bonus' : String(action.name).startsWith(r.after);
+      });
+      if (rm.length) setReminders(function (prev) {
+        return [].concat(_toConsumableArray(prev.filter(function (x) {
+          return x.id !== active.id;
+        })), [{
+          id: active.id,
+          texts: rm.map(function (r) {
+            return r.text;
+          })
+        }]);
+      });
+    }
     if (!re && +(active.passives || {}).blinkSteps > 0 && action.activation === 'action' && (action.weapon || action.unarmed || action.spell)) setBlink({
       id: active.id,
       feet: +active.passives.blinkSteps,
@@ -11096,17 +11599,23 @@ function App() {
     if (re) return;
     setSelectedAction(null);
     setAdvantage(0);
+    setCover({});
+    setFlanked(false);
+    setSculpt([]);
   };
 
   // Ability checks, skill checks and saving throws rolled straight from the sheet.
+  var lastDie = useRef(0);
   var rollTest = function rollTest(c, kind, ability, skill, dc, why) {
     var _ability, _ability2;
     var score = (_ability = (c.scores || {})[ability]) !== null && _ability !== void 0 ? _ability : 10;
     var base = kind === 'save' ? (_ability2 = (c.saves || {})[ability]) !== null && _ability2 !== void 0 ? _ability2 : mod(score) : skill && c.sheet && c.sheet.skills && Number.isFinite(+c.sheet.skills[skill]) ? +c.sheet.skills[skill] : mod(score);
-    var t = d20Test(c, kind, {
-      ability: ability,
-      skill: skill
-    });
+    var esc0 = /^Escape (\w+)/.exec(String(why || '')),
+      t = d20Test(c, kind, {
+        ability: ability,
+        skill: skill,
+        escape: esc0 ? esc0[1] : ''
+      });
     effs(c).forEach(function (e) {
       if (kind === 'check' && e.checkAdvSkill && e.checkAdvSkill === skill) t.adv.push(e.name);
     });
@@ -11125,8 +11634,19 @@ function App() {
         roll.rolls.push("counts as ".concat(mr.minRoll.value, " (").concat(mr.name, ")"));
         roll.total = mr.minRoll.value;
       }
+      var pz = c.passives || {},
+        profd = skill && ((c.sheet || {}).skillProfs || []).includes(skill);
+      if (kind === 'check' && profd && +pz.reliableTalent && roll.total < +pz.reliableTalent) {
+        roll.rolls.push("counts as ".concat(pz.reliableTalent, " (Reliable Talent)"));
+        roll.total = +pz.reliableTalent;
+      }
       total = roll.total + base + t.bonus;
-      body = "<span class=\"log-result\">\uD83C\uDFB2 ".concat(roll.total + base + t.bonus, "</span><div class=\"log-dice\">").concat(rollsTxt(roll), " ").concat(signed(base)).concat(t.bonusText ? " (".concat(t.bonusText, ")") : '', "</div>").concat(modeText(t) ? "<div class=\"log-detail\">".concat(modeText(t), "</div>") : '');
+      if ((pz.scoreFloor || []).includes(ability) && total < score) {
+        roll.rolls.push("total becomes your ".concat(ability, " score, ").concat(score, " (Indomitable Might)"));
+        total = score;
+      }
+      lastDie.current = roll.total;
+      body = "<span class=\"log-result\">\uD83C\uDFB2 ".concat(total, "</span><div class=\"log-dice\">").concat(rollsTxt(roll), " ").concat(signed(base)).concat(t.bonusText ? " (".concat(t.bonusText, ")") : '', "</div>").concat(modeText(t) ? "<div class=\"log-detail\">".concat(modeText(t), "</div>") : '');
     }
     if (dc) body += "<div class=\"log-detail\">".concat(why ? esc(why) + ' · ' : '', "DC ").concat(+dc, " \xB7 <strong style=\"color:").concat(total != null && total >= +dc ? 'var(--success)' : 'var(--danger)', "\">").concat(total != null && total >= +dc ? 'Success' : 'Failure', "</strong></div>");
     setLog(function (prev) {
@@ -11136,7 +11656,10 @@ function App() {
         d20: {
           tot: total,
           vs: dc ? +dc : 0,
-          k: kind
+          k: kind,
+          seq: turnSeq(),
+          die: lastDie.current,
+          who: c.id
         }
       } : {}), {}, {
         html: "<strong>".concat(esc(c.name), "</strong> \xB7 ").concat(esc(label), "<br/>").concat(body)
@@ -11218,15 +11741,18 @@ function App() {
       }),
       dis: []
     };
+    if ((c.passives || {}).deathAdv) t.adv.push('Survivor');
     if (curAdv() === 1) t.adv.push('chosen');
     if (curAdv() === -1) t.dis.push('chosen');
     useRollSwitch();
+    LUCK_NEXT = !!(c.passives || {}).luck;
     var r = roll20(testMode(t)),
-      n = r.total,
+      crit = +(c.passives || {}).deathCritOn || 20,
+      n = r.total >= crit ? 20 : r.total,
       ds = c.death || {
         s: 0,
         f: 0
-      };
+      }; // Survivor: 18 to 20 counts as a 20
     var next = _objectSpread({}, ds),
       out = '',
       change = {};
@@ -11790,10 +12316,10 @@ function App() {
     }
     var scores = {},
       saves = {};
-    ABILITY_KEYS.forEach(function (_ref62, i) {
-      var _ref63 = _slicedToArray(_ref62, 2),
-        k = _ref63[0],
-        full = _ref63[1];
+    ABILITY_KEYS.forEach(function (_ref66, i) {
+      var _ref67 = _slicedToArray(_ref66, 2),
+        k = _ref67[0],
+        full = _ref67[1];
       scores[full] = m.s[i];
       saves[full] = m.sv && m.sv[full] != null ? m.sv[full] : mod(m.s[i]);
     });
@@ -11869,7 +12395,13 @@ function App() {
       })]);
     });
   };
-  var tryEscape = function tryEscape(c, es, cond, eff) {
+  var tryEscape = function tryEscape(c, es0, cond, eff) {
+    var sk = function sk(x) {
+      var _x$ability;
+      var v = ((c.sheet || {}).skills || {})[x.skill];
+      return Number.isFinite(+v) ? +v : mod((_x$ability = (c.scores || {})[x.ability]) !== null && _x$ability !== void 0 ? _x$ability : 10);
+    };
+    var es = es0.alt && sk(es0.alt) > sk(es0) ? _objectSpread(_objectSpread({}, es0), es0.alt) : es0;
     var total = rollTest(c, 'check', es.ability, es.skill || '', es.dc, "Escape ".concat(cond || eff && eff.name || '', " (takes an action)"));
     if (total != null && total >= es.dc) {
       if (cond) removeCondition(c.id, cond);
@@ -11904,14 +12436,14 @@ function App() {
     var lines = [];
     var left = _objectSpread({}, c.poolUsed || {});
     if (c.manualCharges) {
-      var due = Object.entries((c.sheet || {}).pools || {}).filter(function (_ref64) {
-        var _ref65 = _slicedToArray(_ref64, 2),
-          k = _ref65[0],
-          q = _ref65[1];
+      var due = Object.entries((c.sheet || {}).pools || {}).filter(function (_ref68) {
+        var _ref69 = _slicedToArray(_ref68, 2),
+          k = _ref69[0],
+          q = _ref69[1];
         return q.recharge === 'dawn' && left[k] > 0;
-      }).map(function (_ref66) {
-        var _ref67 = _slicedToArray(_ref66, 1),
-          k = _ref67[0];
+      }).map(function (_ref70) {
+        var _ref71 = _slicedToArray(_ref70, 1),
+          k = _ref71[0];
         return k;
       });
       if (due.length) {
@@ -11923,10 +12455,10 @@ function App() {
         lines: lines
       };
     }
-    Object.entries((c.sheet || {}).pools || {}).forEach(function (_ref68) {
-      var _ref69 = _slicedToArray(_ref68, 2),
-        k = _ref69[0],
-        q = _ref69[1];
+    Object.entries((c.sheet || {}).pools || {}).forEach(function (_ref72) {
+      var _ref73 = _slicedToArray(_ref72, 2),
+        k = _ref73[0],
+        q = _ref73[1];
       if (q.recharge !== 'dawn' || !(left[k] > 0)) return;
       if (q.regain) {
         var r = parseDamage(q.regain);
@@ -11953,6 +12485,9 @@ function App() {
       c = d.c;
       regainLines.current = d.lines;
     } else regainLines.current = []; // without a tracked time of day, dawn comes with the Long Rest
+    if (longRest && (c.passives || {}).heroicOnLongRest && !c.heroic) c = _objectSpread(_objectSpread({}, c), {}, {
+      heroic: true
+    }); // Resourceful
     if (longRest && c.hitDiceUsed) c = _objectSpread(_objectSpread({}, c), {}, {
       hitDiceUsed: 0
     }); // a Long Rest gives back all spent Hit Point Dice
@@ -12018,10 +12553,10 @@ function App() {
       rolled = regainLines.current.slice();
     if (after.currentHP !== c.currentHP) lines.push("Hit Points: ".concat(c.currentHP, " to ").concat(after.currentHP));
     if ((+c.tempHP || 0) !== (+after.tempHP || 0)) lines.push("Temporary Hit Points: ".concat(c.tempHP, " to 0"));
-    Object.entries((c.sheet || {}).pools || {}).forEach(function (_ref70) {
-      var _ref71 = _slicedToArray(_ref70, 2),
-        n = _ref71[0],
-        q = _ref71[1];
+    Object.entries((c.sheet || {}).pools || {}).forEach(function (_ref74) {
+      var _ref75 = _slicedToArray(_ref74, 2),
+        n = _ref75[0],
+        q = _ref75[1];
       var b = poolLeft(c, n),
         a = poolLeft(after, n);
       if (a !== b && !rolled.some(function (l) {
@@ -12063,10 +12598,10 @@ function App() {
     {
       var md = manualDawn.current;
       manualDawn.current = {};
-      Object.entries(md).forEach(function (_ref72) {
-        var _ref73 = _slicedToArray(_ref72, 2),
-          cid = _ref73[0],
-          pools = _ref73[1];
+      Object.entries(md).forEach(function (_ref76) {
+        var _ref77 = _slicedToArray(_ref76, 2),
+          cid = _ref77[0],
+          pools = _ref77[1];
         return setPrompts(function (prev) {
           return [].concat(_toConsumableArray(prev.filter(function (q) {
             return !(q.kind === 'dawn' && q.targetId === cid);
@@ -12188,10 +12723,10 @@ function App() {
     });
     var md = manualDawn.current;
     manualDawn.current = {};
-    Object.entries(md).forEach(function (_ref74) {
-      var _ref75 = _slicedToArray(_ref74, 2),
-        id = _ref75[0],
-        pools = _ref75[1];
+    Object.entries(md).forEach(function (_ref78) {
+      var _ref79 = _slicedToArray(_ref78, 2),
+        id = _ref79[0],
+        pools = _ref79[1];
       return setPrompts(function (prev) {
         return [].concat(_toConsumableArray(prev.filter(function (q) {
           return !(q.kind === 'dawn' && q.targetId === id);
@@ -12216,10 +12751,10 @@ function App() {
         html: "<strong>The world</strong>".concat(worldLines.map(function (l) {
           return "<div class=\"log-detail\">".concat(esc(l), "</div>");
         }).join(''))
-      }))] : []), _toConsumableArray(Object.entries(perC).map(function (_ref76) {
-        var _ref77 = _slicedToArray(_ref76, 2),
-          id = _ref77[0],
-          lines = _ref77[1];
+      }))] : []), _toConsumableArray(Object.entries(perC).map(function (_ref80) {
+        var _ref81 = _slicedToArray(_ref80, 2),
+          id = _ref81[0],
+          lines = _ref81[1];
         return stamp({
           type: 'heal',
           forId: id,
@@ -12704,9 +13239,9 @@ function App() {
       mod: mod
     };
   };
-  var exprOf = function exprOf(_ref78) {
-    var dice = _ref78.dice,
-      mod = _ref78.mod;
+  var exprOf = function exprOf(_ref82) {
+    var dice = _ref82.dice,
+      mod = _ref82.mod;
     var d = Object.keys(dice).map(Number).filter(function (s) {
       return dice[s] > 0;
     }).sort(function (a, b) {
@@ -12840,7 +13375,7 @@ function App() {
     setHash('#room=' + code);
   };
   var createSession = /*#__PURE__*/function () {
-    var _ref79 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee(from) {
+    var _ref83 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee(from) {
       var code, updates, party, old, _t, _t2;
       return _regenerator().w(function (_context) {
         while (1) switch (_context.p = _context.n) {
@@ -12886,13 +13421,13 @@ function App() {
               return c && c.id && c.type !== 'monster' && !c.pending;
             }).sort(function (a, b) {
               return (a.seq || 0) - (b.seq || 0);
-            }).map(function (_ref80) {
-              var seq = _ref80.seq,
-                turn = _ref80.turn,
-                fight = _ref80.fight,
-                fightStart = _ref80.fightStart,
-                recovered = _ref80.recovered,
-                c = _objectWithoutProperties(_ref80, _excluded16);
+            }).map(function (_ref84) {
+              var seq = _ref84.seq,
+                turn = _ref84.turn,
+                fight = _ref84.fight,
+                fightStart = _ref84.fightStart,
+                recovered = _ref84.recovered,
+                c = _objectWithoutProperties(_ref84, _excluded16);
               return c;
             }); // Hit Points, spell slots, effects and items come along; the old fight's counters do not
             if (party.length) {
@@ -12952,11 +13487,11 @@ function App() {
       }, _callee, null, [[2, 9]]);
     }));
     return function createSession(_x3) {
-      return _ref79.apply(this, arguments);
+      return _ref83.apply(this, arguments);
     };
   }();
   var joinSession = /*#__PURE__*/function () {
-    var _ref81 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2(codeRaw) {
+    var _ref85 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2(codeRaw) {
       var code, existing, _t3;
       return _regenerator().w(function (_context2) {
         while (1) switch (_context2.p = _context2.n) {
@@ -12997,7 +13532,7 @@ function App() {
       }, _callee2, null, [[2, 5]]);
     }));
     return function joinSession(_x4) {
-      return _ref81.apply(this, arguments);
+      return _ref85.apply(this, arguments);
     };
   }();
   var leaveSession = function leaveSession() {
@@ -13141,9 +13676,9 @@ function App() {
       logList.forEach(function (e) {
         sigs.log[e.id] = true;
       });
-      setCombatants(list.map(function (_ref82) {
-        var seq = _ref82.seq,
-          c = _objectWithoutProperties(_ref82, _excluded17);
+      setCombatants(list.map(function (_ref86) {
+        var seq = _ref86.seq,
+          c = _objectWithoutProperties(_ref86, _excluded17);
         return c;
       }));
       setLog(logList);
@@ -13270,7 +13805,7 @@ function App() {
     setSessions(mySessions());
   };
   var openSession = /*#__PURE__*/function () {
-    var _ref83 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3(x) {
+    var _ref87 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3(x) {
       var m, _t4;
       return _regenerator().w(function (_context3) {
         while (1) switch (_context3.p = _context3.n) {
@@ -13312,7 +13847,7 @@ function App() {
       }, _callee3, null, [[1, 4]]);
     }));
     return function openSession(_x5) {
-      return _ref83.apply(this, arguments);
+      return _ref87.apply(this, arguments);
     };
   }();
   // The DM's computer remembers its sessions and marks them as used whenever the DM opens them.
@@ -13774,6 +14309,9 @@ function App() {
     armor: 'armor',
     other: 'other things that take time'
   };
+  var restLenFor = function restLenFor(c) {
+    return rest && rest.kind === 'long' && +(c.passives || {}).longRestSecs ? Math.min(rest.len, +c.passives.longRestSecs) : rest ? rest.len : 0;
+  }; // Trance: an Elf's Long Rest is 4 hours
   var takesTime = function takesTime(c, type, what, secs) {
     if (!c || !(secs > 0)) return;
     if (rest) {
@@ -13781,7 +14319,7 @@ function App() {
       var me = rest.chars[c.id] || {
           used: 0
         },
-        len = (_me$len = me.len) !== null && _me$len !== void 0 ? _me$len : rest.len,
+        len = (_me$len = me.len) !== null && _me$len !== void 0 ? _me$len : restLenFor(c),
         used = me.used + secs,
         runsOut = me.used <= len && used > len;
       setRest(function (r) {
@@ -13915,16 +14453,54 @@ function App() {
   var _useState281 = useState(null),
     _useState282 = _slicedToArray(_useState281, 2),
     fatePick = _useState282[0],
-    setFatePick = _useState282[1]; // Improve Fate: {entry, cId}
+    setFatePick = _useState282[1]; // the Improve Fate window: {cId, entryId}
   var _useState283 = useState(null),
     _useState284 = _slicedToArray(_useState283, 2),
-    blink = _useState284[0],
-    setBlink = _useState284[1]; // Blink Steps after the Attack or Magic action: {id, feet, key}
+    fateChoose = _useState284[0],
+    setFateChoose = _useState284[1]; // picking a roll in the Combat Log for Improve Fate: the character's id
   var _useState285 = useState({}),
     _useState286 = _slicedToArray(_useState285, 2),
-    swapTo = _useState286[0],
-    setSwapTo = _useState286[1]; // Alert's Initiative Swap: {characterId: allyId}
+    cover = _useState286[0],
+    setCover = _useState286[1]; // the attacker says the target has cover: {targetId: 2 or 5}
+  var _useState287 = useState(false),
+    _useState288 = _slicedToArray(_useState287, 2),
+    flanked = _useState288[0],
+    setFlanked = _useState288[1]; // Flanking (an optional rule): Advantage on this attack
+  var _useState289 = useState([]),
+    _useState290 = _slicedToArray(_useState289, 2),
+    sculpt = _useState290[0],
+    setSculpt = _useState290[1]; // Sculpt Spells: creatures that automatically succeed
+  var _useState291 = useState([]),
+    _useState292 = _slicedToArray(_useState291, 2),
+    reminders = _useState292[0],
+    setReminders = _useState292[1]; // what a feature lets a creature do right after an action: [{id, texts}]
+  var _useState293 = useState(null),
+    _useState294 = _slicedToArray(_useState293, 2),
+    blink = _useState294[0],
+    setBlink = _useState294[1]; // Blink Steps after the Attack or Magic action: {id, feet, key}
+  var _useState295 = useState({}),
+    _useState296 = _slicedToArray(_useState295, 2),
+    swapTo = _useState296[0],
+    setSwapTo = _useState296[1]; // Alert's Initiative Swap: {characterId: allyId}
   var INCAP = ['Incapacitated', 'Paralyzed', 'Petrified', 'Stunned', 'Unconscious'];
+  var turnSeq = function turnSeq() {
+    return combatStarted ? round * 1000 + Math.max(0, inPlay.findIndex(function (c) {
+      return c.id === activeId;
+    })) : 0;
+  };
+  var recentRoll = function recentRoll(e) {
+    if (!e || !e.d20) return false;
+    var cur = turnSeq();
+    if (!cur || !e.d20.seq) {
+      var ds = log.filter(function (x) {
+        return x.d20 && !x["void"];
+      });
+      return ds.slice(-5).includes(e);
+    } // out of a fight: one of the last few rolls
+    var idx = cur % 1000,
+      prev = idx > 0 ? cur - 1 : (Math.floor(cur / 1000) - 1) * 1000 + Math.max(0, inPlay.length - 1);
+    return e.d20.seq >= prev;
+  }; // this turn or the one before
   var lastD20 = function lastD20() {
     for (var i = log.length - 1; i >= 0; i--) {
       var e = log[i];
@@ -13932,9 +14508,10 @@ function App() {
     }
     return null;
   };
-  var useFate = function useFate(c, sign) {
-    var entry = lastD20();
+  var useFate = function useFate(c, sign, entry0) {
+    var entry = entry0 || lastD20();
     if (!c || c.fateUsed || !entry) return;
+    var old = !recentRoll(entry);
     var dice = (c.passives || {}).improveFate || '2d4',
       r = parseDamage(dice),
       n = sign * r.total,
@@ -13961,10 +14538,167 @@ function App() {
         html: "<strong>".concat(esc(c.name), "</strong> \xB7 Improve Fate on: ").concat(esc(what), "<br/><span class=\"log-result\">").concat(d.tot, " \u2192 ").concat(newTot, "</span> (").concat(n >= 0 ? '+' : '').concat(n, ": ").concat(esc(dice), " ").concat(esc(r.parts.join(' + ')), ")<div class=\"log-detail\">").concat(d.vs ? flips ? "It becomes ".concat(word(now), ".") : "Still ".concat(word(now), ".") : '', " Usable again after rolling Initiative or a Short or Long Rest.</div>")
       })]);
     });
+    setFatePick(null);
+    setFateChoose(null);
+    var tag = newId().slice(0, 14);
     if (flips && entry.ov) setTimeout(function () {
-      return overrideEntry(entry, "Improve Fate (".concat(c.name, ")"), newTot);
+      return overrideEntry(entry, "Improve Fate (".concat(c.name, ")"), newTot, tag);
     }, 300); // the result is undone and resolved the other way, with the same roll
-    else if (flips) dmNote("".concat(c.name, "'s Improve Fate makes \"").concat(what, "\" ").concat(word(now), ". Change what it did with \u270E on that entry."));else if (!isDM) dmNote("".concat(c.name, " used Improve Fate on \"").concat(what, "\": ").concat(d.tot, " \u2192 ").concat(newTot).concat(d.vs ? ", still ".concat(word(now)) : '', "."));
+    tellChange({
+      by: c,
+      field: 'fateUsed',
+      tag: tag,
+      flips: flips && !!entry.ov,
+      entry: entry,
+      text: "".concat(c.name, " used Improve Fate (").concat(n >= 0 ? '+' : '').concat(n, ") on \"").concat(what, "\": ").concat(d.tot, " \u2192 ").concat(newTot).concat(d.vs ? flips ? ", now ".concat(word(now)) : ", still ".concat(word(now)) : '', ".").concat(old ? ' The roll was from before the last turn.' : '').concat(flips && !entry.ov ? ' Change what it did with ✎ on that entry.' : '')
+    });
+  };
+  // Something changed a roll after it was made (Improve Fate, Heroic Inspiration, cover): whoever rolled it is told, and the DM, who can reject it
+  var tellChange = function tellChange(_ref88) {
+    var by = _ref88.by,
+      field = _ref88.field,
+      tag = _ref88.tag,
+      entry = _ref88.entry,
+      text = _ref88.text;
+    var who = entry && entry.d20 && entry.d20.who;
+    var roller = combatants.find(function (x) {
+      return x.id === who;
+    });
+    if (roller && roller.id !== by.id && !(isDM && !roller.owner)) setPrompts(function (prev) {
+      return [].concat(_toConsumableArray(prev), [plain({
+        id: newId(),
+        kind: 'tell',
+        targetId: roller.id,
+        by: myId,
+        text: String(text).slice(0, 300)
+      })]);
+    });
+    setPrompts(function (prev) {
+      return [].concat(_toConsumableArray(prev), [plain({
+        id: newId(),
+        kind: 'note',
+        targetId: by.id,
+        by: myId,
+        text: String(text).slice(0, 300),
+        reject: {
+          tag: tag,
+          cId: by.id,
+          field: field
+        }
+      })]);
+    });
+  };
+  var rejectChange = function rejectChange(q) {
+    removePrompt(q.id);
+    var r = q.reject || {};
+    var e = log.filter(function (x) {
+      return x.tag === r.tag && !x["void"];
+    }).pop();
+    if (e && e.ov) overrideEntry(e, 'The DM rejected the change', null);
+    if (r.field === 'fateUsed') setCombatants(function (prev) {
+      return prev.map(function (c) {
+        return c.id === r.cId ? _objectSpread(_objectSpread({}, c), {}, {
+          fateUsed: false
+        }) : c;
+      });
+    });
+    if (r.field === 'heroic') setCombatants(function (prev) {
+      return prev.map(function (c) {
+        return c.id === r.cId ? _objectSpread(_objectSpread({}, c), {}, {
+          heroic: true
+        }) : c;
+      });
+    });
+    setLog(function (prev) {
+      return [].concat(_toConsumableArray(prev), [stamp({
+        type: 'roll',
+        html: "<strong>The DM</strong> rejected: ".concat(esc(q.text || ''))
+      })]);
+    });
+  };
+  // Heroic Inspiration: reroll one die of your own last d20 roll, after the fact
+  var lastOwnD20 = function lastOwnD20(c) {
+    for (var i = log.length - 1; i >= 0; i--) {
+      var e = log[i];
+      if (e && e.d20 && !e["void"] && e.d20.who === c.id && e.d20.die) return e;
+    }
+    return null;
+  };
+  var useHeroic = function useHeroic(c) {
+    var entry = lastOwnD20(c);
+    if (!c || !c.heroic || !entry) return;
+    var d = entry.d20,
+      nd = rollD(20),
+      newTot = d.tot - d.die + nd;
+    var what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
+    var ok = function ok(t) {
+        return d.vs ? d.k === 'atk' ? nd === 20 || nd !== 1 && t >= d.vs : t >= d.vs : null;
+      },
+      was = d.vs ? d.k === 'atk' ? d.nat === 20 || d.nat !== 1 && d.tot >= d.vs : d.tot >= d.vs : null,
+      now = ok(newTot),
+      flips = was !== null && was !== now;
+    setCombatants(function (prev) {
+      return prev.map(function (x) {
+        return x.id === c.id ? _objectSpread(_objectSpread({}, x), {}, {
+          heroic: false
+        }) : x;
+      });
+    });
+    var tag = newId().slice(0, 14);
+    setLog(function (prev) {
+      return [].concat(_toConsumableArray(prev), [stamp({
+        type: 'roll',
+        forId: c.id,
+        html: "<strong>".concat(esc(c.name), "</strong> \xB7 Heroic Inspiration: rerolls the d20 of ").concat(esc(what), "<br/><span class=\"log-result\">").concat(d.die, " \u2192 ").concat(nd, "</span> total ").concat(d.tot, " \u2192 ").concat(newTot).concat(flips ? " \xB7 the result changes" : '')
+      })]);
+    });
+    if (flips && entry.ov) setTimeout(function () {
+      return overrideEntry(entry, "Heroic Inspiration (".concat(c.name, ")"), newTot, tag);
+    }, 300);
+    tellChange({
+      by: c,
+      field: 'heroic',
+      tag: tag,
+      entry: entry,
+      text: "".concat(c.name, " used Heroic Inspiration on \"").concat(what, "\": ").concat(d.tot, " \u2192 ").concat(newTot, ".").concat(flips && !entry.ov ? ' Change what it did with ✎ on that entry.' : '')
+    });
+  };
+  // Cover after the fact: within two rounds, the target of an attack says it had cover
+  var applyCover = function applyCover(entry, bonus) {
+    var d = entry.d20 || {};
+    if (!bonus || d.k !== 'atk') return;
+    var t = combatants.find(function (x) {
+      var _pickedIds;
+      return x.id === ((_pickedIds = ((entry.ov || {}).ctx || {}).pickedIds) === null || _pickedIds === void 0 ? void 0 : _pickedIds[0]);
+    });
+    if (!t) return;
+    var was = d.nat === 20 || d.nat !== 1 && d.tot >= d.vs,
+      now = d.nat === 20 || d.nat !== 1 && d.tot >= d.vs + bonus,
+      flips = was !== now,
+      tag = newId().slice(0, 14);
+    var what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
+    setLog(function (prev) {
+      return [].concat(_toConsumableArray(prev), [stamp({
+        type: 'roll',
+        forId: t.id,
+        coverOf: entry.id,
+        html: "<strong>".concat(esc(t.name), "</strong> had ").concat(bonus === 5 ? 'Three-Quarters' : 'Half', " Cover against: ").concat(esc(what), "<div class=\"log-detail\">Armor Class ").concat(d.vs, " \u2192 ").concat(d.vs + bonus, ": ").concat(now ? 'still a hit' : was ? 'now a miss' : 'still a miss', ".</div>")
+      })]);
+    });
+    if (flips && entry.ov) setTimeout(function () {
+      return overrideEntry(_objectSpread(_objectSpread({}, entry), {}, {
+        d20: _objectSpread(_objectSpread({}, d), {}, {
+          cover: bonus
+        })
+      }), "".concat(bonus === 5 ? 'Three-Quarters' : 'Half', " Cover (+").concat(bonus, ")"), d.tot, tag);
+    }, 300);
+    tellChange({
+      by: t,
+      field: '',
+      tag: tag,
+      entry: entry,
+      text: "".concat(t.name, " says it had ").concat(bonus === 5 ? 'Three-Quarters' : 'Half', " Cover against \"").concat(what, "\" (Armor Class +").concat(bonus, ")").concat(flips ? ': the hit becomes a miss' : '', ".")
+    });
   };
   var askSwap = function askSwap(c, allyId) {
     var a = combatants.find(function (x) {
@@ -14042,7 +14776,7 @@ function App() {
     var die = c.hitDie || 8,
       cm = mod((c.scores || {}).Constitution || 10),
       rolls = [];
-    var mods = [ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1 & 2 = 3'].filter(Boolean).join(', ');
+    var mods = [ROLL_R1 && 'Reroll 1s', ROLL_LOW3 && '1s & 2s = 3s'].filter(Boolean).join(', ');
     for (var i = 0; i < n; i++) {
       var r = rollD(die);
       if (ROLL_R1 && r === 1) r = rollD(die);
@@ -14292,7 +15026,7 @@ function App() {
     }));
   };
   var renderPaper = function renderPaper(c) {
-    var _Strength2, _sh$spell$ability;
+    var _Strength2, _Dexterity2, _Strength3, _sh$spell$ability;
     var sh = c.sheet || {},
       ctl = canControl(c);
     var sel = function sel(a) {
@@ -14349,10 +15083,10 @@ function App() {
       });
     };
     var itemPool = function itemPool(it) {
-      return Object.entries(sh.pools || {}).find(function (_ref84) {
-        var _ref85 = _slicedToArray(_ref84, 2),
-          n = _ref85[0],
-          q = _ref85[1];
+      return Object.entries(sh.pools || {}).find(function (_ref89) {
+        var _ref90 = _slicedToArray(_ref89, 2),
+          n = _ref90[0],
+          q = _ref90[1];
         return q.item === it.name || n === it.name;
       }) || null;
     };
@@ -14569,10 +15303,10 @@ function App() {
         onClick: function onClick(e) {
           return e.stopPropagation();
         }
-      }, /*#__PURE__*/React.createElement("strong", null, title), base.length ? base.map(function (_ref86, i) {
-        var _ref87 = _slicedToArray(_ref86, 2),
-          n = _ref87[0],
-          v = _ref87[1];
+      }, /*#__PURE__*/React.createElement("strong", null, title), base.length ? base.map(function (_ref91, i) {
+        var _ref92 = _slicedToArray(_ref91, 2),
+          n = _ref92[0],
+          v = _ref92[1];
         return /*#__PURE__*/React.createElement("div", {
           key: 'b' + i
         }, /*#__PURE__*/React.createElement("span", null, n), /*#__PURE__*/React.createElement("span", null, typeof v === 'number' && i ? signed(v) : v));
@@ -14583,10 +15317,10 @@ function App() {
         style: {
           marginTop: 4
         }
-      }, "Right now"), live.map(function (_ref88, i) {
-        var _ref89 = _slicedToArray(_ref88, 2),
-          n = _ref89[0],
-          v = _ref89[1];
+      }, "Right now"), live.map(function (_ref93, i) {
+        var _ref94 = _slicedToArray(_ref93, 2),
+          n = _ref94[0],
+          v = _ref94[1];
         return /*#__PURE__*/React.createElement("div", {
           key: 'l' + i
         }, /*#__PURE__*/React.createElement("span", null, n), /*#__PURE__*/React.createElement("span", null, typeof v === 'number' ? signed(v) : v));
@@ -14634,7 +15368,7 @@ function App() {
           return s.l === l;
         });
       });
-    var str = (_Strength2 = (c.scores || {}).Strength) !== null && _Strength2 !== void 0 ? _Strength2 : 10;
+    var str = (c.passives || {}).jumpDex ? Math.max((_Strength2 = (c.scores || {}).Strength) !== null && _Strength2 !== void 0 ? _Strength2 : 10, (_Dexterity2 = (c.scores || {}).Dexterity) !== null && _Dexterity2 !== void 0 ? _Dexterity2 : 10) : (_Strength3 = (c.scores || {}).Strength) !== null && _Strength3 !== void 0 ? _Strength3 : 10; // Second-Story Work: Dexterity for jumps
     var hitLeft = Math.max(0, c.level - (+c.hitDiceUsed || 0));
     var res = [c.res && "Resistant: ".concat(c.res), c.ci && "Immune: ".concat(c.ci)].filter(Boolean);
     var slotCircles = function slotCircles(lvl) {
@@ -14920,10 +15654,10 @@ function App() {
       }, s.name);
     })), /*#__PURE__*/React.createElement("div", {
       className: "pp-pickers"
-    }, [['main', 'Main color'], ['border', 'Border'], ['text', 'Text']].map(function (_ref90) {
-      var _ref91 = _slicedToArray(_ref90, 2),
-        k = _ref91[0],
-        t = _ref91[1];
+    }, [['main', 'Main color'], ['border', 'Border'], ['text', 'Text']].map(function (_ref95) {
+      var _ref96 = _slicedToArray(_ref95, 2),
+        k = _ref96[0],
+        t = _ref96[1];
       return /*#__PURE__*/React.createElement("label", {
         key: k
       }, t, " ", /*#__PURE__*/React.createElement("input", {
@@ -14952,11 +15686,11 @@ function App() {
       "data-testid": "paper-main"
     }, /*#__PURE__*/React.createElement("div", {
       className: "pp-top"
-    }, ABILITY_KEYS.map(function (_ref92) {
+    }, ABILITY_KEYS.map(function (_ref97) {
       var _ab2, _ab3;
-      var _ref93 = _slicedToArray(_ref92, 2),
-        k = _ref93[0],
-        ab = _ref93[1];
+      var _ref98 = _slicedToArray(_ref97, 2),
+        k = _ref98[0],
+        ab = _ref98[1];
       var score = (_ab2 = (c.scores || {})[ab]) !== null && _ab2 !== void 0 ? _ab2 : 10,
         sv = (_ab3 = (c.saves || {})[ab]) !== null && _ab3 !== void 0 ? _ab3 : mod(score),
         prof = (sh.saveProfs || []).includes(ab) || sv > mod(score);
@@ -15207,11 +15941,11 @@ function App() {
     }, /*#__PURE__*/React.createElement("strong", null, signed(effectiveInitBonus(c))), /*#__PURE__*/React.createElement("span", null, "Init"), whyBox('init')), /*#__PURE__*/React.createElement("div", {
       className: "pp-card pp-passive",
       "data-testid": "pp-passive"
-    }, [['Perception', 'Passive Perception'], ['Investigation', 'Passive Investigation'], ['Insight', 'Passive Insight']].map(function (_ref94) {
+    }, [['Perception', 'Passive Perception'], ['Investigation', 'Passive Investigation'], ['Insight', 'Passive Insight']].map(function (_ref99) {
       var _SKILL_ABILITY$sk3;
-      var _ref95 = _slicedToArray(_ref94, 2),
-        sk = _ref95[0],
-        t = _ref95[1];
+      var _ref100 = _slicedToArray(_ref99, 2),
+        sk = _ref100[0],
+        t = _ref100[1];
       var v = (sh.skills || {})[sk];
       var n = sk === 'Perception' && sh.pp != null ? sh.pp : 10 + (Number.isFinite(+v) ? +v : mod((_SKILL_ABILITY$sk3 = (c.scores || {})[SKILL_ABILITY[sk]]) !== null && _SKILL_ABILITY$sk3 !== void 0 ? _SKILL_ABILITY$sk3 : 10));
       return /*#__PURE__*/React.createElement("div", {
@@ -15223,10 +15957,10 @@ function App() {
       return d.length ? /*#__PURE__*/React.createElement("div", {
         className: "pp-line",
         "data-testid": "pp-defenses"
-      }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Defenses"), " ", d.map(function (_ref96, i) {
-        var _ref97 = _slicedToArray(_ref96, 2),
-          k = _ref97[0],
-          v = _ref97[1];
+      }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Defenses"), " ", d.map(function (_ref101, i) {
+        var _ref102 = _slicedToArray(_ref101, 2),
+          k = _ref102[0],
+          v = _ref102[1];
         return /*#__PURE__*/React.createElement("span", {
           key: k,
           className: "def-chip def-".concat(k),
@@ -15247,55 +15981,63 @@ function App() {
       className: "boon-box",
       "data-testid": "boon-box"
     }, sh.boons.map(function (b) {
-      var pz = c.passives || {},
-        le = pz.improveFate ? lastD20() : null;
+      var pz = c.passives || {};
+      var BOON_LINE = {
+        'Boon of Combat Prowess': c.prowessUsed ? 'Peerless Aim is used until the start of your next turn.' : 'Peerless Aim: when you miss, you can hit instead (you are asked).',
+        'Boon of Dimensional Travel': "Blink Steps: after the Attack or Magic action, teleport up to ".concat(pz.blinkSteps || 30, " feet."),
+        'Boon of Fate': c.fateUsed ? 'Improve Fate is used until you roll Initiative or rest.' : "Improve Fate: ".concat(pz.improveFate || '2d4', " added to or taken from a d20 roll you see."),
+        'Boon of Irresistible Offense': "Your Bludgeoning, Piercing and Slashing damage ignores Resistance; a 20 to hit adds ".concat(pz.irresistible || '', " damage."),
+        'Boon of Spell Recall': 'Free Casting: a d4 with each Level 1 to 4 slot; on the slot\'s level, you keep the slot.',
+        'Boon of Truesight': 'Truesight 60 ft.'
+      }[String(b.name).replace(/ \(.*$/, '')] || String(b.text || '').split(/(?<=\.)\s/)[0];
       return /*#__PURE__*/React.createElement("div", {
         key: b.name,
-        className: "boon-item"
-      }, /*#__PURE__*/React.createElement("div", {
+        className: "boon-line",
+        "data-ex": "boon:".concat(b.name)
+      }, /*#__PURE__*/React.createElement("span", {
         className: "boon-name"
-      }, "Epic Boon: ", b.name), /*#__PURE__*/React.createElement("div", {
+      }, b.name), " ", /*#__PURE__*/React.createElement("span", {
         className: "boon-text"
-      }, b.text), /Fate/.test(b.name) && pz.improveFate && /*#__PURE__*/React.createElement("div", {
-        className: "boon-ctl",
-        "data-testid": "boon-fate"
-      }, c.fateUsed ? /*#__PURE__*/React.createElement("span", {
-        className: "pp-muted"
-      }, "Used. It comes back when you roll Initiative or finish a Short or Long Rest.") : le ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
-        className: "pp-muted"
-      }, "Last roll: ", String(le.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 70), " (", le.d20.tot, ")"), ctl && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+      }, BOON_LINE), /Fate/.test(b.name) && pz.improveFate && ctl && !c.fateUsed && /*#__PURE__*/React.createElement("button", {
         className: "pp-chip on",
-        "data-testid": "fate-bonus",
+        "data-testid": "boon-fate",
         onClick: function onClick() {
-          return useFate(c, 1);
+          return setFatePick({
+            cId: c.id
+          });
         }
-      }, "Apply +", pz.improveFate, " to the last roll"), /*#__PURE__*/React.createElement("button", {
-        className: "pp-chip",
-        "data-testid": "fate-penalty",
-        onClick: function onClick() {
-          return useFate(c, -1);
-        }
-      }, "Apply \u2212", pz.improveFate))) : /*#__PURE__*/React.createElement("span", {
-        className: "pp-muted"
-      }, "Ready. No d20 roll in the log yet.")), /Combat Prowess/.test(b.name) && pz.prowess && /*#__PURE__*/React.createElement("div", {
-        className: "boon-ctl",
-        "data-testid": "boon-prowess"
-      }, /*#__PURE__*/React.createElement("span", {
-        className: c.prowessUsed ? 'pp-muted' : ''
-      }, c.prowessUsed ? 'Peerless Aim is used. It comes back at the start of your next turn.' : 'Peerless Aim is ready: when you miss, you are asked if you want to hit instead.')), /Spell Recall/.test(b.name) && pz.freeCasting && /*#__PURE__*/React.createElement("div", {
-        className: "boon-ctl"
-      }, /*#__PURE__*/React.createElement("span", {
-        className: "pp-muted"
-      }, "Automatic: the d4 is rolled each time you cast with a Level 1 to ", pz.freeCasting, " slot.")), /Irresistible/.test(b.name) && pz.irresistible ? /*#__PURE__*/React.createElement("div", {
-        className: "boon-ctl"
-      }, /*#__PURE__*/React.createElement("span", {
-        className: "pp-muted"
-      }, "Automatic: your attacks ignore that Resistance, and a 20 adds ", pz.irresistible, " damage.")) : null, /Dimensional Travel/.test(b.name) && pz.blinkSteps ? /*#__PURE__*/React.createElement("div", {
-        className: "boon-ctl"
-      }, /*#__PURE__*/React.createElement("span", {
-        className: "pp-muted"
-      }, "You are reminded after each Attack or Magic action.")) : null);
-    })), /*#__PURE__*/React.createElement("div", {
+      }, "Improve Fate"));
+    })), c.type === 'player' && (c.heroic || isDM) && /*#__PURE__*/React.createElement("div", {
+      className: "pp-line",
+      "data-testid": "heroic-line"
+    }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Heroic Inspiration"), " ", c.heroic ? 'You have it: reroll one die of your last d20 Test.' : 'None'), c.heroic && ctl && /*#__PURE__*/React.createElement("button", {
+      className: "pp-chip on",
+      "data-testid": "heroic-use",
+      disabled: !lastOwnD20(c),
+      title: lastOwnD20(c) ? 'Reroll the d20 of your last d20 Test and use the new roll' : 'No d20 Test of yours in the log yet',
+      onClick: function onClick() {
+        return useHeroic(c);
+      }
+    }, "Use"), isDM && /*#__PURE__*/React.createElement("button", {
+      className: "pp-chip",
+      "data-testid": "heroic-toggle",
+      onClick: function onClick() {
+        setCombatants(function (prev) {
+          return prev.map(function (x) {
+            return x.id === c.id ? _objectSpread(_objectSpread({}, x), {}, {
+              heroic: !x.heroic
+            }) : x;
+          });
+        });
+        setLog(function (prev) {
+          return [].concat(_toConsumableArray(prev), [stamp({
+            type: 'roll',
+            forId: c.id,
+            html: "<strong>The DM</strong> ".concat(c.heroic ? 'takes' : 'gives', " Heroic Inspiration ").concat(c.heroic ? 'from' : 'to', " <strong>").concat(esc(c.name), "</strong>")
+          })]);
+        });
+      }
+    }, c.heroic ? 'Take' : 'Give')), /*#__PURE__*/React.createElement("div", {
       className: "pp-line"
     }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Senses"), " ", effectiveSenses(c).join(', ') || 'None'), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Speeds"), " ", speedText(c), " \xA0 ", /*#__PURE__*/React.createElement("strong", null, "Long Jump"), " ", str, " ft. \xA0 ", /*#__PURE__*/React.createElement("strong", null, "High Jump"), " ", Math.max(0, 3 + mod(str)), " ft.")), combatStarted && function () {
       var turn = c.turn || {},
@@ -15327,13 +16069,13 @@ function App() {
         "data-testid": "econ-row"
       }, [['a', 'action', 'Action', '⚔', 'econ-action'], ['b', 'bonus', 'Bonus Action', '◆', 'econ-bonus']].concat(_toConsumableArray(effs(c).some(function (e) {
         return e.extraAction;
-      }) ? [['x', 'extra', 'Extra Action', '⚡', 'econ-extra']] : []), [['r', 'reaction', 'Reaction', '↩', 'econ-reaction']]).map(function (_ref98) {
-        var _ref99 = _slicedToArray(_ref98, 5),
-          k = _ref99[0],
-          kind = _ref99[1],
-          lbl = _ref99[2],
-          ico = _ref99[3],
-          tid = _ref99[4];
+      }) ? [['x', 'extra', 'Extra Action', '⚡', 'econ-extra']] : []), [['r', 'reaction', 'Reaction', '↩', 'econ-reaction']]).map(function (_ref103) {
+        var _ref104 = _slicedToArray(_ref103, 5),
+          k = _ref104[0],
+          kind = _ref104[1],
+          lbl = _ref104[2],
+          ico = _ref104[3],
+          tid = _ref104[4];
         return /*#__PURE__*/React.createElement("span", {
           key: k,
           role: "button",
@@ -15405,15 +16147,15 @@ function App() {
         "data-testid": "undo-btn",
         onClick: undoLast
       }, "Take back ", undoRef.current.name));
-    }(), Object.entries(sh.pools || {}).filter(function (_ref100) {
-      var _ref101 = _slicedToArray(_ref100, 2),
-        pn = _ref101[0],
-        q = _ref101[1];
+    }(), Object.entries(sh.pools || {}).filter(function (_ref105) {
+      var _ref106 = _slicedToArray(_ref105, 2),
+        pn = _ref106[0],
+        q = _ref106[1];
       return !q.item;
-    }).map(function (_ref102) {
-      var _ref103 = _slicedToArray(_ref102, 2),
-        pn = _ref103[0],
-        q = _ref103[1];
+    }).map(function (_ref107) {
+      var _ref108 = _slicedToArray(_ref107, 2),
+        pn = _ref108[0],
+        q = _ref108[1];
       var spend = actions.filter(function (a) {
         return a.pool === pn && !a.pointCosts;
       });
@@ -15807,9 +16549,9 @@ function App() {
           e: e
         };
       });
-    }).map(function (_ref104) {
-      var x = _ref104.x,
-        e = _ref104.e;
+    }).map(function (_ref109) {
+      var x = _ref109.x,
+        e = _ref109.e;
       return /*#__PURE__*/React.createElement("div", {
         key: e.id,
         className: "pp-arow ".concat(isMovable(e) ? 'hot' : ''),
@@ -15854,9 +16596,9 @@ function App() {
           k: k
         };
       });
-    }).map(function (_ref105) {
-      var x = _ref105.x,
-        k = _ref105.k;
+    }).map(function (_ref110) {
+      var x = _ref110.x,
+        k = _ref110.k;
       return /*#__PURE__*/React.createElement("div", {
         key: x.id + k,
         className: "pp-arow"
@@ -16026,7 +16768,7 @@ function App() {
         className: "pp-mast ".concat(a.mastery ? 'on' : ''),
         "data-testid": "mastery-chip",
         title: a.mastery ? "You have the ".concat(a.mastery, " mastery property with this weapon") : "You do not have this weapon's mastery property"
-      }, a.mprop || a.mastery) : null), /*#__PURE__*/React.createElement("span", null, a.rng ? "".concat(a.rng, " - ").concat(a.reach || 0) : "0 - ".concat(a.reach || 5)), /*#__PURE__*/React.createElement("span", null, a.type === 'save' ? "DC ".concat(a.dc) : /*#__PURE__*/React.createElement(React.Fragment, null, signed(a.atk), advMark('attack', {
+      }, a.mprop || a.mastery) : null), /*#__PURE__*/React.createElement("span", null, a.rng ? "".concat(a.rng, " - ").concat(a.reach || 0) : "0 - ".concat(a.reach || 5)), /*#__PURE__*/React.createElement("span", null, a.type === 'save' ? "DC ".concat(a.dc) : /*#__PURE__*/React.createElement(React.Fragment, null, signed(a.atk + (a.weapon && a.ranged ? +(c.passives || {}).archery || 0 : 0)), advMark('attack', {
         abil: a.abil,
         weapon: !!a.weapon,
         ranged: !!a.ranged,
@@ -16041,10 +16783,10 @@ function App() {
       "data-testid": "act-filter"
     }, /*#__PURE__*/React.createElement("span", {
       className: "pp-muted"
-    }, "Show:"), [['action', 'Action'], ['bonus', 'Bonus Action'], ['reaction', 'Reaction'], ['other', 'Other']].map(function (_ref106) {
-      var _ref107 = _slicedToArray(_ref106, 2),
-        k = _ref107[0],
-        t = _ref107[1];
+    }, "Show:"), [['action', 'Action'], ['bonus', 'Bonus Action'], ['reaction', 'Reaction'], ['other', 'Other']].map(function (_ref111) {
+      var _ref112 = _slicedToArray(_ref111, 2),
+        k = _ref112[0],
+        t = _ref112[1];
       return /*#__PURE__*/React.createElement("button", {
         key: k,
         "data-testid": "filter-".concat(k),
@@ -16094,10 +16836,10 @@ function App() {
       }, ACT_SHORT[a.activation] || '–'));
     }), Object.keys(sh.pools || {}).length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "pp-note"
-    }, Object.entries(sh.pools).map(function (_ref108) {
-      var _ref109 = _slicedToArray(_ref108, 2),
-        n = _ref109[0],
-        q = _ref109[1];
+    }, Object.entries(sh.pools).map(function (_ref113) {
+      var _ref114 = _slicedToArray(_ref113, 2),
+        n = _ref114[0],
+        q = _ref114[1];
       return "".concat(n, " ").concat(poolLeft(c, n), "/").concat(q.max);
     }).join(' · ')), cantrips.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       className: "pp-h2"
@@ -16353,10 +17095,10 @@ function App() {
       "data-testid": "paper-journal"
     }, [['Alignment', jr.alignment], ['Faith', jr.deity], ['Personality Traits', jr.traits], ['Ideals', jr.ideals], ['Bonds', jr.bonds], ['Flaws', jr.flaws], ['Appearance', jr.appearance], ['Backstory', jr.backstory], ['Allies & Organizations', jr.allies], ['Enemies & Rivals', jr.enemies], ['Quests & Goals', jr.quests], ['Languages', (sh.languages || []).join(', ')], ['Tool Proficiencies', (sh.tools || []).join(', ')], ['Inventory', (sh.items || []).join(', ')]].filter(function (x) {
       return x[1];
-    }).map(function (_ref110) {
-      var _ref111 = _slicedToArray(_ref110, 2),
-        hd = _ref111[0],
-        t = _ref111[1];
+    }).map(function (_ref115) {
+      var _ref116 = _slicedToArray(_ref115, 2),
+        hd = _ref116[0],
+        t = _ref116[1];
       return /*#__PURE__*/React.createElement("div", {
         key: hd,
         className: "pp-entry"
@@ -16424,9 +17166,9 @@ function App() {
         }
       }, "Dismiss"))), m ? /*#__PURE__*/React.createElement("div", {
         className: "pp-etext"
-      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, m.t), " \xB7 CR ", m.cr, " \xB7 AC ", m.ac, " \xB7 ", m.hp, " HP", m.sp ? " \xB7 Speed ".concat(m.sp) : ''), /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref112, i) {
-        var _ref113 = _slicedToArray(_ref112, 1),
-          k = _ref113[0];
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, m.t), " \xB7 CR ", m.cr, " \xB7 AC ", m.ac, " \xB7 ", m.hp, " HP", m.sp ? " \xB7 Speed ".concat(m.sp) : ''), /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref117, i) {
+        var _ref118 = _slicedToArray(_ref117, 1),
+          k = _ref118[0];
         return "".concat(k.toUpperCase(), " ").concat(m.s[i], " (").concat(modStr(m.s[i]), ")");
       }).join(' · ')), (m.tr || []).map(function (t, i) {
         return /*#__PURE__*/React.createElement("div", {
@@ -16468,7 +17210,8 @@ function App() {
       return /*#__PURE__*/React.createElement("div", {
         key: i,
         className: "pp-entry",
-        "data-testid": "feature-entry"
+        "data-testid": "feature-entry",
+        "data-ex": "feature:".concat(i)
       }, /*#__PURE__*/React.createElement("div", {
         className: "pp-ename"
       }, f.n, f.lv || f.src ? /*#__PURE__*/React.createElement("span", {
@@ -16565,8 +17308,10 @@ function App() {
   };
   // A spell with several versions is used as the one chosen. A variant only changes how it resolves.
   var pickMode = function pickMode(a) {
-    if (!a || !a.modes || modePick[a.id] == null || !a.modes[modePick[a.id]]) return a;
-    var m = a.modes[modePick[a.id]];
+    var _modePick$a$id;
+    var ix = a && a.modes ? (_modePick$a$id = modePick[a.id]) !== null && _modePick$a$id !== void 0 ? _modePick$a$id : a.modeDefault : null;
+    if (!a || !a.modes || ix == null || !a.modes[ix]) return a;
+    var m = a.modes[ix];
     var _m$a2 = m.a,
       id = _m$a2.id,
       name = _m$a2.name,
@@ -16768,7 +17513,7 @@ function App() {
   }).find(Boolean) || '' : '';
   var cannotWhy = !selAction ? 'Nothing chosen' : !actorNow ? 'Not your turn (a Reaction can be used at any time)' : needsTargetNow && freeT == null && !inPlay.find(function (c) {
     return c.id === targetId;
-  }) ? 'Pick a target' : limited(selAction) && usesLeft(viewed, selAction) <= 0 ? 'No uses left' : selAction.modes && modePick[selAction.id] == null ? 'Choose which version to use' : selAction.viaWeapon && !selAction.weapon ? 'Choose the weapon it is cast with' : selAction.storeSpell && !storeOptions(selAction).some(function (x) {
+  }) ? 'Pick a target' : limited(selAction) && usesLeft(viewed, selAction) <= 0 ? 'No uses left' : selAction.modes && modePick[selAction.id] == null && selAction.modeDefault == null ? 'Choose which version to use' : selAction.viaWeapon && !selAction.weapon ? 'Choose the weapon it is cast with' : selAction.storeSpell && !storeOptions(selAction).some(function (x) {
     return x.id === storePick[selAction.id];
   }) ? 'Choose the spell to store in it' : selAction.choicePerTarget && selAction.choices && targetIds.some(function (tid) {
     return !(picks[selAction.id + ':' + tid] || [])[0];
@@ -17076,20 +17821,20 @@ function App() {
     return x.c;
   });
   // What is waiting on this person: Reactions they can take, and rolls they are asked to make. These pop up in the middle of the screen.
-  var myAskIds = [].concat(_toConsumableArray(flowPrompts.filter(function (_ref114) {
-    var q = _ref114.q,
-      c = _ref114.c;
+  var myAskIds = [].concat(_toConsumableArray(flowPrompts.filter(function (_ref119) {
+    var q = _ref119.q,
+      c = _ref119.c;
     return canControl(c) && (q.kind === 'incoming' && q.react && !q.answer || q.kind === 'confirm' && !q.answer || q.kind === 'offer' && reactionsFor(c, q.ev).length > 0);
   }).map(function (x) {
     return x.q.id;
-  })), _toConsumableArray(openPrompts.filter(function (_ref115) {
-    var c = _ref115.c;
+  })), _toConsumableArray(openPrompts.filter(function (_ref120) {
+    var c = _ref120.c;
     return canControl(c);
   }).map(function (x) {
     return x.q.id;
   })));
   var sidePrompts = prompts.filter(function (q) {
-    return q.kind === 'swap' || q.kind === 'note' && isDM || q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn';
+    return q.kind === 'swap' || q.kind === 'tell' || q.kind === 'note' && isDM || q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn';
   }).map(function (q) {
     return {
       q: q,
@@ -17100,9 +17845,9 @@ function App() {
   }).filter(function (x) {
     return x.c;
   });
-  sidePrompts.forEach(function (_ref116) {
-    var q = _ref116.q,
-      c = _ref116.c;
+  sidePrompts.forEach(function (_ref121) {
+    var q = _ref121.q,
+      c = _ref121.c;
     if ((q.kind === 'askdm' || q.kind === 'time') && isDM || (q.kind === 'form' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn') && canControl(c)) myAskIds.push(q.id);
   });
   var askKey = myAskIds.join(','),
@@ -17306,10 +18051,10 @@ function App() {
     className: "modal-header"
   }, "Clear the table"), /*#__PURE__*/React.createElement("div", {
     className: "modal-body"
-  }, [['log', 'The Combat Log'], ['monsters', 'Monsters and the turn order (ends combat)'], ['players', 'Player characters (their sheets leave the session; players keep their files)'], ['world', 'The World Tracker (time, weather, trackers, timers)'], ['notes', 'My notes']].map(function (_ref117) {
-    var _ref118 = _slicedToArray(_ref117, 2),
-      k = _ref118[0],
-      t = _ref118[1];
+  }, [['log', 'The Combat Log'], ['monsters', 'Monsters and the turn order (ends combat)'], ['players', 'Player characters (their sheets leave the session; players keep their files)'], ['world', 'The World Tracker (time, weather, trackers, timers)'], ['notes', 'My notes']].map(function (_ref122) {
+    var _ref123 = _slicedToArray(_ref122, 2),
+      k = _ref123[0],
+      t = _ref123[1];
     return /*#__PURE__*/React.createElement("label", {
       key: k,
       className: "rule-label",
@@ -17437,11 +18182,16 @@ function App() {
         return setHdPick(null);
       }
     }, "Done")))));
-  }(), false && fatePick && function () {
+  }(), fatePick && !fateChoose && function () {
     var c = combatants.find(function (x) {
-      return x.id === fatePick.cId;
-    });
+        return x.id === fatePick.cId;
+      }),
+      e = log.find(function (x) {
+        return x.id === fatePick.entryId;
+      }) || lastD20();
     if (!c) return null;
+    var dice = (c.passives || {}).improveFate || '2d4',
+      old = e && !recentRoll(e);
     return /*#__PURE__*/React.createElement("div", {
       className: "modal-overlay",
       onClick: function onClick() {
@@ -17451,45 +18201,74 @@ function App() {
       className: "modal",
       "data-testid": "fate-modal",
       style: {
-        maxWidth: 420
+        maxWidth: 440
       },
-      onClick: function onClick(e) {
-        return e.stopPropagation();
+      onClick: function onClick(ev) {
+        return ev.stopPropagation();
       }
     }, /*#__PURE__*/React.createElement("div", {
       className: "modal-header"
-    }, c.name, ": Improve Fate"), /*#__PURE__*/React.createElement("div", {
+    }, "Use Improve Fate?"), /*#__PURE__*/React.createElement("div", {
       className: "modal-body"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "log-entry"
+    }, e ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      className: "pp-muted",
+      style: {
+        fontSize: 12
+      }
+    }, fatePick.entryId ? 'The roll you chose' : 'The last roll', ":"), /*#__PURE__*/React.createElement("div", {
+      className: "log-entry",
+      "data-testid": "fate-roll"
     }, /*#__PURE__*/React.createElement("div", {
       className: "log-html",
       dangerouslySetInnerHTML: {
-        __html: sanitizeLogHtml(fatePick.entry.html)
+        __html: sanitizeLogHtml(e.html)
       }
-    })), /*#__PURE__*/React.createElement("div", {
+    })), old && /*#__PURE__*/React.createElement("div", {
+      className: "buff-note",
+      "data-testid": "fate-old",
+      style: {
+        color: '#fff176'
+      }
+    }, "This roll is from before the last turn. If you use it, the DM is told.")) : /*#__PURE__*/React.createElement("div", {
       className: "buff-note"
-    }, "Roll ", c.passives.improveFate, " and apply it to that d20 roll, for a creature within 60 feet of ", c.name, ". Once used, it comes back when ", c.name, " rolls Initiative or finishes a Short or Long Rest."), /*#__PURE__*/React.createElement("div", {
+    }, "There is no d20 roll in the Combat Log yet."), /*#__PURE__*/React.createElement("div", {
+      className: "buff-note"
+    }, "Roll ", dice, " and add it to that d20 roll or take it away, for ", c.name, " or a creature within 60 feet."), /*#__PURE__*/React.createElement("div", {
       className: "do-row"
-    }, /*#__PURE__*/React.createElement("button", {
+    }, e && /*#__PURE__*/React.createElement("button", {
       className: "btn btn-primary",
       "data-testid": "fate-bonus",
       onClick: function onClick() {
-        return useFate(c, fatePick.entry, 1);
+        return useFate(c, 1, e);
       }
-    }, "\uD83C\uDFB2 As a bonus"), /*#__PURE__*/React.createElement("button", {
+    }, "Yes: add ", dice), e && /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost",
       "data-testid": "fate-penalty",
       onClick: function onClick() {
-        return useFate(c, fatePick.entry, -1);
+        return useFate(c, -1, e);
       }
-    }, "\uD83C\uDFB2 As a penalty"), /*#__PURE__*/React.createElement("button", {
+    }, "Yes: take away ", dice), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-ghost",
+      "data-testid": "fate-choose",
+      onClick: function onClick() {
+        return setFateChoose(c.id);
+      }
+    }, "Choose from the Combat Log"), /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm",
+      "data-testid": "fate-cancel",
       onClick: function onClick() {
         return setFatePick(null);
       }
     }, "Cancel")))));
-  }(), changePick && /*#__PURE__*/React.createElement("div", {
+  }(), fateChoose && /*#__PURE__*/React.createElement("div", {
+    className: "fate-dim",
+    "data-testid": "fate-dim",
+    onClick: function onClick() {
+      setFateChoose(null);
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "fate-dim-note"
+  }, "Pick a d20 roll in the Combat Log. Click here to go back.")), changePick && /*#__PURE__*/React.createElement("div", {
     className: "modal-overlay",
     onClick: function onClick() {
       return setChangePick(null);
@@ -17620,10 +18399,10 @@ function App() {
     className: "modal-body"
   }, explained.lines.filter(function (l) {
     return l && l[1] !== '' && l[1] != null;
-  }).map(function (_ref119, i) {
-    var _ref120 = _slicedToArray(_ref119, 2),
-      n = _ref120[0],
-      v = _ref120[1];
+  }).map(function (_ref124, i) {
+    var _ref125 = _slicedToArray(_ref124, 2),
+      n = _ref125[0],
+      v = _ref125[1];
     return /*#__PURE__*/React.createElement("div", {
       key: i,
       className: "explain-line"
@@ -17890,10 +18669,33 @@ function App() {
       bl = blink && combatants.find(function (c) {
         return c.id === blink.id && canControl(c);
       });
-    return (dropped.length > 0 || againNow.length > 0 || swappers.length > 0 || bl) && !targeting && /*#__PURE__*/React.createElement("div", {
+    var rms = reminders.filter(function (r) {
+      return combatants.some(function (c) {
+        return c.id === r.id && canControl(c);
+      });
+    });
+    return (dropped.length > 0 || againNow.length > 0 || swappers.length > 0 || bl || rms.length > 0) && !targeting && /*#__PURE__*/React.createElement("div", {
       className: "turn-bar",
       "data-testid": "turn-bar"
-    }, bl && /*#__PURE__*/React.createElement("span", {
+    }, rms.map(function (r) {
+      return /*#__PURE__*/React.createElement("span", {
+        key: r.id,
+        className: "p-btns",
+        "data-testid": "remind-item"
+      }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, (combatants.find(function (c) {
+        return c.id === r.id;
+      }) || {}).name, ":"), " ", r.texts.join(' ')), /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-ghost btn-sm",
+        "data-testid": "remind-ok",
+        onClick: function onClick() {
+          return setReminders(function (prev) {
+            return prev.filter(function (x) {
+              return x.id !== r.id;
+            });
+          });
+        }
+      }, "OK"));
+    }), bl && /*#__PURE__*/React.createElement("span", {
       className: "p-btns",
       "data-testid": "blink-item"
     }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Blink Steps:"), " ", bl.name, " can teleport up to ", blink.feet, " feet to an unoccupied space it can see."), /*#__PURE__*/React.createElement("button", {
@@ -17943,10 +18745,10 @@ function App() {
           });
         }
       }, "No swap"));
-    }), dropped.map(function (_ref121) {
-      var x = _ref121.x,
-        e = _ref121.e,
-        caster = _ref121.caster;
+    }), dropped.map(function (_ref126) {
+      var x = _ref126.x,
+        e = _ref126.e,
+        caster = _ref126.caster;
       return /*#__PURE__*/React.createElement("span", {
         key: e.id,
         className: "p-btns",
@@ -18041,9 +18843,9 @@ function App() {
     "data-testid": "prompt-bar"
   }, askPop && /*#__PURE__*/React.createElement("div", {
     className: "pop-title"
-  }, /*#__PURE__*/React.createElement("span", null, myAskIds.length > 1 ? 'These need you' : 'This needs you')), flowPrompts.map(function (_ref122) {
-    var q = _ref122.q,
-      c = _ref122.c;
+  }, /*#__PURE__*/React.createElement("span", null, myAskIds.length > 1 ? 'These need you' : 'This needs you')), flowPrompts.map(function (_ref127) {
+    var q = _ref127.q,
+      c = _ref127.c;
     var mine = canControl(c),
       reactions = mine ? reactionsFor(c, q.kind === 'incoming' ? 'targeted' : q.kind === 'offer' ? q.ev : q.hit ? 'hit' : 'miss') : [];
     var react = reactions.length > 0 && /*#__PURE__*/React.createElement("span", {
@@ -18106,10 +18908,22 @@ function App() {
     }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, q.actorName), "'s ", q.what, " ", /*#__PURE__*/React.createElement("strong", null, q.hit ? q.crit ? 'is a Critical Hit on' : 'hits' : 'misses'), " ", /*#__PURE__*/React.createElement("strong", null, c.name), q.total != null ? " (".concat(q.total, " to hit)") : '', ". ", mine ? "You have a Reaction: about ".concat(secs, " seconds to use it before this is resolved.") : "".concat(c.name, " has a moment to use a Reaction before this is resolved.")), /*#__PURE__*/React.createElement("span", {
       className: "p-btns"
     }, react, noR));
-  }), sidePrompts.map(function (_ref123) {
-    var q = _ref123.q,
-      c = _ref123.c;
-    return q.kind === 'swap' ? /*#__PURE__*/React.createElement("div", {
+  }), sidePrompts.map(function (_ref128) {
+    var q = _ref128.q,
+      c = _ref128.c;
+    return q.kind === 'tell' ? canControl(c) ? /*#__PURE__*/React.createElement("div", {
+      key: q.id,
+      className: "prompt-item yours",
+      "data-testid": "prompt-tell"
+    }, /*#__PURE__*/React.createElement("span", null, q.text), /*#__PURE__*/React.createElement("span", {
+      className: "p-btns"
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-ghost btn-sm",
+      "data-testid": "tell-ok",
+      onClick: function onClick() {
+        return removePrompt(q.id);
+      }
+    }, "OK"))) : null : q.kind === 'swap' ? /*#__PURE__*/React.createElement("div", {
       key: q.id,
       className: "prompt-item ".concat(canControl(c) ? 'yours' : ''),
       "data-testid": "prompt-swap"
@@ -18141,7 +18955,14 @@ function App() {
       onClick: function onClick() {
         return removePrompt(q.id);
       }
-    }, "OK"))) : q.kind === 'dawn' ? /*#__PURE__*/React.createElement("div", {
+    }, "OK"), q.reject && /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-ghost btn-sm",
+      "data-testid": "note-reject",
+      title: "Undo this change",
+      onClick: function onClick() {
+        return rejectChange(q);
+      }
+    }, "Reject"))) : q.kind === 'dawn' ? /*#__PURE__*/React.createElement("div", {
       key: q.id,
       className: "prompt-item ".concat(canControl(c) ? 'yours' : ''),
       "data-testid": "prompt-dawn"
@@ -18321,11 +19142,11 @@ function App() {
     }, "Choose the form")) : /*#__PURE__*/React.createElement("span", {
       className: "prompt-wait"
     }, "Waiting for ", c.name));
-  }), openPrompts.map(function (_ref124) {
-    var q = _ref124.q,
-      c = _ref124.c,
-      text = _ref124.text,
-      dc = _ref124.dc;
+  }), openPrompts.map(function (_ref129) {
+    var q = _ref129.q,
+      c = _ref129.c,
+      text = _ref129.text,
+      dc = _ref129.dc;
     return /*#__PURE__*/React.createElement("div", {
       key: q.id,
       className: "prompt-item ".concat(canControl(c) ? 'yours' : '')
@@ -18384,10 +19205,10 @@ function App() {
   }, "Later"))), /*#__PURE__*/React.createElement("div", {
     className: "pane-tabs",
     role: "tablist"
-  }, [['order', 'Order'], ['sheet', 'Sheet'], ['log', 'Log']].map(function (_ref125) {
-    var _ref126 = _slicedToArray(_ref125, 2),
-      k = _ref126[0],
-      l = _ref126[1];
+  }, [['order', 'Order'], ['sheet', 'Sheet'], ['log', 'Log']].map(function (_ref130) {
+    var _ref131 = _slicedToArray(_ref130, 2),
+      k = _ref131[0],
+      l = _ref131[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       role: "tab",
@@ -18533,7 +19354,7 @@ function App() {
       var me = rest.chars[c.id] || {
           used: 0
         },
-        len = (_me$len2 = me.len) !== null && _me$len2 !== void 0 ? _me$len2 : rest.len,
+        len = (_me$len2 = me.len) !== null && _me$len2 !== void 0 ? _me$len2 : restLenFor(c),
         left = len - me.used;
       return /*#__PURE__*/React.createElement("div", {
         key: c.id,
@@ -19046,9 +19867,9 @@ function App() {
         b: b
       };
     });
-  }).map(function (_ref127) {
-    var c = _ref127.c,
-      b = _ref127.b;
+  }).map(function (_ref132) {
+    var c = _ref132.c,
+      b = _ref132.b;
     return /*#__PURE__*/React.createElement("div", {
       key: b.id,
       className: "buff-note",
@@ -19130,10 +19951,10 @@ function App() {
         skill: ''
       }));
     }
-  }, ABILITY_KEYS.map(function (_ref128) {
-    var _ref129 = _slicedToArray(_ref128, 2),
-      k = _ref129[0],
-      full = _ref129[1];
+  }, ABILITY_KEYS.map(function (_ref133) {
+    var _ref134 = _slicedToArray(_ref133, 2),
+      k = _ref134[0],
+      full = _ref134[1];
     return /*#__PURE__*/React.createElement("option", {
       key: full,
       value: full
@@ -19499,11 +20320,11 @@ function App() {
     }, ch.lbl, ch.src ? ' ✦' : ''));
   })), /*#__PURE__*/React.createElement("div", {
     className: "abil-row"
-  }, ABILITY_KEYS.map(function (_ref130) {
+  }, ABILITY_KEYS.map(function (_ref135) {
     var _ab4, _ab5;
-    var _ref131 = _slicedToArray(_ref130, 2),
-      k = _ref131[0],
-      ab = _ref131[1];
+    var _ref136 = _slicedToArray(_ref135, 2),
+      k = _ref136[0],
+      ab = _ref136[1];
     var score = (_ab4 = (viewed.scores || {})[ab]) !== null && _ab4 !== void 0 ? _ab4 : 10;
     return /*#__PURE__*/React.createElement("div", {
       className: "abil",
@@ -19587,7 +20408,84 @@ function App() {
     }, "AC ", effectiveAC(c)), !veil(c) || reveal === 'full' ? /*#__PURE__*/React.createElement("span", {
       className: "t-hp"
     }, c.currentHP, "/", totalHP(c), " HP") : null);
-  }), selAction && canControl(viewed) && /*#__PURE__*/React.createElement("div", {
+  }), selAction && canControl(viewed) && targetIds.length > 0 && (selAction.type === 'attack' || selAction.type === 'save' && selAction.saveAbility === 'Dexterity') && /*#__PURE__*/React.createElement("div", {
+    className: "advantage-row cover-row",
+    "data-testid": "cover-row",
+    style: {
+      flexWrap: 'wrap',
+      alignItems: 'center'
+    }
+  }, targetIds.map(function (id) {
+    var t0 = inPlay.find(function (c) {
+      return c.id === id;
+    });
+    return t0 ? /*#__PURE__*/React.createElement("label", {
+      key: id,
+      className: "rule-label",
+      style: {
+        margin: 0
+      }
+    }, targetIds.length > 1 ? "".concat(t0.name, ": ") : '', "Cover ", /*#__PURE__*/React.createElement("select", {
+      "aria-label": "Cover for ".concat(t0.name),
+      "data-testid": "cover-pick",
+      value: cover[id] || 0,
+      onChange: function onChange(e) {
+        return setCover(_objectSpread(_objectSpread({}, cover), {}, _defineProperty({}, id, +e.target.value)));
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: 0
+    }, "None"), /*#__PURE__*/React.createElement("option", {
+      value: 2
+    }, "Half (+2)"), /*#__PURE__*/React.createElement("option", {
+      value: 5
+    }, "Three-Quarters (+5)"))) : null;
+  }), selAction.type === 'attack' && /*#__PURE__*/React.createElement("label", {
+    className: "rule-label",
+    style: {
+      margin: 0
+    },
+    title: "An optional rule some tables use: Advantage when an ally is on the opposite side of the target"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    "data-testid": "flank-pick",
+    checked: flanked,
+    onChange: function onChange(e) {
+      return setFlanked(e.target.checked);
+    }
+  }), " Flanking")), selAction && canControl(viewed) && selAction.spell && selAction.school === 'Evocation' && selAction.type === 'save' && (viewed.passives || {}).sculptSpells && targetIds.length > 0 && function () {
+    var most = 1 + (castLevel > 0 ? castLevel : selAction.slot || 0);
+    return /*#__PURE__*/React.createElement("div", {
+      className: "advantage-row",
+      "data-testid": "sculpt-row",
+      style: {
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "pp-muted",
+      title: "They automatically succeed on their saves and take no damage"
+    }, "Sculpt Spells (up to ", most, "):"), targetIds.map(function (id) {
+      var t0 = inPlay.find(function (c) {
+        return c.id === id;
+      });
+      return t0 ? /*#__PURE__*/React.createElement("label", {
+        key: id,
+        className: "rule-label",
+        style: {
+          margin: 0
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        "data-testid": "sculpt-pick",
+        checked: sculpt.includes(id),
+        disabled: !sculpt.includes(id) && sculpt.length >= most,
+        onChange: function onChange(e) {
+          return setSculpt(e.target.checked ? [].concat(_toConsumableArray(sculpt), [id]) : sculpt.filter(function (x) {
+            return x !== id;
+          }));
+        }
+      }), " ", t0.name) : null;
+    }));
+  }(), selAction && canControl(viewed) && /*#__PURE__*/React.createElement("div", {
     className: "do-row",
     "data-testid": "do-row"
   }, /*#__PURE__*/React.createElement("button", {
@@ -19674,10 +20572,11 @@ function App() {
       flexWrap: 'wrap'
     }
   }, selAction.modes.map(function (m, i) {
+    var _modePick$selAction$i;
     return /*#__PURE__*/React.createElement("div", {
       key: i,
       "data-testid": "mode-pick",
-      className: "adv-btn ".concat(modePick[selAction.id] === i ? 'active-adv' : ''),
+      className: "adv-btn ".concat(((_modePick$selAction$i = modePick[selAction.id]) !== null && _modePick$selAction$i !== void 0 ? _modePick$selAction$i : selAction.modeDefault) === i ? 'active-adv' : ''),
       onClick: function onClick() {
         return setModePick(_objectSpread(_objectSpread({}, modePick), {}, _defineProperty({}, selAction.id, i)));
       }
@@ -20125,10 +21024,10 @@ function App() {
     "data-testid": "pool-row"
   }, /*#__PURE__*/React.createElement("span", {
     className: "opt-label"
-  }, "Resources"), Object.entries(viewed.sheet.pools).map(function (_ref132) {
-    var _ref133 = _slicedToArray(_ref132, 2),
-      n = _ref133[0],
-      q = _ref133[1];
+  }, "Resources"), Object.entries(viewed.sheet.pools).map(function (_ref137) {
+    var _ref138 = _slicedToArray(_ref137, 2),
+      n = _ref138[0],
+      q = _ref138[1];
     return /*#__PURE__*/React.createElement("span", {
       key: n,
       className: "slot-chip ".concat(poolLeft(viewed, n) ? '' : 'spent')
@@ -20275,11 +21174,11 @@ function App() {
     }
   }), /*#__PURE__*/React.createElement("div", {
     className: "custom-grid"
-  }, [['ac', 'AC', '+1'], ['speed', 'Speed (ft.)', '+10'], ['init', 'Initiative', '+2'], ['atk', 'Attack rolls', '1d4'], ['save', 'Saving throws', '1d4']].map(function (_ref134) {
-    var _ref135 = _slicedToArray(_ref134, 3),
-      k = _ref135[0],
-      l = _ref135[1],
-      ph = _ref135[2];
+  }, [['ac', 'AC', '+1'], ['speed', 'Speed (ft.)', '+10'], ['init', 'Initiative', '+2'], ['atk', 'Attack rolls', '1d4'], ['save', 'Saving throws', '1d4']].map(function (_ref139) {
+    var _ref140 = _slicedToArray(_ref139, 3),
+      k = _ref140[0],
+      l = _ref140[1],
+      ph = _ref140[2];
     return /*#__PURE__*/React.createElement("label", {
       key: k
     }, l, /*#__PURE__*/React.createElement("input", {
@@ -20621,10 +21520,10 @@ function App() {
     "data-testid": "cond-panel"
   }, activeConditions.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "cond-empty"
-  }, "No active effects"), activeConditions.map(function (_ref136) {
-    var c = _ref136.c,
-      cond = _ref136.cond,
-      info = _ref136.info;
+  }, "No active effects"), activeConditions.map(function (_ref141) {
+    var c = _ref141.c,
+      cond = _ref141.cond,
+      info = _ref141.info;
     return /*#__PURE__*/React.createElement("div", {
       key: c.id + cond,
       className: "cond-item",
@@ -20681,7 +21580,7 @@ function App() {
       return setNoticesOn(e.target.checked);
     }
   }), " Pop-ups")), /*#__PURE__*/React.createElement("div", {
-    className: "log-body"
+    className: "log-body ".concat(fateChoose ? 'fate-choosing' : '')
   }, log.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "empty-state"
   }, "Results will appear here"), log.map(function (entry, i) {
@@ -20694,7 +21593,18 @@ function App() {
       }));
     }) ? null : isDM && logTab === 'system' !== !!entry.sys ? null : !isDM && entry.sys ? null : /*#__PURE__*/React.createElement("div", {
       key: entry.id || i,
-      className: "log-entry ".concat(entry.type, " dice-result ").concat(entry["void"] ? 'void' : '', " ").concat(entry.flag ? 'flagged' : '')
+      className: "log-entry ".concat(entry.type, " dice-result ").concat(entry["void"] ? 'void' : '', " ").concat(entry.flag ? 'flagged' : '', " ").concat(fateChoose && entry.d20 && !entry["void"] ? 'fate-pickable' : ''),
+      "data-testid": fateChoose && entry.d20 && !entry["void"] ? 'fate-pickable' : undefined,
+      onClickCapture: fateChoose && entry.d20 && !entry["void"] ? function (ev) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        var cid = fateChoose;
+        setFateChoose(null);
+        setFatePick({
+          cId: cid,
+          entryId: entry.id
+        });
+      } : undefined
     }, entry.flag && /*#__PURE__*/React.createElement("div", {
       className: "log-flag",
       "data-testid": "log-flag",
@@ -20766,7 +21676,31 @@ function App() {
       onClick: function onClick() {
         return overrideEntry(entry);
       }
-    }, "Override: ", (entry.ov.k === 'atk' ? entry.ov.hit : entry.ov.passed) ? 'cause to fail' : 'cause to succeed')), canEndConc(entry) && /*#__PURE__*/React.createElement("div", {
+    }, "Override: ", (entry.ov.k === 'atk' ? entry.ov.hit : entry.ov.passed) ? 'cause to fail' : 'cause to succeed')), function () {
+      var ctx = (entry.ov || {}).ctx || {},
+        t = combatants.find(function (x) {
+          return x.id === (ctx.pickedIds || [])[0];
+        });
+      if (!t || entry["void"] || !entry.d20 || entry.d20.k !== 'atk' || entry.d20.cover || !canControl(t) || round - (+entry.ov.r || 0) > 2 || log.some(function (x) {
+        return x.coverOf === entry.id;
+      })) return null;
+      return /*#__PURE__*/React.createElement("div", {
+        className: "log-ov",
+        "data-testid": "cover-late"
+      }, /*#__PURE__*/React.createElement("span", null, t.name, " had cover?"), /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-ghost btn-sm",
+        "data-testid": "cover-late-half",
+        onClick: function onClick() {
+          return applyCover(entry, 2);
+        }
+      }, "Half (+2)"), /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-ghost btn-sm",
+        "data-testid": "cover-late-tq",
+        onClick: function onClick() {
+          return applyCover(entry, 5);
+        }
+      }, "Three-Quarters (+5)"));
+    }(), canEndConc(entry) && /*#__PURE__*/React.createElement("div", {
       className: "log-ov"
     }, /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm",
@@ -20901,10 +21835,10 @@ function App() {
     }, /*#__PURE__*/React.createElement("div", {
       className: "end-tabs",
       role: "tablist"
-    }, [].concat(_toConsumableArray(isDM ? [['xp', 'Experience']] : []), [['do', 'What you can do'], ['summary', 'Summary'], ['starred', "Starred log (".concat(stars.length, ")")]]).map(function (_ref137) {
-      var _ref138 = _slicedToArray(_ref137, 2),
-        k = _ref138[0],
-        l = _ref138[1];
+    }, [].concat(_toConsumableArray(isDM ? [['xp', 'Experience']] : []), [['do', 'What you can do'], ['summary', 'Summary'], ['starred', "Starred log (".concat(stars.length, ")")]]).map(function (_ref142) {
+      var _ref143 = _slicedToArray(_ref142, 2),
+        k = _ref143[0],
+        l = _ref143[1];
       return /*#__PURE__*/React.createElement("button", {
         key: k,
         role: "tab",
@@ -21313,19 +22247,19 @@ function App() {
         // a summoned creature joins the order, straight after its summoner
         var scores = {},
           saves = {};
-        ABILITY_KEYS.forEach(function (_ref139, i) {
-          var _ref140 = _slicedToArray(_ref139, 2),
-            k = _ref140[0],
-            full = _ref140[1];
+        ABILITY_KEYS.forEach(function (_ref144, i) {
+          var _ref145 = _slicedToArray(_ref144, 2),
+            k = _ref145[0],
+            full = _ref145[1];
           scores[full] = m ? m.s[i] : 10;
           saves[full] = m ? m.sv && m.sv[full] != null ? m.sv[full] : mod(m.s[i]) : 0;
         });
         var g = !m && blockPick.gen && blockPick.gen.name === n ? genBlock(blockPick.gen) : null;
         var hp = m ? m.hp : g ? g.hp : Math.max(1, parseInt(blockPick.hp, 10) || 10);
-        if (g) ABILITY_KEYS.forEach(function (_ref141, i) {
-          var _ref142 = _slicedToArray(_ref141, 2),
-            k = _ref142[0],
-            full = _ref142[1];
+        if (g) ABILITY_KEYS.forEach(function (_ref146, i) {
+          var _ref147 = _slicedToArray(_ref146, 2),
+            k = _ref147[0],
+            full = _ref147[1];
           scores[full] = g.s[i];
           saves[full] = mod(g.s[i]);
         });
@@ -21699,9 +22633,9 @@ function App() {
       }
     }, "Add")), rosterOpen === m.n && /*#__PURE__*/React.createElement("div", {
       className: "roster-detail"
-    }, /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref143, i) {
-      var _ref144 = _slicedToArray(_ref143, 1),
-        k = _ref144[0];
+    }, /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref148, i) {
+      var _ref149 = _slicedToArray(_ref148, 1),
+        k = _ref149[0];
       return "".concat(k.toUpperCase(), " ").concat(m.s[i], " (").concat(modStr(m.s[i]), ")");
     }).join(' · ')), m.sp && /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Speed."), " ", m.sp), (m.tr || []).map(function (t, i) {
       return /*#__PURE__*/React.createElement("p", {
@@ -21982,9 +22916,9 @@ function App() {
       gridTemplateColumns: 'repeat(6,1fr)',
       gap: 6
     }
-  }, ABILITY_KEYS.map(function (_ref145) {
-    var _ref146 = _slicedToArray(_ref145, 1),
-      k = _ref146[0];
+  }, ABILITY_KEYS.map(function (_ref150) {
+    var _ref151 = _slicedToArray(_ref150, 1),
+      k = _ref151[0];
     return /*#__PURE__*/React.createElement("div", {
       className: "form-group",
       key: k
