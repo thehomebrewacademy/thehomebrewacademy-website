@@ -310,5 +310,29 @@
     );
   });
 
+  // Feats (SRD 5.2.1). A feat's Ability Score Increase and its choices (skills, Magic Initiate spells) are picked in the builder;
+  // everything else it does is written here, in the same format a Content Pack uses.
+  const feat = (f, name, rest) => ({ name, grantedBy: { type: "feat", name: f }, ...rest });
+  const ALL_BUT = (no) => ["Acid", "Bludgeoning", "Cold", "Fire", "Force", "Lightning", "Necrotic", "Piercing", "Poison", "Psychic", "Radiant", "Slashing", "Thunder"].filter((t) => !no.includes(t));
+  M.push(
+    feat("Alert", "Alert", { statics: { initiative: "PROF", passives: { initiativeSwap: true } } }),
+    feat("Savage Attacker", "Savage Attacker", { statics: { passives: { savageAttacker: true } } }),
+    feat("Grappler", "Grappler", { statics: { passives: { grappledAdvantage: true, punchAndGrab: true } } }),
+    feat("Archery", "Archery", { statics: { passives: { rangedWeaponAttack: 2 } } }),
+    feat("Defense", "Defense", { statics: { acBonus: { formula: 1, when: "armor" } } }),
+    feat("Great Weapon Fighting", "Great Weapon Fighting", { statics: { passives: { greatWeaponFighting: true } } }),
+    feat("Two-Weapon Fighting", "Two-Weapon Fighting", { statics: { passives: { twoWeaponFighting: true } } }),
+    feat("Boon of Combat Prowess", "Peerless Aim", { statics: { passives: { peerlessAim: true } } }),
+    feat("Boon of Dimensional Travel", "Blink Steps", { statics: { passives: { blinkSteps: 30 } } }),
+    feat("Boon of Fate", "Improve Fate", { statics: { passives: { improveFate: { dice: "2d4" } } } }),
+    feat("Boon of Irresistible Offense", "Overcome Defenses", { statics: { passives: { overcomeDefenses: ["Bludgeoning", "Piercing", "Slashing"], overwhelmingStrike: true } } }),
+    feat("Boon of Spell Recall", "Free Casting", { statics: { passives: { freeCasting: 4 } } }),
+    feat("Boon of the Night Spirit", "Merge with Shadows", { activation: "bonus", target: "self", roll: "none",
+      onUse: { conditions: [{ name: "Invisible" }], effects: [{ name: "Merge with Shadows", endsAfterAnyAction: true, note: "Only while within Dim Light or Darkness. The Invisible condition ends immediately after you take an action, a Bonus Action, or a Reaction." }] } }),
+    feat("Boon of the Night Spirit", "Shadowy Form", { activation: "free", target: "self", roll: "none",
+      onUse: { effects: [{ name: "Shadowy Form", resistDamage: ALL_BUT(["Psychic", "Radiant"]), note: "While within Dim Light or Darkness: Resistance to all damage except Psychic and Radiant. Remove it when you leave Dim Light and Darkness." }] } }),
+    feat("Boon of Truesight", "Truesight", { statics: { senses: ["Truesight 60 ft."] } })
+  );
+
   window.HBA_MECHANICS = M;
 })();
