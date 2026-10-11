@@ -372,6 +372,11 @@ Anything else the item does (extra damage, a use per day, a save it forces) goes
   4. Each spell it casts: one ability with "castSpell": { "spell": "Magic Missile" (the spell's exact name), "level": 1 (the level it is cast at), "maxLevel": 3 (the highest level extra charges can raise it to, else the same as level), "perLevel": 1 (charges for each level above), "dc": 15 and "attack": 7 when the item fixes them (leave them out to use the user's own spellcasting) } and "uses": { "pool": "Wand of Magic Missiles", "cost": 1 } for charges, or "uses": { "max": 1, "recharge": "long" } for "once per dawn" without charges. The app runs the spell exactly as the spell itself, from its own record.
   5. Everything else it lets the user activate (a breath, an attack, an effect it switches on): one ability each, like any other ability, with "uses" for charges or limits.
 An item that needs Attunement only works while the user is attuned to it: the builder has an Attune button on each such item (at most 3). Write nothing for this beyond "attunement": true.
+ITEM SLOTS. Attunement is one kind of item slot. When the source has another kind (tattoo slots, rune slots: an item works only while it is in one, and a character has a limited number), define the kind once in "slotTypes" at the top level of the file and give each such item "slot" with that name instead of "attunement":
+"slotTypes": [ { "name": "Tattoo", "max": 2, "verb": "Ink", "on": "Inked" } ]
+  name: the slot kind, as the source names it, singular. max: how many every character has (0 when only some features give them). verb: the word on the button that puts an item in the slot. on: the word shown while it is in one.
+  { "name": "Ember Ward Tattoo", "rarity": "Uncommon", "type": "Wondrous Item", "slot": "Tattoo", "description": "Full item text." }
+The builder shows each kind of slot next to Attunement, with its own count, and the Combat Resolver shows them on the sheet. A feature that gives more slots of any kind (Attunement included) uses the statics key "itemSlots". To change how many Attunement slots everyone has, define { "name": "Attunement", "max": 4 } in "slotTypes".
 
 ---------------------------------------------------------------------
 ABILITIES: EVERYTHING A CHARACTER ACTIVATES
@@ -600,7 +605,7 @@ PASSIVE FEATURES: statics
   "critImmune": true                                      a Critical Hit against the wearer becomes a normal hit (Adamantine Armor)
   "acVsRanged": 2                                         added to Armor Class against ranged attacks only (Arrow-Catching Shield)
   "critExtraDice": "1d8"                                  dice added to the damage of a Critical Hit with a weapon or Unarmed Strike
-  "attunementMax": 1                                      the character can be attuned to that many more magic items than 3
+  "itemSlots": { "Attunement": 1 }                        more item slots of that kind (Attunement, or a kind from "slotTypes"): the character can be attuned to one more item
   "passives": { ... }                                     standing combat rules, below
 
 passives the Combat Resolver applies:
@@ -707,6 +712,14 @@ New classes often work in ways the built-in ones do not. Do not drop a mechanic 
 4. Scaling: anything that grows with level is a list of 20 values or a formula with LEVEL.
 5. Text: what is left goes in "text" and in an effect's "note". It is never lost: every feature appears on the character sheet's Features & Traits tab with its name, level and text, every spell appears on the Spells tab and can be cast (it spends its slot or points and posts its text for the table to resolve), and any feature can be shown to the table from the sheet.
 Say in "warnings" (a list of plain sentences at the top level of the file) what you could not automate and how you approximated it, so the person knows what to rule by hand.
+
+WHEN THE APP ITSELF WOULD HAVE TO CHANGE. Some rules change how the app works rather than a character's numbers: a new kind of rest, a new thing every character counts, a new step in an attack. Do it the same way every time:
+1. Look for a key in this prompt that does it, even partly. If one exists, use it. Never invent a key: the app ignores keys it does not know.
+2. If none does, build what you can with steps 1 to 5 above.
+3. Then add one entry to "requests", a list at the top level of the file, for each rule the app would have to change to do it fully:
+"requests": [ { "rule": "Grave Ink", "need": "a third kind of item slot whose number equals the Constitution modifier", "where": "builder", "source": "The Ink Codex, page 12" } ]
+  rule: the feature or rule's name. need: what the app would have to do, in one sentence, in plain words. where: "builder" (the character sheet), "resolver" (combat, rests, time) or "both". source: where the rule is.
+The builder lists these requests when the pack is installed, so the person can pass them on to whoever maintains the app. Do not put the same thing in both "warnings" and "requests": a rule you approximated is a warning, a rule the app needs to learn is a request.
 
 ---------------------------------------------------------------------
 CHECK YOUR WORK BEFORE YOU ANSWER
@@ -1155,6 +1168,9 @@ const allSkillProfsOf = (info) => ALL_SKILLS.filter(k => info.source[k]);
 // character's own sheet, already worked out from that character's numbers.
 const PACKS_KEY = "hba-content-packs";
 const PACK_ABILITIES = [];
+// Kinds of item slots. Attunement is the built-in one; a Content Pack can add more ("slotTypes") or change Attunement's number. An item that needs a slot works only while it is in one.
+const SLOT_TYPES = [{ name: "Attunement", max: 3, verb: "Attune", on: "Attuned" }];
+const slotOf = (i) => (i && (i.slot || (i.attunement ? "Attunement" : ""))) || "";
 const PACK_SPELLS = [];
 const CONDITION_NAMES = ["Blinded","Charmed","Deafened","Frightened","Grappled","Incapacitated","Invisible","Paralyzed","Petrified","Poisoned","Prone","Restrained","Stunned","Unconscious"];
 const RESIST_TYPES = ["Acid","Bludgeoning","Cold","Fire","Lightning","Necrotic","Piercing","Poison","Radiant","Slashing","Thunder"];
@@ -1456,6 +1472,7 @@ function checkPack(raw) {
     return { pack: null, errors: ['This is not a Content Pack file. A pack starts with "format": "homebrew-academy-content".'], warnings, counts: {} };
   }
   pArr(raw.warnings).slice(0, 30).forEach((w) => { const t = pStr(w, 400).trim(); if (t) warnings.push(`Note from whoever made the pack: ${t}`); }); // what its author could not automate
+  pArr(raw.requests).slice(0, 30).forEach((r) => { const o = pObj(r), need = pStr(o.need, 300).trim(); if (need) warnings.push(`The app would need to change for ${pStr(o.rule, 80).trim() || "a rule"} (${pStr(o.where, 20) || "builder"}): ${need}${pStr(o.source, 120).trim() ? ` [${pStr(o.source, 120).trim()}]` : ""}`); }); // rules the app does not know yet
   const pack = { format: "homebrew-academy-content", version: 1, name: pStr(raw.name, 60).trim() || "Unnamed pack", author: pStr(raw.author, 60),
     classes: {}, subclasses: {}, species: {}, backgrounds: {}, feats: {}, spells: [], items: [], abilities: [] };
   const levels = (o, where) => {
@@ -1550,11 +1567,15 @@ function checkPack(raw) {
       castingTime: pStr(sp.castingTime, 60), range: pStr(sp.range, 60), duration: pStr(sp.duration, 60), concentration: !!sp.concentration, ritual: !!sp.ritual, text: pStr(sp.text, 4000), higherLevels: pStr(sp.higherLevels, 1500),
       components: (pStr(sp.components, 10).toUpperCase().match(/[VSM]/g) || []).filter((x, i, a) => a.indexOf(x) === i).join(""), material: pStr(sp.material, 240), record: packRecord(sp.record, 12000), extras: packRecord(sp.extras, 12000) });
   });
+  pArr(raw.slotTypes).slice(0, 10).forEach((t) => { const name = pStr(pObj(t).name, 30).trim(); if (!name) return; const max = parseInt(t.max, 10);
+    if (!(max >= 0 && max <= 12)) { warnings.push(`Slot type ${name}: max must be a number from 0 to 12. It was set to 1.`); }
+    (pack.slotTypes = pack.slotTypes || []).push({ name, max: max >= 0 && max <= 12 ? max : 1, verb: pStr(t.verb, 20).trim() || "Use", on: pStr(t.on, 20).trim() || "In use" }); });
   pArr(raw.items).slice(0, 600).forEach((it) => {
     const name = pStr(pObj(it).name, 80).trim(); if (!name) return;
     let rarity = pStr(it.rarity, 20);
     if (!RARITY_ORDER.includes(rarity)) { warnings.push(`Item ${name}: rarity "${rarity}" is not one of ${RARITY_ORDER.join(", ")}. It was set to Common.`); rarity = "Common"; }
-    pack.items.push({ name, rarity, type: pStr(it.type, 60) || "Wondrous Item", attunement: !!it.attunement, description: pStr(it.description, 3000), ...(parseInt(it.bonus, 10) > 0 ? { bonus: Math.min(5, parseInt(it.bonus, 10)) } : {}) });
+    const slot = pStr(it.slot, 30).trim(); if (slot && slot !== "Attunement" && !pArr(raw.slotTypes).some(t => pStr(pObj(t).name, 30).trim() === slot) && !SLOT_TYPES.some(t => t.name === slot)) warnings.push(`Item ${name}: slot "${slot}" is not in this pack's slotTypes.`);
+    pack.items.push({ name, rarity, type: pStr(it.type, 60) || "Wondrous Item", attunement: !!it.attunement || slot === "Attunement", ...(slot && slot !== "Attunement" ? { slot } : {}), description: pStr(it.description, 3000), ...(parseInt(it.bonus, 10) > 0 ? { bonus: Math.min(5, parseInt(it.bonus, 10)) } : {}) });
   });
   // Abilities are test-run at level 1 and level 20 with ordinary numbers, so a bad formula is caught now.
   const probe = (LEVEL) => ({ STR: 3, DEX: 3, CON: 3, INT: 3, WIS: 3, CHA: 3, PROF: LEVEL >= 17 ? 6 : 2, LEVEL, SPELLMOD: 3, SPELLDC: 13, SPELLATK: 5 });
@@ -1576,7 +1597,7 @@ function checkPack(raw) {
     pack.abilities.push(ab);
   });
   const counts = { classes: Object.keys(pack.classes).length, subclasses: Object.values(pack.subclasses).reduce((t, o) => t + Object.keys(o).length, 0) + Object.values(pack.classes).reduce((t, c) => t + Object.keys(c.subclasses).length, 0),
-    species: Object.keys(pack.species).length, backgrounds: Object.keys(pack.backgrounds).length, feats: Object.keys(pack.feats).length, spells: pack.spells.length, items: pack.items.length, abilities: pack.abilities.length };
+    species: Object.keys(pack.species).length, backgrounds: Object.keys(pack.backgrounds).length, feats: Object.keys(pack.feats).length, spells: pack.spells.length, items: pack.items.length, abilities: pack.abilities.length, "slot kinds": (pack.slotTypes || []).length };
   if (!Object.values(counts).some(Boolean)) errors.push("Nothing usable was found in this file.");
   return { pack, errors, warnings, counts };
 }
@@ -1596,6 +1617,7 @@ function mergePack(pack) {
   pack.spells.forEach((sp) => { const k = PACK_SPELLS.findIndex((x) => x.name === sp.name); if (k >= 0) PACK_SPELLS[k] = sp; else PACK_SPELLS.push(sp); });
   pack.spells.forEach((sp) => registerSpell({ n: sp.name, l: sp.level, s: sp.school || "", c: sp.classes || [], t: sp.castingTime || "", r: sp.range || "", k: sp.components || "", mat: sp.material || "", d: sp.duration || "", x: sp.text || "", ...(sp.higherLevels ? { h: sp.higherLevels } : {}), conc: sp.concentration ? 1 : 0, rit: sp.ritual ? 1 : 0, pack: true, ...(sp.record ? { f: sp.record, e: sp.extras || {} } : {}) }));
   pack.abilities.forEach((ab) => PACK_ABILITIES.push(ab));
+  (pack.slotTypes || []).forEach((t) => { const k = SLOT_TYPES.findIndex((x) => x.name === t.name); if (k >= 0) SLOT_TYPES[k] = { ...SLOT_TYPES[k], ...t }; else SLOT_TYPES.push(t); });
 }
 function storedPacks() { try { const a = JSON.parse(lsGet(PACKS_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 // Every pack belongs to a batch. "Homebrew" is always there. A batch can be switched off without removing it.
@@ -2242,7 +2264,7 @@ function CharacterSheet() {
   // Every feature, trait and pack ability this character has, with level changes and choices applied.
   const mech = useMemo(() => activeMechanics({ className, subclassName, level, species, lineage, background, featureChoices,
     spells: [...spells.filter(Boolean), ...featSpells], feats: Array.from(new Set(takenFeats.flatMap(f => [f.name, f.base]))),
-    items: characterItems.filter(i => i && i.name && (!i.attunement || i.attuned)).map(i => i.name) }), // an item that needs Attunement works only while attuned
+    items: characterItems.filter(i => i && i.name && (!slotOf(i) || i.attuned)).map(i => i.name) }), // an item that needs Attunement (or another slot) works only while in it
     [className, subclassName, level, species, lineage, background, featureChoices, spells, featSpells, takenFeats, pinnedItems, characterItems]);
   const featureScores = useMemo(() => {
     const out = {};
@@ -2598,6 +2620,9 @@ function CharacterSheet() {
   const knownTools = [...classTools.map(t => ({ name: t, source: "Class" })), bgEff && bgEff.tool ? { name: bgEff.tool, source: "Background" } : null, ...featSkills.tools.map(t => ({ name: t.tool, source: t.source }))].filter(Boolean);
   // Inventory: everything the character carries. Important Items: the ones marked to show on the Identity tab.
   const sameItem = (it) => (p) => p.name === it.name;
+  // How many items of one slot kind the character can have working: the slot type's own number, what features add ("itemSlots"), and the player's adjustment
+  const slotMaxOf = (n) => { const t = SLOT_TYPES.find(x => x.name === n) || { max: 0 };
+    return Math.max(0, t.max + mech.entries.reduce((sum, e) => { const st = pObj(e.statics); return sum + (parseInt(pObj(st.itemSlots)[n], 10) || 0) + (n === "Attunement" ? parseInt(st.attunementMax, 10) || 0 : 0); }, 0) + ((n === "Attunement" ? statAdj.attune : (statAdj.slots || {})[n]) || 0)); };
   const inv = {
     items: characterItems,
     has: (it) => characterItems.some(sameItem(it)),
@@ -2616,8 +2641,13 @@ function CharacterSheet() {
       const w = WEAPONS.find(x => gearNorm(x.name) === gearNorm(it.name)); return !!w && masteries.includes(w.name);
     },
     setKind: (it, kind) => { const put = (prev) => prev.map(p => p.name === it.name ? { ...p, kind } : p); setCharacterItems(put); setPinnedItems(put); },
-    attunedCount: characterItems.filter(p => p && p.attuned).length,
-    attuneMax: 3 + mech.entries.reduce((n, e) => n + (parseInt(pObj(e.statics).attunementMax, 10) || 0), 0), // more for a feature that raises it
+    attunedCount: characterItems.filter(p => p && p.attuned && slotOf(p) === "Attunement").length,
+    attuneMax: slotMaxOf("Attunement"), // more for a feature that raises it, or by hand
+    slotCount: (n) => characterItems.filter(p => p && p.attuned && slotOf(p) === n).length, slotMax: slotMaxOf,
+    slotTypes: SLOT_TYPES.filter(t => t.name === "Attunement" || slotMaxOf(t.name) > 0 || characterItems.some(p => slotOf(p) === t.name)),
+    slotAdj: (n) => (n === "Attunement" ? statAdj.attune : (statAdj.slots || {})[n]) || 0,
+    setSlotAdj: (n, v) => setStatAdj(prev => n === "Attunement" ? { ...prev, attune: v } : { ...prev, slots: { ...(prev.slots || {}), [n]: v } }),
+    attuneAdj: statAdj.attune || 0, setAttuneAdj: (n) => setStatAdj(prev => ({ ...prev, attune: n })),
     setAttuned: (it, on) => { const put = (prev) => prev.map(p => p.name === it.name ? { ...p, attuned: !!on } : p); setCharacterItems(put); setPinnedItems(put); },
   };
 
@@ -2640,12 +2670,18 @@ function CharacterSheet() {
       rules: 1, // this sheet carries its own attacks, features and spells, so the Resolver adds no placeholders
       actions: [...sheetActions, ...takenFeats.flatMap(f => (f.def && f.def.actions) || []), ...spellActions],
       pools,
+      armorOptions: (() => { // what Armor Class each carried armor gives, so the Combat Resolver can put armor on and take it off
+        const names = Array.from(new Set([...characterItems.filter(i => i && !i.rarity && ARMOR.some(a => a.name === i.name)).map(i => i.name), ...characterItems.filter(i => i && i.rarity).flatMap(magicGearLabels).filter(g => g.kind === "armor").map(g => g.label), armor].filter(Boolean)));
+        const TIMES = { Light: [60, 60], Medium: [300, 60], Heavy: [600, 300] }; // Putting on and taking off, 2024 rules
+        return ["", ...names].map(n => { const a = n ? armorOf(n) : null; if (n && !a) return null; const v = armorClassOf(derived, { ...gear, armor: a }, finalMods.Dexterity).value + (takenFeats.some(f => f.base === "Defense") && a ? 1 : 0) + (statAdj.ac || 0);
+          return { name: n, ac: v, cat: a ? a.cat : "", don: a ? (TIMES[a.cat] || [60, 60])[0] : 0, doff: a ? (TIMES[a.cat] || [60, 60])[1] : 0 }; }).filter(Boolean); })(),
       why: (() => { const w = { ...derived.why }; const dx = finalMods.Dexterity;
         w.ac = [[ac.how.split(" + ")[0], ac.value - derived.acBonus - (gear.shield ? 2 + (gear.shieldBonus || 0) : 0)], ...(gear.shield ? [[gear.shieldName || "Shield", 2 + (gear.shieldBonus || 0)]] : []), ...derived.why.ac, ...(takenFeats.some(f => f.base === "Defense") && gear.armor ? [["Defense", 1]] : []), ...(statAdj.ac ? [["Your adjustment", statAdj.ac]] : [])];
         w.speed = [[derived.speedBase ? "Speed set by a feature" : `${species || "Species"} Speed`, derived.speedBase || (SPECIES[species] ? SPECIES[species].speed : 30)], ...derived.why.speed, ...(statAdj.speed ? [["Your adjustment", statAdj.speed]] : [])];
         w.initiative = [["Dexterity", dx], ...(takenFeats.some(f => f.def && f.def.initiativeProf) ? [["Alert", profBonus]] : []), ...derived.why.initiative, ...(statAdj.initiative ? [["Your adjustment", statAdj.initiative]] : [])];
         return w; })(),
-      attuneMax: 3 + mech.entries.reduce((n, e) => n + (parseInt(pObj(e.statics).attunementMax, 10) || 0), 0),
+      attuneMax: slotMaxOf("Attunement"),
+      slots: inv.slotTypes.map(t => ({ name: t.name, on: t.on, max: slotMaxOf(t.name) })),
       resist: Array.from(new Set(derived.resist)),
       immune: Array.from(new Set(derived.immune)),
       moves: Array.from(new Set(derived.moves)),
@@ -2750,7 +2786,7 @@ function CharacterSheet() {
     setSkillProfs(arr(s.skillProfs).filter(k => ALL_SKILLS.includes(k)));
     setSkillExpertise(arr(s.skillExpertise).filter(k => ALL_SKILLS.includes(k)));
     setHpDelta(Math.max(-2000, Math.min(2000, parseInt(s.hpDelta, 10) || 0)));
-    const sa = {}; ["ac", "initiative", "speed"].forEach(k => { const n = parseInt((s.statAdj || {})[k]); if (n && n >= -200 && n <= 200) sa[k] = n; });
+    const sa = {}; ["ac", "initiative", "speed", "attune"].forEach(k => { const n = parseInt((s.statAdj || {})[k]); if (n && n >= -200 && n <= 200) sa[k] = n; });
     setStatAdj(sa);
     setLineage(String(s.lineage || ""));
     setArmor(armorOf(s.armor) ? s.armor : "");
@@ -4622,6 +4658,12 @@ function InventoryTab({ inv, prof, magic, mundane, components, setComponents, sp
         <h3 data-testid="inventory-fold" onClick={() => setFolded(!folded)} style={{ fontFamily: fontDisplay, color: colors.brassLight, fontSize: 16, letterSpacing: "0.04em", textTransform: "uppercase", borderBottom: `1px solid ${colors.brass}55`, paddingBottom: 8, marginBottom: 14, cursor: "pointer" }}>{folded ? "▸" : "▾"} Your Inventory ({inv.items.length})</h3>
         {!folded && (<>
         {inv.items.length === 0 && <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 10 }}>Nothing yet. Add items from the lists below.</div>}
+        {inv.slotTypes.map(t => (
+        <div key={t.name} data-testid={t.name === "Attunement" ? "attune-slots" : `slots-${t.name}`} style={{ fontSize: 13, margin: "0 0 8px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span>{t.name === "Attunement" ? "Attuned to" : `${t.on}:`} <strong>{inv.slotCount(t.name)}</strong> of <strong>{inv.slotMax(t.name)}</strong>{t.name === "Attunement" ? " items" : ` (${t.name})`}.</span>
+          <span style={{ opacity: 0.75 }} title={`Change how many ${t.name === "Attunement" ? "items you can be attuned to" : t.name + " slots you have"}, on top of what your features give (for a homebrew rule or a feature the app does not know)`}>Adjust by hand:</span>
+          <input type="number" aria-label={t.name === "Attunement" ? "Attunement adjustment" : `${t.name} adjustment`} data-testid={t.name === "Attunement" ? "attune-adj" : `slot-adj-${t.name}`} value={inv.slotAdj(t.name)} onChange={e => inv.setSlotAdj(t.name, parseInt(e.target.value, 10) || 0)} style={{ width: 56, background: colors.ink, color: colors.parchment, border: `1px solid ${colors.brass}66`, borderRadius: 4, padding: "2px 6px" }} />
+        </div>))}
         <div data-testid="inventory-list">
           {groups.map(([g, items]) => (
             <div key={g} data-testid={`inv-group-${g}`} style={{ border: `1px solid ${colors.brass}33`, borderRadius: 8, marginBottom: 8, background: colors.inkLight }}>
@@ -4647,6 +4689,9 @@ function InventoryTab({ inv, prof, magic, mundane, components, setComponents, sp
                     {item.attunement && <button data-testid={`attune-${item.name}`} aria-pressed={!!item.attuned} disabled={!item.attuned && inv.attunedCount >= inv.attuneMax}
                       title={item.attuned ? "Attuned: its magic works. Click to end the Attunement." : inv.attunedCount >= inv.attuneMax ? `You are already attuned to ${inv.attuneMax} items, the most you can be` : "Needs Attunement (a Short Rest with the item). Click when you are attuned."}
                       onClick={() => inv.setAttuned(item, !item.attuned)} style={{ background: item.attuned ? colors.brass : "transparent", color: item.attuned ? colors.ink : colors.parchment + "aa", border: `1px solid ${colors.brass}88`, borderRadius: 10, fontSize: 11, padding: "1px 7px", cursor: "pointer" }}>{item.attuned ? "Attuned" : "Attune"}</button>}
+                    {item.slot && (() => { const t = SLOT_TYPES.find(x => x.name === item.slot) || { name: item.slot, verb: "Use", on: "In use" }, full = inv.slotCount(t.name) >= inv.slotMax(t.name); return <button data-testid={`slot-${item.name}`} aria-pressed={!!item.attuned} disabled={!item.attuned && full}
+                      title={item.attuned ? `${t.on}: its magic works. Click to take it out of its ${t.name} slot.` : full ? `All ${inv.slotMax(t.name)} of your ${t.name} slots are in use` : `Needs a ${t.name} slot to work. Click to put it in one.`}
+                      onClick={() => inv.setAttuned(item, !item.attuned)} style={{ background: item.attuned ? colors.brass : "transparent", color: item.attuned ? colors.ink : colors.parchment + "aa", border: `1px solid ${colors.brass}88`, borderRadius: 10, fontSize: 11, padding: "1px 7px", cursor: "pointer" }}>{item.attuned ? t.on : t.verb}</button>; })()}
                     <ItemControls item={item} inv={inv} colors={colors} small />
                   </div>
                   {openItem === item.name && <div style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.85, margin: "6px 0 4px 16px" }}>{item.type ? <em>{item.type}{item.attunement ? ", requires Attunement" : ""}. </em> : null}{item.description || "No description."}</div>}
