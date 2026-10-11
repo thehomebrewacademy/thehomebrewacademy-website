@@ -263,6 +263,11 @@
     .rest-panel { border: 1px solid rgba(201,162,75,0.4); border-radius: 8px; padding: 10px; margin: 6px 0 10px; }
     .rest-title { text-align: center; color: var(--brass-light); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 13px; }
     .cal-ed { border: 1px dashed rgba(201,162,75,0.4); border-radius: 6px; padding: 6px; margin: 4px 0; display: grid; gap: 4px; }
+    .boon-box { border: 1px solid var(--brass); border-radius: 8px; padding: 8px 10px; margin: 8px 0; background: rgba(201,162,75,0.08); }
+    .boon-item + .boon-item { border-top: 1px solid rgba(201,162,75,0.3); margin-top: 6px; padding-top: 6px; }
+    .boon-name { color: var(--brass-light); font-weight: 600; letter-spacing: 0.03em; }
+    .boon-text { font-size: 13px; line-height: 1.45; margin: 2px 0 4px; }
+    .boon-ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
     .rest-clocks { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 6px 0; }
     .rest-who { display: flex; flex-direction: column; align-items: center; gap: 3px; }
     .rest-name { font-size: 13px; text-align: center; }
@@ -3576,6 +3581,14 @@ function sheetToFields(data) {
       };
     }),
     shield: !!data.shield,
+    boons: (Array.isArray(data.boons) ? data.boons : []).slice(0, 4).filter(function (b) {
+      return b && b.name;
+    }).map(function (b) {
+      return {
+        name: str(b.name, 60),
+        text: str(b.text, 600)
+      };
+    }),
     feats: list(data.feats, 40, 60),
     components: list(data.components, 80, 60),
     featureList: (Array.isArray(data.featureList) ? data.featureList : []).slice(0, 120).filter(function (f) {
@@ -8182,7 +8195,7 @@ function App() {
   };
 
   // A saving throw, rolled with the target's numbers as they stand when the button is pressed.
-  var resolveSave = function resolveSave(action, actorNameRaw, actor, tgt, ruled, keep) {
+  var resolveSave = function resolveSave(action, actorNameRaw, actor, tgt, ruled, keep, rulingBy) {
     var _tgt$saves$saveAbilit, _tgt$saves, _tgt$scores$saveAbili, _tgt$scores;
     var actorName = esc(actorNameRaw),
       targetName = esc(tgt.name);
@@ -8229,8 +8242,13 @@ function App() {
     var extras = [t.bonusText, inspired && inspired.text].filter(Boolean).join(', ');
     return {
       roll: roll,
+      d20: t.autoFail ? null : {
+        tot: saveTotal,
+        vs: action.dc,
+        k: 'save'
+      },
       type: passed ? 'save-pass' : 'save-fail',
-      html: "<strong>".concat(actorName, "</strong> \u2192 <strong>").concat(targetName, "</strong><br/>\n            <span class=\"log-result\">").concat(esc(action.name), "</span><br/>\n            DC ").concat(action.dc, " ").concat(esc(saveAbility), " save \xB7 ").concat(t.autoFail ? "<strong style=\"color:var(--danger)\">Fails automatically (".concat(esc(t.autoFail), ")</strong>") : "".concat(sec("Roll: ".concat(rollsTxt(roll), " ").concat(signed(saveMod)).concat(extras ? " (".concat(extras, ")") : '', " = <strong>").concat(saveTotal, "</strong> \xB7 ")), "<strong style=\"color:").concat(passed ? 'var(--success)' : 'var(--danger)', "\">").concat(passed ? 'Saved!' : 'Failed!', "</strong>"), "\n            ").concat(modeText(t) && !t.autoFail ? "<div class=\"log-detail\">".concat(modeText(t), "</div>") : '', "\n            ").concat(ruled ? "<div class=\"log-detail\" style=\"color:#fff176\">The DM ruled that it ".concat(ruled === 'pass' ? 'succeeds' : 'fails', ".</div>") : '', "\n            ").concat(dmgHtml).concat(condHtml, "\n            ").concat(action.desc ? "<div class=\"log-detail\">".concat(esc(action.desc), "</div>") : '')
+      html: "<strong>".concat(actorName, "</strong> \u2192 <strong>").concat(targetName, "</strong><br/>\n            <span class=\"log-result\">").concat(esc(action.name), "</span><br/>\n            DC ").concat(action.dc, " ").concat(esc(saveAbility), " save \xB7 ").concat(t.autoFail ? "<strong style=\"color:var(--danger)\">Fails automatically (".concat(esc(t.autoFail), ")</strong>") : "".concat(sec("Roll: ".concat(rollsTxt(roll), " ").concat(signed(saveMod)).concat(extras ? " (".concat(extras, ")") : '', " = <strong>").concat(saveTotal, "</strong> \xB7 ")), "<strong style=\"color:").concat(passed ? 'var(--success)' : 'var(--danger)', "\">").concat(passed ? 'Saved!' : 'Failed!', "</strong>"), "\n            ").concat(modeText(t) && !t.autoFail ? "<div class=\"log-detail\">".concat(modeText(t), "</div>") : '', "\n            ").concat(ruled ? "<div class=\"log-detail\" style=\"color:#fff176\">".concat(rulingBy ? esc(rulingBy) : 'The DM ruled', " that it ").concat(ruled === 'pass' ? 'succeeds' : 'fails', ".</div>") : '', "\n            ").concat(dmgHtml).concat(condHtml, "\n            ").concat(action.desc ? "<div class=\"log-detail\">".concat(esc(action.desc), "</div>") : '')
     };
   };
 
@@ -8343,9 +8361,12 @@ function App() {
     return isDM && e && e.ov && !e["void"] && round - (+e.ov.r || 0) <= 1;
   };
   // The DM reverses a result that is still in the Combat Log: what it did is undone, then it is resolved the other way with the same roll.
-  var overrideEntry = function overrideEntry(e) {
-    if (!canOverride(e)) return;
-    var ov = e.ov;
+  var overrideEntry = function overrideEntry(e, why, newTot) {
+    if (!why && !canOverride(e)) return;
+    var ov = why ? _objectSpread(_objectSpread({}, e.ov), {}, {
+      why: why,
+      newTot: newTot
+    }) : e.ov;
     if (room && db) db.ref('rooms/' + room + '/log/' + e.id + '/void').set(true);
     setLogRaw(function (prev) {
       return prev.map(function (x) {
@@ -8357,8 +8378,10 @@ function App() {
     undoDelta(ov.d);
     if (ov.k === 'atk') resolve(_objectSpread(_objectSpread({}, ov.ctx), {}, {
       replay: true,
-      force: ov.hit ? 'miss' : 'hit'
+      force: ov.hit ? 'miss' : 'hit',
+      forceWhy: why || ''
     }));else {
+      var _ov$newTot;
       var tgt = combatants.find(function (c) {
         return c.id === ov.q.targetId;
       });
@@ -8368,11 +8391,15 @@ function App() {
         }) || null,
         ruled = ov.passed ? 'fail' : 'pass';
       var tr = track(function () {
-        return resolveSave(ov.q.action, ov.q.actorName || 'Someone', actor, tgt, ruled, ov.roll);
+        return resolveSave(ov.q.action, ov.q.actorName || 'Someone', actor, tgt, ruled, ov.roll, why);
       });
       var _tr$res = tr.res,
         roll = _tr$res.roll,
         _rest3 = _objectWithoutProperties(_tr$res, _excluded5);
+      if (!_rest3.d20) delete _rest3.d20;
+      if (ov.why && _rest3.d20) _rest3.d20 = _objectSpread(_objectSpread({}, _rest3.d20), {}, {
+        tot: (_ov$newTot = ov.newTot) !== null && _ov$newTot !== void 0 ? _ov$newTot : _rest3.d20.tot
+      });
       setLog(function (prev) {
         return [].concat(_toConsumableArray(prev), [stamp(_objectSpread(_objectSpread(_objectSpread({}, _rest3), concFail(ov.q.action, _rest3, tgt)), {}, {
           forId: tgt.id,
@@ -8425,6 +8452,7 @@ function App() {
       var _tr$res2 = tr.res,
         svRoll = _tr$res2.roll,
         svRest = _objectWithoutProperties(_tr$res2, _excluded6);
+      if (!svRest.d20) delete svRest.d20;
       offerReactions('damage', tr.d.filter(function (d) {
         return d.hp < 0 && d.id !== q.actorId;
       }).map(function (d) {
@@ -9809,6 +9837,14 @@ function App() {
               html: "<strong>".concat(esc(active.name), "</strong> \xB7 Free Casting<br/><span class=\"log-result\">\uD83C\uDFB2 d4: ").concat(fr, "</span> ").concat(fr === lvl ? "the Level ".concat(lvl, " slot is not spent") : "the Level ".concat(lvl, " slot is spent"))
             })]);
           });
+          if (fc && fr === lvl) setNotices(function (prev) {
+            return [].concat(_toConsumableArray(prev), [{
+              id: newId(),
+              title: 'Free Casting',
+              name: active.name,
+              html: "<strong>".concat(esc(active.name), "</strong> rolled a <strong>").concat(fr, "</strong> on the d4 for Free Casting, the same as the slot's level, so the Level ").concat(lvl, " spell slot used for ").concat(esc(String(action.name).replace(/ \(Level \d slot\)$/, '')), " is not spent. You still have it.")
+            }]);
+          });
           if (fr !== lvl) setCombatants(function (prev) {
             return prev.map(function (c) {
               return c.id !== active.id ? c : _objectSpread(_objectSpread({}, c), {}, {
@@ -10201,7 +10237,7 @@ function App() {
           var hit = nat20 || !nat1 && total >= targetAC;
           if (forced === 'hit') {
             hit = true;
-            featNotes.push('The DM ruled that it hits');
+            featNotes.push(re && re.forceWhy ? "".concat(re.forceWhy, ": it hits") : 'The DM ruled that it hits');
           }
           if (!hit && feat.prowess && !active.prowessUsed && target && (!canControl(active) || window.confirm("".concat(active.name, " missed ").concat(target.name, ". Use Peerless Aim to hit instead? It comes back at the start of ").concat(active.name, "'s next turn.")))) {
             // Boon of Combat Prowess: a miss becomes a hit, once until its next turn
@@ -10248,7 +10284,7 @@ function App() {
           }
           if (forced === 'miss') {
             hit = false;
-            featNotes.push('The DM ruled that it misses');
+            featNotes.push(re && re.forceWhy ? "".concat(re.forceWhy, ": it misses") : 'The DM ruled that it misses');
           }
           var autoCrit = hit && !action.ranged && target && ['Paralyzed', 'Unconscious'].find(function (n) {
             return hasCond(target, n);
@@ -10270,7 +10306,9 @@ function App() {
             hit: hit,
             crit: hit && isCrit,
             total: total,
-            roll: roll
+            roll: roll,
+            vs: targetAC,
+            nat: nat20 ? 20 : nat1 ? 1 : 0
           };
           if (hit && !action.ranged && (action.weapon || action.unarmed)) setCombatants(function (prev) {
             return prev.map(function (c) {
@@ -10969,7 +11007,13 @@ function App() {
               sneak: sneakNow,
               roll: stepInfo.roll
             }
-          })
+          }),
+          d20: {
+            tot: stepInfo.total,
+            vs: stepInfo.vs,
+            nat: stepInfo.nat,
+            k: 'atk'
+          }
         });
         var _gone3 = prompts.filter(function (q) {
           return q.kind === 'incoming' && q.by === myId;
@@ -11086,10 +11130,17 @@ function App() {
     }
     if (dc) body += "<div class=\"log-detail\">".concat(why ? esc(why) + ' · ' : '', "DC ").concat(+dc, " \xB7 <strong style=\"color:").concat(total != null && total >= +dc ? 'var(--success)' : 'var(--danger)', "\">").concat(total != null && total >= +dc ? 'Success' : 'Failure', "</strong></div>");
     setLog(function (prev) {
-      return [].concat(_toConsumableArray(prev), [stamp({
-        type: dc ? total != null && total >= +dc ? 'save-pass' : 'save-fail' : 'roll',
+      return [].concat(_toConsumableArray(prev), [stamp(_objectSpread(_objectSpread({
+        type: dc ? total != null && total >= +dc ? 'save-pass' : 'save-fail' : 'roll'
+      }, total != null ? {
+        d20: {
+          tot: total,
+          vs: dc ? +dc : 0,
+          k: kind
+        }
+      } : {}), {}, {
         html: "<strong>".concat(esc(c.name), "</strong> \xB7 ").concat(esc(label), "<br/>").concat(body)
-      })]);
+      }))]);
     });
     return total;
   };
@@ -13874,12 +13925,28 @@ function App() {
     swapTo = _useState286[0],
     setSwapTo = _useState286[1]; // Alert's Initiative Swap: {characterId: allyId}
   var INCAP = ['Incapacitated', 'Paralyzed', 'Petrified', 'Stunned', 'Unconscious'];
-  var useFate = function useFate(c, entry, sign) {
-    if (!c || c.fateUsed) return;
+  var lastD20 = function lastD20() {
+    for (var i = log.length - 1; i >= 0; i--) {
+      var e = log[i];
+      if (e && e.d20 && !e["void"] && !e.sys && !(e.dmOnly && !isDM)) return e;
+    }
+    return null;
+  };
+  var useFate = function useFate(c, sign) {
+    var entry = lastD20();
+    if (!c || c.fateUsed || !entry) return;
     var dice = (c.passives || {}).improveFate || '2d4',
       r = parseDamage(dice),
       n = sign * r.total,
-      what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').trim().slice(0, 90);
+      d = entry.d20,
+      newTot = d.tot + n;
+    var what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
+    var was = d.vs ? d.k === 'atk' ? d.nat === 20 || d.nat !== 1 && d.tot >= d.vs : d.tot >= d.vs : null,
+      now = d.vs ? d.k === 'atk' ? d.nat === 20 || d.nat !== 1 && newTot >= d.vs : newTot >= d.vs : null;
+    var flips = was !== null && was !== now,
+      word = function word(ok) {
+        return d.k === 'atk' ? ok ? 'a hit' : 'a miss' : ok ? 'a success' : 'a failure';
+      };
     setCombatants(function (prev) {
       return prev.map(function (x) {
         return x.id === c.id ? _objectSpread(_objectSpread({}, x), {}, {
@@ -13891,11 +13958,13 @@ function App() {
       return [].concat(_toConsumableArray(prev), [stamp({
         type: 'roll',
         forId: c.id,
-        html: "<strong>".concat(esc(c.name), "</strong> \xB7 Improve Fate on: ").concat(esc(what), "<br/><span class=\"log-result\">").concat(n >= 0 ? '+' : '').concat(n, "</span> to that d20 roll (").concat(esc(dice), ": ").concat(esc(r.parts.join(' + ')), ")<div class=\"log-detail\">Usable again after rolling Initiative or a Short or Long Rest.</div>")
+        html: "<strong>".concat(esc(c.name), "</strong> \xB7 Improve Fate on: ").concat(esc(what), "<br/><span class=\"log-result\">").concat(d.tot, " \u2192 ").concat(newTot, "</span> (").concat(n >= 0 ? '+' : '').concat(n, ": ").concat(esc(dice), " ").concat(esc(r.parts.join(' + ')), ")<div class=\"log-detail\">").concat(d.vs ? flips ? "It becomes ".concat(word(now), ".") : "Still ".concat(word(now), ".") : '', " Usable again after rolling Initiative or a Short or Long Rest.</div>")
       })]);
     });
-    if (!isDM) dmNote("".concat(c.name, " used Improve Fate: ").concat(n >= 0 ? '+' : '').concat(n, " on \"").concat(what, "\". If that changes the result, use \u270E on that entry."));
-    setFatePick(null);
+    if (flips && entry.ov) setTimeout(function () {
+      return overrideEntry(entry, "Improve Fate (".concat(c.name, ")"), newTot);
+    }, 300); // the result is undone and resolved the other way, with the same roll
+    else if (flips) dmNote("".concat(c.name, "'s Improve Fate makes \"").concat(what, "\" ").concat(word(now), ". Change what it did with \u270E on that entry."));else if (!isDM) dmNote("".concat(c.name, " used Improve Fate on \"").concat(what, "\": ").concat(d.tot, " \u2192 ").concat(newTot).concat(d.vs ? ", still ".concat(word(now)) : '', "."));
   };
   var askSwap = function askSwap(c, allyId) {
     var a = combatants.find(function (x) {
@@ -15174,7 +15243,59 @@ function App() {
           ci: '✋ Condition immune'
         }[k], ": ", v);
       }))) : null;
-    }(), /*#__PURE__*/React.createElement("div", {
+    }(), (sh.boons || []).length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "boon-box",
+      "data-testid": "boon-box"
+    }, sh.boons.map(function (b) {
+      var pz = c.passives || {},
+        le = pz.improveFate ? lastD20() : null;
+      return /*#__PURE__*/React.createElement("div", {
+        key: b.name,
+        className: "boon-item"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "boon-name"
+      }, "Epic Boon: ", b.name), /*#__PURE__*/React.createElement("div", {
+        className: "boon-text"
+      }, b.text), /Fate/.test(b.name) && pz.improveFate && /*#__PURE__*/React.createElement("div", {
+        className: "boon-ctl",
+        "data-testid": "boon-fate"
+      }, c.fateUsed ? /*#__PURE__*/React.createElement("span", {
+        className: "pp-muted"
+      }, "Used. It comes back when you roll Initiative or finish a Short or Long Rest.") : le ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+        className: "pp-muted"
+      }, "Last roll: ", String(le.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 70), " (", le.d20.tot, ")"), ctl && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+        className: "pp-chip on",
+        "data-testid": "fate-bonus",
+        onClick: function onClick() {
+          return useFate(c, 1);
+        }
+      }, "Apply +", pz.improveFate, " to the last roll"), /*#__PURE__*/React.createElement("button", {
+        className: "pp-chip",
+        "data-testid": "fate-penalty",
+        onClick: function onClick() {
+          return useFate(c, -1);
+        }
+      }, "Apply \u2212", pz.improveFate))) : /*#__PURE__*/React.createElement("span", {
+        className: "pp-muted"
+      }, "Ready. No d20 roll in the log yet.")), /Combat Prowess/.test(b.name) && pz.prowess && /*#__PURE__*/React.createElement("div", {
+        className: "boon-ctl",
+        "data-testid": "boon-prowess"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: c.prowessUsed ? 'pp-muted' : ''
+      }, c.prowessUsed ? 'Peerless Aim is used. It comes back at the start of your next turn.' : 'Peerless Aim is ready: when you miss, you are asked if you want to hit instead.')), /Spell Recall/.test(b.name) && pz.freeCasting && /*#__PURE__*/React.createElement("div", {
+        className: "boon-ctl"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "pp-muted"
+      }, "Automatic: the d4 is rolled each time you cast with a Level 1 to ", pz.freeCasting, " slot.")), /Irresistible/.test(b.name) && pz.irresistible ? /*#__PURE__*/React.createElement("div", {
+        className: "boon-ctl"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "pp-muted"
+      }, "Automatic: your attacks ignore that Resistance, and a 20 adds ", pz.irresistible, " damage.")) : null, /Dimensional Travel/.test(b.name) && pz.blinkSteps ? /*#__PURE__*/React.createElement("div", {
+        className: "boon-ctl"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "pp-muted"
+      }, "You are reminded after each Attack or Magic action.")) : null);
+    })), /*#__PURE__*/React.createElement("div", {
       className: "pp-line"
     }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Senses"), " ", effectiveSenses(c).join(', ') || 'None'), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Speeds"), " ", speedText(c), " \xA0 ", /*#__PURE__*/React.createElement("strong", null, "Long Jump"), " ", str, " ft. \xA0 ", /*#__PURE__*/React.createElement("strong", null, "High Jump"), " ", Math.max(0, 3 + mod(str)), " ft.")), combatStarted && function () {
       var turn = c.turn || {},
@@ -17316,7 +17437,7 @@ function App() {
         return setHdPick(null);
       }
     }, "Done")))));
-  }(), fatePick && function () {
+  }(), false && fatePick && function () {
     var c = combatants.find(function (x) {
       return x.id === fatePick.cId;
     });
@@ -20601,22 +20722,7 @@ function App() {
       onClick: function onClick() {
         return openChange(entry);
       }
-    }, "\u270E"), function () {
-      var f = !entry.sys && /Roll: \d|🎲 \d+\/\d+|Roll \d/.test(String(entry.html || '')) && i >= log.length - 8 && combatants.find(function (c) {
-        return canControl(c) && (c.passives || {}).improveFate && !c.fateUsed && (isDM ? c.owner === myId || !c.owner : c.owner === myId);
-      });
-      return f ? /*#__PURE__*/React.createElement("button", {
-        className: "log-star",
-        "data-testid": "log-fate",
-        title: "Improve Fate (".concat(f.name, "): roll ").concat(f.passives.improveFate, " and add it to this d20 roll or take it away"),
-        onClick: function onClick() {
-          return setFatePick({
-            entry: entry,
-            cId: f.id
-          });
-        }
-      }, "\u2726") : null;
-    }(), /*#__PURE__*/React.createElement("button", {
+    }, "\u270E"), /*#__PURE__*/React.createElement("button", {
       className: "log-star",
       "data-testid": "log-note",
       title: noteSaved === entry.id ? 'Saved to your Notes' : 'Save this to your Notes (under this fight)',

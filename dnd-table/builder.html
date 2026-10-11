@@ -7224,6 +7224,21 @@ function CharacterSheet() {
       shield: shield,
       weapons: weapons,
       masteries: masteries,
+      boons: takenFeats.filter(function (f) {
+        return f.def && f.def.category === "Epic Boon";
+      }).map(function (f) {
+        // shown in a box of its own on the sheet, unless all it gives is something to activate
+        var es = mech.entries.filter(function (e) {
+          return e.grantedBy && e.grantedBy.type === "feat" && (e.grantedBy.name === f.name || e.grantedBy.name === f.base);
+        });
+        if (es.length && es.every(function (e) {
+          return isActivated(e) && !e.statics;
+        })) return null;
+        return {
+          name: f.name,
+          text: String(f.def.text || "").replace(/^Ability Score Increase\.[^.]*\.\s*/, "").slice(0, 600)
+        };
+      }).filter(Boolean),
       passives: function () {
         var out = _objectSpread({}, derived.passives); // feats' passives come from their abilities in mechanics.js, like any feature
         if (out.overwhelmingStrike) {
