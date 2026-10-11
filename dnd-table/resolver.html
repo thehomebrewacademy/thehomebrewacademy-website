@@ -262,9 +262,23 @@
     .explain-text { margin-top: 8px; white-space: pre-wrap; line-height: 1.45; color: var(--text-light); font-size: 14px; }
     .rest-panel { border: 1px solid rgba(201,162,75,0.4); border-radius: 8px; padding: 10px; margin: 6px 0 10px; }
     .rest-title { text-align: center; color: var(--brass-light); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 13px; }
+    .cal-ed { border: 1px dashed rgba(201,162,75,0.4); border-radius: 6px; padding: 6px; margin: 4px 0; display: grid; gap: 4px; }
+    .rest-clocks { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 6px 0; }
+    .rest-who { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .rest-name { font-size: 13px; text-align: center; }
+    .rest-ring .rest-track { fill: none; stroke: rgba(255,255,255,0.1); stroke-width: 9; }
+    .rest-ring .rest-fill { fill: none; stroke: var(--brass-light); stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset 0.4s; }
+    .rest-ring .rest-tick { stroke: rgba(255,255,255,0.35); stroke-width: 2; }
+    .rest-ring .rest-time { fill: var(--text-light); font-variant-numeric: tabular-nums; }
+    .rest-ring .rest-sub { fill: #ff8a80; }
+    .rest-ring.over .rest-fill { stroke: #e05252; }
+    .rest-ring.over .rest-time { fill: #ff8a80; }
+    .hd-hp { margin-bottom: 8px; } .hd-hp .hp-bar-wrap { margin-top: 4px; }
+    .hd-roll { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
     .rest-clock { text-align: center; font-size: 40px; font-variant-numeric: tabular-nums; color: var(--text-light); line-height: 1.1; margin: 4px 0 2px; }
     .rest-act { font-size: 13px; padding: 2px 0; border-bottom: 1px dashed rgba(255,255,255,0.08); }
     .busy-row { grid-template-columns: 1fr auto auto auto; margin-top: 6px; }
+    .prompt-switch { display: inline-flex; gap: 3px; flex-wrap: wrap; margin-left: 4px; }
     .log-tabs button { background: none; border: 0; color: var(--text-muted); font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; padding: 0 8px 0 0; }
     .log-tabs button.on { color: var(--brass-light); }
     .change-row { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 6px 0; }
@@ -774,11 +788,24 @@ function sessionFromHash() { const m = /room=([A-Za-z0-9]+)/.exec(window.locatio
 // The DM's world tracker: the time of day, the weather, counters that change with time, and timers.
 const DAY = 86400, HOUR = 3600, DAWN = 6 * HOUR;
 const WEATHER_PRESETS = ['Clear', 'Cloudy', 'Light rain', 'Heavy rain', 'Fog', 'Snow', 'Thunderstorm', 'Strong wind', 'Extreme heat', 'Extreme cold'];
-function cleanRest(r) { // the party's rest in progress: what kind, how long it lasts, how much of it has been spent, and what each character did
+function cleanRest(r) { // the party's rest in progress: what kind, how long the DM set it to, and each character's own clock (what they have spent, and the length they set for themselves)
   if (!r || typeof r !== 'object' || !['short', 'long'].includes(r.kind)) return null;
-  const acts = (Array.isArray(r.acts) ? r.acts : r.acts && typeof r.acts === 'object' ? Object.values(r.acts) : []).filter(a => a && a.what).slice(-40).map(a => ({id: String(a.id || '').slice(0, 20), name: String(a.name || '').slice(0, 60), what: String(a.what).slice(0, 120), secs: Math.max(0, Math.min(86400 * 2, +a.secs || 0))}));
-  const used = Math.max(0, Math.min(86400 * 7, +r.used || 0));
-  return {kind: r.kind, len: Math.max(used, Math.min(86400 * 7, +r.len || 0)), used, acts};
+  const cl = v => Math.max(0, Math.min(86400 * 7, Math.round(+v || 0))), chars = {};
+  Object.entries(r.chars && typeof r.chars === 'object' ? r.chars : {}).slice(0, 40).forEach(([k, v]) => { if (!v || typeof v !== 'object') return;
+    chars[String(k).slice(0, 40)] = {used: cl(v.used), ...(v.len != null && v.len !== '' && Number.isFinite(+v.len) ? {len: cl(v.len)} : {}), ...(v.over ? {over: true} : {})}; });
+  return {kind: r.kind, len: cl(r.len) || (r.kind === 'long' ? 8 * 3600 : 3600), chars, ...(r.paused ? {paused: true} : {})};
+}
+// A round clock: the ring empties as the time is spent, and turns red once it runs out
+function RestRing({left, total, size = 120, label}) {
+  const r = size / 2 - 7, C = 2 * Math.PI * r, frac = total > 0 ? Math.max(0, Math.min(1, left / total)) : 0, over = left < 0, a = Math.abs(Math.round(left));
+  const txt = `${Math.floor(a / 3600)}:${String(Math.floor(a % 3600 / 60)).padStart(2, '0')}`;
+  return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={`rest-ring ${over ? 'over' : ''}`} data-testid="rest-ring" role="img" aria-label={`${label ? label + ': ' : ''}${over ? txt + ' over' : txt + ' left'}`}>
+    {Array.from({length: 12}, (_, i) => { const t = i / 12 * 2 * Math.PI, x1 = size / 2 + Math.sin(t) * (r + 4), y1 = size / 2 - Math.cos(t) * (r + 4), x2 = size / 2 + Math.sin(t) * (r + (i % 3 ? 1 : -1)), y2 = size / 2 - Math.cos(t) * (r + (i % 3 ? 1 : -1)); return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} className="rest-tick"/>; })}
+    <circle cx={size / 2} cy={size / 2} r={r - 6} className="rest-track"/>
+    <circle cx={size / 2} cy={size / 2} r={r - 6} className="rest-fill" strokeDasharray={2 * Math.PI * (r - 6)} strokeDashoffset={2 * Math.PI * (r - 6) * (1 - (over ? 1 : frac))} transform={`rotate(-90 ${size / 2} ${size / 2})`}/>
+    <text x="50%" y={over ? '47%' : '52%'} textAnchor="middle" dominantBaseline="middle" className="rest-time" style={{fontSize: size / 5}}>{over ? '-' : ''}{txt}</text>
+    {over && <text x="50%" y="66%" textAnchor="middle" className="rest-sub" style={{fontSize: size / 11}}>over</text>}
+  </svg>;
 }
 function cleanWorld(w) {
   if (!w || typeof w !== 'object') return null;
@@ -787,18 +814,35 @@ function cleanWorld(w) {
   const wx = w.weather && typeof w.weather === 'object' ? w.weather : {};
   return {on: !!w.on, t: Math.max(0, Math.round(num(w.t, 8 * HOUR))), show: !!w.show,
     weather: {now: str(wx.now, 60), rule: ['hand', 'day', 'hour'].includes(wx.rule) ? wx.rule : 'hand', table: arr(wx.table).map(x => str(x, 40)).filter(Boolean).slice(0, 20)},
-    trackers: arr(w.trackers).filter(x => x && x.id).slice(0, 30).map(x => ({id: str(x.id, 20), name: str(x.name, 40), value: num(x.value, 0), per: ['hour', 'day', ''].includes(x.per) ? x.per : '', by: num(x.by, 0), min: x.min === '' || x.min == null ? '' : num(x.min, 0), max: x.max === '' || x.max == null ? '' : num(x.max, 0), show: !!x.show,
+    trackers: arr(w.trackers).filter(x => x && x.id).slice(0, 30).map(x => ({id: str(x.id, 20), name: str(x.name, 40), value: num(x.value, 0), per: ['round', 'minute', 'hour', 'day', ''].includes(x.per) ? x.per : '', rounds: Math.max(0, Math.round(num(x.rounds, 0))), by: num(x.by, 0), min: x.min === '' || x.min == null ? '' : num(x.min, 0), max: x.max === '' || x.max == null ? '' : num(x.max, 0), show: !!x.show,
       kind: ['count', 'cycle', 'chance'].includes(x.kind) ? x.kind : 'count', every: Math.max(1, Math.min(999, Math.round(num(x.every, 1)))), alert: x.alert === '' || x.alert == null ? '' : num(x.alert, 0),
       states: arr(x.states).map(y => str(y, 40)).filter(Boolean).slice(0, 30), die: [4, 6, 8, 10, 12, 20, 100].includes(+x.die) ? +x.die : 20, at: Math.max(1, Math.min(100, Math.round(num(x.at, 18)))), note: str(x.note, 120)})),
+    cal: (() => { const c = w.cal && typeof w.cal === 'object' ? w.cal : {}; const months = arr(c.months).filter(m => m && m.n).slice(0, 24).map(m => ({n: str(m.n, 30), d: Math.max(1, Math.min(99, Math.round(num(m.d, 30))))}));
+      return {on: !!c.on && months.length > 0, months, week: arr(c.week).map(x => str(x, 20)).filter(Boolean).slice(0, 14), year: Math.round(num(c.year, 1)), era: str(c.era, 20)}; })(),
     timers: arr(w.timers).filter(x => x && x.id).slice(0, 40).map(x => ({id: str(x.id, 20), name: str(x.name, 60), at: Math.max(0, Math.round(num(x.at, 0))), note: str(x.note, 200), show: !!x.show, done: !!x.done}))};
+}
+function stepTracker(x, n) { // a tracker moves n steps: a counter changes (and may warn), a cycle moves on, a random roll is made each time
+  const lines = [];
+  if (x.kind === 'cycle') { const v = x.value + n * (x.by || 1), now = trackerText({...x, value: v}); if (now !== trackerText(x)) lines.push(`${x.name}: ${now}`); return {x: {...x, value: v}, lines}; }
+  if (x.kind === 'chance') { const hits = []; for (let i = 0; i < Math.min(n, 48); i++) { const r = 1 + Math.floor(Math.random() * x.die); if (r >= x.at) hits.push(r); }
+    if (hits.length) lines.push(`${x.name}: ${hits.length === 1 ? `rolled ${hits[0]} on the d${x.die}` : `${hits.length} times (${hits.join(', ')})`}${x.note ? `. ${x.note}` : ''}`); return {x, lines}; }
+  if (!x.by) return {x, lines};
+  let v = x.value + n * x.by; if (x.min !== '') v = Math.max(x.min, v); if (x.max !== '') v = Math.min(x.max, v); if (v !== x.value) lines.push(`${x.name}: ${x.value} to ${v}`);
+  if (x.alert !== '' && ((x.by < 0 && x.value > x.alert && v <= x.alert) || (x.by > 0 && x.value < x.alert && v >= x.alert))) lines.push(`${x.name} reached ${v}${x.note ? `: ${x.note}` : ''}`);
+  return {x: {...x, value: v}, lines};
 }
 function trackerText(x) { // what a tracker shows: a count, the stage of a cycle, or a random roll's odds
   if (x.kind === 'cycle') return x.states.length ? x.states[((x.value % x.states.length) + x.states.length) % x.states.length] : '-';
   if (x.kind === 'chance') return `d${x.die} ${x.at}+`;
   return String(x.value);
 }
-function trackerEvery(x) { return x.per ? `each ${x.every > 1 ? `${x.every} ${x.per}s` : x.per}` : 'by hand'; }
-function clockText(t) { const d = Math.floor(t / DAY) + 1, s = t % DAY, h = Math.floor(s / HOUR), m = Math.floor((s % HOUR) / 60); return `Day ${d}, ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`; }
+function trackerEvery(x) { const u = x.per === 'round' ? 'turn' : x.per; return x.per ? `each ${x.every > 1 ? `${x.every} ${u}s` : u}` : 'by hand'; }
+// A calendar the DM sets up: named months with their own number of days, names for the days of the week, a starting year
+function dateOf(t, cal) { const day = Math.floor(t / DAY), yl = cal.months.reduce((n, m) => n + m.d, 0) || 1; let doy = day % yl, mi = 0; while (mi < cal.months.length - 1 && doy >= cal.months[mi].d) { doy -= cal.months[mi].d; mi++; }
+  return {year: cal.year + Math.floor(day / yl), mi, dom: doy + 1, wd: cal.week.length ? cal.week[day % cal.week.length] : ''}; }
+function dayIndexOf(cal, year, mi, dom) { const yl = cal.months.reduce((n, m) => n + m.d, 0) || 1; return Math.max(0, (year - cal.year) * yl + cal.months.slice(0, mi).reduce((n, m) => n + m.d, 0) + Math.max(1, Math.min(cal.months[mi] ? cal.months[mi].d : 1, dom)) - 1); }
+function clockText(t, cal) { if (cal && cal.on && cal.months.length) { const d = dateOf(t, cal), s = t % DAY; return `${d.wd ? d.wd + ', ' : ''}${d.dom} ${cal.months[d.mi].n}, Year ${d.year}${cal.era ? ' ' + cal.era : ''}, ${String(Math.floor(s / HOUR)).padStart(2, '0')}:${String(Math.floor((s % HOUR) / 60)).padStart(2, '0')}`; }
+  const d = Math.floor(t / DAY) + 1, s = t % DAY, h = Math.floor(s / HOUR), m = Math.floor((s % HOUR) / 60); return `Day ${d}, ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`; }
 function stamp(entry) { return {...entry, id: newId()}; }
 function plain(v) { return JSON.parse(JSON.stringify(v)); } // drops undefined, which Firebase rejects
 function stable(v) { // JSON with sorted keys, so local and synced copies compare equal
@@ -886,11 +930,12 @@ function reactEvents(name, trigger, text) {
   return out;
 }
 const SPELL_NAMES = new Set((window.HBA_SPELLS || []).map(x => String(x.n || '').toLowerCase()));
-let ROLL_R1 = false, ROLL_LOW3 = false; // the roll switch: reroll each 1 once; a 1 or 2 on a damage die counts as 3
+let ROLL_R1 = false, ROLL_LOW3 = false; // the roll switch: reroll each 1 once; a 1 or 2 on a die counts as 3
+let PROMPT = null; // while a roll that was asked for is made: {adv} from the buttons on that prompt (the dice roller's switch waits for the next roll made unasked)
 let NEXT_D20 = 0, FUDGE_DONE = null; // the DM can say what the next d20 shows
 function roll20(advantage=0) { // 0=normal, 1=advantage, -1=disadvantage
   if (NEXT_D20) { const n = NEXT_D20; NEXT_D20 = 0; if (FUDGE_DONE) FUDGE_DONE(); return {total:n, rolls:[n]}; }
-  const d = () => { const r = rollD(20); return ROLL_R1 && r === 1 ? rollD(20) : r; };
+  const d = () => { let r = rollD(20); if (ROLL_R1 && r === 1) r = rollD(20); if (ROLL_LOW3 && r < 3) r = 3; return r; };
   if (advantage === 0) { const r = d(); return {total:r, rolls:[r]}; }
   const r1 = d(), r2 = d();
   return advantage === 1
@@ -1946,7 +1991,8 @@ function GlossaryPanel({onClose}) {
 
 // The DM's world tracker: time of day, weather, counters that change with time, timers. Pass Time moves all of it.
 function WorldPanel({world, setWorld, log}) {
-  const w = world || {on: false, t: 8 * HOUR, show: false, weather: {now: '', rule: 'hand', table: []}, trackers: [], timers: []};
+  const w = {cal: {on: false, months: [], week: [], year: 1, era: ''}, ...(world || {on: false, t: 8 * HOUR, show: false, weather: {now: '', rule: 'hand', table: []}, trackers: [], timers: []})};
+  const [calEd, setCalEd] = useState(null); // the calendar being set up: {months, days, week, year, era}
   const put = patch => setWorld({...w, ...patch});
   const [open, setOpen] = useState(!!(world && world.on));
   const [tn, setTn] = useState({name: '', kind: 'count', value: '', per: 'day', every: '1', by: '-1', min: '0', max: '', alert: '', states: '', die: '20', at: '18', note: ''});
@@ -1961,12 +2007,33 @@ function WorldPanel({world, setWorld, log}) {
       {open && <>
         <label className="rule-label"><input type="checkbox" data-testid="world-on" checked={w.on} onChange={e => put({on: e.target.checked})}/> Keep track of the time of day</label>
         {w.on && <>
+          {w.cal.on && (() => { const d = dateOf(w.t, w.cal), setDate = (y, mi, dom) => put({t: dayIndexOf(w.cal, y, mi, dom) * DAY + sec}); return (
+          <div className="time-row" data-testid="cal-date" style={{gridTemplateColumns: 'auto 1fr 2fr auto 1fr'}}>
+            <span className="pp-muted">Date</span>
+            <input type="number" min="1" aria-label="Day of the month" data-testid="cal-dom" value={d.dom} onChange={e => setDate(d.year, d.mi, +e.target.value || 1)}/>
+            <select aria-label="Month" data-testid="cal-month" value={d.mi} onChange={e => setDate(d.year, +e.target.value, d.dom)}>{w.cal.months.map((m, i) => <option key={i} value={i}>{m.n}</option>)}</select>
+            <span className="pp-muted">Year</span>
+            <input type="number" aria-label="Year" data-testid="cal-year" value={d.year} onChange={e => setDate(Math.max(w.cal.year, Math.round(+e.target.value || w.cal.year)), d.mi, d.dom)}/>
+          </div>); })()}
+          <label className="rule-label"><input type="checkbox" data-testid="cal-on" checked={w.cal.on || !!calEd} onChange={e => { if (e.target.checked) setCalEd({months: w.cal.months.map(m => m.n).join(', ') || 'First Month, Second Month, Third Month, Fourth Month, Fifth Month, Sixth Month, Seventh Month, Eighth Month, Ninth Month, Tenth Month, Eleventh Month, Twelfth Month', days: String((w.cal.months[0] || {}).d || 30), week: w.cal.week.join(', '), year: String(w.cal.year || 1), era: w.cal.era}); else { setCalEd(null); put({cal: {...w.cal, on: false}}); } }}/> Use a calendar (named months and years){w.cal.on && !calEd ? <button className="pp-chip" style={{marginLeft: 6}} onClick={e => { e.preventDefault(); setCalEd({months: w.cal.months.map(m => m.d !== (w.cal.months[0] || {}).d ? `${m.n}: ${m.d}` : m.n).join(', '), days: String((w.cal.months[0] || {}).d || 30), week: w.cal.week.join(', '), year: String(w.cal.year), era: w.cal.era}); }}>Change it</button> : null}</label>
+          {calEd && <div className="cal-ed" data-testid="cal-ed">
+            <input aria-label="Month names" data-testid="cal-months" placeholder="Month names, in order, with commas" value={calEd.months} onChange={e => setCalEd({...calEd, months: e.target.value})}/>
+            <div className="time-row" style={{gridTemplateColumns: 'auto 1fr auto 1fr auto 1fr'}}>
+              <span className="pp-muted">Days a month</span><input type="number" min="1" aria-label="Days in each month" data-testid="cal-days" value={calEd.days} onChange={e => setCalEd({...calEd, days: e.target.value})}/>
+              <span className="pp-muted">First year</span><input type="number" aria-label="First year" data-testid="cal-year0" value={calEd.year} onChange={e => setCalEd({...calEd, year: e.target.value})}/>
+              <span className="pp-muted">After the year</span><input aria-label="After the year" placeholder="DR, AC..." value={calEd.era} onChange={e => setCalEd({...calEd, era: e.target.value})}/>
+            </div>
+            <input aria-label="Days of the week" data-testid="cal-week" placeholder="Days of the week, in order (leave empty for none)" value={calEd.week} onChange={e => setCalEd({...calEd, week: e.target.value})}/>
+            <div className="buff-note" style={{margin: '2px 0'}}>A month with its own number of days: write it as "Midwinter: 1".</div>
+            <button className="btn btn-primary btn-sm" data-testid="cal-save" onClick={() => { const dd = Math.max(1, Math.min(99, Math.round(+calEd.days || 30))), months = calEd.months.split(',').map(x => x.trim()).filter(Boolean).slice(0, 24).map(x => { const m = /^(.*?):\s*(\d+)$/.exec(x); return m ? {n: m[1].trim().slice(0, 30), d: Math.max(1, Math.min(99, +m[2]))} : {n: x.slice(0, 30), d: dd}; });
+              if (!months.length) return; put({cal: {on: true, months, week: calEd.week.split(',').map(x => x.trim()).filter(Boolean).slice(0, 14), year: Math.round(+calEd.year || 1), era: calEd.era.trim().slice(0, 20)}}); setCalEd(null); }}>Save the calendar</button>
+          </div>}
           <div className="time-row" style={{gridTemplateColumns: 'auto 1fr auto 1fr auto 1fr'}}>
-            <span className="pp-muted">Day</span><input type="number" min="1" aria-label="Day" data-testid="world-day" value={day} onChange={e => setClock(+e.target.value || 1, Math.floor(sec / HOUR), Math.floor((sec % HOUR) / 60))}/>
+            <span className="pp-muted">{w.cal.on ? 'Day count' : 'Day'}</span><input type="number" min="1" aria-label="Day" data-testid="world-day" value={day} onChange={e => setClock(+e.target.value || 1, Math.floor(sec / HOUR), Math.floor((sec % HOUR) / 60))}/>
             <span className="pp-muted">Hour</span><input type="number" min="0" max="23" aria-label="Hour" data-testid="world-hour" value={Math.floor(sec / HOUR)} onChange={e => setClock(day, +e.target.value || 0, Math.floor((sec % HOUR) / 60))}/>
             <span className="pp-muted">Min</span><input type="number" min="0" max="59" aria-label="Minute" value={Math.floor((sec % HOUR) / 60)} onChange={e => setClock(day, Math.floor(sec / HOUR), +e.target.value || 0)}/>
           </div>
-          <div className="buff-note" style={{margin: '2px 0'}}>Now: <strong data-testid="world-now">{clockText(w.t)}</strong>. Dawn is 06:00: items that recharge at dawn get their roll then.</div>
+          <div className="buff-note" style={{margin: '2px 0'}}>Now: <strong data-testid="world-now">{clockText(w.t, w.cal)}</strong>. Dawn is 06:00: items that recharge at dawn get their roll then.</div>
           <label className="rule-label"><input type="checkbox" data-testid="world-show" checked={w.show} onChange={e => put({show: e.target.checked})}/> The party can see the time and weather</label>
           <span className="label" style={{marginTop: 6}}>Weather</span>
           <div className="time-row" style={{gridTemplateColumns: '1fr auto'}}>
@@ -2010,7 +2077,7 @@ function WorldPanel({world, setWorld, log}) {
           <div className="time-row" style={{gridTemplateColumns: 'auto 1fr 1fr'}}>
             <span className="pp-muted">Every</span>
             <input type="number" min="1" aria-label="Tracker every" value={tn.every} onChange={e => setTn({...tn, every: e.target.value})} disabled={!tn.per}/>
-            <select aria-label="Tracker changes every" value={tn.per} onChange={e => setTn({...tn, per: e.target.value})}><option value="day">day(s)</option><option value="hour">hour(s)</option><option value="">by hand</option></select>
+            <select aria-label="Tracker changes every" value={tn.per} onChange={e => setTn({...tn, per: e.target.value})}><option value="round">turn(s) of combat</option><option value="minute">minute(s)</option><option value="hour">hour(s)</option><option value="day">day(s)</option><option value="">by hand</option></select>
           </div>
           {tn.kind !== 'cycle' && <input aria-label="Tracker note" placeholder={tn.kind === 'chance' ? 'What happens (roll on the encounter table)' : 'What it means when it warns (the party is starving)'} value={tn.note} onChange={e => setTn({...tn, note: e.target.value})}/>}
           <button className="btn btn-ghost btn-sm" data-testid="tracker-add" disabled={!tn.name.trim() || (tn.kind === 'cycle' && !tn.states.split(',').some(x => x.trim()))} onClick={() => { put({trackers: [...w.trackers, {id: uid(), name: tn.name.trim(), kind: tn.kind, value: tn.kind === 'count' ? +tn.value || 0 : 0, per: tn.per, every: Math.max(1, +tn.every || 1), by: tn.kind === 'chance' ? 0 : (+tn.by || (tn.kind === 'cycle' ? 1 : 0)), min: tn.kind === 'count' && tn.min !== '' ? +tn.min : '', max: tn.max === '' ? '' : +tn.max, alert: tn.kind === 'count' && tn.alert !== '' ? +tn.alert : '', states: tn.kind === 'cycle' ? tn.states.split(',').map(x => x.trim()).filter(Boolean) : [], die: +tn.die || 20, at: +tn.at || 18, note: tn.note.trim(), show: false}]}); setTn({...tn, name: '', value: '', states: '', note: '', alert: ''}); }}>Add tracker</button>
@@ -2103,6 +2170,7 @@ function App() {
   const [viewId, setViewId] = useState(null);
   const [selectedAction, setSelectedAction] = useState(null);
   const [advantage, setAdvantage] = useState(0); // -1 dis, 0 normal, 1 adv
+  const [promptMods, setPromptMods] = useState({}); // the buttons on each roll that was asked for: {key: {hi, lo, r1, low3}}
   const [rollMods, setRollMods] = useState({hi: false, lo: false, r1: false, low3: false}); // the roll switch buttons that are lit
   const [log, setLogRaw] = useState([]);
   const setLog = u => { if (deferRef.current) deferRef.current.push(['l', u]); else setLogRaw(u); };
@@ -2179,11 +2247,12 @@ function App() {
     setCombatants(prev => prev.filter(c => !gone.some(x => x.id === c.id)));
     setLog(prev => [...prev, ...gone.map(x => stamp({type:'roll', html:`<strong>${esc(x.name)}</strong> is gone.<div class="log-detail">What brought it here has ended.</div>`}))]);
   }, [combatants]);
+  const [rest, setRest] = useState(null); // the party's rest in progress, run by the DM: {kind, len, chars, paused}
   useEffect(() => { setTurnStart(Date.now()); setHideTimer(false); }, [activeId, round, combatStarted]);
-  useEffect(() => { if (!turnSecs || !combatStarted) return; setClock(Date.now()); const t = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(t); }, [turnSecs, combatStarted]);
+  useEffect(() => { if (!turnSecs || !combatStarted || rest) return; setClock(Date.now()); const t = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(t); }, [turnSecs, combatStarted, rest]);
   useEffect(() => { // the DM's screen notes it in the log, once, when a player's time runs out
     const a = combatants.find(c => c.id === activeId);
-    if (!isDM || !turnSecs || !combatStarted || !a || !a.owner || clock - turnStart < turnSecs * 1000) return;
+    if (!isDM || !turnSecs || !combatStarted || rest || !a || !a.owner || clock - turnStart < turnSecs * 1000) return;
     const key = round + ':' + activeId; if (timeUpRef.current === key) return; timeUpRef.current = key;
     setLog(prev => [...prev, stamp({type:'roll', forId: a.id, by: '', html:`<strong>${esc(a.name)}</strong>: the time for this turn is up<div class="log-detail">${timeText(turnSecs)} per turn.</div>`})]);
   }, [clock]);
@@ -2230,9 +2299,9 @@ function App() {
   const [clock, setClock] = useState(Date.now());
   const timeUpRef = useRef('');
   const [sessName, setSessName] = useState('');
-  const [rest, setRest] = useState(null); // the party's rest in progress, run by the DM: {kind, len, used, acts}
   const [restSet, setRestSet] = useState({n: '', unit: 'minutes'});
   const [restCards, setRestCards] = useState(false);
+  const fight = combatStarted && !rest; // a rest pauses the fight: nobody waits for their turn until it is over
   const [busy, setBusy] = useState({what: '', n: '', unit: 'minutes'}); // a player doing something that takes time
   const [timeMute, setTimeMute] = useState([]);
   const [shared, setShared] = useState({}); // homebrew Content Packs the DM shares with this session: {key: pack}
@@ -2270,7 +2339,7 @@ function App() {
   useEffect(() => { if (!isDM) return; if (worldLogged.current === undefined) { worldLogged.current = world; return; }
     const t = setTimeout(() => { const a = worldLogged.current, b = world; if (stable(a ?? null) === stable(b ?? null)) return; worldLogged.current = b; const bits = [];
       if (!!(a && a.on) !== !!(b && b.on)) bits.push(b && b.on ? 'started keeping the time' : 'stopped keeping the time');
-      if (a && b && a.t !== b.t) bits.push(`time set to ${clockText(b.t)}`); if (a && b && !!a.show !== !!b.show) bits.push(b.show ? 'the party can see the time' : 'the time is hidden from the party');
+      if (a && b && a.t !== b.t) bits.push(`time set to ${clockText(b.t, b.cal)}`); if (a && b && !!a.show !== !!b.show) bits.push(b.show ? 'the party can see the time' : 'the time is hidden from the party');
       if (b && (a ? a.weather.now : '') !== b.weather.now) bits.push(`weather: ${b.weather.now || 'none'}`); if (a && b && a.weather.rule !== b.weather.rule) bits.push(`weather changes ${b.weather.rule === 'hand' ? 'by hand' : 'each ' + b.weather.rule}`);
       const tr = x => (x && x.trackers) || [], tm = x => (x && x.timers) || [];
       tr(b).forEach(x => { const o = tr(a).find(y => y.id === x.id); if (!o) bits.push(`tracker added: ${x.name} ${x.value}`); else if (o.value !== x.value) bits.push(`${x.name}: ${o.value} to ${x.value}`); }); tr(a).forEach(x => { if (!tr(b).some(y => y.id === x.id)) bits.push(`tracker removed: ${x.name}`); });
@@ -2469,15 +2538,22 @@ function App() {
     const b = effectiveInitBonus(c), t = parseInt(typed, 10);
     let v, how;
     if (Number.isFinite(t)) { v = t; how = 'entered by hand'; }
-    else { const sw = advantage; if (sw) useRollSwitch(); const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0)); v = r.total + b; how = `${r.rolls.join('/')} ${signed(b)}${(c.passives || {}).initiativeAdvantage ? ' with Advantage' : ''}`; }
+    else { const sw = curAdv(); useRollSwitch(); const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0)); v = r.total + b; how = `${r.rolls.join('/')} ${signed(b)}${(c.passives || {}).initiativeAdvantage ? ' with Advantage' : ''}`; }
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, initiative: v, initFor: initCall} : x.after === c.id ? {...x, initiative: v, initFor: initCall} : x));
     setLog(prev => [...prev, stamp({type:'roll', ...(isDM && !c.owner && hideRolls ? {dmOnly: true} : {}), html:`<strong>${esc(c.name)}</strong> · Initiative<br/><span class="log-result">🎲 ${v}</span><div class="log-dice">${esc(how)}</div>`})]);
   };
   // Clicking Init on the sheet: the Initiative roll for the turn order when the DM has called for it, or a roll on its own
   const rollInitFree = (c) => { if (initCall && !(c.initFor === initCall)) { rollInit(c); return; }
-    const b = effectiveInitBonus(c), sw = advantage; if (sw) useRollSwitch(); const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0));
+    const b = effectiveInitBonus(c), sw = advantage; useRollSwitch(); const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0));
     setLog(prev => [...prev, stamp({type: 'roll', html: `<strong>${esc(c.name)}</strong> · Initiative<br/><span class="log-result">🎲 ${r.total + b}</span><div class="log-dice">${r.rolls.join('/')} ${signed(b)}${(c.passives || {}).initiativeAdvantage ? ' with Advantage' : ''}</div>`})]); };
   const glossText = (term) => { const g = (window.HBA_GLOSSARY || []).find(e => e.n.replace(/ \[.*\]$/, '').toLowerCase() === String(term).toLowerCase()); return g ? g.t.replace(/\*\*?|_/g, '').replace(/\\\[|\\\]/g, '') : ''; };
+  // The DM shows a creature's card in the Combat Log: to everyone, or to one character only
+  const showCard = (c, to) => { const sc = c.scores || {}, row = (k, v) => v || v === 0 ? `<div class="log-detail"><strong>${esc(k)}</strong> ${esc(String(v))}</div>` : '';
+    const html = `<strong>${esc(c.name)}</strong>${to ? ` · shown to ${esc(to.name)}` : ''}${row('', c.sub)}${row('Armor Class', c.ac)}${row('Hit Points', totalHP(c))}${row('Speed', speedText(c))}`
+      + `<div class="log-detail">${ABILITY_KEYS.map(([k, full]) => `${k.toUpperCase()} ${sc[full] ?? 10} (${modStr(sc[full] ?? 10)})`).join(' · ')}</div>`
+      + [['Resistances', c.res], ['Immunities', c.imm], ['Vulnerabilities', c.vul], ['Condition Immunities', c.ci], ['Senses', (c.senses || []).join(', ')]].map(([k, v]) => row(k, v)).join('')
+      + (c.actions || []).map(a => row(a.name, a.detail || a.desc || '')).join('') + (c.info || []).flatMap(sec => (sec.items || []).map(([k, v]) => row(k, v))).join('');
+    setLog(prev => [...prev, stamp({type: 'info', ...(to ? {priv: [to.id]} : {}), html})]); };
   const explainFor = (c, key) => {
     const sh = (c && c.sheet) || {}, [kind, ...rest] = String(key).split(':'), arg = rest.join(':');
     const why = k => ((sh.why || {})[k]) || [];
@@ -2510,6 +2586,7 @@ function App() {
     if (kind === 'item') { const it = (sh.itemsFull || []).find(x => x.name === arg) || {name: arg}; return {title: it.name, lines: [[it.type || 'Item', [it.rarity, it.attune ? (it.attuned ? 'attuned' : 'needs Attunement') : ''].filter(Boolean).join(', ')]], text: it.d || ''}; }
     if (kind === 'cond') return {title: arg, lines: [], text: glossText(arg) || 'No glossary entry.'};
     if (kind === 'eff') { const e = effs(c).find(x => x.id === arg) || {}; return {title: e.name || 'Effect', lines: [['From', e.byName || e.source || ''], ['Time left', +e.left > 0 ? timeText(e.left) : 'until it ends']], text: describeEffect(e) + (e.note ? `. ${e.note}` : '')}; }
+    if (kind === 'card' && !isDM && !canControl(c) && !c.owner) return {title: c.name, lines: [], text: "The DM has not shared this creature's card. The DM can show it to everyone in the Combat Log, or to one character."};
     if (kind === 'card') { const vis = isDM || canControl(c) || !veil(c); return {title: c.name, lines: [...(vis ? [['Armor Class', effectiveAC(c)], ['Hit Points', `${c.currentHP} of ${totalHP(c)}${+c.tempHP ? ` + ${c.tempHP} temporary` : ''}`], ['Speed', `${effectiveSpeed(c)} ft.`]] : []), ['Initiative', c.initiative ?? '-'],
       ...(c.conditions || []).map(k => ['Condition', k]), ...effs(c).map(e => ['Effect', `${e.name}${+e.left > 0 ? ` (${timeText(e.left)} left)` : ''}`]), ...defensesOf(c).map(([k, v]) => [{res: 'Resistance', imm: 'Immunity', vul: 'Vulnerability', ci: 'Condition Immunity'}[k], v])], text: c.sub || ''}; }
     if (kind === 'term') return {title: arg, lines: [], text: glossText(arg) || 'No glossary entry.'};
@@ -2563,6 +2640,9 @@ function App() {
     } while (((inPlay[idx].currentHP <= 0 && !(inPlay[idx].sheet && !inPlay[idx].dead && !isStable(inPlay[idx]))) || isAway(inPlay[idx])) && safety <= inPlay.length);
     // A new round takes 6 seconds off everything that is timed
     if (wrapped) { const t = passTime(work, ROUND_SECONDS); work = t.list; entries.push(...endedEntries(t.ended)); }
+    if (wrapped && world && world.on && world.trackers.some(x => x.per === 'round')) { const lines = []; // trackers that move every so many turns (rounds)
+      const trackers = world.trackers.map(x => { if (x.per !== 'round') return x; const k = (x.rounds || 0) + 1; if (k < (x.every || 1)) return {...x, rounds: k}; const r = stepTracker({...x, rounds: 0}, 1); lines.push(...r.lines); return r.x; });
+      setWorld({...world, trackers}); if (lines.length) entries.push(stamp({type: 'roll', ...(world.show ? {} : {dmOnly: true}), html: `<strong>The world</strong>${lines.map(l => `<div class="log-detail">${esc(l)}</div>`).join('')}`})); }
     const upId = inPlay[idx].id;
     // Saves that fall at the start of the turn that is beginning
     due.push(...dueCondSaves(work, upId, 'start'));
@@ -2612,14 +2692,21 @@ function App() {
   const setRollSwitch = v => { setAdvantage(v); dmgTwiceRef.current = v; };
   const toggleRollMod = k => { const m = {...rollMods, [k]: !rollMods[k]}; setRollMods(m); ROLL_R1 = m.r1; ROLL_LOW3 = m.low3; if (k === 'hi' || k === 'lo') setRollSwitch((m.hi ? 1 : 0) - (m.lo ? 1 : 0)); };
   const clearRollMods = () => { setRollMods({hi: false, lo: false, r1: false, low3: false}); ROLL_R1 = false; ROLL_LOW3 = false; setRollSwitch(0); setDmgTwice(0); };
-  const useRollSwitch = () => { if (advantage || dmgTwiceRef.current) { setAdvantage(0); dmgTwiceRef.current = 0; setDmgTwice(0); } if (rollMods.hi || rollMods.lo || rollMods.r1) { setRollMods(m => ({...m, hi: false, lo: false, r1: false})); ROLL_R1 = false; } };
-  const useLow3 = () => { if (ROLL_LOW3 || ROLL_R1) { ROLL_LOW3 = false; ROLL_R1 = false; setRollMods(m => ({...m, low3: false, r1: false})); } };
+  const d20Spent = r => { ROLL_R1 = false; ROLL_LOW3 = false; return r; }; // the next roll was this d20; what follows it (the attack's damage) is not changed
+  const withPrompt = (key, fn) => { const m = promptMods[key] || {}, keep = [ROLL_R1, ROLL_LOW3];
+    PROMPT = {adv: (m.hi ? 1 : 0) - (m.lo ? 1 : 0)}; ROLL_R1 = !!m.r1; ROLL_LOW3 = !!m.low3;
+    try { return fn(); } finally { PROMPT = null; ROLL_R1 = keep[0]; ROLL_LOW3 = keep[1]; if (String(key).startsWith('init-')) setPromptMods(p => { const n = {...p}; delete n[key]; return n; }); } };
+  const promptSwitch = (key) => { const m = promptMods[key] || {}, b = (k, t, tip) => <button key={k} className={`die-btn ${m[k] ? 'has' : ''}`} data-testid={'p-' + k} style={{padding: '1px 6px', fontSize: 12}} aria-pressed={!!m[k]} title={tip} onClick={() => setPromptMods(p => ({...p, [key]: {...(p[key] || {}), [k]: !m[k]}}))}>{t}</button>;
+    return <span className="prompt-switch" data-testid="prompt-switch">{b('hi', '⏫ Adv', 'Roll it with Advantage (roll twice, keep the higher)')}{b('lo', '⏬ Dis', 'Roll it with Disadvantage (roll twice, keep the lower)')}{b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once')}{b('low3', '1 & 2 = 3', 'A 1 or a 2 on a die counts as a 3')}</span>; };
+  const curAdv = () => PROMPT ? PROMPT.adv : advantage;
+  const useRollSwitch = () => { if (PROMPT) return; if (advantage || dmgTwiceRef.current) { setAdvantage(0); dmgTwiceRef.current = 0; setDmgTwice(0); } if (rollMods.hi || rollMods.lo || rollMods.r1 || rollMods.low3) { setRollMods(m => ({...m, hi: false, lo: false, r1: false, low3: false})); setTimeout(() => { ROLL_R1 = false; ROLL_LOW3 = false; }, 0); } }; // the roll being made right now still uses them
+  const useLow3 = () => { if (PROMPT) return; if (ROLL_LOW3 || ROLL_R1) { ROLL_LOW3 = false; ROLL_R1 = false; setRollMods(m => ({...m, low3: false, r1: false})); } };
   useEffect(() => { if (advantage === 0 && !dmgTwiceRef.current && (rollMods.hi !== rollMods.lo)) setRollMods(m => ({...m, hi: false, lo: false})); }, [advantage]);
   const rollSwitch = (where) => { const b = (k, t, tip, id) => <button key={k} className={`die-btn ${rollMods[k] ? 'has' : ''}`} data-testid={id} style={{padding: '2px 7px'}} aria-pressed={!!rollMods[k]} title={tip + (rollMods[k] ? '. Click again to cancel.' : '')} onClick={() => toggleRollMod(k)}>{t}</button>;
     return <span className="roll-switch" data-testid={'roll-switch-' + where}>
-      <span className="roll-switch-row"><span className="pp-muted" style={{fontSize: 12}} title="Each lit button applies to the next roll (an attack and its damage count as one roll), then turns off">Next roll:</span>
+      <span className="roll-switch-row"><span className="pp-muted" style={{fontSize: 12}} title="Each lit button applies to the next roll you make yourself, then turns off. A roll you are asked for has its own buttons">Next roll:</span>
         {b('hi', '2x ⏫ Highest', 'Roll twice and keep the higher', 'roll-high')}{b('lo', '2x ⏬ Lowest', 'Roll twice and keep the lower', 'roll-low')}</span>
-      <span className="roll-switch-row">{b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once', 'roll-r1')}{b('low3', '1 & 2 = 3', 'On the next damage roll (or the damage of the next attack), a 1 or a 2 on a die counts as a 3', 'roll-low3')}
+      <span className="roll-switch-row">{b('r1', 'Reroll 1s', 'Each die that shows a 1 is rolled again, once', 'roll-r1')}{b('low3', '1 & 2 = 3', 'On the next roll, a 1 or a 2 on a die counts as a 3', 'roll-low3')}
         <button className="die-btn" data-testid="roll-clear" style={{padding: '2px 7px'}} title="Turn every button here off" onClick={clearRollMods}>Clear all</button></span></span>; };
   const rollDamageOnce = (action, crit, lowAs3) => {
     const list = action.dmgList && action.dmgList.length ? action.dmgList : [[action.dmg, action.dmgType]];
@@ -2630,9 +2717,9 @@ function App() {
       return {amount: r.total, type: type || '', dice: r.parts.join(' + ')};
     });
   };
-  const rollDamageParts = (action, crit, lowAs3) => { const a = rollDamageOnce(action, crit, lowAs3); if (atkRef.current) return a; if (!dmgTwiceRef.current) { useLow3(); return a; }
-    const mode = dmgTwiceRef.current; setAdvantage(0); const b = rollDamageOnce(action, crit, lowAs3), sum = l => l.reduce((n, pt) => n + pt.amount, 0), keepA = mode === 1 ? sum(a) >= sum(b) : sum(a) <= sum(b), kept = keepA ? a : b;
-    dmgTwiceRef.current = 0; setDmgTwice(0); useLow3(); setRollMods(m => ({...m, hi: false, lo: false}));
+  const rollDamageParts = (action, crit, lowAs3) => { const a = rollDamageOnce(action, crit, lowAs3); const twice = PROMPT || atkRef.current ? 0 : dmgTwiceRef.current; if (!twice) { if (!atkRef.current) useLow3(); return a; }
+    const mode = twice; if (!PROMPT) setAdvantage(0); const b = rollDamageOnce(action, crit, lowAs3), sum = l => l.reduce((n, pt) => n + pt.amount, 0), keepA = mode === 1 ? sum(a) >= sum(b) : sum(a) <= sum(b), kept = keepA ? a : b;
+    if (!PROMPT) { dmgTwiceRef.current = 0; setDmgTwice(0); useLow3(); setRollMods(m => ({...m, hi: false, lo: false})); }
     return kept.map((pt, i) => i ? pt : {...pt, dice: `${mode === 1 ? '⏫' : '⏬'} rolled twice (${sum(a)} and ${sum(b)}), kept the ${mode === 1 ? 'higher' : 'lower'} · ${pt.dice}`}); };
   // Applies rolled damage to a creature, honouring Immunity, Resistance, Vulnerability and Temporary Hit Points.
   const dealDamage = (tgt, parts, halve, ignoreRes) => {
@@ -2745,8 +2832,8 @@ function App() {
     if (action.advNow) t.adv.push(action.advIf || 'the circumstances');
     effs(tgt).forEach(e => { if (e.saveAdvVs && ((action.onFail || {}).conds || []).some(k => k.name === e.saveAdvVs || String(action.name).includes(e.saveAdvVs))) t.adv.push(e.name); });
     if (action.auto && (action.auto.disTypes || []).includes(creatureType(tgt))) t.dis.push(`it is a ${creatureType(tgt)}`);
-    if (!ruled && !keep && advantage && canControl(tgt)) { (advantage === 1 ? t.adv : t.dis).push('chosen'); useRollSwitch(); }
-    const roll = keep || roll20(testMode(t));
+    if (!ruled && !keep && curAdv() && canControl(tgt)) { (curAdv() === 1 ? t.adv : t.dis).push('chosen'); useRollSwitch(); }
+    const roll = keep || d20Spent(roll20(testMode(t))); // the d20 is the roll asked for; damage that follows is not changed by its buttons
     const sec = x => isDM && !tgt.owner ? `<span class="dm-secret">${x}</span>` : x; // the DM's own numbers can be kept from players
     let saveTotal = roll.total + saveMod + t.bonus;
     let inspired = null;
@@ -2856,7 +2943,7 @@ function App() {
       if (q.action.form && entry.type === 'save-fail' && actor) setPrompts(prev => [...prev, plain({id: newId(), kind: 'form', targetId: actor.id, subjectId: tgt.id, by: q.by || '', spell: String(q.action.name).replace(/ \(Level \d slot\)$/, ''), conc: !!q.action.conc, left: q.action.concSecs || 0, tempHP: !!q.action.form.tempHP, limit: q.action.form.limit || ''})]);
     } else if (q.kind === 'check') { rollTest(tgt, 'check', q.ability, q.skill || '', q.dc, q.name);
     } else if (q.kind === 'repeat' && (tgt.conditions || []).includes(q.cond) && condInfoOf(tgt, q.cond)) {
-      const r = rollCondSave(tgt, q.cond, canControl(tgt) ? advantage : 0); if (canControl(tgt)) useRollSwitch();
+      const r = rollCondSave(tgt, q.cond, canControl(tgt) ? curAdv() : 0); if (canControl(tgt)) useRollSwitch();
       const info = condInfoOf(tgt, q.cond) || {};
       if (r.usedEffect) removeEffect(tgt.id, r.usedEffect);
       setLog(prev => [...prev, r.entry]);
@@ -3013,7 +3100,7 @@ function App() {
     const c0 = combatants.find(c => c.id === id); if (!c0) return;
     const was = handsOf(c0)[i];
     setCombatants(prev => prev.map(c => { if (c.id !== id) return c; const hd = handsOf(c); if (v === 'Shield' && hd[1 - i] === 'Shield') hd[1 - i] = ''; hd[i] = v; return {...c, hands: hd}; }));
-    if (was !== v) setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c0.name)}</strong> ${v ? `${was ? `${how === 'drop' ? 'drops' : 'puts away'} ${esc(was)} and ` : ''}takes ${esc(v)} in hand` : `${how === 'drop' ? 'drops' : 'puts away'} ${esc(was)}`}${(v === 'Shield' || was === 'Shield') ? `<div class="log-detail">Armor Class ${v === 'Shield' ? 'goes up' : 'drops'} by 2.</div>` : ''}`})]);
+    if (was !== v) setLog(prev => [...prev, stamp({type:'roll', sys: true, forId: c0.id, html:`<strong>${esc(c0.name)}</strong> ${v ? `${was ? `${how === 'drop' ? 'drops' : 'puts away'} ${esc(was)} and ` : ''}takes ${esc(v)} in hand` : `${how === 'drop' ? 'drops' : 'puts away'} ${esc(was)}`}${(v === 'Shield' || was === 'Shield') ? `<div class="log-detail">Armor Class ${v === 'Shield' ? 'goes up' : 'drops'} by 2.</div>` : ''}`})]);
   };
   const silenced = c => ((c && c.effects) || []).some(e => /silenc/i.test(e.name));
   const compOwned = (c, a) => { const o = (c.compOwned || {})[a.name.replace(/ \(Level \d slot\)$/, '')]; return o == null ? (((c.sheet || {}).components) || []).includes(a.name.replace(/ \(Level \d slot\)$/, '')) : !!o; };
@@ -3245,7 +3332,7 @@ function App() {
       if (ti > 0) return; }
     if (!target && freeName != null) { // used on something that is not on the tracker: the dice are rolled, and the table applies the result
       let body = '';
-      if (action.type === 'attack') { atkRef.current = 1; const r = roll20(advNow), tot = r.total + (+action.atk || 0); body = `Attack roll: ${r.rolls.join('/')} ${signed(+action.atk || 0)} = <strong>${tot}</strong>${r.total === 20 ? ' · natural 20' : r.total === 1 ? ' · natural 1' : ''}`; }
+      if (action.type === 'attack') { atkRef.current = 1; const r = d20Spent(roll20(advNow)), tot = r.total + (+action.atk || 0); body = `Attack roll: ${r.rolls.join('/')} ${signed(+action.atk || 0)} = <strong>${tot}</strong>${r.total === 20 ? ' · natural 20' : r.total === 1 ? ' · natural 1' : ''}`; }
       if (action.type === 'save') body = `DC ${action.dc} ${esc(action.saveAbility)} saving throw${action.halfOnSave ? ', half damage on a success' : ''}`;
       const hasD = (action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0');
       if (hasD && ['attack', 'save', 'auto'].includes(action.type)) { const parts = rollDamageParts(action, false); body += `<div class="log-dice">Damage${action.type === 'attack' ? ' on a hit' : ''}: <strong>${parts.reduce((t, x) => t + x.amount, 0)}</strong> (${parts.map(x => `${x.dice} ${esc(x.type)}`).join(' + ')})</div>`; }
@@ -3262,7 +3349,7 @@ function App() {
       if (feat.grappler && target && (target.conditions || []).includes('Grappled') && (condInfoOf(target, 'Grappled') || {}).src === active.name) t.adv.push('Grappler');
       if (advNow === 1) t.adv.push('chosen');
       if (advNow === -1) t.dis.push('chosen');
-      const roll = re && re.roll && !stepInfo ? re.roll : (atkRef.current = 1, roll20(testMode(t))); // a ruling keeps the roll everyone already saw
+      const roll = re && re.roll && !stepInfo ? re.roll : (atkRef.current = 1, d20Spent(roll20(testMode(t)))); // a ruling keeps the roll everyone already saw
       let total = roll.total + action.atk + t.bonus;
       const acVsR = target && action.ranged ? (+((target.passives || {}).acVsRanged) || 0) + sumEff(target, 'acVsRanged') : 0;
       if (acVsR) featNotes.push(`${target.name} has ${signed(acVsR)} AC against ranged attacks`);
@@ -3484,7 +3571,7 @@ function App() {
       : (skill && c.sheet && c.sheet.skills && Number.isFinite(+c.sheet.skills[skill])) ? +c.sheet.skills[skill] : mod(score);
     const t = d20Test(c, kind, {ability, skill});
     effs(c).forEach(e => { if (kind === 'check' && e.checkAdvSkill && e.checkAdvSkill === skill) t.adv.push(e.name); });
-    if (advantage === 1 && canControl(c)) t.adv.push('chosen'); if (advantage === -1 && canControl(c)) t.dis.push('chosen'); useRollSwitch();
+    if (curAdv() === 1 && canControl(c)) t.adv.push('chosen'); if (curAdv() === -1 && canControl(c)) t.dis.push('chosen'); useRollSwitch();
     const mr = effs(c).find(e => e.minRoll && e.minRoll.kind === kind && (!e.minRoll.abil || e.minRoll.abil === ability));
     const label = kind === 'save' ? `${ability} saving throw` : skill ? `${ability} (${skill}) check` : `${ability} check`;
     let body, total = null;
@@ -3513,7 +3600,7 @@ function App() {
   // Death Saving Throws: at 0 Hit Points a character rolls at the start of its turn. 10+ is a success, 1 is two failures, 20 brings it back with 1 Hit Point.
   const isStable = c => !!(c.stable || effs(c).some(e => e.stable));
   const rollDeathSave = (c) => { if (!c || c.currentHP > 0 || c.dead || isStable(c)) return;
-    const t = {adv: effs(c).filter(e => e.deathAdv).map(e => e.name), dis: []}; if (advantage === 1) t.adv.push('chosen'); if (advantage === -1) t.dis.push('chosen'); useRollSwitch();
+    const t = {adv: effs(c).filter(e => e.deathAdv).map(e => e.name), dis: []}; if (curAdv() === 1) t.adv.push('chosen'); if (curAdv() === -1) t.dis.push('chosen'); useRollSwitch();
     const r = roll20(testMode(t)), n = r.total, ds = c.death || {s: 0, f: 0};
     let next = {...ds}, out = '', change = {};
     if (n === 20) { change = {currentHP: 1, death: {s: 0, f: 0}}; out = 'a 20: back up with 1 Hit Point'; }
@@ -3761,7 +3848,7 @@ function App() {
     setCombatants(prev => reorder(passTime(prev, seconds, longRest).list.map(restore).map(c => { const a = after.find(x => x.id === c.id); return a ? {...c, poolUsed: a.poolUsed, poolAt: a.poolAt, used: a.used, usedAt: a.usedAt, ...(longRest ? {hitDiceUsed: 0} : {})} : c; })));
     const md = manualDawn.current; manualDawn.current = {};
     Object.entries(md).forEach(([id, pools]) => setPrompts(prev => [...prev.filter(q => !(q.kind === 'dawn' && q.targetId === id)), plain({id: newId(), kind: 'dawn', targetId: id, by: myId, pools})]));
-    setLog(prev => [...prev, stamp({type:'round', text: label + (clockOn ? ` · now ${clockText(t2)}` : '')}), ...endedEntries(t.ended),
+    setLog(prev => [...prev, stamp({type:'round', text: label + (clockOn ? ` · now ${clockText(t2, w2 && w2.cal)}` : '')}), ...endedEntries(t.ended),
       ...(worldLines.length ? [stamp({type: 'roll', ...(w2 && w2.show ? {} : {dmOnly: true}), html: `<strong>The world</strong>${worldLines.map(l => `<div class="log-detail">${esc(l)}</div>`).join('')}`})] : []),
       ...Object.entries(perC).map(([id, lines]) => stamp({type: 'heal', forId: id, html: `<strong>${esc((combatants.find(c => c.id === id) || {}).name || '')}</strong>${lines.map(l => `<div class="log-detail">${esc(l)}</div>`).join('')}`}))]);
   };
@@ -3773,14 +3860,8 @@ function App() {
     let weather = w.weather;
     const steps = weather.rule === 'day' ? days : weather.rule === 'hour' ? Math.min(hours, 48) : 0;
     if (steps > 0 && weather.table.length) { const now = weather.table[Math.floor(Math.random() * weather.table.length)]; weather = {...weather, now}; lines.push(`Weather: ${now}`); }
-    const trackers = w.trackers.map(x => { const n = x.per ? crossed((x.per === 'day' ? DAY : HOUR) * (x.every || 1), 0) : 0; if (!n) return x;
-      if (x.kind === 'cycle') { const v = x.value + n * (x.by || 1); const now = trackerText({...x, value: v}); if (now !== trackerText(x)) lines.push(`${x.name}: ${now}`); return {...x, value: v}; }
-      if (x.kind === 'chance') { let hits = []; for (let i = 0; i < Math.min(n, 48); i++) { const r = 1 + Math.floor(Math.random() * x.die); if (r >= x.at) hits.push(r); }
-        if (hits.length) lines.push(`${x.name}: ${hits.length === 1 ? `rolled ${hits[0]} on the d${x.die}` : `${hits.length} times (${hits.join(', ')})`}${x.note ? `. ${x.note}` : ''}`); return x; }
-      if (!x.by) return x;
-      let v = x.value + n * x.by; if (x.min !== '') v = Math.max(x.min, v); if (x.max !== '') v = Math.min(x.max, v); if (v !== x.value) lines.push(`${x.name}: ${x.value} to ${v}`);
-      if (x.alert !== '' && ((x.by < 0 && x.value > x.alert && v <= x.alert) || (x.by > 0 && x.value < x.alert && v >= x.alert))) lines.push(`${x.name} reached ${v}${x.note ? `: ${x.note}` : ''}`);
-      return {...x, value: v}; });
+    const trackers = w.trackers.map(x => { const n = ['day', 'hour', 'minute'].includes(x.per) ? crossed((x.per === 'day' ? DAY : x.per === 'hour' ? HOUR : 60) * (x.every || 1), 0) : 0; if (!n) return x;
+      const r = stepTracker(x, n); lines.push(...r.lines); return r.x; });
     const timers = w.timers.map(x => { if (!x.done && x.at <= t1) { lines.push(`Timer done: ${x.name}${x.note ? ` (${x.note})` : ''}`); return {...x, done: true}; } return x; });
     if (dawns > 0) lines.push(dawns === 1 ? 'Dawn: items that recharge at dawn regain their charges' : `${dawns} dawns pass: items that recharge at dawn regain their charges each time`);
     return {world: {...w, t: t1, weather, trackers, timers}, lines, dawns};
@@ -4286,27 +4367,34 @@ function App() {
   const TIME_KINDS = {cast: 'casting time', armor: 'armor', other: 'other things that take time'};
   const takesTime = (c, type, what, secs) => {
     if (!c || !(secs > 0)) return;
-    if (rest) { const left = rest.len - rest.used;
-      setRest(r => r ? {...r, used: r.used + secs, len: Math.max(r.len, r.used + secs), acts: [...(r.acts || []), {id: newId().slice(0, 12), name: c.name, what, secs}].slice(-40)} : r);
-      setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> ${esc(what)} during the rest<div class="log-detail">Takes ${timeText(secs)}. ${secs > left ? `The rest runs ${timeText(secs - Math.max(0, left))} longer.` : `${timeText(left - secs)} of the rest left.`}</div>`})]); return; }
-    if (combatStarted || timeMute.includes(type)) return;
+    if (rest) { const me = rest.chars[c.id] || {used: 0}, len = me.len ?? rest.len, used = me.used + secs, runsOut = me.used <= len && used > len;
+      setRest(r => r ? {...r, chars: {...r.chars, [c.id]: {...(r.chars[c.id] || {}), used: ((r.chars[c.id] || {}).used || 0) + secs, ...(runsOut ? {over: true} : {})}}} : r);
+      if (runsOut) dmNote(`${c.name}'s rest time ran out: ${what} goes ${timeText(used - len)} past the end of the rest.`);
+      return; }
+    if (fight || timeMute.includes(type)) return;
     setPrompts(prev => [...prev, plain({id: newId(), kind: 'time', type, what, targetId: c.id, by: myId, secs})]);
   };
-  const startRest = (kind) => { if (!isDM || rest) return; setRest({kind, len: kind === 'long' ? LONG_REST : SHORT_REST, used: 0, acts: []}); setRestCards(false);
-    setLog(prev => [...prev, stamp({type: 'round', text: `The party starts a ${kind === 'long' ? 'Long' : 'Short'} Rest (${timeText(kind === 'long' ? LONG_REST : SHORT_REST)})`})]); };
-  const finishRest = () => { if (!isDM || !rest) return; const r = rest; setRest(null); advanceTime(r.len, `${r.kind === 'long' ? 'Long' : 'Short'} Rest: ${timeText(r.len)} pass`, r.kind); };
-  const stopRest = () => { if (!isDM || !rest || !window.confirm('Stop the rest without its benefits? The time already spent still passes.')) return; const r = rest; setRest(null);
-    if (r.used > 0) advanceTime(r.used, `The ${r.kind === 'long' ? 'Long' : 'Short'} Rest is cut short: ${timeText(r.used)} pass`); else setLog(prev => [...prev, stamp({type: 'round', text: `The ${r.kind === 'long' ? 'Long' : 'Short'} Rest is cut short`})]); };
-  const setRestClock = () => { const secs = Math.round((parseFloat(restSet.n) || 0) * (restSet.unit === 'hours' ? HOUR : 60)); if (!rest || secs < 0 || restSet.n === '') return;
-    setRest(r => r ? {...r, len: r.used + secs} : r); setRestSet({...restSet, n: ''}); };
-  const spendHitDie = (c) => { const left = Math.max(0, c.level - (+c.hitDiceUsed || 0)); if (!left || !canControl(c)) return;
-    const die = c.hitDie || 8, r = rollD(die), cm = mod((c.scores || {}).Constitution || 10), heal = Math.max(0, r + cm), hp = Math.min(totalHP(c), c.currentHP + heal);
-    setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, hitDiceUsed: (+x.hitDiceUsed || 0) + 1, currentHP: Math.min(totalHP(x), x.currentHP + heal)}));
-    setLog(prev => [...prev, stamp({type: 'heal', forId: c.id, html: `<strong>${esc(c.name)}</strong> spends a Hit Point Die<br/><span class="log-result">🎲 d${die}: ${r} ${signed(cm)} = ${heal}</span> Hit Points ${c.currentHP} to ${hp}<div class="log-detail">${left - 1} of ${c.level} Hit Point Dice left.</div>`})]); };
+  const dmNote = (text) => setPrompts(prev => [...prev, plain({id: newId(), kind: 'note', targetId: (combatants.find(x => x.type === 'player') || combatants[0] || {}).id || 'none', by: myId, text: String(text).slice(0, 300)})]);
+  const startRest = (kind) => { if (!isDM || rest) return; setRest({kind, len: kind === 'long' ? LONG_REST : SHORT_REST, chars: {}, ...(combatStarted ? {paused: true} : {})}); setRestCards(false);
+    setLog(prev => [...prev, stamp({type: 'round', text: `The party starts a ${kind === 'long' ? 'Long' : 'Short'} Rest (${timeText(kind === 'long' ? LONG_REST : SHORT_REST)})${combatStarted ? '. Initiative is paused' : ''}`})]); };
+  const finishRest = () => { if (!isDM || !rest) return; const r = rest; setRest(null); if (r.paused) setTurnStart(Date.now()); advanceTime(r.len, `${r.kind === 'long' ? 'Long' : 'Short'} Rest: ${timeText(r.len)} pass`, r.kind); };
+  const stopRest = () => { if (!isDM || !rest || !window.confirm('Stop the rest without its benefits? The time already spent still passes.')) return; const r = rest, spent = Math.max(0, ...Object.values(r.chars).map(x => x.used || 0)); setRest(null);
+    if (spent > 0) advanceTime(spent, `The ${r.kind === 'long' ? 'Long' : 'Short'} Rest is cut short: ${timeText(spent)} pass`); else setLog(prev => [...prev, stamp({type: 'round', text: `The ${r.kind === 'long' ? 'Long' : 'Short'} Rest is cut short`})]); };
+  const restSecs = () => Math.round((parseFloat(restSet.n) || 0) * (restSet.unit === 'hours' ? HOUR : 60));
+  const setMyRestClock = (c) => { const secs = restSecs(); if (!rest || restSet.n === '' || secs < 0) return; const me = rest.chars[c.id] || {used: 0}, len = me.used + secs;
+    setRest(r => r ? {...r, chars: {...r.chars, [c.id]: {...(r.chars[c.id] || {used: 0}), len, ...(len >= me.used ? {over: false} : {})}}} : r); setRestSet({...restSet, n: ''});
+    if (!isDM) dmNote(`${c.name} set their rest clock: ${timeText(secs)} left, ${timeText(len)} in all (the rest is ${timeText(rest.len)}).`); };
+  const setRestLength = () => { const secs = restSecs(); if (!isDM || !rest || !(secs > 0)) return; setRest(r => r ? {...r, len: secs} : r); setRestSet({...restSet, n: ''}); };
+  const [hdPick, setHdPick] = useState(null); // the Spend Hit Point Dice window: {cId, n, last}
+  const spendHitDice = (c, n) => { const left = Math.max(0, c.level - (+c.hitDiceUsed || 0)); n = Math.max(1, Math.min(left, Math.round(+n || 1))); if (!left || !canControl(c)) return;
+    const die = c.hitDie || 8, cm = mod((c.scores || {}).Constitution || 10), rolls = [];
+    for (let i = 0; i < n; i++) { let r = rollD(die); if (ROLL_R1 && r === 1) r = rollD(die); if (ROLL_LOW3 && r < 3 && die >= 3) r = 3; rolls.push(r); } useRollSwitch();
+    const heal = rolls.reduce((t, r) => t + Math.max(0, r + cm), 0), hp = Math.min(totalHP(c), c.currentHP + heal);
+    setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, hitDiceUsed: (+x.hitDiceUsed || 0) + n, currentHP: Math.min(totalHP(x), x.currentHP + heal)}));
+    setLog(prev => [...prev, stamp({type: 'heal', forId: c.id, html: `<strong>${esc(c.name)}</strong> spends ${n} Hit Point ${n === 1 ? 'Die' : 'Dice'}<br/><span class="log-result">🎲 ${n}d${die}: ${rolls.join(', ')}, ${signed(cm)} each = ${heal}</span> Hit Points ${c.currentHP} to ${hp}<div class="log-detail">${left - n} of ${c.level} Hit Point Dice left.</div>`})]);
+    setHdPick(h => h ? {...h, n: 1, last: `Rolled ${rolls.join(', ')} (${signed(cm)} each): ${heal} Hit Points back.`} : h); };
   const doBusy = (c) => { const secs = Math.round((parseFloat(busy.n) || 0) * (busy.unit === 'hours' ? HOUR : 60)), what = busy.what.trim(); if (!c || !what || !(secs > 0)) return;
-    if (!rest) setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> ${esc(what)}<div class="log-detail">Takes ${timeText(secs)}.</div>`})]);
     takesTime(c, 'other', what, secs); setBusy({what: '', n: '', unit: busy.unit}); };
-  const restClock = s2 => { s2 = Math.max(0, Math.round(s2)); return `${Math.floor(s2 / 3600)}:${String(Math.floor(s2 % 3600 / 60)).padStart(2, '0')}`; };
   // Armor goes on or comes off: Armor Class changes now, and the DM is asked to move time forward (which can be skipped)
   const handLog = (c, what) => setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, ...(isDM ? {sys: true} : {}), html: `<strong>${esc(c.name)}</strong> ${esc(what)} <span class="log-detail">(entered by hand${isDM ? ' by the DM' : ''})</span>`})]); // changes typed in by hand go in the log, so they can be taken back
   const rollRegain = (c, pn) => { const q = ((c.sheet || {}).pools || {})[pn] || {}; const used = +((c.poolUsed || {})[pn]) || 0; if (!used) return;
@@ -4317,7 +4405,7 @@ function App() {
     const secs = to.name ? to.don + (from && from.name ? from.doff : 0) : (from ? from.doff : 0);
     const what = to.name ? `puts on ${to.name}${from && from.name ? ` (taking off ${from.name})` : ''}` : `takes off ${from ? from.name : 'their armor'}`;
     setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, ac: to.ac, sheet: {...(x.sheet || {}), armor: to.name}}));
-    setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> ${esc(what)}<div class="log-detail">Armor Class ${c.ac} to ${to.ac}. Takes ${timeText(secs)}${combatStarted ? ': in a fight, the DM decides what that costs' : ''}.</div>`})]);
+    setLog(prev => [...prev, stamp({type: 'roll', sys: true, forId: c.id, html: `<strong>${esc(c.name)}</strong> ${esc(what)}<div class="log-detail">Armor Class ${c.ac} to ${to.ac}. Takes ${timeText(secs)}${combatStarted ? ': in a fight, the DM decides what that costs' : ''}.</div>`})]);
     takesTime(c, 'armor', what, secs);
   };
   const holdItem = (c, name) => { // puts something in a free hand, or asks which hand gives way
@@ -4803,7 +4891,7 @@ function App() {
     return a; };
   const selAction = withMode(actions.find(a => a.id === selectedAction));
   const needsTargetNow = selAction && !['selfheal','info'].includes(selAction.type) && !selAction.self;
-  const actorNow = viewed && canControl(viewed) && (!combatStarted || (active && viewed.id === active.id) || (selAction && selAction.activation === 'reaction')) ? viewed : null;
+  const actorNow = viewed && canControl(viewed) && (!fight || (active && viewed.id === active.id) || (selAction && selAction.activation === 'reaction')) ? viewed : null;
   // Why the chosen action cannot be done right now, in words, or '' when it can.
   const effectBlock = (c, a) => { if (!c || !a) return ''; const nc = a.spell && effs(c).find(e => e.noCast), na = (['action', 'bonus'].includes(a.activation || 'action') && effs(c).find(e => e.noAct)) || (a.activation === 'bonus' && effs(c).find(e => e.noBonus));
     if (nc) return `${c.name} can't cast spells (${nc.name}).`; if (na) return `${c.name} can't take ${na.noBonus && !na.noAct ? 'Bonus Actions' : 'actions'} (${na.name}).`;
@@ -4853,7 +4941,7 @@ function App() {
     const a = dmAsk; if (!a) return;
     if (useTotal) { const n = Math.max(1, Math.min(20, (parseInt(a.total, 10) || 0) - a.mod)); NEXT_D20 = n; }
     setDmAsk(null);
-    if (a.kind === 'attack') resolve(); else resolvePrompt(a.q);
+    if (a.kind === 'attack') resolve(); else withPrompt(a.q.id, () => resolvePrompt(a.q));
   };
   // The DM asks anyone for a saving throw or an ability check, with a DC.
   const callForRoll = () => {
@@ -4928,7 +5016,7 @@ function App() {
   // What is waiting on this person: Reactions they can take, and rolls they are asked to make. These pop up in the middle of the screen.
   const myAskIds = [...flowPrompts.filter(({q, c}) => canControl(c) && ((q.kind === 'incoming' && q.react && !q.answer) || (q.kind === 'confirm' && !q.answer) || (q.kind === 'offer' && reactionsFor(c, q.ev).length > 0))).map(x => x.q.id),
     ...openPrompts.filter(({c}) => canControl(c)).map(x => x.q.id)];
-  const sidePrompts = prompts.filter(q => q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn').map(q => ({q, c: combatants.find(x => x.id === q.targetId)})).filter(x => x.c);
+  const sidePrompts = prompts.filter(q => (q.kind === 'note' && isDM) || q.kind === 'askdm' || q.kind === 'form' || q.kind === 'time' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn').map(q => ({q, c: combatants.find(x => x.id === q.targetId)})).filter(x => x.c);
   sidePrompts.forEach(({q, c}) => { if (((q.kind === 'askdm' || q.kind === 'time') && isDM) || ((q.kind === 'form' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn') && canControl(c))) myAskIds.push(q.id); });
   const askKey = myAskIds.join(','), askPop = myAskIds.length > 0 && askLater !== askKey && !targeting;
   const targets = inPlay.filter(c => viewed && c.id !== viewed.id && c.currentHP > 0);
@@ -4953,7 +5041,7 @@ function App() {
         <button className="btn btn-ghost btn-sm" data-testid="notes-open" title="Your notes" onClick={() => setShowNotes(true)}>📝 Notes</button>
         {isDM && <button className="btn btn-ghost btn-sm" data-testid="glossary-open" title="Rules Glossary (SRD 5.2.1)" onClick={() => setShowGlossary(true)}>📖 Rules Glossary</button>}
         {combatStarted && <div className="round-badge">Round {round}</div>}
-        {world && world.on && (isDM || world.show) && <div className="world-badge" data-testid="world-badge" title={isDM && !world.show ? 'Only you see this' : 'The time and weather'}>🕰 {clockText(world.t)}{world.weather.now ? ` · ${world.weather.now}` : ''}{(world.trackers || []).filter(x => (isDM || x.show) && x.kind !== 'chance').map(x => ` · ${x.name} ${trackerText(x)}`).join('')}</div>}
+        {world && world.on && (isDM || world.show) && <div className="world-badge" data-testid="world-badge" title={isDM && !world.show ? 'Only you see this' : 'The time and weather'}>🕰 {clockText(world.t, world.cal)}{world.weather.now ? ` · ${world.weather.now}` : ''}{(world.trackers || []).filter(x => (isDM || x.show) && x.kind !== 'chance').map(x => ` · ${x.name} ${trackerText(x)}`).join('')}</div>}
         <div className="room-bar">
           <span>Player code <span className="room-code" data-testid="player-code">{playerCode}</span>
             {!room && <> <button className="link-btn" onClick={changePlayerCode}>change</button></>}</span>
@@ -5009,7 +5097,28 @@ function App() {
           </div>
         </div>
       </div>}
-      {changePick && <div className="modal-overlay" onClick={() => setChangePick(null)}>
+      {hdPick && (() => { const c = combatants.find(x => x.id === hdPick.cId); if (!c) return null; const left = Math.max(0, c.level - (+c.hitDiceUsed || 0)), die = c.hitDie || 8, cm = mod((c.scores || {}).Constitution || 10), avg = Math.max(0, (die + 1) / 2 + cm), n = Math.max(1, Math.min(left || 1, +hdPick.n || 1)), max = totalHP(c); return (
+        <div className="modal-overlay" onClick={() => setHdPick(null)}>
+          <div className="modal" data-testid="hd-modal" style={{maxWidth: 420}} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">{c.name}: Spend Hit Point Dice</div>
+            <div className="modal-body">
+              <div className="hd-hp" data-testid="hd-hp"><span>Hit Points <strong>{c.currentHP}</strong> of {max}</span><div className="hp-bar-wrap"><div className="hp-bar" style={{width: `${Math.max(0, Math.min(100, c.currentHP / max * 100))}%`, background: hpColor(c.currentHP, max)}}/></div></div>
+              <div className="explain-line"><span>Hit Point Dice left</span><strong data-testid="hd-left">{left} of {c.level} (d{die})</strong></div>
+              <div className="explain-line"><span>Each die heals</span><strong>1d{die} {signed(cm)} (Constitution)</strong></div>
+              <div className="hd-roll">
+                <button className="btn btn-primary" data-testid="hd-one" disabled={!left} onClick={() => spendHitDice(c, 1)}>🎲 Roll one</button>
+                <span className="pp-muted">or</span>
+                <input type="number" min="1" max={left} aria-label="How many Hit Point Dice" data-testid="hd-n" value={hdPick.n} onChange={e => setHdPick({...hdPick, n: e.target.value})} style={{width: 56}}/>
+                <span className="pp-muted">max {left}</span>
+                <button className="btn btn-ghost" data-testid="hd-many" disabled={!left} onClick={() => spendHitDice(c, n)}>🎲 Roll {n}</button>
+                <span className="pp-muted" data-testid="hd-avg">average {Math.round(avg * n * 10) / 10}</span>
+              </div>
+              {hdPick.last && <div className="buff-note" data-testid="hd-last" style={{marginTop: 8}}>{hdPick.last}</div>}
+              <div className="do-row"><button className="btn btn-ghost btn-sm" data-testid="hd-close" onClick={() => setHdPick(null)}>Done</button></div>
+            </div>
+          </div>
+        </div>); })()}
+      {changePick && <div className="modal-overlay\" onClick={() => setChangePick(null)}>
         <div className="modal" data-testid="change-modal" style={{maxWidth: 480}} onClick={e => e.stopPropagation()}>
           <div className="modal-header">Change what this did</div>
           <div className="modal-body">
@@ -5084,6 +5193,8 @@ function App() {
             {ctl && <button data-testid="menu-view" onClick={() => { setViewId(c.id); setSelectedAction(null); setPane('sheet'); close(); }}>View {c.name}</button>}
             {selAction && needsTarget && viewed && c.id !== viewed.id && <button data-testid="menu-target" onClick={() => { if (selMax > 1) toggleTarget(c.id); else setTargetIds([c.id]); endTargeting(); close(); }}>Target with {selAction.name}</button>}
             {fold && ctl && <button onClick={() => { setOpenDown(p => ({...p, [c.id]: !p[c.id]})); close(); }}>{openDown[c.id] ? 'Fold away' : 'Open up'}</button>}
+            {isDM && !c.owner && <button data-testid="menu-card-all" onClick={() => { showCard(c, null); close(); }}>Show its card to everyone</button>}
+            {isDM && !c.owner && combatants.filter(x => x.type === 'player' && x.owner && !x.pending).map(x => <button key={x.id} data-testid="menu-card-to" onClick={() => { showCard(c, x); close(); }}>Show its card to {x.name}</button>)}
             {ctl && <button onClick={() => { close(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id); }}>Remove from combat</button>}
             {!ctl && !(selAction && needsTarget) && <button onClick={close}>Nothing to do here</button>}
           </div>
@@ -5102,9 +5213,10 @@ function App() {
           <strong>Roll Initiative.</strong>
           {needInit.filter(canControl).map(c => (
             <span key={c.id} className="p-btns" data-testid="init-item">
-              <button className="btn btn-primary btn-sm" data-testid="init-roll" onClick={() => rollInit(c)}>🎲 {c.name} ({signed(effectiveInitBonus(c))})</button>
+              <button className="btn btn-primary btn-sm" data-testid="init-roll" onClick={() => withPrompt('init-' + c.id, () => rollInit(c))}>🎲 {c.name} ({signed(effectiveInitBonus(c))})</button>
               <input type="number" aria-label={`Initiative total for ${c.name}`} placeholder="or type" value={initType[c.id] || ''} onChange={e => setInitType({...initType, [c.id]: e.target.value})} onKeyDown={e => { if (e.key === 'Enter' && initType[c.id]) rollInit(c, initType[c.id]); }} style={{width: 70}}/>
               {initType[c.id] ? <button className="btn btn-ghost btn-sm" data-testid="init-set" onClick={() => rollInit(c, initType[c.id])}>Set</button> : null}
+              {promptSwitch('init-' + c.id)}
             </span>))}
           {needInit.filter(canControl).length === 0 && <span className="prompt-wait">{needInit.length ? `Waiting for ${needInit.map(c => c.name).join(', ')}` : 'Everyone has rolled.'}</span>}
           {isDM && needInit.filter(canControl).length > 1 && <button className="btn btn-ghost btn-sm" data-testid="init-roll-mine" onClick={() => needInit.filter(c => !c.owner || c.owner === myId).forEach(c => rollInit(c))}>Roll all of mine</button>}
@@ -5138,21 +5250,23 @@ function App() {
                 <span className="p-btns">{react}{noR}</span>
               </div>);
           })}
-          {sidePrompts.map(({q, c}) => q.kind === 'dawn' ? (
+          {sidePrompts.map(({q, c}) => q.kind === 'note' ? (
+            <div key={q.id} className="prompt-item yours" data-testid="prompt-note"><span>{q.text}</span><span className="p-btns"><button className="btn btn-ghost btn-sm" data-testid="note-ok" onClick={() => removePrompt(q.id)}>OK</button></span></div>
+          ) : q.kind === 'dawn' ? (
             <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`} data-testid="prompt-dawn">
               <span><strong>{c.name}</strong>: dawn. Roll for the charges your items regain.</span>
-              {canControl(c) ? <span className="p-btns">{(q.pools || []).map(pn => { const pq = ((c.sheet || {}).pools || {})[pn] || {}; return <button key={pn} className="btn btn-primary btn-sm" data-testid="dawn-roll" onClick={() => { rollRegain(c, pn); const rest = (q.pools || []).filter(x => x !== pn); setTimeout(() => { removePrompt(q.id); if (rest.length) setPrompts(prev => [...prev, plain({...q, id: newId(), pools: rest})]); }, 450); }}>🎲 {pn}{pq.regain ? ` (${pq.regain})` : ''}</button>; })}
-                <button className="btn btn-ghost btn-sm" onClick={() => removePrompt(q.id)}>Later</button></span>
+              {canControl(c) ? <span className="p-btns">{(q.pools || []).map(pn => { const pq = ((c.sheet || {}).pools || {})[pn] || {}; return <button key={pn} className="btn btn-primary btn-sm" data-testid="dawn-roll" onClick={() => { withPrompt(q.id, () => rollRegain(c, pn)); const rest = (q.pools || []).filter(x => x !== pn); setTimeout(() => { removePrompt(q.id); if (rest.length) setPrompts(prev => [...prev, plain({...q, id: newId(), pools: rest})]); }, 450); }}>🎲 {pn}{pq.regain ? ` (${pq.regain})` : ''}</button>; })}
+                <button className="btn btn-ghost btn-sm" onClick={() => removePrompt(q.id)}>Later</button>{promptSwitch(q.id)}</span>
                 : <span className="prompt-wait">{c.name} rolls for item charges</span>}
             </div>) : q.kind === 'death' ? (c.currentHP > 0 || c.dead || isStable(c) ? null :
             <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`} data-testid="prompt-death">
               <span><strong>{c.name}</strong> is at 0 Hit Points: roll a Death Saving Throw. ({(c.death || {}).s || 0} successes, {(c.death || {}).f || 0} failures)</span>
-              {canControl(c) ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="death-go" onClick={() => { removePrompt(q.id); rollDeathSave(c); }}>🎲 Roll it</button></span> : <span className="prompt-wait">Waiting for its player</span>}
+              {canControl(c) ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="death-go" onClick={() => { removePrompt(q.id); withPrompt(q.id, () => rollDeathSave(c)); }}>🎲 Roll it</button>{promptSwitch(q.id)}</span> : <span className="prompt-wait">Waiting for its player</span>}
             </div>) : q.kind === 'escape' ? (
             <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`} data-testid="prompt-escape">
               <span><strong>{c.name}</strong> is held by <strong>{q.what}</strong>. It can take an action to try to get free: {q.es.ability}{q.es.skill ? ` (${q.es.skill})` : ''} check, DC {q.es.dc}.</span>
-              {canControl(c) ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="escape-go" onClick={() => { removePrompt(q.id); setTimeout(() => tryEscape(c, q.es, q.cond || null, q.effId ? (c.effects || []).find(e => e.id === q.effId) : null), 450); }}>🎲 Try to escape</button>
-                  <button className="btn btn-ghost btn-sm" data-testid="escape-skip" onClick={() => removePrompt(q.id)}>Not now</button></span>
+              {canControl(c) ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="escape-go" onClick={() => { removePrompt(q.id); setTimeout(() => withPrompt(q.id, () => tryEscape(c, q.es, q.cond || null, q.effId ? (c.effects || []).find(e => e.id === q.effId) : null)), 450); }}>🎲 Try to escape</button>
+                  <button className="btn btn-ghost btn-sm" data-testid="escape-skip" onClick={() => removePrompt(q.id)}>Not now</button>{promptSwitch(q.id)}</span>
                 : <span className="prompt-wait">Waiting for {c.owner ? 'its player' : 'the DM'}</span>}
             </div>) : q.kind === 'time' ? (
             <div key={q.id} className={`prompt-item ${isDM ? 'yours' : ''}`} data-testid="prompt-time">
@@ -5178,9 +5292,9 @@ function App() {
             <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`}>
               <span><strong>{c.name}</strong>: {text} · DC {dc}{q.action && q.action.advIf ? <span className="prompt-wait" data-testid="adv-if"> · Advantage if: {q.action.advIf}</span> : null}</span>
               {canControl(c)
-                ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="prompt-roll" onClick={()=>askSave(q, c)}>🎲 Roll {c.name}'s {q.kind === 'check' ? 'check' : 'save'}</button>
-                    {q.action && q.action.advIf && <button className="btn btn-ghost btn-sm" data-testid="prompt-roll-adv" onClick={()=>askSave({...q, action: {...q.action, advNow: true}}, c)}>🎲 Roll with Advantage</button>}
-                    {isDM && q.kind === 'save' && <><button className="btn btn-ghost btn-sm" data-testid="rule-fail" onClick={()=>resolvePrompt(q, 'fail')}>Cause to fail</button><button className="btn btn-ghost btn-sm" data-testid="rule-pass" onClick={()=>resolvePrompt(q, 'pass')}>Cause to succeed</button></>}</span>
+                ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="prompt-roll" onClick={() => withPrompt(q.id, () => askSave(q, c))}>🎲 Roll {c.name}'s {q.kind === 'check' ? 'check' : 'save'}</button>
+                    {q.action && q.action.advIf && <button className="btn btn-ghost btn-sm" data-testid="prompt-roll-adv" onClick={() => withPrompt(q.id, () => askSave({...q, action: {...q.action, advNow: true}}, c))}>🎲 Roll with Advantage</button>}
+                    {isDM && q.kind === 'save' && <><button className="btn btn-ghost btn-sm" data-testid="rule-fail" onClick={()=>resolvePrompt(q, 'fail')}>Cause to fail</button><button className="btn btn-ghost btn-sm" data-testid="rule-pass" onClick={()=>resolvePrompt(q, 'pass')}>Cause to succeed</button></>}{promptSwitch(q.id)}</span>
                 : <span className="prompt-wait">Waiting for {c.owner ? 'its player' : 'the DM'}</span>}
             </div>
           ))}
@@ -5217,21 +5331,26 @@ function App() {
             )}
             {isDM && <div className="initiative-controls"><button className="btn btn-ghost btn-full" data-testid="clear-open" onClick={() => setClearPick({log: true, monsters: true, players: false, world: false, notes: false})}>Clear the table…</button></div>}
             {ended && !combatStarted && <div className="initiative-controls"><button className="btn btn-ghost btn-full" data-testid="end-open" onClick={() => { setEndTab('summary'); setShowEnd(true); }}>After the Fight</button></div>}
-            {rest && (() => { const left = rest.len - rest.used, mine = combatants.filter(c => c.type === 'player' && canControl(c) && !c.pending); return (
+            {rest && (() => { const mine = combatants.filter(c => c.type === 'player' && !c.pending && (isDM ? true : canControl(c))), big = mine.length === 1 ? 150 : isDM ? 92 : 120; return (
               <div className="rest-panel" data-testid="rest-panel">
-                <div className="rest-title">{rest.kind === 'long' ? 'Long Rest' : 'Short Rest'}</div>
-                <div className="rest-clock" data-testid="rest-clock" title="Time left in the rest">{restClock(left)}</div>
-                <div className="pp-muted" style={{textAlign: 'center', fontSize: 12}}>left of {timeText(rest.len)}{rest.used > 0 ? ` · ${timeText(rest.used)} spent` : ''}</div>
-                <div className="time-row" style={{gridTemplateColumns: '1fr auto auto', margin: '6px 0'}}>
-                  <input type="number" min="0" aria-label="Rest time left" data-testid="rest-set-n" placeholder="Set time left" value={restSet.n} onChange={e => setRestSet({...restSet, n: e.target.value})} onKeyDown={e => { if (e.key === 'Enter') setRestClock(); }}/>
+                <div className="rest-title">{rest.kind === 'long' ? 'Long Rest' : 'Short Rest'} · {timeText(rest.len)}</div>
+                {rest.paused && <div className="buff-note" data-testid="rest-paused" style={{margin: '4px 0', textAlign: 'center'}}>Initiative is paused until the rest is over.</div>}
+                <div className="rest-clocks">{mine.map(c => { const me = rest.chars[c.id] || {used: 0}, len = me.len ?? rest.len, left = len - me.used; return (
+                  <div key={c.id} className="rest-who" data-testid="rest-who">
+                    <RestRing left={left} total={len} size={big} label={c.name}/>
+                    <div className="rest-name"><strong>{c.name}</strong>{me.len != null && me.len !== rest.len ? <span className="pp-muted"> · own clock {timeText(len)}</span> : null}</div>
+                    {canControl(c) && rest.kind === 'short' && <button className="btn btn-ghost btn-sm" data-testid="rest-hd" disabled={!(c.level - (+c.hitDiceUsed || 0))} onClick={() => setHdPick({cId: c.id, n: 1})}>Spend Hit Point Dice</button>}
+                  </div>); })}</div>
+                <div className="time-row" style={{gridTemplateColumns: '1fr auto', margin: '8px 0 4px'}}>
+                  <input type="number" min="0" aria-label="Rest time" data-testid="rest-set-n" placeholder={isDM ? 'Rest length' : 'Time left on my clock'} value={restSet.n} onChange={e => setRestSet({...restSet, n: e.target.value})}/>
                   <select aria-label="Rest clock unit" value={restSet.unit} onChange={e => setRestSet({...restSet, unit: e.target.value})}>{['minutes', 'hours'].map(u => <option key={u}>{u}</option>)}</select>
-                  <button className="btn btn-ghost btn-sm" data-testid="rest-set" disabled={restSet.n === ''} onClick={setRestClock}>Set clock</button>
                 </div>
-                <div className="rest-acts" data-testid="rest-acts">{rest.acts.length ? rest.acts.map(a => <div key={a.id} className="rest-act"><strong>{a.name}</strong> {a.what} <span className="pp-muted">{timeText(a.secs)}</span></div>)
-                  : <div className="pp-muted" style={{fontSize: 13}}>What each character does shows here. Anything that takes time comes off the clock.</div>}</div>
-                {mine.map(c => { const hl = Math.max(0, c.level - (+c.hitDiceUsed || 0)); return rest.kind === 'short' && <div key={c.id} className="world-row" data-testid="rest-hd-row"><span><strong>{c.name}</strong> {c.currentHP}/{totalHP(c)} HP · Hit Point Dice {hl}/{c.level} (d{c.hitDie || 8})</span>
-                  <button className="btn btn-ghost btn-sm" data-testid="rest-hd" disabled={!hl || c.currentHP >= totalHP(c)} onClick={() => spendHitDie(c)}>Spend one</button></div>; })}
-                <button className="pp-chip" data-testid="rest-cards" style={{marginTop: 6}} onClick={() => setRestCards(v => !v)}>{restCards ? 'Hide the creatures' : 'Show the creatures'}</button>
+                <div className="buff-row" style={{justifyContent: 'center'}}>
+                  {isDM ? <button className="btn btn-ghost btn-sm" data-testid="rest-len" disabled={!(parseFloat(restSet.n) > 0)} onClick={setRestLength}>Set the rest's length</button>
+                    : mine.filter(canControl).map(c => <button key={c.id} className="btn btn-ghost btn-sm" data-testid="rest-set" disabled={restSet.n === ''} onClick={() => setMyRestClock(c)}>Set {mine.length > 1 ? `${c.name}'s` : 'my'} clock</button>)}
+                </div>
+                <div className="buff-note" style={{margin: '4px 0 0', textAlign: 'center'}}>Anything that takes time comes off your own clock.{isDM ? '' : ' Changing your clock tells the DM.'}</div>
+                <button className="pp-chip" data-testid="rest-cards" style={{marginTop: 6}} title="The rest hides the creature cards. Show them to pick a target (a healing spell on a friend), or to look at someone" onClick={() => setRestCards(v => !v)}>{restCards ? 'Hide the creature cards' : 'Show the creature cards'}</button>
               </div>); })()}
             {(!rest || restCards || targeting) && visible.length === 0 && (
               <div className="empty-state">{isDM ? 'Add combatants to begin' : 'Add your character to join the fight'}</div>
@@ -5611,7 +5730,7 @@ function App() {
                 </>)}
 
                 {/* Something that takes time: during a rest it comes off the rest clock, otherwise the DM is asked */}
-                {viewed && canControl(viewed) && !combatStarted && (
+                {viewed && canControl(viewed) && !fight && (
                   <div className="time-row busy-row" data-testid="takes-time">
                     <input aria-label="What you do" data-testid="busy-what" placeholder="Something that takes time (search the room...)" value={busy.what} onChange={e => setBusy({...busy, what: e.target.value.slice(0, 100)})}/>
                     <input type="number" min="1" aria-label="How long" data-testid="busy-n" value={busy.n} onChange={e => setBusy({...busy, n: e.target.value})} style={{width: 60}}/>
@@ -5790,7 +5909,7 @@ function App() {
           {/* Resolve Bar */}
           {showSheet && (
             <div className="resolve-bar">
-              {combatStarted && turnSecs > 0 && active && active.owner && (isDM || canControl(active)) && (() => { const left = Math.max(0, Math.min(turnSecs, Math.ceil((turnSecs * 1000 - (clock - turnStart)) / 1000))); return hideTimer
+              {fight && turnSecs > 0 && active && active.owner && (isDM || canControl(active)) && (() => { const left = Math.max(0, Math.min(turnSecs, Math.ceil((turnSecs * 1000 - (clock - turnStart)) / 1000))); return hideTimer
                 ? <button className="btn btn-ghost btn-sm" data-testid="timer-show" onClick={() => setHideTimer(false)}>Show timer</button>
                 : <span className={`turn-timer ${left <= 0 ? 'out' : ''}`} data-testid="turn-timer">⏱ {left <= 0 ? 'Time is up' : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`}<button className="link-btn" data-testid="timer-hide" title="Hide the timer" onClick={() => setHideTimer(true)}>hide</button></span>; })()}
               {combatStarted && <button className="next-turn-btn" disabled={!canControl(active)} style={!canControl(active)?{opacity:0.4,cursor:'default'}:{}} onClick={nextTurn}>Next Turn →</button>}
