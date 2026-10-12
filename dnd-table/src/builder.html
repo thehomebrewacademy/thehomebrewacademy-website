@@ -11,6 +11,7 @@
   <script src="rules.js"></script>
   <script src="mechanics.js"></script>
   <script src="items.js"></script>
+  <script src="equipment.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1142,6 +1143,14 @@ const MUNDANE_ITEMS = [
   {name:"Warship",category:"Vehicle",cost:"25,000 gp",weight:"—",description:"Holds 40 crew; 200 tons cargo. Speed 2½ mph."},
   {name:"Galley",category:"Vehicle",cost:"30,000 gp",weight:"—",description:"Holds 80 crew; 150 tons cargo. Speed 4 mph (oars)."},
 ];
+// Each item takes its SRD 5.2.1 entry word for word (equipment.js); SRD items missing above are added. Items not in the SRD keep their short note.
+(function () {
+  const find = window.HBA_EQUIP_FIND, E = window.HBA_EQUIPMENT; if (!find || !E) return; const used = new Set();
+  const full = (x) => [...(x.stats || []), x.d || ""].filter(Boolean).join("\n");
+  MUNDANE_ITEMS.forEach((it) => { const x = find(it.name); if (!x) return; used.add(x.n); it.srd = x.n; it.description = full(x) || it.description; });
+  E.items.forEach((x) => { if (used.has(x.n)) return; const cat = /Focus|Holy Symbol|Equipment Pack|Ammunition/.test(x.c) ? "Adventuring Gear" : x.c;
+    MUNDANE_ITEMS.push({ name: x.n, category: cat, cost: x.cost, weight: x.w, description: full(x), srd: x.n }); });
+})();
 
 /* ============ HELPERS ============ */
 const mod = (score) => Math.floor((score - 10) / 2);
@@ -2022,7 +2031,7 @@ function gatherStatics(entries, ctx, gear, level) {
   const when = (w) => w === "noHeavy" ? armorCat !== "Heavy" : w === "noArmor" ? !armorCat : w === "noArmorNoShield" ? !armorCat && !gear.shield : w === "armor" ? !!armorCat : true;
   entries.forEach(e => {
     const s = e.statics; if (!s) return;
-    if (s.acBase) pArr(Array.isArray(s.acBase) ? s.acBase : [s.acBase]).forEach(b => d.acBases.push({ value: num(b.formula), shield: b.shield !== false, source: e.name }));
+    if (s.acBase) pArr(Array.isArray(s.acBase) ? s.acBase : [s.acBase]).forEach(b => d.acBases.push({ value: num(b.formula), formula: pStr(b.formula, 40), shield: b.shield !== false, source: e.name }));
     const src = pStr(pObj(e.grantedBy).name || e.name, 60);
     if (s.acBonus) { const b = pObj(s.acBonus); if (when(b.when)) { const v = num(b.formula != null ? b.formula : s.acBonus); d.acBonus += v; if (v) d.why.ac.push([src, v]); } }
     if (s.speed) { const b = typeof s.speed === "object" ? s.speed : { formula: s.speed }; if (when(b.when)) { const v = num(b.formula); d.speedBonus += v; if (v) d.why.speed.push([src, v]); } }
@@ -2074,14 +2083,14 @@ function gatherStatics(entries, ctx, gear, level) {
   return d;
 }
 function armorClassOf(d, gear, dexMod) {
-  let base, how;
-  if (gear.armor) { const a = gear.armor; base = a.base + (a.dex ? (a.max != null ? Math.min(dexMod, a.max) : dexMod) : 0); how = a.name; }
+  let base, how, parts; // parts: how the base is made, for the breakdown
+  if (gear.armor) { const a = gear.armor, dx = a.dex ? (a.max != null ? Math.min(dexMod, a.max) : dexMod) : 0; base = a.base + dx; how = a.name; parts = [[a.name, a.base], ...(a.dex ? [[`Dexterity modifier${a.max != null ? ` (max ${a.max})` : ""}`, dx]] : [])]; }
   else {
-    base = 10 + dexMod; how = "Unarmored";
-    d.acBases.forEach(b => { if ((b.shield || !gear.shield) && b.value > base) { base = b.value; how = b.source; } });
+    base = 10 + dexMod; how = "Unarmored"; parts = [["Unarmored", 10], ["Dexterity modifier", dexMod]];
+    d.acBases.forEach(b => { if ((b.shield || !gear.shield) && b.value > base) { base = b.value; how = b.source; parts = [[`${b.source}${b.formula ? ` (${b.formula.replace(/\+/g, " + ")})` : ""}`, b.value]]; } });
   }
   const sb = gear.shield ? 2 + (gear.shieldBonus || 0) : 0;
-  return { value: base + sb + d.acBonus, how: how + (gear.shield ? ` + ${gear.shieldName || "Shield"}` : "") };
+  return { value: base + sb + d.acBonus, how: how + (gear.shield ? ` + ${gear.shieldName || "Shield"}` : ""), parts };
 }
 // Attacks the character can always make: Unarmed Strike and each weapon on the sheet.
 function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { // mastered: weapons whose mastery property this character can use
@@ -2823,7 +2832,7 @@ function CharacterSheet() {
         return ["", ...names].map(n => { const a = n ? armorOf(n) : null; if (n && !a) return null; const g2 = { ...gear, armor: a }, v = armorClassOf(gatherStatics(mech.entries, spellCtx, g2, level), g2, finalMods.Dexterity).value + (statAdj.ac || 0); // what features give depends on the armor (Defense)
           return { name: n, ac: v, cat: a ? a.cat : "", don: a ? (TIMES[a.cat] || [60, 60])[0] : 0, doff: a ? (TIMES[a.cat] || [60, 60])[1] : 0 }; }).filter(Boolean); })(),
       why: (() => { const w = { ...derived.why }; const dx = finalMods.Dexterity;
-        w.ac = [[ac.how.split(" + ")[0], ac.value - derived.acBonus - (gear.shield ? 2 + (gear.shieldBonus || 0) : 0)], ...(gear.shield ? [[gear.shieldName || "Shield", 2 + (gear.shieldBonus || 0)]] : []), ...derived.why.ac, ...(statAdj.ac ? [["Your adjustment", statAdj.ac]] : [])];
+        w.ac = [...(ac.parts || [[ac.how.split(" + ")[0], ac.value - derived.acBonus - (gear.shield ? 2 + (gear.shieldBonus || 0) : 0)]]), ...(gear.shield ? [[gear.shieldName || "Shield", 2 + (gear.shieldBonus || 0)]] : []), ...derived.why.ac, ...(statAdj.ac ? [["Your adjustment", statAdj.ac]] : [])];
         w.speed = [[derived.speedBase ? "Speed set by a feature" : `${species || "Species"} Speed`, derived.speedBase || (SPECIES[species] ? SPECIES[species].speed : 30)], ...derived.why.speed, ...(statAdj.speed ? [["Your adjustment", statAdj.speed]] : [])];
         w.initiative = [["Dexterity", dx], ...derived.why.initiative, ...(statAdj.initiative ? [["Your adjustment", statAdj.initiative]] : [])];
         return w; })(),
