@@ -63,7 +63,7 @@ Different people will each convert the same book and then play together, so two 
   10. If you are not sure how to write something, write it as text only and list it in your reply after the file, so the user can check it. Never guess.
 The Character Builder shows a short check code for every pack it loads. Two people whose packs show the same code have the same content.
 
-STEP 3. Output ONE JSON file and nothing else, in a single code block, so the user can save it as a .json file. It must be valid JSON: double quotes, no comments, no trailing commas. If the content is too long for one reply, tell the user, then continue the same file in the next reply so the pieces join into one file.
+STEP 3. Output ONE JSON file and nothing else, in a single code block, so the user can save it as a .json file. It must be valid JSON: double quotes, no comments, no trailing commas. If the content is too long for one reply, tell the user, then continue the same file in the next reply so the pieces join into one file. Never split a large book into several packs yourself: the builder cuts a large pack into parts by type when it is uploaded.
 
 STEP 4. After the file, list anything you could not express in this format, so the user knows what stays a table ruling.
 
@@ -512,6 +512,7 @@ attacks: when one use makes several separate attack rolls that can go at the sam
 removes: when the feature ends things on its target, add "removes": { "conditions": ["Poisoned", "Charmed"], "count": 1 or "all", "exhaustion": 1, "effects": "curse" | "spells" | "any", "hitPointMaximum": true }. Leave out what does not apply. The user is shown what the target really has and picks from that.
 extraCost: a second pool it spends at the same time, or alone with no "uses": "extraCost": { "pool": "Wild Shape", "cost": 1 }.
 spendSlot: when using it expends a spell slot, add "spendSlot": "any" (the user picks the level), "pact" (a Pact Magic slot) or a number (a slot of that level or higher). It is blocked when no slot is left.
+sneakCost: a Cunning Strike effect: "sneakCost": 2 is the number of Sneak Attack dice given up for it. The attacker picks it when adding Sneak Attack, and it happens right after the damage.
 regain: what using it gives back: "regain": { "pool": "Bardic Inspiration", "amount": 1 } (uses of a pool), { "slot": 2 } (a spell slot of that level), or { "pactSlots": "half" or "all" } (Pact Magic slots).
 cost: when using it costs gold, add "cost": { "gp": 50, "consumed": true }. The gold must be on hand and is taken when it is used (once only if not consumed).
 items: an activated ability granted by an item ("grantedBy": { "type": "item", "name": ... }) can also be used from the Inventory tab of the character sheet, next to that item.
@@ -555,6 +556,7 @@ More effect keys (inside an "effects" entry), each exactly as written here:
   "endsWhenNextAttacked": true        ends after the next attack roll against it
   "outOfPlay": true                   it is elsewhere while this lasts: skipped in the turn order, cannot be targeted
   "stable": true, "dashAsBonusAction": true
+  "sharedWard": true                  with "dropTo1Instead": the ward is shared by everyone the user gave it to; once it works for one, it stops for all until the user finishes a Long Rest (Gift of the Protectors)
   "halveNextDamage": true             the damage of the next hit it takes is halved, then the effect ends (Uncanny Dodge)
   "reduceNextDamage": { "dice": "1d10+DEX+LEVEL", "types": ["Bludgeoning", "Piercing", "Slashing"] }   the damage of the next hit (of those types; leave "types" out for any) is reduced by that roll, then the effect ends (Deflect Attacks)
   "nextSpellFree": { "maxLevel": 5 }  its next spell of that level or lower is cast without a slot (Divine Intervention)
@@ -613,9 +615,11 @@ PASSIVE FEATURES: statics
   "critExtraDice": "1d8"                                  dice added to the damage of a Critical Hit with a weapon or Unarmed Strike
   "itemSlots": { "Attunement": 1 }                        more item slots of that kind (Attunement, or a kind from "slotTypes"): the character can be attuned to one more item
   "spellPicks": [ { "label": "Mystic Arcanum (level 6)", "count": 1, "level": 6, "lists": ["Warlock"], "cast": "once" } ]
-                                                          spells the player chooses on the Spells tab. level: a number, "slot" (any level the character has slots for) or 0 for cantrips. lists: class spell lists to choose from. count can be a list of 20. cast: how the picks are cast (below); leave out for normal casting
+                                                          spells the player chooses on the Spells tab. level: a number, "slot" (any level the character has slots for) or 0 for cantrips. lists: class spell lists to choose from. count can be a list of 20. Add "school": "Evocation" or "ritual": true to narrow the choice, "castingTime": "Action" for only spells cast with an action, and "fromBook": true for only spells in the spellbook. "cast": "book" writes the picks in the spellbook for free instead (Evocation Savant). cast: how the picks are cast (below); leave out for normal casting
   "spellUses": [ { "spell": "Misty Step", "cast": "short" } ]   a spell the feature lets it cast in a special way. cast: "once" (once per Long Rest, no slot), "short" (once per Short or Long Rest, no slot), "atWill" (no slot, no limit), "ritualOnly" (only as a Ritual). Add "self": true when only on itself, "maxRoll": true when its healing dice count as their highest, "note" for anything else
   "spellMods": [ { "spell": "Eldritch Blast", "damage": "CHA", "range": "30*LEVEL", "note": "..." } ]   changes to one spell: damage added, range set to a formula
+  "spellbook": { "start": 6, "perLevel": 2, "lists": ["Wizard"] }   a spellbook: the player writes that many spells in it (start at level 1, more each level, more can be copied), and prepared spells of level 1+ must come from it
+  "ritualsFromBook": true                                 any Ritual spell in its spellbook can be cast as a Ritual without being prepared (Ritual Adept)
   "extraSpellLists": ["Cleric", "Druid"]                  those class lists count as the character's own when it prepares spells (Magical Secrets)
   "languages": ["Thieves' Cant"]                          languages it knows
   "unarmedForce": true                                    Unarmed Strikes can deal Force damage instead of Bludgeoning
@@ -645,6 +649,9 @@ passives the Combat Resolver applies:
   "overcomeDefenses": ["Bludgeoning", "Piercing", "Slashing"]   damage of those types the user deals ignores Resistance (Boon of Irresistible Offense)
   "overwhelmingStrike": "Strength"   on a 20 for an attack roll, extra damage equal to that ability score (Boon of Irresistible Offense)
   "freeCasting": 4             casting with a slot of level 1 up to this, a d4 equal to the slot's level means the slot is not spent (Boon of Spell Recall)
+  "pactAttacks": 2             attacks with the Attack action when using the pact weapon (Thirsting Blade)
+  "cunningStrikes": 2          how many Cunning Strike effects one Sneak Attack can carry (Improved Cunning Strike; 1 without it)
+  "noSleep": true              it doesn't sleep: it succeeds on saves against the Sleep spell (Trance)
   "studiedAttacks": true       after a missed attack, Advantage on the next attack against that creature (Studied Attacks)
   "heroicEachTurn": true       gains Heroic Inspiration at the start of each of its turns if it has none (Heroic Warrior)
   "heroicOnLongRest": true     gains Heroic Inspiration on a Long Rest (Resourceful)
@@ -806,9 +813,10 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 var _excluded = ["versions", "hitPointBands", "uses", "name", "atLevel", "choices"],
   _excluded2 = ["versions", "hitPointBands", "uses", "atLevel"],
   _excluded3 = ["name", "desc", "activation"],
-  _excluded4 = ["options"],
+  _excluded4 = ["feats", "spells", "items", "abilities"],
   _excluded5 = ["options"],
-  _excluded6 = ["name", "spell", "slot", "desc", "comp", "mat", "matCost", "matConsumed", "conc", "concSecs", "range", "hand", "ritual", "gp", "gpConsumed"];
+  _excluded6 = ["options"],
+  _excluded7 = ["name", "spell", "slot", "desc", "comp", "mat", "matCost", "matConsumed", "conc", "concSecs", "range", "hand", "ritual", "gp", "gpConsumed"];
 function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 function _regenerator() { /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */ var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i["return"]) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
 function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); } r ? i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2)); }, _regeneratorDefine2(e, r, n, t); }
@@ -3443,7 +3451,7 @@ function compileOutcome(o, ctx) {
       if (Object.keys(am).length) out.abilMin = am;
     } // a score set for a while (Potion of Giant Strength)
     // the same effects the built-in spells use, under plain names
-    [["attackDisadvantage", "atkDis"], ["speedZero", "speedZero"], ["noReactions", "noReact"], ["noHealing", "noHeal"], ["dropTo1Instead", "ward0"], ["endsWhenItActs", "endsOnAct"], ["endsAfterAnyAction", "endsOnAnyAct"], ["endsOnDamage", "endsOnDamage"], ["endsAfterNextAttack", "endsOnAttack"], ["endsWhenNextAttacked", "endsWhenAttacked"], ["cannotCastSpells", "noCast"], ["cannotTakeActions", "noAct"], ["repeatSaveOnDamage", "saveOnDamage"], ["outOfPlay", "away"], ["stable", "stable"], ["dashAsBonusAction", "dashBonus"]].forEach(function (_ref1) {
+    [["attackDisadvantage", "atkDis"], ["speedZero", "speedZero"], ["noReactions", "noReact"], ["noHealing", "noHeal"], ["dropTo1Instead", "ward0"], ["sharedWard", "wardShared"], ["endsWhenItActs", "endsOnAct"], ["endsAfterAnyAction", "endsOnAnyAct"], ["endsOnDamage", "endsOnDamage"], ["endsAfterNextAttack", "endsOnAttack"], ["endsWhenNextAttacked", "endsWhenAttacked"], ["cannotCastSpells", "noCast"], ["cannotTakeActions", "noAct"], ["repeatSaveOnDamage", "saveOnDamage"], ["outOfPlay", "away"], ["stable", "stable"], ["dashAsBonusAction", "dashBonus"]].forEach(function (_ref1) {
       var _ref10 = _slicedToArray(_ref1, 2),
         from = _ref10[0],
         to = _ref10[1];
@@ -3772,6 +3780,7 @@ function compileAbility(ab0, ctx) {
       cost: Math.max(1, evalFormula(x.cost == null ? 1 : x.cost, ctx) || 1)
     };
   }
+  if (+ab.sneakCost > 0) out.sneakCost = Math.min(20, Math.round(+ab.sneakCost)); // Cunning Strike: Sneak Attack dice given up for the effect
   if (ab.spendSlot != null) out.spendSlot = ab.spendSlot === "any" || ab.spendSlot === "pact" ? ab.spendSlot : Math.max(1, Math.min(9, parseInt(ab.spendSlot, 10) || 1)); // it costs a spell slot: the lowest one left, a Pact Magic slot, or that level
   {
     var _g = pObj(ab.regain);
@@ -3905,6 +3914,84 @@ var spellLabel = function spellLabel(s) {
 };
 
 // Reads a pack file, keeps what is usable and says what was wrong with the rest.
+// A pack larger than one part can hold is cut into parts by type: the classes with their subclasses, species, backgrounds and slot kinds stay in the first part;
+// feats, spells, items and abilities fill each part up to its limits (and about 2 MB of text), smaller kinds sharing a part. Each part is its own pack, named "Name (1 of 3)".
+var PACK_LIMITS = {
+  feats: 300,
+  spells: 600,
+  items: 600,
+  abilities: 800
+};
+function splitPack(raw) {
+  if (!raw || _typeof(raw) !== "object" || raw.format !== "homebrew-academy-content") return [raw];
+  var size = function size(x) {
+      return JSON.stringify(x).length;
+    },
+    BYTES = 2000000;
+  var featKeys = Object.keys(pObj(raw.feats)),
+    lists = {
+      feats: featKeys.map(function (k) {
+        return [k, raw.feats[k]];
+      }),
+      spells: pArr(raw.spells),
+      items: pArr(raw.items),
+      abilities: pArr(raw.abilities)
+    };
+  var fits = Object.keys(lists).every(function (k) {
+    return lists[k].length <= PACK_LIMITS[k];
+  }) && size(raw) <= BYTES;
+  if (fits) return [raw];
+  var feats = raw.feats,
+    spells = raw.spells,
+    items = raw.items,
+    abilities = raw.abilities,
+    core = _objectWithoutProperties(raw, _excluded4);
+  var parts = [_objectSpread(_objectSpread({}, core), {}, {
+    feats: {},
+    spells: [],
+    items: [],
+    abilities: []
+  })];
+  var sizes = [size(parts[0])],
+    blank = function blank() {
+      return {
+        format: raw.format,
+        version: raw.version,
+        name: raw.name,
+        author: raw.author,
+        feats: {},
+        spells: [],
+        items: [],
+        abilities: []
+      };
+    };
+  Object.keys(lists).forEach(function (k) {
+    return lists[k].forEach(function (x) {
+      // each kind goes in the first part that still has room for it, so kinds share parts
+      var add = size(x) + 2,
+        count = function count(p) {
+          return k === "feats" ? Object.keys(p.feats).length : p[k].length;
+        };
+      var i = parts.findIndex(function (p, j) {
+        return count(p) < PACK_LIMITS[k] && sizes[j] + add <= BYTES;
+      });
+      if (i < 0) {
+        parts.push(blank());
+        sizes.push(size(parts[parts.length - 1]));
+        i = parts.length - 1;
+      }
+      if (k === "feats") parts[i].feats[x[0]] = x[1];else parts[i][k].push(x);
+      sizes[i] += add;
+    });
+  });
+  var name = pStr(raw.name, 48).trim() || "Unnamed pack";
+  return parts.map(function (p, i) {
+    return _objectSpread(_objectSpread({}, p), {}, {
+      name: parts.length > 1 ? "".concat(name, " (").concat(i + 1, " of ").concat(parts.length, ")") : name,
+      group: name
+    });
+  });
+}
 function checkPack(raw) {
   var errors = [],
     warnings = [];
@@ -3925,11 +4012,14 @@ function checkPack(raw) {
       need = pStr(o.need, 300).trim();
     if (need) warnings.push("The app would need to change for ".concat(pStr(o.rule, 80).trim() || "a rule", " (").concat(pStr(o.where, 20) || "builder", "): ").concat(need).concat(pStr(o.source, 120).trim() ? " [".concat(pStr(o.source, 120).trim(), "]") : ""));
   }); // rules the app does not know yet
-  var pack = {
+  var pack = _objectSpread(_objectSpread({
     format: "homebrew-academy-content",
     version: 1,
     name: pStr(raw.name, 60).trim() || "Unnamed pack",
-    author: pStr(raw.author, 60),
+    author: pStr(raw.author, 60)
+  }, raw.group ? {
+    group: pStr(raw.group, 60)
+  } : {}), {}, {
     classes: {},
     subclasses: {},
     species: {},
@@ -3938,7 +4028,7 @@ function checkPack(raw) {
     spells: [],
     items: [],
     abilities: []
-  };
+  });
   var levels = function levels(o, where) {
     var out = {};
     Object.keys(pObj(o)).forEach(function (k) {
@@ -4250,8 +4340,8 @@ function checkPack(raw) {
       PACTLEVEL: LEVEL >= 9 ? 5 : LEVEL >= 7 ? 4 : LEVEL >= 5 ? 3 : LEVEL >= 3 ? 2 : 1
     };
   };
-  if (pArr(raw.abilities).length > 800) warnings.push("This pack has ".concat(pArr(raw.abilities).length, " abilities. Only the first 800 were kept: split the rest into a second pack."));
-  if (pArr(raw.items).length > 600) warnings.push("This pack has ".concat(pArr(raw.items).length, " items. Only the first 600 were kept: split the rest into a second pack."));
+  if (pArr(raw.abilities).length > 800) warnings.push("This pack has ".concat(pArr(raw.abilities).length, " abilities. Only the first 800 were kept."));
+  if (pArr(raw.items).length > 600) warnings.push("This pack has ".concat(pArr(raw.items).length, " items. Only the first 600 were kept."));
   pArr(raw.abilities).slice(0, 800).forEach(function (ab, i) {
     var label = "Ability ".concat(pStr(pObj(ab).name, 60) || "#" + (i + 1));
     var g = pObj(pObj(ab).grantedBy);
@@ -4273,7 +4363,7 @@ function checkPack(raw) {
         });
         var _pObj2 = pObj(ab),
           options = _pObj2.options,
-          rest = _objectWithoutProperties(_pObj2, _excluded4);
+          rest = _objectWithoutProperties(_pObj2, _excluded5);
         run(rest);
       });
       var r = pObj(pObj(ab).resource);
@@ -4650,26 +4740,49 @@ function ContentPacksTab(_ref18) {
         alert("That file is not valid JSON, so it could not be read. Ask your AI to check it for a missing comma or bracket.");
         return;
       }
-      var r = checkPack(raw);
-      if (!r.pack || !Object.values(r.counts).some(Boolean)) {
-        alert(r.errors.join("\n"));
-        return;
-      }
-      var list = storedPacks().filter(function (p) {
-        return !sameName(p && p.name, r.pack.name);
+      var results = splitPack(raw).map(checkPack).filter(function (r) {
+        return r.pack && Object.values(r.counts).some(Boolean);
       });
-      r.pack.batch = batch || "Homebrew";
-      if (!storePacks([].concat(_toConsumableArray(list), [r.pack]))) {
-        alert("This pack is too large to keep on this computer. Split it into smaller packs.");
+      if (!results.length) {
+        alert(checkPack(raw).errors.join("\n"));
         return;
       }
+      var names = results.map(function (r) {
+          return r.pack.name;
+        }),
+        group = results[0].pack.group;
+      var list = storedPacks().filter(function (p) {
+        return !names.some(function (n) {
+          return sameName(p && p.name, n);
+        }) && !(group && p && p.group === group);
+      });
+      results.forEach(function (r) {
+        r.pack.batch = batch || "Homebrew";
+      });
+      if (!storePacks([].concat(_toConsumableArray(list), _toConsumableArray(results.map(function (r) {
+        return r.pack;
+      }))))) {
+        alert("There is no room left on this computer for this pack. Remove packs you no longer use, then try again.");
+        return;
+      }
+      var counts = {};
+      results.forEach(function (r) {
+        return Object.keys(r.counts).forEach(function (k) {
+          counts[k] = (counts[k] || 0) + (r.counts[k] || 0);
+        });
+      });
       try {
         window.sessionStorage.setItem("hba-pack-report", JSON.stringify({
-          name: r.pack.name,
-          batch: r.pack.batch,
-          counts: r.counts,
-          errors: r.errors,
-          warnings: r.warnings
+          name: group || results[0].pack.name,
+          parts: results.length,
+          batch: results[0].pack.batch,
+          counts: counts,
+          errors: results.flatMap(function (r) {
+            return r.errors;
+          }),
+          warnings: results.flatMap(function (r) {
+            return r.warnings;
+          })
         }));
       } catch (err) {}
       reloadHere();
@@ -4678,9 +4791,15 @@ function ContentPacksTab(_ref18) {
     });
   };
   var removePack = function removePack(name) {
-    if (!window.confirm("Remove the pack \"".concat(name, "\"? Its options disappear from the builder. A character that uses them goes back to a built-in option."))) return;
+    var group = (storedPacks().find(function (p) {
+        return p && sameName(p.name, name);
+      }) || {}).group,
+      parts = group ? storedPacks().filter(function (p) {
+        return p && p.group === group;
+      }).length : 1;
+    if (!window.confirm("Remove the pack \"".concat(parts > 1 ? group : name, "\"").concat(parts > 1 ? " (all ".concat(parts, " parts)") : "", "? Its options disappear from the builder. A character that uses them goes back to a built-in option."))) return;
     storePacks(storedPacks().filter(function (p) {
-      return !sameName(p && p.name, name);
+      return !sameName(p && p.name, name) && !(group && p && p.group === group);
     }));
     reloadHere();
   };
@@ -4803,7 +4922,7 @@ function ContentPacksTab(_ref18) {
     onChange: onPick,
     "data-testid": "pack-input"
   }))), report && /*#__PURE__*/React.createElement(Section, {
-    title: "Added: ".concat(report.name).concat(report.batch ? " (in ".concat(report.batch, ")") : ""),
+    title: "Added: ".concat(report.name).concat(report.parts > 1 ? ", split into ".concat(report.parts, " parts") : "").concat(report.batch ? " (in ".concat(report.batch, ")") : ""),
     colors: colors,
     fontDisplay: fontDisplay
   }, /*#__PURE__*/React.createElement("div", {
@@ -5246,7 +5365,7 @@ function activeMechanics(ch) {
         }));
       });
       var options = e.options,
-        rest = _objectWithoutProperties(e, _excluded5);
+        rest = _objectWithoutProperties(e, _excluded6);
       if (rest.statics || rest.resource || isActivated(rest)) entries.push(rest);
       return;
     }
@@ -5408,7 +5527,9 @@ function gatherStatics(entries, ctx, gear, level) {
         school: pStr(o.school, 20),
         cast: ["slot", "once", "short", "atWill", "ritualOnly", "book"].includes(o.cast) ? o.cast : "slot",
         ability: ABILITIES.includes(o.ability) ? o.ability : "",
-        self: !!o.self
+        self: !!o.self,
+        fromBook: !!o.fromBook,
+        castingTime: pStr(o.castingTime, 30)
       });
     });
     pArr(s.spellUses).forEach(function (q) {
@@ -5442,6 +5563,16 @@ function gatherStatics(entries, ctx, gear, level) {
     });
     if (s.unarmedForce) d.unarmedForce = true;
     if (s.pactWeapon) d.pactWeapon = true;
+    if (s.spellbook) {
+      var o = pObj(s.spellbook);
+      d.spellbook = {
+        free: Math.max(0, num(o.start != null ? o.start : 6) + num(o.perLevel != null ? o.perLevel : 2) * (level - 1)),
+        lists: pArr(o.lists).map(function (x) {
+          return pStr(x, 30);
+        }).filter(Boolean)
+      };
+    } // Wizard: a spellbook that prepared spells come from
+    if (s.ritualsFromBook) d.ritualsFromBook = true; // Ritual Adept: any Ritual spell in the spellbook, cast as a Ritual without preparing it
     if (s.skillBonus) pArr(pObj(s.skillBonus).skills).forEach(function (k) {
       d.skillBonus[k] = (d.skillBonus[k] || 0) + num(s.skillBonus.formula);
     });
@@ -5647,6 +5778,7 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) {
         // Pact of the Blade: the bonded weapon can use Charisma, with proficiency
         var ch = ctx.CHA,
           pa = _objectSpread(_objectSpread({}, a), {}, {
+            pact: true,
             name: "".concat(label, " (pact weapon)"),
             atk: ctx.PROF + ch + plus,
             abil: "Charisma",
@@ -6696,9 +6828,17 @@ function CharacterSheet() {
     });
     return out;
   }, [finalMods, allSkillProfs, skillExpertise, profBonus, derived]);
+
+  // The spellbook (Wizard): spells written in it by the player, plus the ones features add for free (Evocation Savant)
+  var bookFree = derived.spellbook ? derived.spellPicks.filter(function (q) {
+    return q.cast === "book";
+  }).flatMap(function (q) {
+    return String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean);
+  }) : [];
+  var spellbook = derived.spellbook ? Array.from(new Set([].concat(_toConsumableArray(String(featureChoices.spellbook || "").split("|").filter(Boolean)), _toConsumableArray(bookFree)))) : null;
   var spellInfo = useMemo(function () {
-    return sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists);
-  }, [cls, className, level, spells, derived]);
+    return sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists, spellbook);
+  }, [cls, className, level, spells, derived, featureChoices]);
   // Everything on this sheet that goes past the rules, in words.
   var customizations = useMemo(function () {
     var out = [];
@@ -7018,6 +7158,13 @@ function CharacterSheet() {
         feet: a.range.feet + derived.cantripRange
       });
     }); // Improved Elemental Fury
+    if (derived.ritualsFromBook && spellbook) spellbook.forEach(function (n) {
+      var sp = spellOf(n);
+      if (sp && sp.rit && !spells.includes(sp.n)) push(sp, _objectSpread(_objectSpread({}, tune), {}, {
+        cast: "ritualOnly",
+        label: "".concat(sp.n, " (Ritual Adept)")
+      }));
+    });
     derived.spellUses.forEach(function (u) {
       var sp = spellOf(u.spell);
       if (sp) push(sp, _objectSpread(_objectSpread({}, tune), {}, {
@@ -7434,7 +7581,7 @@ function CharacterSheet() {
   var fileInputRef = useRef(null);
   var inSuite = window.parent !== window;
   function buildCharacterFile() {
-    return {
+    return _objectSpread(_objectSpread({
       format: "homebrew-academy-character",
       version: 3,
       name: charName,
@@ -7459,7 +7606,9 @@ function CharacterSheet() {
       }),
       spells: Array.from(new Set([].concat(_toConsumableArray(spells.filter(Boolean)), _toConsumableArray(featSpells), _toConsumableArray(derived.spells.map(function (g) {
         return g.name;
-      })), _toConsumableArray(derived.spellPicks.flatMap(function (q) {
+      })), _toConsumableArray(derived.spellPicks.filter(function (q) {
+        return q.cast !== "book";
+      }).flatMap(function (q) {
         return String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean);
       })), _toConsumableArray(derived.spellUses.map(function (u) {
         return u.spell;
@@ -7601,7 +7750,9 @@ function CharacterSheet() {
       }),
       spellList: Array.from(new Set([].concat(_toConsumableArray(spells.filter(Boolean)), _toConsumableArray(featSpells), _toConsumableArray(derived.spells.map(function (g) {
         return g.name;
-      })), _toConsumableArray(derived.spellPicks.flatMap(function (q) {
+      })), _toConsumableArray(derived.spellPicks.filter(function (q) {
+        return q.cast !== "book";
+      }).flatMap(function (q) {
         return String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean);
       })), _toConsumableArray(derived.spellUses.map(function (u) {
         return u.spell;
@@ -7609,7 +7760,10 @@ function CharacterSheet() {
         return spellOf(x);
       }).filter(Boolean))).sort(function (a, b) {
         return a.l - b.l || a.n.localeCompare(b.n);
-      }).slice(0, 120).map(sheetSpell),
+      }).slice(0, 120).map(sheetSpell)
+    }, spellbook ? {
+      spellbook: spellbook.slice(0, 200)
+    } : {}), {}, {
       languages: Array.from(new Set([].concat(_toConsumableArray(journal.languages), _toConsumableArray(derived.languages)))),
       tools: Array.from(new Set([].concat(_toConsumableArray(knownTools.map(function (t) {
         return t.name;
@@ -7679,7 +7833,7 @@ function CharacterSheet() {
         pinnedItems: pinnedItems,
         spells: spells
       }
-    };
+    });
   }
   function saveCharacterFile() {
     return _saveCharacterFile.apply(this, arguments);
@@ -8611,6 +8765,8 @@ function CharacterSheet() {
     takenFeats: takenFeats,
     custom: custom
   }), tab === "spells" && /*#__PURE__*/React.createElement(SpellsTab, {
+    bookInfo: derived.spellbook || null,
+    spellbook: spellbook,
     picks: derived.spellPicks,
     featureChoices: featureChoices,
     setFeatureChoices: setFeatureChoices,
@@ -11259,7 +11415,7 @@ function maxSpellLevel(cls, className, level) {
   return (getSpellSlots(className, level) || []).length;
 }
 // Sorts a character's spells into what the rules allow and what goes past them.
-function sortSpells(cls, className, level, names, cantripBonus, extraLists) {
+function sortSpells(cls, className, level, names, cantripBonus, extraLists, book) {
   var onList = function onList(sp) {
     return sp.c.includes(className) || sp.l > 0 && (extraLists || []).some(function (l) {
       return sp.c.includes(l);
@@ -11282,7 +11438,7 @@ function sortSpells(cls, className, level, names, cantripBonus, extraLists) {
     };
     var problem = "";
     if (sp.l === 0) cantrips++;else prepared++;
-    if (!caster) problem = "".concat(className, " has no Spellcasting feature");else if (!onList(sp)) problem = "not on the ".concat(className, " spell list");else if (sp.l > maxLevel) problem = "Level ".concat(sp.l, " is higher than a level ").concat(level, " ").concat(className, " can cast");else if (sp.l === 0 && cantrips > cantripMax) problem = "more cantrips than a level ".concat(level, " ").concat(className, " knows");else if (sp.l > 0 && prepMax != null && prepared > prepMax) problem = "more prepared spells than a level ".concat(level, " ").concat(className, " has");
+    if (!caster) problem = "".concat(className, " has no Spellcasting feature");else if (!onList(sp)) problem = "not on the ".concat(className, " spell list");else if (sp.l > maxLevel) problem = "Level ".concat(sp.l, " is higher than a level ").concat(level, " ").concat(className, " can cast");else if (book && sp.l > 0 && !book.includes(sp.n)) problem = "not in your spellbook";else if (sp.l === 0 && cantrips > cantripMax) problem = "more cantrips than a level ".concat(level, " ").concat(className, " knows");else if (sp.l > 0 && prepMax != null && prepared > prepMax) problem = "more prepared spells than a level ".concat(level, " ").concat(className, " has");
     return {
       raw: raw,
       index: index,
@@ -11298,7 +11454,8 @@ function sortSpells(cls, className, level, names, cantripBonus, extraLists) {
     prepMax: prepMax,
     cantrips: cantrips,
     prepared: prepared,
-    extraLists: extraLists || []
+    extraLists: extraLists || [],
+    book: book || null
   };
 }
 // How a spell resolves in the Combat Resolver, worked out from this character's numbers. Returns null for a spell with no roll.
@@ -12014,7 +12171,7 @@ function fullSpellAction(sp, ctx, opts) {
         ritual = _ref63.ritual,
         gp = _ref63.gp,
         gpConsumed = _ref63.gpConsumed,
-        keep = _objectWithoutProperties(_ref63, _excluded6);
+        keep = _objectWithoutProperties(_ref63, _excluded7);
       return keep;
     }(a) : null;
   };
@@ -12153,7 +12310,9 @@ function SpellRow(_ref64) {
   }, /*#__PURE__*/React.createElement("strong", null, "Using a Higher-Level Spell Slot."), " ", sp.h) : null));
 }
 function SpellsTab(_ref65) {
-  var picks = _ref65.picks,
+  var bookInfo = _ref65.bookInfo,
+    spellbook = _ref65.spellbook,
+    picks = _ref65.picks,
     featureChoices = _ref65.featureChoices,
     setFeatureChoices = _ref65.setFeatureChoices,
     glow = _ref65.glow,
@@ -12214,7 +12373,7 @@ function SpellsTab(_ref65) {
   var pool = ALL_SPELLS.filter(function (sp) {
     return !chosen.has(sp.n) && (wideList || caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(function (l) {
       return sp.c.includes(l) && sp.l > 0;
-    }))) && (sp.l === 0 || sp.l <= topLevel) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q));
+    }))) && (sp.l === 0 || sp.l <= topLevel) && (!spellInfo.book || wideList || sp.l === 0 || spellInfo.book.includes(sp.n)) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q));
   }).sort(function (a, b) {
     return (sortBy === "level" ? a.l - b.l : 0) || a.n.localeCompare(b.n);
   });
@@ -12382,7 +12541,98 @@ function SpellsTab(_ref65) {
       fontSize: 14,
       opacity: 0.8
     }
-  }, className, " has no Spellcasting feature. ", custom ? "Further Customization is on, so you can still add spells below. They will show in red." : "Turn on Further Customization to add spells anyway.")), (picks || []).length > 0 && /*#__PURE__*/React.createElement(Section, {
+  }, className, " has no Spellcasting feature. ", custom ? "Further Customization is on, so you can still add spells below. They will show in red." : "Turn on Further Customization to add spells anyway.")), bookInfo && /*#__PURE__*/React.createElement(Section, {
+    title: "Your Spellbook",
+    colors: colors,
+    fontDisplay: fontDisplay
+  }, function () {
+    var own = String(featureChoices.spellbook || "").split("|").filter(Boolean),
+      extra = (spellbook || []).filter(function (n) {
+        return !own.includes(n);
+      });
+    var setBook = function setBook(list) {
+      return setFeatureChoices(function (prev) {
+        return _objectSpread(_objectSpread({}, prev), {}, {
+          spellbook: list.join("|")
+        });
+      });
+    };
+    var opts = ALL_SPELLS.filter(function (sp) {
+      return sp.l > 0 && sp.l <= maxLevel && (bookInfo.lists.length ? bookInfo.lists : [className]).some(function (l) {
+        return sp.c.includes(l);
+      }) && !(spellbook || []).includes(sp.n);
+    }).sort(function (a, b) {
+      return a.l - b.l || a.n.localeCompare(b.n);
+    });
+    return /*#__PURE__*/React.createElement("div", {
+      "data-testid": "spellbook"
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        marginBottom: 6
+      }
+    }, "Your prepared spells come from this book. ", /*#__PURE__*/React.createElement("strong", {
+      "data-testid": "spellbook-count"
+    }, own.length, " of ", bookInfo.free), " spells from your Wizard levels", extra.length ? ", plus ".concat(extra.length, " added free by features") : "", ".", own.length > bookInfo.free ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: CUSTOM_RED
+      }
+    }, " The rest were copied from scrolls or other books (2 hours and 50 GP per spell level).") : null), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 6,
+        marginBottom: 8
+      }
+    }, (spellbook || []).map(function (n) {
+      var sp = spellOf(n);
+      return /*#__PURE__*/React.createElement("span", {
+        key: n,
+        "data-testid": "spellbook-item",
+        style: {
+          border: "1px solid ".concat(colors.brass, "77"),
+          borderRadius: 6,
+          padding: "2px 8px",
+          fontSize: 13
+        }
+      }, n, sp ? " (Level ".concat(sp.l).concat(sp.rit ? ", Ritual" : "", ")") : "", own.includes(n) ? /*#__PURE__*/React.createElement("button", {
+        "aria-label": "Remove ".concat(n, " from the spellbook"),
+        onClick: function onClick() {
+          return setBook(own.filter(function (x) {
+            return x !== n;
+          }));
+        },
+        style: {
+          marginLeft: 6,
+          background: "none",
+          border: "none",
+          color: colors.brassLight,
+          cursor: "pointer"
+        }
+      }, "\xD7") : /*#__PURE__*/React.createElement("span", {
+        style: {
+          opacity: 0.6
+        }
+      }, " \xB7 free"));
+    })), /*#__PURE__*/React.createElement("select", {
+      "aria-label": "Add a spell to the spellbook",
+      "data-testid": "spellbook-add",
+      value: "",
+      onChange: function onChange(e) {
+        return e.target.value && setBook([].concat(_toConsumableArray(own), [e.target.value]));
+      },
+      style: _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
+        width: 300
+      })
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "Write a spell in the book..."), opts.map(function (sp) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: sp.n,
+        value: sp.n
+      }, sp.n, " (Level ", sp.l, ")");
+    })));
+  }()), (picks || []).length > 0 && /*#__PURE__*/React.createElement(Section, {
     title: "Spells Your Features Let You Choose",
     colors: colors,
     fontDisplay: fontDisplay
@@ -12393,7 +12643,7 @@ function SpellsTab(_ref65) {
     var ok = function ok(sp) {
       return (q.lists === "any" || q.lists.some(function (l) {
         return sp.c.includes(l);
-      })) && (q.level === "slot" ? sp.l <= maxLevel : q.upTo ? sp.l <= top : sp.l === top) && (!q.ritual || sp.rit) && (!q.school || sp.s === q.school);
+      })) && (q.level === "slot" ? sp.l <= maxLevel && (q.cast !== "book" || sp.l > 0) : q.upTo ? sp.l <= top && sp.l > 0 : sp.l === top) && (!q.ritual || sp.rit) && (!q.school || sp.s === q.school) && (!q.fromBook || !spellbook || spellbook.includes(sp.n)) && (!q.castingTime || String(sp.t || "").toLowerCase().startsWith(q.castingTime.toLowerCase())) && (q.cast !== "book" || !spellbook || !String(featureChoices.spellbook || "").split("|").includes(sp.n));
     };
     var opts = ALL_SPELLS.filter(ok).sort(function (a, b) {
       return a.l - b.l || a.n.localeCompare(b.n);

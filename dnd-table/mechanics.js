@@ -198,6 +198,7 @@
     cls("Ranger", 1, "Favored Enemy", { statics: spellsAt({ 1: ["Hunter's Mark"] }), activation: "bonus", target: "creature", roll: "none", uses: { max: table("Ranger", "favored_enemies"), recharge: "long" },
       onUse: { effects: [{ name: "Hunter's Mark", duration: hours(1), concentration: true, extraDamageFromUser: { dice: byLevel({ 1: "1d6", 20: "1d10" }), type: "Force" } }] } }),
     cls("Ranger", 1, "Weapon Mastery", { statics: { weaponMasteries: 2 } }),
+    cls("Ranger", 2, "Deft Explorer", { options: { label: "Language", count: 2, choices: ["Common Sign Language", "Draconic", "Dwarvish", "Elvish", "Giant", "Gnomish", "Goblin", "Halfling", "Orc", "Abyssal", "Celestial", "Deep Speech", "Druidic", "Infernal", "Primordial", "Sylvan", "Thieves' Cant", "Undercommon"].map((l) => ({ name: l, statics: { languages: [l] } })) } }),
     cls("Ranger", 5, "Extra Attack", { statics: { passives: { attacks: 2 } } }),
     cls("Ranger", 6, "Roving", { statics: { speed: { formula: 10, when: "noHeavy" } } }),
     cls("Ranger", 10, "Tireless", { activation: "action", target: "self", roll: "none", onUse: { tempHP: "1d8+MAX(1,WIS)" }, uses: { max: "MAX(1,WIS)", recharge: "long" } }),
@@ -218,18 +219,20 @@
     cls("Rogue", 1, "Weapon Mastery", { statics: { weaponMasteries: 2 } }),
     cls("Rogue", 2, "Cunning Action", { activation: "bonus", target: "self", roll: "none" }),
     cls("Rogue", 3, "Steady Aim", { activation: "bonus", target: "self", roll: "none", onUse: { effects: [{ name: "Steady Aim", duration: rounds(1), attackAdvantage: true, note: "For your next attack roll this turn only. Your Speed is 0 until the end of the turn." }] } }),
-    cls("Rogue", 5, "Cunning Strike: Poison", { feature: "Cunning Strike", activation: "free", target: "creature", roll: "save", save: { ability: "Constitution", dc: cunningDc },
+    cls("Rogue", 5, "Cunning Strike: Poison", { sneakCost: 1, feature: "Cunning Strike", activation: "free", target: "creature", roll: "save", save: { ability: "Constitution", dc: cunningDc },
       onFail: { conditions: [{ name: "Poisoned", duration: min(1), repeatSave: { when: "end", turn: "target" } }] },
       text: "Cost: 1d6 of your Sneak Attack. You add a toxin to your strike, forcing the target to make a Constitution saving throw. On a failed save, the target has the Poisoned condition for 1 minute. At the end of each of its turns, the Poisoned target repeats the save, ending the effect on itself on a success. To use this effect, you must have a Poisoner's Kit on your person." }),
-    cls("Rogue", 5, "Cunning Strike: Trip", { feature: "Cunning Strike", activation: "free", target: "creature", roll: "save", save: { ability: "Dexterity", dc: cunningDc }, onFail: { conditions: [{ name: "Prone" }] },
+    cls("Rogue", 5, "Cunning Strike: Trip", { sneakCost: 1, feature: "Cunning Strike", activation: "free", target: "creature", roll: "save", save: { ability: "Dexterity", dc: cunningDc }, onFail: { conditions: [{ name: "Prone" }] },
       text: "Cost: 1d6 of your Sneak Attack. If the target is Large or smaller, it must succeed on a Dexterity saving throw or have the Prone condition." }),
+    cls("Rogue", 5, "Cunning Strike: Withdraw", { sneakCost: 1, feature: "Cunning Strike", activation: "free", target: "self", roll: "none", text: "Withdraw (Cost: 1d6). Immediately after the attack, you move up to half your Speed without provoking Opportunity Attacks." }),
+    cls("Rogue", 11, "Improved Cunning Strike", { statics: { passives: { cunningStrikes: 2 } } }),
     cls("Rogue", 5, "Uncanny Dodge", { activation: "reaction", target: "self", roll: "none" }),
     cls("Rogue", 7, "Evasion", { statics: { passives: { evasion: true } } }),
-    cls("Rogue", 14, "Devious Strikes: Knock Out", { feature: "Devious Strikes", activation: "free", target: "creature", roll: "save", save: { ability: "Constitution", dc: cunningDc },
+    cls("Rogue", 14, "Devious Strikes: Knock Out", { sneakCost: 6, feature: "Devious Strikes", activation: "free", target: "creature", roll: "save", save: { ability: "Constitution", dc: cunningDc },
       onFail: { conditions: [{ name: "Unconscious", duration: min(1), repeatSave: { when: "end", turn: "target" } }] } }),
-    cls("Rogue", 14, "Devious Strikes: Obscure", { feature: "Devious Strikes", activation: "free", target: "creature", roll: "save", save: { ability: "Dexterity", dc: cunningDc },
+    cls("Rogue", 14, "Devious Strikes: Obscure", { sneakCost: 3, feature: "Devious Strikes", activation: "free", target: "creature", roll: "save", save: { ability: "Dexterity", dc: cunningDc },
       onFail: { conditions: [{ name: "Blinded", duration: rounds(1) }] } }),
-    cls("Rogue", 14, "Devious Strikes: Daze", { feature: "Devious Strikes", activation: "free", target: "creature", roll: "save", save: { ability: "Constitution", dc: cunningDc } }),
+    cls("Rogue", 14, "Devious Strikes: Daze", { sneakCost: 2, feature: "Devious Strikes", activation: "free", target: "creature", roll: "save", save: { ability: "Constitution", dc: cunningDc } }),
     cls("Rogue", 15, "Slippery Mind", { statics: { saveProficiency: ["Wisdom", "Charisma"] } }),
     cls("Rogue", 20, "Stroke of Luck", { activation: "free", target: "self", roll: "none", uses: { max: 1, recharge: "short" } }),
     sub("Rogue", "Thief", 3, "Fast Hands", { activation: "bonus", target: "self", roll: "none" })
@@ -373,7 +376,7 @@
     cls("Rogue", 7, "Reliable Talent", { statics: { passives: { reliableTalent: 10 } } }),
     cls("Rogue", 18, "Elusive", { statics: { passives: { elusive: true } } }),
     sub("Rogue", "Thief", 3, "Second-Story Work", { statics: { moves: ["Climb Speed equal to your Speed"], passives: { jumpDex: true } } }),
-    sub("Rogue", "Thief", 9, "Cunning Strike: Stealth Attack", { feature: "Supreme Sneak", activation: "free", target: "self", roll: "none", text: "Cost: 1d6 of your Sneak Attack. If you have the Hide action's Invisible condition, this attack doesn't end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover." }),
+    sub("Rogue", "Thief", 9, "Cunning Strike: Stealth Attack", { sneakCost: 1, feature: "Supreme Sneak", activation: "free", target: "self", roll: "none", text: "Cost: 1d6 of your Sneak Attack. If you have the Hide action's Invisible condition, this attack doesn't end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover." }),
     sub("Rogue", "Thief", 13, "Use Magic Device", { statics: { itemSlots: { Attunement: 1 }, passives: { chargeSaver: 6 } } }),
     sub("Rogue", "Thief", 17, "Thief's Reflexes", { statics: { passives: { thiefsReflexes: true } } }));
   // Sorcerer
@@ -394,14 +397,14 @@
     inv("Armor of Shadows", free("Mage Armor", true)),
     inv("Ascendant Step", free("Levitate", true), { level: 5 }),
     inv("Devil's Sight", { statics: { senses: ["Devil's Sight 120 ft. (sees normally in Dim Light and magical or nonmagical Darkness)"] } }, { level: 2 }),
-    inv("Devouring Blade", { statics: { passives: { attacks: 3 } } }, { level: 12, has: ["Thirsting Blade"] }),
+    inv("Devouring Blade", { statics: { passives: { pactAttacks: 3 } } }, { level: 12, has: ["Thirsting Blade"] }),
     inv("Eldritch Mind", { statics: { passives: { concAdvantage: true } } }),
     inv("Eldritch Smite", { activation: "free", target: "creature", roll: "none", spendSlot: "pact", damage: [{ dice: "(1+PACTLEVEL)d8", type: "Force" }], text: "Once per turn when you hit a creature with your pact weapon, you can expend a Pact Magic spell slot to deal an extra 1d8 Force damage plus another 1d8 per level of the slot, and you can give the target the Prone condition if it is Huge or smaller. Use this after the hit." }, { level: 5, has: ["Pact of the Blade"] }),
     ...["Chill Touch", "Eldritch Blast", "Mind Sliver", "Poison Spray", "Thunderclap", "Toll the Dead"].map((c) => inv(`Eldritch Spear (${c})`, { statics: { spellMods: [{ spell: c, range: "30*LEVEL", note: "Eldritch Spear adds 30 feet per Warlock level to its range." }] } }, { level: 2 })),
     inv("Fiendish Vigor", free("False Life", true, { maxRoll: true, note: "Fiendish Vigor: the Temporary Hit Points are the highest number." }), { level: 2 }),
     inv("Gaze of Two Minds", { activation: "bonus", target: "creature", roll: "none", onUse: { effects: [{ name: "Gaze of Two Minds", duration: rounds(2), note: "The Warlock perceives through this creature's senses. Maintain it with a Bonus Action each turn." }] } }, { level: 5 }),
     inv("Gift of the Depths", { statics: { moves: ["Swim Speed equal to your Speed (and breathe underwater)"], spells: { 1: ["Water Breathing"] }, spellUses: [{ spell: "Water Breathing", cast: "once" }] } }, { level: 5 }),
-    inv("Gift of the Protectors", { activation: "action", target: "creature", targets: "MAX(1,CHA)", roll: "none", uses: { max: 1, recharge: "long" }, onUse: { effects: [{ name: "Gift of the Protectors", dropTo1Instead: true, note: "Its name is in the Book of Shadows: the first time any named creature drops to 0 Hit Points (not killed outright), it drops to 1 instead. Once per Long Rest for all of them." }] } }, { level: 9, has: ["Pact of the Tome"] }),
+    inv("Gift of the Protectors", { activation: "action", target: "creature", targets: "MAX(1,CHA)", roll: "none", onUse: { effects: [{ name: "Gift of the Protectors", dropTo1Instead: true, sharedWard: true, note: "Its name is on the page in the Book of Shadows. When any named creature is reduced to 0 Hit Points but not killed outright, it drops to 1 Hit Point instead; then no one benefits until the Warlock finishes a Long Rest." }] } }, { level: 9, has: ["Pact of the Tome"] }),
     inv("Investment of the Chain Master", { text: "Your familiar gains a Fly or Swim Speed of 40 feet; you can command it to take the Attack action as a Bonus Action; its Bludgeoning, Piercing or Slashing damage can be Necrotic or Radiant; it uses your spell save DC; and you can take a Reaction to give it Resistance to damage it takes.", activation: "bonus", target: "self", roll: "none" }, { level: 5, has: ["Pact of the Chain"] }),
     inv("Lessons of the First Ones", { grantsFeat: "Origin", repeatable: true }, { level: 2 }),
     inv("Lifedrinker", { activation: "free", target: "creature", roll: "none", damage: [{ dice: "1d6", type: "Necrotic" }], text: "Once per turn when you hit a creature with your pact weapon, you deal an extra 1d6 Necrotic, Psychic or Radiant damage, and you can expend a Hit Point Die to regain Hit Points equal to its roll plus your Constitution modifier (minimum 1). Use this after the hit." }, { level: 9, has: ["Pact of the Blade"] }),
@@ -414,22 +417,24 @@
     inv("Pact of the Chain", free("Find Familiar", false, { note: "Pact of the Chain: cast it as a Magic action. Special forms: Imp, Pseudodragon, Quasit, Skeleton, Sphinx of Wonder, Sprite or Venomous Snake." })),
     inv("Pact of the Tome", { statics: { spellPicks: [{ label: "Book of Shadows cantrips", count: 3, level: 0, lists: "any" }, { label: "Book of Shadows rituals", count: 2, level: 1, lists: "any", ritual: true }] } }),
     ...["Chill Touch", "Eldritch Blast", "Shocking Grasp"].map((c) => inv(`Repelling Blast (${c})`, { statics: { spellMods: [{ spell: c, note: "Repelling Blast: when it hits a Large or smaller creature, you can push the creature up to 10 feet straight away from you." }] } }, { level: 2 })),
-    inv("Thirsting Blade", { statics: { passives: { attacks: 2 } } }, { level: 5, has: ["Pact of the Blade"] }),
+    inv("Thirsting Blade", { statics: { passives: { pactAttacks: 2 } } }, { level: 5, has: ["Pact of the Blade"] }),
     inv("Visions of Distant Realms", free("Arcane Eye"), { level: 9 }),
     inv("Whispers of the Grave", free("Speak with Dead"), { level: 7 }),
     inv("Witch Sight", { statics: { senses: ["Truesight 30 ft."] } }, { level: 15 })
   ] } }));
   // Wizard
-  M.push(cls("Wizard", 1, "Ritual Adept", { statics: { spellPicks: [{ label: "Ritual Adept: Ritual spells in your spellbook", count: 10, level: "slot", lists: ["Wizard"], ritual: true, cast: "ritualOnly" }] } }),
-    cls("Wizard", 18, "Spell Mastery", { statics: { spellPicks: [{ label: "Spell Mastery (level 1)", count: 1, level: 1, lists: ["Wizard"], cast: "atWill" }, { label: "Spell Mastery (level 2)", count: 1, level: 2, lists: ["Wizard"], cast: "atWill" }] } }),
-    cls("Wizard", 20, "Signature Spells", { statics: { spellPicks: [{ label: "Signature Spells", count: 2, level: 3, lists: ["Wizard"], cast: "short" }] } }),
-    sub("Wizard", "Evoker", 3, "Evocation Savant", { statics: { spellPicks: [{ label: "Evocation Savant (free in your spellbook, prepare them as usual)", count: 2, level: 2, upTo: true, lists: ["Wizard"], school: "Evocation", cast: "book" }] } }),
+  M.push(cls("Wizard", 1, "Spellbook", { statics: { spellbook: { start: 6, perLevel: 2, lists: ["Wizard"] } } }),
+    cls("Wizard", 1, "Ritual Adept", { statics: { ritualsFromBook: true }, text: "You can cast any spell as a Ritual if that spell has the Ritual tag and the spell is in your spellbook. You needn’t have the spell prepared, but you must read from the book to cast a spell in this way." }),
+    cls("Wizard", 18, "Spell Mastery", { statics: { spellPicks: [{ label: "Spell Mastery (level 1)", count: 1, level: 1, lists: ["Wizard"], fromBook: true, castingTime: "Action", cast: "atWill" }, { label: "Spell Mastery (level 2)", count: 1, level: 2, lists: ["Wizard"], fromBook: true, castingTime: "Action", cast: "atWill" }] } }),
+    cls("Wizard", 20, "Signature Spells", { statics: { spellPicks: [{ label: "Signature Spells", count: 2, level: 3, lists: ["Wizard"], fromBook: true, cast: "short" }] } }),
+    sub("Wizard", "Evoker", 3, "Evocation Savant", { statics: { spellPicks: [{ label: "Evocation Savant (free in your spellbook, prepare them as usual)", count: 2, level: 2, upTo: true, lists: ["Wizard"], school: "Evocation", cast: "book" },
+      { label: "Evocation Savant: one more for each new level of spell slots", count: [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 7, 7], level: "slot", lists: ["Wizard"], school: "Evocation", cast: "book" }] } }),
     sub("Wizard", "Evoker", 6, "Sculpt Spells", { statics: { passives: { sculptSpells: true } } }));
   // Species traits that still needed it
   M.push(spc("Halfling", "Luck", { statics: { passives: { luck: true } } }),
     spc("Goliath", "Powerful Build", { statics: { passives: { escapeAdv: ["Grappled"] } } }),
     spc("Human", "Resourceful", { statics: { passives: { heroicOnLongRest: true } } }),
-    spc("Elf", "Trance", { statics: { passives: { longRestSecs: 14400 } } }));
+    spc("Elf", "Trance", { statics: { passives: { longRestSecs: 14400, noSleep: true } } }));
 
   // Feats (SRD 5.2.1). A feat's Ability Score Increase and its choices (skills, Magic Initiate spells) are picked in the builder;
   // everything else it does is written here, in the same format a Content Pack uses.
