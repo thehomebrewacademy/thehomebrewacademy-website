@@ -1171,7 +1171,7 @@ function cleanPassives(p) {
   [['savageAttacker', 'savage'], ['greatWeaponFighting', 'gwf'], ['grappledAdvantage', 'grappler'], ['peerlessAim', 'prowess']].forEach(([k, to]) => { if (p[k]) out[to] = true; }); // the names the Content Pack prompt uses
   if (p.archery || +p.rangedWeaponAttack) out.archery = p.archery === true ? 2 : Math.max(-10, Math.min(10, Math.round(+p.rangedWeaponAttack || +p.archery || 0)));
   if (+p.blinkSteps > 0) out.blinkSteps = Math.min(300, Math.round(+p.blinkSteps));
-  ['studiedAttacks','heroicEachTurn','heroicOnLongRest','deathAdv','elusive','thiefsReflexes','luck','jumpDex','sculptSpells','concAdvantage','grappleNoHand'].forEach(k => { if (p[k]) out[k] = true; });
+  ['noSleep','studiedAttacks','heroicEachTurn','heroicOnLongRest','deathAdv','elusive','thiefsReflexes','luck','jumpDex','sculptSpells','concAdvantage','grappleNoHand'].forEach(k => { if (p[k]) out[k] = true; });
   const strs = x => (Array.isArray(x) ? x : x ? [x] : []).map(v => String(v).slice(0, 40)).filter(Boolean).slice(0, 12);
   if (p.scoreFloor) out.scoreFloor = strs(p.scoreFloor).filter(a => ABILITIES.includes(a)); // Indomitable Might
   if (p.concProtect) out.concProtect = strs(p.concProtect); // Relentless Hunter: damage can't break it
@@ -1195,7 +1195,9 @@ function cleanPassives(p) {
   if (p.critExtraDice && DMG_RE.test(String(p.critExtraDice).replace(/\s/g, ''))) out.critExtraDice = String(p.critExtraDice).replace(/\s/g, '');
   if (+p.criticalOn >= 15 && +p.criticalOn <= 19) out.criticalOn = Math.round(+p.criticalOn);
   if (+p.sneakAttackDice > 0) out.sneakAttackDice = Math.min(20, Math.round(+p.sneakAttackDice));
+  if (+p.cunningStrikes > 1) out.cunningStrikes = Math.min(4, Math.round(+p.cunningStrikes)); // Improved Cunning Strike
   if (+p.attacks > 1) out.attacks = Math.min(8, Math.round(+p.attacks));
+  if (+p.pactAttacks > 1) out.pactAttacks = Math.min(8, Math.round(+p.pactAttacks)); // Thirsting Blade, Devouring Blade: only with the pact weapon
   if (Array.isArray(p.saveAdv)) out.saveAdv = p.saveAdv.filter(a => ABILITIES.includes(a));
   if (Array.isArray(p.condAdv)) out.condAdv = p.condAdv.filter(a => CONDITIONS.includes(a));
   if (+p.irresistible > 0) { out.irresistible = Math.min(30, Math.round(+p.irresistible)); if (!out.ignoreRes) out.ignoreRes = ['Bludgeoning', 'Piercing', 'Slashing']; } // older sheets
@@ -1238,7 +1240,7 @@ function cleanEffect(e) {
   ['saveDis','checkAdv'].forEach(k => { if (ABILITIES.includes(e[k])) out[k] = e[k]; });
   ['immuneDmg','vuln'].forEach(k => { if (e[k]) { const v = String(e[k]).split(/,\s*/).filter(t => /^[A-Za-z]{3,12}$/.test(t)).slice(0, 14).join(', '); if (v) out[k] = v; } });
   if (e.condImmune) { const v = String(e.condImmune).split(/,\s*/).filter(t => CONDITIONS.includes(t)).join(', '); if (v) out.condImmune = v; }
-  ['ward0','sanctuary','endsOnAct','endsOnAnyAct','endsOnDamage','stable','dashBonus','protect'].forEach(k => { if (e[k]) out[k] = true; });
+  ['ward0','wardShared','dormant','sanctuary','endsOnAct','endsOnAnyAct','endsOnDamage','stable','dashBonus','protect'].forEach(k => { if (e[k]) out[k] = true; });
   if (+e.images > 0) out.images = Math.min(9, Math.round(+e.images));
   if (e.saveEnds === 'end' || e.saveEnds === 'start') out.saveEnds = e.saveEnds;
   if (Number.isFinite(+e.weaponAtk) && +e.weaponAtk) out.weaponAtk = Math.max(-5, Math.min(5, Math.round(+e.weaponAtk)));
@@ -1346,6 +1348,7 @@ function cleanAction(a, i) {
     out.atk = Math.max(-20, Math.min(40, parseInt(a.atk, 10) || 0));
     if (a.ranged) out.ranged = true;
     if (a.weapon) out.weapon = true;
+    if (a.pact) out.pact = true; // the pact weapon (Thirsting Blade)
     if (a.twoHanded) out.twoHanded = true;
     if (a.finesse) out.finesse = true;
     if (a.unarmed) out.unarmed = true;
@@ -1396,6 +1399,7 @@ function cleanAction(a, i) {
   if (a.extraCost && a.extraCost.pool) out.extraCost = {pool: String(a.extraCost.pool).slice(0, 40), cost: Math.max(1, Math.min(99, Math.round(+a.extraCost.cost || 1)))};
   if (a.school) out.school = String(a.school).slice(0, 20);
   if (a.ritualOnly) out.ritualOnly = true;
+  if (+a.sneakCost > 0) out.sneakCost = Math.min(20, Math.round(+a.sneakCost));
   if (a.spendSlot === 'any' || a.spendSlot === 'pact' || (+a.spendSlot >= 1 && +a.spendSlot <= 9)) out.spendSlot = a.spendSlot === 'any' || a.spendSlot === 'pact' ? a.spendSlot : Math.round(+a.spendSlot);
   if (a.regainPool && a.regainPool.pool) out.regainPool = {pool: String(a.regainPool.pool).slice(0, 40), amount: Math.max(1, Math.min(99, Math.round(+a.regainPool.amount || 1)))};
   if (+a.regainSlot >= 1 && +a.regainSlot <= 9) out.regainSlot = Math.round(+a.regainSlot);
@@ -1562,7 +1566,7 @@ function describeEffect(e) { // what an effect does, in words
   if (e.sizeStep) parts.push(+e.sizeStep > 0 ? 'one size larger' : 'one size smaller');
   if (e.noReact) parts.push("can't take Reactions");
   if (e.noHeal) parts.push("can't regain Hit Points");
-  if (e.ward0) parts.push('the first time it would drop to 0 Hit Points it drops to 1 instead');
+  if (e.ward0) parts.push(e.dormant ? 'used: it works again after its giver finishes a Long Rest' : e.wardShared ? 'if it drops to 0 Hit Points without being killed outright, it drops to 1 instead (shared: once for everyone, then it waits for its giver\'s Long Rest)' : 'the first time it would drop to 0 Hit Points it drops to 1 instead');
   if (e.sanctuary) parts.push(`attackers must first make a DC ${e.dc || '?'} Wisdom save or lose the attack`);
   if (e.images) parts.push(`${e.images} illusory duplicate${e.images > 1 ? 's' : ''}`);
   if (e.endsOnAct) parts.push('ends when it attacks, deals damage or casts a spell');
@@ -2242,6 +2246,7 @@ function App() {
   const [targetIds, setTargetIds] = useState([]); // creatures picked as targets, in the order they were picked
   const targetId = targetIds[0] || null;
   const setTargetId = id => setTargetIds(id ? [id] : []);
+  const [csPick, setCsPick] = useState([]); // Cunning Strike effects chosen for the next Sneak Attack
   const [sneakOn, setSneakOn] = useState(true);   // add Sneak Attack to the next weapon hit
   const [viewId, setViewId] = useState(null);
   const [selectedAction, setSelectedAction] = useState(null);
@@ -2957,7 +2962,9 @@ function App() {
     let inspired = null;
     if (!t.autoFail && saveTotal < action.dc) { inspired = tryInspire(tgt, action.dc - saveTotal); if (inspired) saveTotal += inspired.add; }
     if (+action.coverBonus) { saveTotal += +action.coverBonus; t.bonusText = [t.bonusText, `${+action.coverBonus === 5 ? 'Three-Quarters' : 'Half'} Cover +${action.coverBonus}`].filter(Boolean).join(', '); }
-    const passed = action.sculpted ? true : ruled ? ruled === 'pass' : (!t.autoFail && saveTotal >= action.dc); // Sculpt Spells: it succeeds, and takes no damage
+    const sleepless = /^Sleep( \(|$)/.test(String(action.spellName || action.name || '')) && ((tgt.passives || {}).noSleep || String(tgt.ci || '').includes('Exhaustion')); // the Sleep spell: creatures that don't sleep or are immune to Exhaustion succeed
+    if (sleepless) t.bonusText = [t.bonusText, 'does not sleep: succeeds automatically'].filter(Boolean).join(', ');
+    const passed = action.sculpted || sleepless ? true : ruled ? ruled === 'pass' : (!t.autoFail && saveTotal >= action.dc); // Sculpt Spells: it succeeds, and takes no damage
     const hasDmg = (action.dmgList && action.dmgList.length) || (action.dmg && action.dmg !== '0');
     let dmgHtml = '';
     const evade = (tgt.passives || {}).evasion && saveAbility === 'Dexterity' && action.halfOnSave && !hasCond(tgt, 'Incapacitated'); // Evasion: none on a success, half on a failure
@@ -3082,7 +3089,7 @@ function App() {
     if (!combatStarted || !c) return true;
     const e = ECON[action.activation]; if (!e) return true;
     const turn = c.turn || {}, isAttack = !!(action.weapon || action.unarmed);
-    const allowed = isAttack ? Math.max(1, +((c.passives || {}).attacks) || 1) : 1;
+    const allowed = isAttack ? Math.max(1, +((c.passives || {}).attacks) || 1, action.pact ? +((c.passives || {}).pactAttacks) || 1 : 1) : 1;
     const over = isAttack && e[0] === 'a' ? (+turn.atk || 0) >= allowed : !!turn[e[0]];
     if (over) {
       if (!quiet && !window.confirm(`${c.name} has already used ${e[1]} this turn. Use ${action.name} anyway? The DM is told.`)) return false;
@@ -3495,7 +3502,7 @@ function App() {
       let total = roll.total + action.atk + t.bonus;
       const acVsR = target && action.ranged ? (+((target.passives || {}).acVsRanged) || 0) + sumEff(target, 'acVsRanged') : 0;
       if (acVsR) featNotes.push(`${target.name} has ${signed(acVsR)} AC against ranged attacks`);
-      const coverAC = !re && target ? +cover[target.id] || 0 : re && re.cover ? +re.cover : 0; if (coverAC) featNotes.push(`${coverAC === 5 ? 'Three-Quarters' : 'Half'} Cover: +${coverAC} Armor Class`);
+      const coverAC = re && re.cover ? +re.cover : 0; if (coverAC) featNotes.push(`${coverAC === 5 ? 'Three-Quarters' : 'Half'} Cover: +${coverAC} Armor Class`);
       const targetAC = target ? effectiveAC(target) + acVsR + coverAC : 10;
       const critOn = feat.criticalOn && (action.weapon || action.unarmed) ? feat.criticalOn : 20; // Improved Critical
       const nat20 = roll.total >= critOn, nat1 = roll.total === 1;
@@ -3573,8 +3580,12 @@ function App() {
         });
         (action.dmgVs || []).forEach(v => { if (parts.length && v.types.includes(creatureType(target))) parts.push(...rollDamageParts({dmgList: [[v.dice, v.type || parts[0].type]]}, isCrit).map(x => ({...x, dice: `against ${esc(creatureType(target))} ${x.dice}`}))); }); // Dragon Slayer, Sun Blade: more damage against some creature types
         if (feat.sneakAttackDice && sneakNow && action.weapon && (action.finesse || action.ranged) && parts.length && active.sneakAt !== turnKey) { // Sneak Attack, once per turn
-          const sn = parseDamage(`${feat.sneakAttackDice * (isCrit ? 2 : 1)}d6`);
-          parts.push({amount: sn.total, type: parts[0].type, dice: `Sneak Attack ${sn.parts.join(' + ')}`});
+          const cs = re ? [] : csPick.map(id => actions.find(a => a.id === id)).filter(a => a && a.sneakCost).slice(0, feat.cunningStrikes || 1), cost = cs.reduce((t, a) => t + a.sneakCost, 0); // Cunning Strike: dice given up, the effect follows the damage
+          const left = Math.max(0, feat.sneakAttackDice - cost), sn = left ? parseDamage(`${left * (isCrit ? 2 : 1)}d6`) : {total: 0, parts: []};
+          if (left) parts.push({amount: sn.total, type: parts[0].type, dice: `Sneak Attack ${sn.parts.join(' + ')}`});
+          if (cs.length) { featNotes.push(`Cunning Strike: ${cs.map(a => `${String(a.name).replace(/^(Cunning Strike|Devious Strikes): /, '')} (−${a.sneakCost}d6)`).join(', ')}`); const tgtNow = target; cs.forEach(a => { // the effect happens right after the damage: a save goes to the target, anything else is a reminder in the log
+              if (a.type === 'save' && a.saveAbility) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: tgtNow.id, actorId: active.id, actorName: active.name, action: {name: a.name, dc: a.dc || 13, saveAbility: a.saveAbility, onFail: a.onFail || null, onSuccess: a.onSuccess || null, desc: a.desc || ''}})]);
+              else featNotes.push(`${String(a.name).replace(/^(Cunning Strike|Devious Strikes): /, '')}: ${String(a.desc || '').replace(/^[^.]*\(Cost: [^)]*\)\.\s*/, '').slice(0, 160)}`); }); }
           setCombatants(prev => prev.map(c => c.id === active.id ? {...c, sneakAt: turnKey} : c));
         }
         if (feat.irresistible && roll.total === 20 && parts.length) { // Boon of Irresistible Offense: extra damage on a 20
@@ -3626,7 +3637,7 @@ function App() {
       const saveAbility = bestSave(target, action.saveBest) || action.saveAbility; // "Strength or Dexterity (it chooses)": the better one
       const dc = action.dc + (action.spell ? sumEff(active, 'dcBonus') : 0); // Innate Sorcery raises a spell's DC
       setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: target.id, actorId: active.id, actorName: active.name,
-        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc, conc: !!action.conc, ...(cover[target.id] && saveAbility === 'Dexterity' ? {coverBonus: +cover[target.id]} : {}), ...(sculpt.includes(target.id) ? {sculpted: true} : {}), form: action.form || null, escape: action.escape || null, auto: action.auto || null, rerun: !!action.rerun, zone: action.zone || null, advIf: action.advIf || '', concSecs: action.concSecs || 0, rolled: sharedDamage,
+        action: {name, dc, saveAbility, dmgList, dmg, dmgType, halfOnSave, onFail, onSuccess, desc, conc: !!action.conc, ...(sculpt.includes(target.id) ? {sculpted: true} : {}), form: action.form || null, escape: action.escape || null, auto: action.auto || null, rerun: !!action.rerun, zone: action.zone || null, advIf: action.advIf || '', concSecs: action.concSecs || 0, rolled: sharedDamage,
           refund: action.refundOn && target === picked[0] ? {on: action.refundOn, pool: action.pool, cost: action.cost, usesMax: action.usesMax, id: action.id, slotLvl: castLvl} : null}})]);
       entries.push({
         type:'roll',
@@ -3712,7 +3723,7 @@ function App() {
     setArmed(null);
     if (re) return;
     setSelectedAction(null);
-    setAdvantage(0); setCover({}); setFlanked(false); setSculpt([]);
+    setAdvantage(0); setFlanked(false); setSculpt([]); setCsPick([]);
   };
 
   // Ability checks, skill checks and saving throws rolled straight from the sheet.
@@ -3742,17 +3753,23 @@ function App() {
     return total;
   };
 
+  const giverOf = e => e.casterId || e.src || '';
+  const wakeWards = (list, ids) => list.map(c => (c.effects || []).some(e => e.dormant && (!ids || ids.includes(giverOf(e)))) ? {...c, effects: c.effects.map(e => e.dormant && (!ids || ids.includes(giverOf(e))) ? (({dormant, ...rest}) => rest)(e) : e)} : c); // a shared ward works again after its giver's Long Rest
   const updateHP = (id, delta, isHeal=false) => {
-    setCombatants(prev => prev.map(c => {
+    let shared = null; // a ward shared by several creatures (Gift of the Protectors): once it works for one, it sleeps for all
+    setCombatants(prev => { const next = prev.map(c => {
       if (c.id !== id) return c;
       if (isHeal) return (c.effects || []).some(e => e.noHeal) ? c : {...c, currentHP: Math.min(totalHP(c), c.currentHP + delta), ...(delta > 0 && c.currentHP <= 0 ? {death: {s: 0, f: 0}, stable: false} : {})}; // something stops it regaining Hit Points
       const dmg = Math.max(0, -delta), temp = +c.tempHP || 0, soak = Math.min(temp, dmg); // Temporary Hit Points are lost first
-      const ward = (c.effects || []).find(e => e.ward0); // Death Ward: the first drop to 0 becomes 1, and the ward is spent
-      if (ward && c.currentHP > 0 && c.currentHP - (dmg - soak) <= 0) return {...c, tempHP: temp - soak, currentHP: 1, effects: c.effects.filter(e => e.id !== ward.id)};
+      const ward = (c.effects || []).find(e => e.ward0 && !e.dormant && !(e.wardShared && delta <= -99999)); // Death Ward: the first drop to 0 becomes 1, and the ward is spent (a shared ward: not when killed outright)
+      if (ward && c.currentHP > 0 && c.currentHP - (dmg - soak) <= 0) { if (ward.wardShared) shared = {name: ward.name, src: giverOf(ward)}; return {...c, tempHP: temp - soak, currentHP: 1, effects: ward.wardShared ? c.effects : c.effects.filter(e => e.id !== ward.id)}; }
       if (c.currentHP <= 0 && dmg - soak > 0 && c.sheet && !c.dead && delta > -99999) { const f = Math.min(3, ((c.death || {}).f || 0) + 1); return {...c, tempHP: temp - soak, stable: false, death: {...(c.death || {s: 0}), f}, ...(f >= 3 ? {dead: true} : {})}; } // damage at 0 Hit Points is a failed Death Saving Throw
-      if (delta <= -99999 && c.currentHP > 0 && !(c.effects || []).some(e => e.ward0)) return {...c, tempHP: 0, currentHP: 0, ...(c.sheet ? {dead: true} : {})}; // killed outright
+      if (delta <= -99999 && c.currentHP > 0 && !(c.effects || []).some(e => e.ward0 && !e.dormant && !e.wardShared)) return {...c, tempHP: 0, currentHP: 0, ...(c.sheet ? {dead: true} : {})}; // killed outright (a shared ward does not stop that)
       return {...c, tempHP: temp - soak, currentHP: Math.max(0, c.currentHP - (dmg - soak))};
-    }));
+    });
+      if (!shared) return next; const sh = shared;
+      setTimeout(() => setLog(p => [...p, stamp({type: 'roll', html: `<strong>${esc(sh.name)}</strong> works: the creature drops to 1 Hit Point instead. No one can benefit from it again until ${esc((prev.find(x => x.id === sh.src) || {}).name || 'its giver')} finishes a Long Rest.`})]), 0);
+      return next.map(c => (c.effects || []).some(e => e.name === sh.name && giverOf(e) === sh.src) ? {...c, effects: c.effects.map(e => e.name === sh.name && giverOf(e) === sh.src ? {...e, dormant: true} : e)} : c); });
   };
   // Death Saving Throws: at 0 Hit Points a character rolls at the start of its turn. 10+ is a success, 1 is two failures, 20 brings it back with 1 Hit Point.
   const isStable = c => !!(c.stable || effs(c).some(e => e.stable));
@@ -3975,7 +3992,7 @@ function App() {
     lines.push(...rolled);
     (((c.sheet || {}).slotMax) || []).forEach((n, i) => { const b = slotsLeft(c, i + 1), a = slotsLeft(after, i + 1); if (n > 0 && a !== b) lines.push(`Level ${i + 1} spell slots: ${b} to ${a} of ${n}`); });
     buildActions(c).forEach(a => { if (a.usesMax && !a.pool) { const b = usesLeft(c, a), x = usesLeft(after, a); if (x !== b) lines.push(`${a.name}: ${b} to ${x} of ${a.usesMax}`); } });
-    setCombatants(prev => prev.map(x => x.id === id ? {...x, slotsUsed: after.slotsUsed, poolUsed: after.poolUsed, used: after.used, ...(longRest ? {currentHP: after.currentHP, tempHP: 0} : {})} : x));
+    setCombatants(prev => { const next = prev.map(x => x.id === id ? {...x, slotsUsed: after.slotsUsed, poolUsed: after.poolUsed, used: after.used, heroic: !!after.heroic, fateUsed: !!after.fateUsed, hitDiceUsed: +after.hitDiceUsed || 0, ...(longRest ? {currentHP: after.currentHP, tempHP: 0} : {})} : x); return longRest ? wakeWards(next, [id]) : next; });
     setLog(prev => [...prev, stamp({type:'heal', forId: c.id, html:`<strong>${esc(c.name)}</strong> finishes a <span class="log-result">${longRest ? 'Long Rest' : 'Short Rest'}</span>${lines.length ? `<div class="log-detail">${lines.map(esc).join(' · ')}</div>` : ''}`})]);
     { const md = manualDawn.current; manualDawn.current = {}; Object.entries(md).forEach(([cid, pools]) => setPrompts(prev => [...prev.filter(q => !(q.kind === 'dawn' && q.targetId === cid)), plain({id: newId(), kind: 'dawn', targetId: cid, by: myId, pools})])); }
     setRestSummary({name: c.name, kind, lines});
@@ -4005,7 +4022,7 @@ function App() {
       Object.keys(uAt).forEach(id => { const a = acts.find(x => x.id === id); if (a && a.recharge === 'after' && t2 >= uAt[id] + (a.wait || DAY)) { delete used[id]; delete uAt[id]; lines.push(`${a.name}: usable again after ${timeText(a.wait || DAY)}`); } else if (!used[id]) delete uAt[id]; });
       c = {...c, poolUsed: pUsed, poolAt: pAt, used, usedAt: uAt}; if (lines.length) perC[c.id] = [...(perC[c.id] || []), ...lines]; return c; };
     const after = reorder(passTime(combatants, seconds, longRest).list.map(restore).map(onClock));
-    setCombatants(prev => reorder(passTime(prev, seconds, longRest).list.map(restore).map(c => { const a = after.find(x => x.id === c.id); return a ? {...c, poolUsed: a.poolUsed, poolAt: a.poolAt, used: a.used, usedAt: a.usedAt, ...(longRest ? {hitDiceUsed: 0} : {})} : c; })));
+    setCombatants(prev => reorder((longRest ? wakeWards : (l => l))(passTime(prev, seconds, longRest).list.map(restore)).map(c => { const a = after.find(x => x.id === c.id); return a ? {...c, poolUsed: a.poolUsed, poolAt: a.poolAt, used: a.used, usedAt: a.usedAt, ...(longRest ? {hitDiceUsed: 0} : {})} : c; })));
     const md = manualDawn.current; manualDawn.current = {};
     Object.entries(md).forEach(([id, pools]) => setPrompts(prev => [...prev.filter(q => !(q.kind === 'dawn' && q.targetId === id)), plain({id: newId(), kind: 'dawn', targetId: id, by: myId, pools})]));
     setLog(prev => [...prev, stamp({type:'round', text: label + (clockOn ? ` · now ${clockText(t2, w2 && w2.cal)}` : '')}), ...endedEntries(t.ended),
@@ -4549,10 +4566,13 @@ function App() {
     setLog(prev => [...prev, stamp({type: 'round', text: `The DM sets a ${rest.kind === 'long' ? 'Long' : 'Short'} Rest at this table to ${timeText(secs)}`})]); };
   const [hdPick, setHdPick] = useState(null);
   const [fatePick, setFatePick] = useState(null); // the Improve Fate window: {cId, entryId}
+  const [rollWin, setRollWin] = useState('fate'); // the roll window is for Improve Fate or Heroic Inspiration
   const [fateChoose, setFateChoose] = useState(null); // picking a roll in the Combat Log for Improve Fate: the character's id
-  const [cover, setCover] = useState({}); // the attacker says the target has cover: {targetId: 2 or 5}
   const [flanked, setFlanked] = useState(false); // Flanking (an optional rule): Advantage on this attack
   const [sculpt, setSculpt] = useState([]); // Sculpt Spells: creatures that automatically succeed
+  const [coverSel, setCoverSel] = useState({}); // which recent attack the sheet's Cover line is set to
+  const [promptCover, setPromptCover] = useState({}); // cover the creature making a Dexterity save says it has, per prompt
+  const withCover = q => promptCover[q.id] && q.action ? {...q, action: {...q.action, coverBonus: promptCover[q.id]}} : q;
   const [reminders, setReminders] = useState([]); // what a feature lets a creature do right after an action: [{id, texts}]
   const [blink, setBlink] = useState(null); // Blink Steps after the Attack or Magic action: {id, feet, key}
   const [swapTo, setSwapTo] = useState({}); // Alert's Initiative Swap: {characterId: allyId}
@@ -4580,7 +4600,7 @@ function App() {
     setLog(prev => [...prev, stamp({type: 'roll', html: `<strong>The DM</strong> rejected: ${esc(q.text || '')}`})]); };
   // Heroic Inspiration: reroll one die of your own last d20 roll, after the fact
   const lastOwnD20 = c => { for (let i = log.length - 1; i >= 0; i--) { const e = log[i]; if (e && e.d20 && !e.void && e.d20.who === c.id && e.d20.die) return e; } return null; };
-  const useHeroic = (c) => { const entry = lastOwnD20(c); if (!c || !c.heroic || !entry) return; const d = entry.d20, nd = rollD(20), newTot = d.tot - d.die + nd;
+  const useHeroic = (c, entry0) => { const entry = entry0 || lastOwnD20(c); if (!c || !c.heroic || !entry || !entry.d20 || entry.d20.who !== c.id || !entry.d20.die) return; setFatePick(null); setFateChoose(null); const d = entry.d20, nd = rollD(20), newTot = d.tot - d.die + nd;
     const what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
     const ok = t => d.vs ? (d.k === 'atk' ? (nd === 20 || (nd !== 1 && t >= d.vs)) : t >= d.vs) : null, was = d.vs ? (d.k === 'atk' ? (d.nat === 20 || (d.nat !== 1 && d.tot >= d.vs)) : d.tot >= d.vs) : null, now = ok(newTot), flips = was !== null && was !== now;
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, heroic: false} : x)); const tag = newId().slice(0, 14);
@@ -4588,12 +4608,20 @@ function App() {
     if (flips && entry.ov) setTimeout(() => overrideEntry(entry, `Heroic Inspiration (${c.name})`, newTot, tag), 300);
     tellChange({by: c, field: 'heroic', tag, entry, text: `${c.name} used Heroic Inspiration on "${what}": ${d.tot} → ${newTot}.${flips && !entry.ov ? ' Change what it did with ✎ on that entry.' : ''}`}); };
   // Cover after the fact: within two rounds, the target of an attack says it had cover
-  const applyCover = (entry, bonus) => { const d = entry.d20 || {}; if (!bonus || d.k !== 'atk') return; const t = combatants.find(x => x.id === ((entry.ov || {}).ctx || {}).pickedIds?.[0]); if (!t) return;
-    const was = d.nat === 20 || (d.nat !== 1 && d.tot >= d.vs), now = d.nat === 20 || (d.nat !== 1 && d.tot >= d.vs + bonus), flips = was !== now, tag = newId().slice(0, 14);
+  const coverTarget = entry => { const ov = entry.ov || {}; return combatants.find(x => x.id === (ov.k === 'atk' ? (ov.ctx || {}).pickedIds?.[0] : (ov.q || {}).targetId)); };
+  const coverable = entry => { const d = entry && entry.d20; if (!d || entry.void || !entry.ov || d.cover || round - (+entry.ov.r || 0) > 2 || log.some(x => x.coverOf === entry.id)) return false;
+    return d.k === 'atk' || (d.k === 'save' && ((entry.ov.q || {}).action || {}).saveAbility === 'Dexterity' && !(entry.ov.q.action || {}).coverBonus); };
+  const applyCover = (entry, bonus) => { const d = entry.d20 || {}; if (!bonus || !coverable(entry)) return; const t = coverTarget(entry); if (!t) return; const atk = d.k === 'atk', name = bonus === 5 ? 'Three-Quarters' : 'Half';
+    const was = atk ? d.nat === 20 || (d.nat !== 1 && d.tot >= d.vs) : d.tot >= d.vs, now = atk ? d.nat === 20 || (d.nat !== 1 && d.tot >= d.vs + bonus) : d.tot + bonus >= d.vs, flips = was !== now, tag = newId().slice(0, 14);
     const what = String(entry.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
-    setLog(prev => [...prev, stamp({type: 'roll', forId: t.id, coverOf: entry.id, html: `<strong>${esc(t.name)}</strong> had ${bonus === 5 ? 'Three-Quarters' : 'Half'} Cover against: ${esc(what)}<div class="log-detail">Armor Class ${d.vs} → ${d.vs + bonus}: ${now ? 'still a hit' : was ? 'now a miss' : 'still a miss'}.</div>`})]);
-    if (flips && entry.ov) setTimeout(() => overrideEntry({...entry, d20: {...d, cover: bonus}}, `${bonus === 5 ? 'Three-Quarters' : 'Half'} Cover (+${bonus})`, d.tot, tag), 300);
-    tellChange({by: t, field: '', tag, entry, text: `${t.name} says it had ${bonus === 5 ? 'Three-Quarters' : 'Half'} Cover against "${what}" (Armor Class +${bonus})${flips ? ': the hit becomes a miss' : ''}.`}); };
+    const detail = atk ? `Armor Class ${d.vs} → ${d.vs + bonus}: ${now ? 'still a hit' : was ? 'now a miss' : 'still a miss'}.` : `Dexterity save ${d.tot} → ${d.tot + bonus} against DC ${d.vs}: ${now ? (was ? 'still a success' : 'now a success') : 'still a failure'}.`;
+    setLog(prev => [...prev, stamp({type: 'roll', forId: t.id, coverOf: entry.id, html: `<strong>${esc(t.name)}</strong> had ${name} Cover against: ${esc(what)}<div class="log-detail">${detail}</div>`})]);
+    if (flips && entry.ov) setTimeout(() => overrideEntry({...entry, d20: {...d, cover: bonus}}, `${name} Cover (+${bonus})`, atk ? d.tot : d.tot + bonus, tag), 300);
+    tellChange({by: t, field: '', tag, entry, text: `${t.name} says it had ${name} Cover against "${what}" (${atk ? 'Armor Class' : 'Dexterity save'} +${bonus})${flips ? (atk ? ': the hit becomes a miss' : ': the save becomes a success') : ''}.`}); };
+  const coverLine = (c) => { const recent = log.filter(e => coverable(e) && (coverTarget(e) || {}).id === c.id).slice(-6).reverse(); if (!recent.length) return null; const pick = recent.find(e => e.id === coverSel[c.id]) || recent[0];
+                const label = e => String(e.html || '').replace(/<br\s*\/?>[\s\S]*$/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 60) + ` (${e.d20.k === 'atk' ? `${e.d20.tot} vs AC ${e.d20.vs}` : `save ${e.d20.tot} vs DC ${e.d20.vs}`})`;
+                return <div className="pp-line" data-testid="sheet-cover"><span><strong>Cover</strong> against <select aria-label="Attack or save to apply cover to" data-testid="sheet-cover-pick" value={pick.id} onChange={e => setCoverSel({...coverSel, [c.id]: e.target.value})}>{recent.map(e => <option key={e.id} value={e.id}>{label(e)}</option>)}</select></span>
+                  <button className="pp-chip" data-testid="sheet-cover-half" onClick={() => applyCover(pick, 2)}>Half (+2)</button><button className="pp-chip" data-testid="sheet-cover-tq" onClick={() => applyCover(pick, 5)}>Three-Quarters (+5)</button></div>; };
   const askSwap = (c, allyId) => { const a = combatants.find(x => x.id === allyId); if (!a || !c) return;
     if ([c, a].some(x => (x.conditions || []).some(k => INCAP.includes(k)))) { window.alert('No swap: you or that ally has the Incapacitated condition.'); return; }
     setCombatants(prev => prev.map(x => x.id === c.id ? {...x, swapDone: true} : x));
@@ -4859,10 +4887,11 @@ function App() {
                   'Boon of Spell Recall': 'Free Casting: a d4 with each Level 1 to 4 slot; on the slot\'s level, you keep the slot.',
                   'Boon of Truesight': 'Truesight 60 ft.'}[String(b.name).replace(/ \(.*$/, '')] || String(b.text || '').split(/(?<=\.)\s/)[0];
                 return <div key={b.name} className="boon-line" data-ex={`boon:${b.name}`}><span className="boon-name">{b.name}</span> <span className="boon-text">{BOON_LINE}</span>
-                  {/Fate/.test(b.name) && pz.improveFate && ctl && !c.fateUsed && <button className="pp-chip on" data-testid="boon-fate" onClick={() => setFatePick({cId: c.id})}>Improve Fate</button>}</div>; })}</div>}
-              {c.type === 'player' && (c.heroic || isDM) && <div className="pp-line" data-testid="heroic-line"><span><strong>Heroic Inspiration</strong> {c.heroic ? 'You have it: reroll one die of your last d20 Test.' : 'None'}</span>
-                {c.heroic && ctl && <button className="pp-chip on" data-testid="heroic-use" disabled={!lastOwnD20(c)} title={lastOwnD20(c) ? 'Reroll the d20 of your last d20 Test and use the new roll' : 'No d20 Test of yours in the log yet'} onClick={() => useHeroic(c)}>Use</button>}
-                {isDM && <button className="pp-chip" data-testid="heroic-toggle" onClick={() => { setCombatants(prev => prev.map(x => x.id === c.id ? {...x, heroic: !x.heroic} : x)); setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>The DM</strong> ${c.heroic ? 'takes' : 'gives'} Heroic Inspiration ${c.heroic ? 'from' : 'to'} <strong>${esc(c.name)}</strong>`})]); }}>{c.heroic ? 'Take' : 'Give'}</button>}</div>}
+                  {/Fate/.test(b.name) && pz.improveFate && ctl && !c.fateUsed && <button className="pp-chip on" data-testid="boon-fate" onClick={() => { setRollWin('fate'); setFatePick({cId: c.id}); }}>Improve Fate</button>}</div>; })}</div>}
+              {ctl && coverLine(c)}
+              {c.type === 'player' && (c.heroic || ctl) && <div className="pp-line" data-testid="heroic-line"><span><strong>Heroic Inspiration</strong> {c.heroic ? 'Yes: reroll a d20 you just rolled' : 'None'}</span>
+                {c.heroic && ctl && <button className="pp-chip on" data-testid="heroic-use" title="Reroll the d20 of one of your rolls and use the new roll" onClick={() => { setRollWin('heroic'); setFatePick({cId: c.id}); }}>Use</button>}
+                {ctl && <button className="pp-chip" data-testid="heroic-toggle" title={c.heroic ? 'Remove Heroic Inspiration' : 'Add Heroic Inspiration'} onClick={() => { setCombatants(prev => prev.map(x => x.id === c.id ? {...x, heroic: !x.heroic} : x)); setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: isDM && !c.owner ? `<strong>The DM</strong> ${c.heroic ? 'removes' : 'gives'} Heroic Inspiration ${c.heroic ? 'from' : 'to'} <strong>${esc(c.name)}</strong>` : `<strong>${esc(c.name)}</strong> ${c.heroic ? 'removes' : 'adds'} Heroic Inspiration${isDM ? ' (the DM)' : ''}`})]); }}>{c.heroic ? '✕ Remove' : '+ Add'}</button>}</div>}
               <div className="pp-line"><span><strong>Senses</strong> {effectiveSenses(c).join(', ') || 'None'}</span><span><strong>Speeds</strong> {speedText(c)} &nbsp; <strong>Long Jump</strong> {str} ft. &nbsp; <strong>High Jump</strong> {Math.max(0, 3 + mod(str))} ft.</span></div>
 
               {combatStarted && (() => { const turn = c.turn || {}, mine = !!(active && active.id === c.id), sp = effectiveSpeed(c), moved = +turn.moved || 0;
@@ -5348,7 +5377,23 @@ function App() {
             </div>
           </div>
         </div>); })()}
-      {fatePick && !fateChoose && (() => { const c = combatants.find(x => x.id === fatePick.cId), e = log.find(x => x.id === fatePick.entryId) || lastD20(); if (!c) return null; const dice = (c.passives || {}).improveFate || '2d4', old = e && !recentRoll(e); return (
+      {fatePick && !fateChoose && rollWin === 'heroic' && (() => { const c = combatants.find(x => x.id === fatePick.cId), e = log.find(x => x.id === fatePick.entryId) || lastOwnD20(c || {}); if (!c) return null; const old = e && !recentRoll(e); return (
+        <div className="modal-overlay" onClick={() => setFatePick(null)}>
+          <div className="modal" data-testid="heroic-modal" style={{maxWidth: 440}} onClick={ev => ev.stopPropagation()}>
+            <div className="modal-header">Use Heroic Inspiration?</div>
+            <div className="modal-body">
+              {e ? <><div className="pp-muted" style={{fontSize: 12}}>{fatePick.entryId ? 'The roll you chose' : 'Your last roll'}:</div><div className="log-entry" data-testid="heroic-roll"><div className="log-html" dangerouslySetInnerHTML={{__html: sanitizeLogHtml(e.html)}}/></div>
+                {old && <div className="buff-note" data-testid="heroic-old" style={{color: '#fff176'}}>This roll is from before the last turn. Heroic Inspiration is used right after the roll; if you use it, the DM is told.</div>}</> : <div className="buff-note">You have no d20 roll in the Combat Log yet.</div>}
+              <div className="buff-note">Reroll the d20 of that roll. You must use the new roll.</div>
+              <div className="do-row">
+                {e && <button className="btn btn-primary" data-testid="heroic-yes" onClick={() => useHeroic(c, e)}>Yes: reroll it</button>}
+                <button className="btn btn-ghost" data-testid="heroic-choose" onClick={() => setFateChoose(c.id)}>Choose from the Combat Log</button>
+                <button className="btn btn-ghost btn-sm" data-testid="heroic-cancel" onClick={() => setFatePick(null)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>); })()}
+      {fatePick && !fateChoose && rollWin !== 'heroic' && (() => { const c = combatants.find(x => x.id === fatePick.cId), e = log.find(x => x.id === fatePick.entryId) || lastD20(); if (!c) return null; const dice = (c.passives || {}).improveFate || '2d4', old = e && !recentRoll(e); return (
         <div className="modal-overlay" onClick={() => setFatePick(null)}>
           <div className="modal" data-testid="fate-modal" style={{maxWidth: 440}} onClick={ev => ev.stopPropagation()}>
             <div className="modal-header">Use Improve Fate?</div>
@@ -5365,7 +5410,7 @@ function App() {
             </div>
           </div>
         </div>); })()}
-      {fateChoose && <div className="fate-dim" data-testid="fate-dim" onClick={() => { setFateChoose(null); }}><div className="fate-dim-note">Pick a d20 roll in the Combat Log. Click here to go back.</div></div>}
+      {fateChoose && <div className="fate-dim" data-testid="fate-dim" onClick={() => { setFateChoose(null); }}><div className="fate-dim-note">{rollWin === 'heroic' ? 'Pick one of your own d20 rolls' : 'Pick a d20 roll'} in the Combat Log. Click here to go back.</div></div>}
       {changePick && <div className="modal-overlay" onClick={() => setChangePick(null)}>
         <div className="modal" data-testid="change-modal" style={{maxWidth: 480}} onClick={e => e.stopPropagation()}>
           <div className="modal-header">Change what this did</div>
@@ -5553,8 +5598,9 @@ function App() {
             <div key={q.id} className={`prompt-item ${canControl(c) ? 'yours' : ''}`}>
               <span><strong>{c.name}</strong>: {text} · DC {dc}{q.action && q.action.advIf ? <span className="prompt-wait" data-testid="adv-if"> · Advantage if: {q.action.advIf}</span> : null}</span>
               {canControl(c)
-                ? <span className="p-btns"><button className="btn btn-primary btn-sm" data-testid="prompt-roll" onClick={() => withPrompt(q.id, () => askSave(q, c))}>🎲 Roll {c.name}'s {q.kind === 'check' ? 'check' : 'save'}</button>
-                    {q.action && q.action.advIf && <button className="btn btn-ghost btn-sm" data-testid="prompt-roll-adv" onClick={() => withPrompt(q.id, () => askSave({...q, action: {...q.action, advNow: true}}, c))}>🎲 Roll with Advantage</button>}
+                ? <span className="p-btns">{q.kind === 'save' && q.action && q.action.saveAbility === 'Dexterity' && <label className="rule-label" style={{margin: 0}} title="Cover adds to Dexterity saving throws">Cover <select data-testid="prompt-cover" aria-label={`Cover for ${c.name}'s save`} value={promptCover[q.id] || 0} onChange={e => setPromptCover({...promptCover, [q.id]: +e.target.value})}><option value={0}>None</option><option value={2}>Half (+2)</option><option value={5}>Three-Quarters (+5)</option></select></label>}
+                    <button className="btn btn-primary btn-sm" data-testid="prompt-roll" onClick={() => withPrompt(q.id, () => askSave(withCover(q), c))}>🎲 Roll {c.name}'s {q.kind === 'check' ? 'check' : 'save'}</button>
+                    {q.action && q.action.advIf && <button className="btn btn-ghost btn-sm" data-testid="prompt-roll-adv" onClick={() => withPrompt(q.id, () => askSave(withCover({...q, action: {...q.action, advNow: true}}), c))}>🎲 Roll with Advantage</button>}
                     {isDM && q.kind === 'save' && <><button className="btn btn-ghost btn-sm" data-testid="rule-fail" onClick={()=>resolvePrompt(q, 'fail')}>Cause to fail</button><button className="btn btn-ghost btn-sm" data-testid="rule-pass" onClick={()=>resolvePrompt(q, 'pass')}>Cause to succeed</button></>}{promptSwitch(q.id)}</span>
                 : <span className="prompt-wait">Waiting for {c.owner ? 'its player' : 'the DM'}</span>}
             </div>
@@ -5863,10 +5909,9 @@ function App() {
                   </div>
                 ))}
 
-                {selAction && canControl(viewed) && targetIds.length > 0 && (selAction.type === 'attack' || (selAction.type === 'save' && selAction.saveAbility === 'Dexterity')) && (
-                  <div className="advantage-row cover-row" data-testid="cover-row" style={{flexWrap: 'wrap', alignItems: 'center'}}>
-                    {targetIds.map(id => { const t0 = inPlay.find(c => c.id === id); return t0 ? <label key={id} className="rule-label" style={{margin: 0}}>{targetIds.length > 1 ? `${t0.name}: ` : ''}Cover <select aria-label={`Cover for ${t0.name}`} data-testid="cover-pick" value={cover[id] || 0} onChange={e => setCover({...cover, [id]: +e.target.value})}><option value={0}>None</option><option value={2}>Half (+2)</option><option value={5}>Three-Quarters (+5)</option></select></label> : null; })}
-                    {selAction.type === 'attack' && <label className="rule-label" style={{margin: 0}} title="An optional rule some tables use: Advantage when an ally is on the opposite side of the target"><input type="checkbox" data-testid="flank-pick" checked={flanked} onChange={e => setFlanked(e.target.checked)}/> Flanking</label>}
+                {selAction && canControl(viewed) && targetIds.length > 0 && selAction.type === 'attack' && (
+                  <div className="advantage-row cover-row" data-testid="flank-row" style={{flexWrap: 'wrap', alignItems: 'center'}}>
+                    <label className="rule-label" style={{margin: 0}} title="An optional rule some tables use: Advantage when an ally is on the opposite side of the target"><input type="checkbox" data-testid="flank-pick" checked={flanked} onChange={e => setFlanked(e.target.checked)}/> Flanking</label>
                   </div>)}
                 {selAction && canControl(viewed) && selAction.spell && selAction.school === 'Evocation' && selAction.type === 'save' && (viewed.passives || {}).sculptSpells && targetIds.length > 0 && (() => { const most = 1 + (castLevel > 0 ? castLevel : selAction.slot || 0); return (
                   <div className="advantage-row" data-testid="sculpt-row" style={{flexWrap: 'wrap'}}><span className="pp-muted" title="They automatically succeed on their saves and take no damage">Sculpt Spells (up to {most}):</span>
@@ -5884,6 +5929,10 @@ function App() {
                 {selAction && selAction.weapon && (selAction.finesse || selAction.ranged) && viewed && (viewed.passives || {}).sneakAttackDice > 0 && (
                   <label className="conc-label" style={{margin:'4px 0'}}><input type="checkbox" checked={sneakOn} onChange={e=>setSneakOn(e.target.checked)}/> Add Sneak Attack ({viewed.passives.sneakAttackDice}d6) if this hits. Needs Advantage or an ally within 5 feet of the target. Once per turn.</label>
                 )}
+                {selAction && selAction.weapon && (selAction.finesse || selAction.ranged) && viewed && sneakOn && (viewed.passives || {}).sneakAttackDice > 0 && actions.some(a => a.sneakCost) && (() => { const most = viewed.passives.cunningStrikes || 1, dice = viewed.passives.sneakAttackDice, spent = csPick.reduce((t, id) => t + ((actions.find(a => a.id === id) || {}).sneakCost || 0), 0); return (
+                  <div className="advantage-row" data-testid="cs-row" style={{flexWrap: 'wrap'}}><span className="pp-muted" title="Each effect costs Sneak Attack dice; it happens right after the damage">Cunning Strike (up to {most}):</span>
+                    {actions.filter(a => a.sneakCost).map(a => { const on = csPick.includes(a.id); return <label key={a.id} className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="cs-pick" checked={on} disabled={!on && (csPick.length >= most || spent + a.sneakCost > dice)} onChange={e => setCsPick(e.target.checked ? [...csPick, a.id] : csPick.filter(x => x !== a.id))}/> {String(a.name).replace(/^(Cunning Strike|Devious Strikes): /, '')} (−{a.sneakCost}d6)</label>; })}
+                  </div>); })()}
                 {selAction && selAction.slot > 0 && (
                   <div className="manual-roll">
                     <span className="label">Cast with</span>
@@ -5983,6 +6032,7 @@ function App() {
                 {canControl(viewed) && <>
                 <div className="section-title">⚡ Actions</div>
                 {paper ? renderPaper(viewed) : (<>
+                {canControl(viewed) && coverLine(viewed)}
                 {actions.length === 0 && <div className="empty-state">No actions set up for this stat block. Use the dice roller.</div>}
                 <div className="action-grid">
                   {actions.filter(a => /^multiattack/i.test(a.name)).map(a => <div key={a.id} className="buff-note" data-testid="multiattack-note" style={{gridColumn: '1 / -1', margin: 0}}><strong>Multiattack.</strong> {a.desc || a.detail} Click each attack below in turn.</div>)}
@@ -6015,9 +6065,9 @@ function App() {
                       {canControl(viewed) && <> <button className="chip-btn" aria-label={`Spend one ${n}`} title="Spend one" onClick={()=>adjustPool(viewed.id, n, -1)}>−</button><button className="chip-btn" aria-label={`Give back one ${n}`} title="Give one back (a use that was not spent)" onClick={()=>adjustPool(viewed.id, n, 1)}>+</button></>}</span>)}
                   </div>
                 )}
-                {viewed && viewed.passives && (viewed.passives.attacks || viewed.passives.criticalOn || viewed.passives.sneakAttackDice || viewed.passives.initiativeAdvantage) && (
+                {viewed && viewed.passives && (viewed.passives.attacks || viewed.passives.pactAttacks || viewed.passives.criticalOn || viewed.passives.sneakAttackDice || viewed.passives.initiativeAdvantage) && (
                   <div className="buff-note" style={{margin:'4px 0'}} data-testid="passive-row">
-                    {[viewed.passives.attacks && `${viewed.passives.attacks} attacks with the Attack action`, viewed.passives.criticalOn && `Critical Hit on ${viewed.passives.criticalOn}-20`,
+                    {[viewed.passives.attacks && `${viewed.passives.attacks} attacks with the Attack action`, viewed.passives.pactAttacks && `${viewed.passives.pactAttacks} attacks with your pact weapon`, viewed.passives.criticalOn && `Critical Hit on ${viewed.passives.criticalOn}-20`,
                       viewed.passives.sneakAttackDice && `Sneak Attack ${viewed.passives.sneakAttackDice}d6`, viewed.passives.initiativeAdvantage && 'Advantage on Initiative'].filter(Boolean).join(' · ')}
                   </div>
                 )}
@@ -6235,8 +6285,8 @@ function App() {
                 : (entry.dmOnly && !isDM) || (entry.priv && !isDM && !entry.priv.some(id => canControl(combatants.find(c => c.id === id)))) ? null
                 : isDM && (logTab === 'system') !== !!entry.sys ? null
                 : !isDM && entry.sys ? null
-                : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result ${entry.void ? 'void' : ''} ${entry.flag ? 'flagged' : ''} ${fateChoose && entry.d20 && !entry.void ? 'fate-pickable' : ''}`} data-testid={fateChoose && entry.d20 && !entry.void ? 'fate-pickable' : undefined}
-                    onClickCapture={fateChoose && entry.d20 && !entry.void ? (ev => { ev.stopPropagation(); ev.preventDefault(); const cid = fateChoose; setFateChoose(null); setFatePick({cId: cid, entryId: entry.id}); }) : undefined}>
+                : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result ${entry.void ? 'void' : ''} ${entry.flag ? 'flagged' : ''} ${fateChoose && entry.d20 && !entry.void && (rollWin !== 'heroic' || (entry.d20.who === fateChoose && entry.d20.die)) ? 'fate-pickable' : ''}`} data-testid={fateChoose && entry.d20 && !entry.void && (rollWin !== 'heroic' || (entry.d20.who === fateChoose && entry.d20.die)) ? 'fate-pickable' : undefined}
+                    onClickCapture={fateChoose && entry.d20 && !entry.void && (rollWin !== 'heroic' || (entry.d20.who === fateChoose && entry.d20.die)) ? (ev => { ev.stopPropagation(); ev.preventDefault(); const cid = fateChoose; setFateChoose(null); setFatePick({cId: cid, entryId: entry.id}); }) : undefined}>
                     {entry.flag && <div className="log-flag" data-testid="log-flag" role="button" title="Click for the reason" onClick={() => setOpenFlag({...openFlag, [entry.id]: !openFlag[entry.id]})}>❗ Used against the rules{openFlag[entry.id] && <span className="why" data-testid="log-flag-why">Error: {entry.flag}</span>}</div>}
                     {isDM && dmHist.current[entry.id] && <button className="log-star" data-testid="log-undo" title="Take back only what this did (DM). Shift-click: go back to just before it, undoing everything after too" aria-label="Take back" onClick={(ev) => ev.shiftKey ? undoToEntry(entry) : reverseEntry(entry)}>↶</button>}
                     {isDM && dmHist.current[entry.id] && <button className="log-star" data-testid="log-change" title="Change what this did (DM)" aria-label="Change the result" onClick={() => openChange(entry)}>✎</button>}
@@ -6247,7 +6297,7 @@ function App() {
                     {entry.dmOnly && <div className="log-detail" style={{color:'#fff176'}}>Only you can see this roll.</div>}
                     {canOverride(entry) && <div className="log-ov"><button className="btn btn-ghost btn-sm" data-testid="log-override" title="Undo what this did and resolve it the other way, with the same roll. Open for one round." onClick={() => overrideEntry(entry)}>
                       Override: {(entry.ov.k === 'atk' ? entry.ov.hit : entry.ov.passed) ? 'cause to fail' : 'cause to succeed'}</button></div>}
-                    {(() => { const ctx = (entry.ov || {}).ctx || {}, t = combatants.find(x => x.id === (ctx.pickedIds || [])[0]); if (!t || entry.void || !entry.d20 || entry.d20.k !== 'atk' || entry.d20.cover || !canControl(t) || round - (+entry.ov.r || 0) > 2 || log.some(x => x.coverOf === entry.id)) return null;
+                    {(() => { const t = coverable(entry) ? coverTarget(entry) : null; if (!t || !canControl(t)) return null;
                       return <div className="log-ov" data-testid="cover-late"><span>{t.name} had cover?</span><button className="btn btn-ghost btn-sm" data-testid="cover-late-half" onClick={() => applyCover(entry, 2)}>Half (+2)</button><button className="btn btn-ghost btn-sm" data-testid="cover-late-tq" onClick={() => applyCover(entry, 5)}>Three-Quarters (+5)</button></div>; })()}
                     {canEndConc(entry) && <div className="log-ov"><button className="btn btn-ghost btn-sm" data-testid="conc-end" onClick={() => endConcentration(entry.concEnd.id, 'After a failed Constitution saving throw to maintain Concentration.')}>End Concentration on {entry.concEnd.name}</button></div>}
                   </div>

@@ -64,7 +64,7 @@ Different people will each convert the same book and then play together, so two 
   10. If you are not sure how to write something, write it as text only and list it in your reply after the file, so the user can check it. Never guess.
 The Character Builder shows a short check code for every pack it loads. Two people whose packs show the same code have the same content.
 
-STEP 3. Output ONE JSON file and nothing else, in a single code block, so the user can save it as a .json file. It must be valid JSON: double quotes, no comments, no trailing commas. If the content is too long for one reply, tell the user, then continue the same file in the next reply so the pieces join into one file.
+STEP 3. Output ONE JSON file and nothing else, in a single code block, so the user can save it as a .json file. It must be valid JSON: double quotes, no comments, no trailing commas. If the content is too long for one reply, tell the user, then continue the same file in the next reply so the pieces join into one file. Never split a large book into several packs yourself: the builder cuts a large pack into parts by type when it is uploaded.
 
 STEP 4. After the file, list anything you could not express in this format, so the user knows what stays a table ruling.
 
@@ -513,6 +513,7 @@ attacks: when one use makes several separate attack rolls that can go at the sam
 removes: when the feature ends things on its target, add "removes": { "conditions": ["Poisoned", "Charmed"], "count": 1 or "all", "exhaustion": 1, "effects": "curse" | "spells" | "any", "hitPointMaximum": true }. Leave out what does not apply. The user is shown what the target really has and picks from that.
 extraCost: a second pool it spends at the same time, or alone with no "uses": "extraCost": { "pool": "Wild Shape", "cost": 1 }.
 spendSlot: when using it expends a spell slot, add "spendSlot": "any" (the user picks the level), "pact" (a Pact Magic slot) or a number (a slot of that level or higher). It is blocked when no slot is left.
+sneakCost: a Cunning Strike effect: "sneakCost": 2 is the number of Sneak Attack dice given up for it. The attacker picks it when adding Sneak Attack, and it happens right after the damage.
 regain: what using it gives back: "regain": { "pool": "Bardic Inspiration", "amount": 1 } (uses of a pool), { "slot": 2 } (a spell slot of that level), or { "pactSlots": "half" or "all" } (Pact Magic slots).
 cost: when using it costs gold, add "cost": { "gp": 50, "consumed": true }. The gold must be on hand and is taken when it is used (once only if not consumed).
 items: an activated ability granted by an item ("grantedBy": { "type": "item", "name": ... }) can also be used from the Inventory tab of the character sheet, next to that item.
@@ -556,6 +557,7 @@ More effect keys (inside an "effects" entry), each exactly as written here:
   "endsWhenNextAttacked": true        ends after the next attack roll against it
   "outOfPlay": true                   it is elsewhere while this lasts: skipped in the turn order, cannot be targeted
   "stable": true, "dashAsBonusAction": true
+  "sharedWard": true                  with "dropTo1Instead": the ward is shared by everyone the user gave it to; once it works for one, it stops for all until the user finishes a Long Rest (Gift of the Protectors)
   "halveNextDamage": true             the damage of the next hit it takes is halved, then the effect ends (Uncanny Dodge)
   "reduceNextDamage": { "dice": "1d10+DEX+LEVEL", "types": ["Bludgeoning", "Piercing", "Slashing"] }   the damage of the next hit (of those types; leave "types" out for any) is reduced by that roll, then the effect ends (Deflect Attacks)
   "nextSpellFree": { "maxLevel": 5 }  its next spell of that level or lower is cast without a slot (Divine Intervention)
@@ -614,9 +616,11 @@ PASSIVE FEATURES: statics
   "critExtraDice": "1d8"                                  dice added to the damage of a Critical Hit with a weapon or Unarmed Strike
   "itemSlots": { "Attunement": 1 }                        more item slots of that kind (Attunement, or a kind from "slotTypes"): the character can be attuned to one more item
   "spellPicks": [ { "label": "Mystic Arcanum (level 6)", "count": 1, "level": 6, "lists": ["Warlock"], "cast": "once" } ]
-                                                          spells the player chooses on the Spells tab. level: a number, "slot" (any level the character has slots for) or 0 for cantrips. lists: class spell lists to choose from. count can be a list of 20. cast: how the picks are cast (below); leave out for normal casting
+                                                          spells the player chooses on the Spells tab. level: a number, "slot" (any level the character has slots for) or 0 for cantrips. lists: class spell lists to choose from. count can be a list of 20. Add "school": "Evocation" or "ritual": true to narrow the choice, "castingTime": "Action" for only spells cast with an action, and "fromBook": true for only spells in the spellbook. "cast": "book" writes the picks in the spellbook for free instead (Evocation Savant). cast: how the picks are cast (below); leave out for normal casting
   "spellUses": [ { "spell": "Misty Step", "cast": "short" } ]   a spell the feature lets it cast in a special way. cast: "once" (once per Long Rest, no slot), "short" (once per Short or Long Rest, no slot), "atWill" (no slot, no limit), "ritualOnly" (only as a Ritual). Add "self": true when only on itself, "maxRoll": true when its healing dice count as their highest, "note" for anything else
   "spellMods": [ { "spell": "Eldritch Blast", "damage": "CHA", "range": "30*LEVEL", "note": "..." } ]   changes to one spell: damage added, range set to a formula
+  "spellbook": { "start": 6, "perLevel": 2, "lists": ["Wizard"] }   a spellbook: the player writes that many spells in it (start at level 1, more each level, more can be copied), and prepared spells of level 1+ must come from it
+  "ritualsFromBook": true                                 any Ritual spell in its spellbook can be cast as a Ritual without being prepared (Ritual Adept)
   "extraSpellLists": ["Cleric", "Druid"]                  those class lists count as the character's own when it prepares spells (Magical Secrets)
   "languages": ["Thieves' Cant"]                          languages it knows
   "unarmedForce": true                                    Unarmed Strikes can deal Force damage instead of Bludgeoning
@@ -646,6 +650,9 @@ passives the Combat Resolver applies:
   "overcomeDefenses": ["Bludgeoning", "Piercing", "Slashing"]   damage of those types the user deals ignores Resistance (Boon of Irresistible Offense)
   "overwhelmingStrike": "Strength"   on a 20 for an attack roll, extra damage equal to that ability score (Boon of Irresistible Offense)
   "freeCasting": 4             casting with a slot of level 1 up to this, a d4 equal to the slot's level means the slot is not spent (Boon of Spell Recall)
+  "pactAttacks": 2             attacks with the Attack action when using the pact weapon (Thirsting Blade)
+  "cunningStrikes": 2          how many Cunning Strike effects one Sneak Attack can carry (Improved Cunning Strike; 1 without it)
+  "noSleep": true              it doesn't sleep: it succeeds on saves against the Sleep spell (Trance)
   "studiedAttacks": true       after a missed attack, Advantage on the next attack against that creature (Studied Attacks)
   "heroicEachTurn": true       gains Heroic Inspiration at the start of each of its turns if it has none (Heroic Warrior)
   "heroicOnLongRest": true     gains Heroic Inspiration on a Long Rest (Resourceful)
@@ -1366,7 +1373,7 @@ function compileOutcome(o, ctx) {
     if (e.acVsRanged != null) { const n = evalFormula(e.acVsRanged, ctx); if (Number.isFinite(n) && n) out.acVsRanged = n; }
     { const sm = pObj(e.scoresMin), am = {}; Object.keys(sm).forEach((a) => { const n = parseInt(sm[a], 10); if (ABILITIES.includes(a) && n > 0) am[a] = n; }); if (Object.keys(am).length) out.abilMin = am; } // a score set for a while (Potion of Giant Strength)
     // the same effects the built-in spells use, under plain names
-    [["attackDisadvantage", "atkDis"], ["speedZero", "speedZero"], ["noReactions", "noReact"], ["noHealing", "noHeal"], ["dropTo1Instead", "ward0"], ["endsWhenItActs", "endsOnAct"], ["endsAfterAnyAction", "endsOnAnyAct"], ["endsOnDamage", "endsOnDamage"], ["endsAfterNextAttack", "endsOnAttack"], ["endsWhenNextAttacked", "endsWhenAttacked"], ["cannotCastSpells", "noCast"], ["cannotTakeActions", "noAct"], ["repeatSaveOnDamage", "saveOnDamage"], ["outOfPlay", "away"], ["stable", "stable"], ["dashAsBonusAction", "dashBonus"]].forEach(([from, to]) => { if (e[from]) out[to] = true; });
+    [["attackDisadvantage", "atkDis"], ["speedZero", "speedZero"], ["noReactions", "noReact"], ["noHealing", "noHeal"], ["dropTo1Instead", "ward0"], ["sharedWard", "wardShared"], ["endsWhenItActs", "endsOnAct"], ["endsAfterAnyAction", "endsOnAnyAct"], ["endsOnDamage", "endsOnDamage"], ["endsAfterNextAttack", "endsOnAttack"], ["endsWhenNextAttacked", "endsWhenAttacked"], ["cannotCastSpells", "noCast"], ["cannotTakeActions", "noAct"], ["repeatSaveOnDamage", "saveOnDamage"], ["outOfPlay", "away"], ["stable", "stable"], ["dashAsBonusAction", "dashBonus"]].forEach(([from, to]) => { if (e[from]) out[to] = true; });
     if (ABILITIES.includes(e.advantageOnChecks) || isPh(e.advantageOnChecks)) out.checkAdv = e.advantageOnChecks;
     if (ABILITIES.includes(e.disadvantageOnSaves) || isPh(e.disadvantageOnSaves)) out.saveDis = e.disadvantageOnSaves;
     if (e.repeatSaveEachTurn === "start" || e.repeatSaveEachTurn === "end") out.saveEnds = e.repeatSaveEachTurn;
@@ -1483,6 +1490,7 @@ function compileAbility(ab0, ctx) {
   const cost = pObj(ab.cost); if (+cost.gp > 0) { out.gp = +cost.gp; if (cost.consumed) out.gpConsumed = true; }
   if (ab.askDM) out.askDM = pStr(ab.askDM, 300);
   { const x = pObj(ab.extraCost); if (x.pool) out.extraCost = { pool: pStr(x.pool, 40), cost: Math.max(1, evalFormula(x.cost == null ? 1 : x.cost, ctx) || 1) }; }
+  if (+ab.sneakCost > 0) out.sneakCost = Math.min(20, Math.round(+ab.sneakCost)); // Cunning Strike: Sneak Attack dice given up for the effect
   if (ab.spendSlot != null) out.spendSlot = ab.spendSlot === "any" || ab.spendSlot === "pact" ? ab.spendSlot : Math.max(1, Math.min(9, parseInt(ab.spendSlot, 10) || 1)); // it costs a spell slot: the lowest one left, a Pact Magic slot, or that level
   { const g = pObj(ab.regain); if (g.pool) out.regainPool = { pool: pStr(g.pool, 40), amount: Math.max(1, evalFormula(g.amount == null ? 1 : g.amount, ctx) || 1) }; if (g.slot) { const lv = evalFormula(g.slot, ctx); if (lv >= 1 && lv <= 9) out.regainSlot = lv; } if (g.pactSlots === "half" || g.pactSlots === "all") out.regainPact = g.pactSlots; } // what it gives back
   const made = pArr(ab.creates).slice(0, 4).map((c0) => { const c = pObj(c0), u = pObj(c.whenUsed), ue = pObj(u.effect); return { name: pStr(c.name, 60), note: pStr(c.note, 300), left: durationSeconds(c.duration) || 0, kind: c.item ? "item" : "effect", ...(+c.count > 0 ? { count: +c.count } : {}), ...(c.spoilsInto ? { spoil: pStr(c.spoilsInto, 40) } : {}), ...(Object.keys(u).length ? { use: { heal: u.heal != null ? (evalDice(u.heal, ctx) || "") : "", act: u.activation === "bonus" ? "bonus" : "action", effName: pStr(ue.name, 40), effLeft: durationSeconds(ue.duration) || 0, effNote: pStr(ue.note, 200) } } : {}) }; }).filter((c) => c.name); if (made.length) out.creates = made;
@@ -1529,6 +1537,28 @@ function abilityGranted(ab, ch) {
 const spellLabel = (s) => (s.level ? `${s.name} (Level ${s.level}${s.school ? " " + s.school : ""})` : `${s.name} (${s.school ? s.school + " " : ""}cantrip)`);
 
 // Reads a pack file, keeps what is usable and says what was wrong with the rest.
+// A pack larger than one part can hold is cut into parts by type: the classes with their subclasses, species, backgrounds and slot kinds stay in the first part;
+// feats, spells, items and abilities fill each part up to its limits (and about 2 MB of text), smaller kinds sharing a part. Each part is its own pack, named "Name (1 of 3)".
+const PACK_LIMITS = { feats: 300, spells: 600, items: 600, abilities: 800 };
+function splitPack(raw) {
+  if (!raw || typeof raw !== "object" || raw.format !== "homebrew-academy-content") return [raw];
+  const size = (x) => JSON.stringify(x).length, BYTES = 2000000;
+  const featKeys = Object.keys(pObj(raw.feats)), lists = { feats: featKeys.map((k) => [k, raw.feats[k]]), spells: pArr(raw.spells), items: pArr(raw.items), abilities: pArr(raw.abilities) };
+  const fits = Object.keys(lists).every((k) => lists[k].length <= PACK_LIMITS[k]) && size(raw) <= BYTES;
+  if (fits) return [raw];
+  const { feats, spells, items, abilities, ...core } = raw;
+  const parts = [{ ...core, feats: {}, spells: [], items: [], abilities: [] }];
+  const sizes = [size(parts[0])], blank = () => ({ format: raw.format, version: raw.version, name: raw.name, author: raw.author, feats: {}, spells: [], items: [], abilities: [] });
+  Object.keys(lists).forEach((k) => lists[k].forEach((x) => { // each kind goes in the first part that still has room for it, so kinds share parts
+    const add = size(x) + 2, count = (p) => k === "feats" ? Object.keys(p.feats).length : p[k].length;
+    let i = parts.findIndex((p, j) => count(p) < PACK_LIMITS[k] && sizes[j] + add <= BYTES);
+    if (i < 0) { parts.push(blank()); sizes.push(size(parts[parts.length - 1])); i = parts.length - 1; }
+    if (k === "feats") parts[i].feats[x[0]] = x[1]; else parts[i][k].push(x);
+    sizes[i] += add;
+  }));
+  const name = pStr(raw.name, 48).trim() || "Unnamed pack";
+  return parts.map((p, i) => ({ ...p, name: parts.length > 1 ? `${name} (${i + 1} of ${parts.length})` : name, group: name }));
+}
 function checkPack(raw) {
   const errors = [], warnings = [];
   if (!raw || typeof raw !== "object" || raw.format !== "homebrew-academy-content") {
@@ -1536,7 +1566,7 @@ function checkPack(raw) {
   }
   pArr(raw.warnings).slice(0, 30).forEach((w) => { const t = pStr(w, 400).trim(); if (t) warnings.push(`Note from whoever made the pack: ${t}`); }); // what its author could not automate
   pArr(raw.requests).slice(0, 30).forEach((r) => { const o = pObj(r), need = pStr(o.need, 300).trim(); if (need) warnings.push(`The app would need to change for ${pStr(o.rule, 80).trim() || "a rule"} (${pStr(o.where, 20) || "builder"}): ${need}${pStr(o.source, 120).trim() ? ` [${pStr(o.source, 120).trim()}]` : ""}`); }); // rules the app does not know yet
-  const pack = { format: "homebrew-academy-content", version: 1, name: pStr(raw.name, 60).trim() || "Unnamed pack", author: pStr(raw.author, 60),
+  const pack = { format: "homebrew-academy-content", version: 1, name: pStr(raw.name, 60).trim() || "Unnamed pack", author: pStr(raw.author, 60), ...(raw.group ? { group: pStr(raw.group, 60) } : {}),
     classes: {}, subclasses: {}, species: {}, backgrounds: {}, feats: {}, spells: [], items: [], abilities: [] };
   const levels = (o, where) => {
     const out = {};
@@ -1642,8 +1672,8 @@ function checkPack(raw) {
   });
   // Abilities are test-run at level 1 and level 20 with ordinary numbers, so a bad formula is caught now.
   const probe = (LEVEL) => ({ STR: 3, DEX: 3, CON: 3, INT: 3, WIS: 3, CHA: 3, PROF: LEVEL >= 17 ? 6 : 2, LEVEL, SPELLMOD: 3, SPELLDC: 13, SPELLATK: 5, PACTLEVEL: LEVEL >= 9 ? 5 : LEVEL >= 7 ? 4 : LEVEL >= 5 ? 3 : LEVEL >= 3 ? 2 : 1 });
-  if (pArr(raw.abilities).length > 800) warnings.push(`This pack has ${pArr(raw.abilities).length} abilities. Only the first 800 were kept: split the rest into a second pack.`);
-  if (pArr(raw.items).length > 600) warnings.push(`This pack has ${pArr(raw.items).length} items. Only the first 600 were kept: split the rest into a second pack.`);
+  if (pArr(raw.abilities).length > 800) warnings.push(`This pack has ${pArr(raw.abilities).length} abilities. Only the first 800 were kept.`);
+  if (pArr(raw.items).length > 600) warnings.push(`This pack has ${pArr(raw.items).length} items. Only the first 600 were kept.`);
   pArr(raw.abilities).slice(0, 800).forEach((ab, i) => {
     const label = `Ability ${pStr(pObj(ab).name, 60) || "#" + (i + 1)}`;
     const g = pObj(pObj(ab).grantedBy);
@@ -1762,18 +1792,21 @@ function ContentPacksTab({ colors, fontDisplay, sheetActions }) {
       let raw;
       try { raw = JSON.parse(t.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "")); }
       catch (err) { alert("That file is not valid JSON, so it could not be read. Ask your AI to check it for a missing comma or bracket."); return; }
-      const r = checkPack(raw);
-      if (!r.pack || !Object.values(r.counts).some(Boolean)) { alert(r.errors.join("\n")); return; }
-      const list = storedPacks().filter((p) => !sameName(p && p.name, r.pack.name));
-      r.pack.batch = batch || "Homebrew";
-      if (!storePacks([...list, r.pack])) { alert("This pack is too large to keep on this computer. Split it into smaller packs."); return; }
-      try { window.sessionStorage.setItem("hba-pack-report", JSON.stringify({ name: r.pack.name, batch: r.pack.batch, counts: r.counts, errors: r.errors, warnings: r.warnings })); } catch (err) {}
+      const results = splitPack(raw).map(checkPack).filter((r) => r.pack && Object.values(r.counts).some(Boolean));
+      if (!results.length) { alert(checkPack(raw).errors.join("\n")); return; }
+      const names = results.map((r) => r.pack.name), group = results[0].pack.group;
+      const list = storedPacks().filter((p) => !names.some((n) => sameName(p && p.name, n)) && !(group && p && p.group === group));
+      results.forEach((r) => { r.pack.batch = batch || "Homebrew"; });
+      if (!storePacks([...list, ...results.map((r) => r.pack)])) { alert("There is no room left on this computer for this pack. Remove packs you no longer use, then try again."); return; }
+      const counts = {}; results.forEach((r) => Object.keys(r.counts).forEach((k) => { counts[k] = (counts[k] || 0) + (r.counts[k] || 0); }));
+      try { window.sessionStorage.setItem("hba-pack-report", JSON.stringify({ name: group || results[0].pack.name, parts: results.length, batch: results[0].pack.batch, counts, errors: results.flatMap((r) => r.errors), warnings: results.flatMap((r) => r.warnings) })); } catch (err) {}
       reloadHere();
     }).catch(() => alert("Could not read that file."));
   };
   const removePack = (name) => {
-    if (!window.confirm(`Remove the pack "${name}"? Its options disappear from the builder. A character that uses them goes back to a built-in option.`)) return;
-    storePacks(storedPacks().filter((p) => !sameName(p && p.name, name)));
+    const group = (storedPacks().find((p) => p && sameName(p.name, name)) || {}).group, parts = group ? storedPacks().filter((p) => p && p.group === group).length : 1;
+    if (!window.confirm(`Remove the pack "${parts > 1 ? group : name}"${parts > 1 ? ` (all ${parts} parts)` : ""}? Its options disappear from the builder. A character that uses them goes back to a built-in option.`)) return;
+    storePacks(storedPacks().filter((p) => !sameName(p && p.name, name) && !(group && p && p.group === group)));
     reloadHere();
   };
   const countText = (c) => Object.entries(c).filter(([, n]) => n).map(([k, n]) => `${n} ${k}`).join(", ") || "nothing";
@@ -1808,7 +1841,7 @@ function ContentPacksTab({ colors, fontDisplay, sheetActions }) {
         </div>
       </Section>
       {report && (
-        <Section title={`Added: ${report.name}${report.batch ? ` (in ${report.batch})` : ""}`} colors={colors} fontDisplay={fontDisplay}>
+        <Section title={`Added: ${report.name}${report.parts > 1 ? `, split into ${report.parts} parts` : ""}${report.batch ? ` (in ${report.batch})` : ""}`} colors={colors} fontDisplay={fontDisplay}>
           <div style={{ fontSize: 14, marginBottom: 6 }} data-testid="pack-report">Loaded {countText(report.counts)}.</div>
           {report.errors.length > 0 && <div style={{ fontSize: 13, color: "#ff8a80", marginBottom: 6 }}><strong>Skipped:</strong><ul style={{ marginLeft: 20 }}>{report.errors.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
           {report.warnings.length > 0 && <div style={{ fontSize: 13, opacity: 0.85 }}><strong>Worth checking:</strong><ul style={{ marginLeft: 20 }}>{report.warnings.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
@@ -2007,13 +2040,15 @@ function gatherStatics(entries, ctx, gear, level) {
     if (s.skillPicks) { d.classPicks += parseInt(pObj(s.skillPicks).class, 10) || 0; d.anyPicks += parseInt(pObj(s.skillPicks).any, 10) || 0; }
     if (s.spells) Object.keys(pObj(s.spells)).forEach(l => { if (+l <= level) pArr(s.spells[l]).forEach(n => d.spells.push({ name: pStr(n, 60), source: e.feature || e.name })); });
     if (s.cantripBonus) d.cantripBonus += num(s.cantripBonus);
-    pArr(s.spellPicks).forEach((q, i) => { const o = pObj(q); const cnt = num(o.count != null ? o.count : 1); if (cnt > 0) d.spellPicks.push({ key: `${e.pickKey || optionKey(e)}|${i}`, label: pStr(o.label, 80) || e.name, source: e.name, count: Math.min(12, cnt), level: o.level === "slot" ? "slot" : Math.max(0, Math.min(9, parseInt(o.level, 10) || 0)), upTo: !!o.upTo, lists: o.lists === "any" ? "any" : pArr(o.lists).map(x => pStr(x, 30)), ritual: !!o.ritual, school: pStr(o.school, 20), cast: ["slot", "once", "short", "atWill", "ritualOnly", "book"].includes(o.cast) ? o.cast : "slot", ability: ABILITIES.includes(o.ability) ? o.ability : "", self: !!o.self }); });
+    pArr(s.spellPicks).forEach((q, i) => { const o = pObj(q); const cnt = num(o.count != null ? o.count : 1); if (cnt > 0) d.spellPicks.push({ key: `${e.pickKey || optionKey(e)}|${i}`, label: pStr(o.label, 80) || e.name, source: e.name, count: Math.min(12, cnt), level: o.level === "slot" ? "slot" : Math.max(0, Math.min(9, parseInt(o.level, 10) || 0)), upTo: !!o.upTo, lists: o.lists === "any" ? "any" : pArr(o.lists).map(x => pStr(x, 30)), ritual: !!o.ritual, school: pStr(o.school, 20), cast: ["slot", "once", "short", "atWill", "ritualOnly", "book"].includes(o.cast) ? o.cast : "slot", ability: ABILITIES.includes(o.ability) ? o.ability : "", self: !!o.self, fromBook: !!o.fromBook, castingTime: pStr(o.castingTime, 30) }); });
     pArr(s.spellUses).forEach(q => { const o = pObj(q); const n = pStr(o.spell, 60); if (n) d.spellUses.push({ spell: n, cast: ["once", "short", "atWill"].includes(o.cast) ? o.cast : "atWill", self: !!o.self, maxRoll: !!o.maxRoll, note: pStr(o.note, 200), source: e.name }); });
     pArr(s.spellMods).forEach(q => { const o = pObj(q); const n = pStr(o.spell, 60); if (n) d.spellMods.push({ spell: n, damage: o.damage != null ? num(o.damage) : 0, range: o.range != null ? num(o.range) : 0, note: pStr(o.note, 200), source: e.name }); });
     pArr(s.extraSpellLists).forEach(x => d.extraLists.push(pStr(x, 30)));
     pArr(s.languages).forEach(x => d.languages.push(pStr(x, 40)));
     if (s.unarmedForce) d.unarmedForce = true;
     if (s.pactWeapon) d.pactWeapon = true;
+    if (s.spellbook) { const o = pObj(s.spellbook); d.spellbook = { free: Math.max(0, num(o.start != null ? o.start : 6) + num(o.perLevel != null ? o.perLevel : 2) * (level - 1)), lists: pArr(o.lists).map(x => pStr(x, 30)).filter(Boolean) }; } // Wizard: a spellbook that prepared spells come from
+    if (s.ritualsFromBook) d.ritualsFromBook = true; // Ritual Adept: any Ritual spell in the spellbook, cast as a Ritual without preparing it
     if (s.skillBonus) pArr(pObj(s.skillBonus).skills).forEach(k => { d.skillBonus[k] = (d.skillBonus[k] || 0) + num(s.skillBonus.formula); });
     if (s.cantripDamage != null) d.cantripDamage += num(s.cantripDamage);
     if (s.cantripRange != null) d.cantripRange = (d.cantripRange || 0) + num(s.cantripRange);
@@ -2085,7 +2120,7 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) { /
       if (a.mastery && (d.passives || {}).tacticalMaster) { const own = a.mastery; a.modes = [own, ...["Push", "Sap", "Slow"].filter(x => x !== own)].map(m => ({ name: m === own ? `${m} (its own)` : `${m} (Tactical Master)`, a: { ...a, mastery: m } })); a.modeDefault = 0; }
       out.push(a);
       if (d.pactWeapon && !w.ranged && ctx.CHA > mod) { // Pact of the Blade: the bonded weapon can use Charisma, with proficiency
-        const ch = ctx.CHA, pa = { ...a, name: `${label} (pact weapon)`, atk: ctx.PROF + ch + plus, abil: "Charisma", dmgList: [[evalDice(`${dice}+${ch + plus}`, ctx), w.type], ...a.dmgList.slice(1)], desc: `Pact of the Blade: your bonded weapon uses Charisma and you are proficient with it. ${a.desc || ""}` };
+        const ch = ctx.CHA, pa = { ...a, pact: true, name: `${label} (pact weapon)`, atk: ctx.PROF + ch + plus, abil: "Charisma", dmgList: [[evalDice(`${dice}+${ch + plus}`, ctx), w.type], ...a.dmgList.slice(1)], desc: `Pact of the Blade: your bonded weapon uses Charisma and you are proficient with it. ${a.desc || ""}` };
         delete pa.modes; pa.modes = ["", "Necrotic", "Psychic", "Radiant"].map(t => ({ name: t || w.type, a: { ...pa, dmgList: [[pa.dmgList[0][0], t || w.type], ...pa.dmgList.slice(1)] } })); pa.modeDefault = 0; out.push(pa); }
     };
     make(w.name, w.dice, false);
@@ -2498,7 +2533,10 @@ function CharacterSheet() {
     return out;
   }, [finalMods, allSkillProfs, skillExpertise, profBonus, derived]);
 
-  const spellInfo = useMemo(() => sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists), [cls, className, level, spells, derived]);
+  // The spellbook (Wizard): spells written in it by the player, plus the ones features add for free (Evocation Savant)
+  const bookFree = derived.spellbook ? derived.spellPicks.filter(q => q.cast === "book").flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)) : [];
+  const spellbook = derived.spellbook ? Array.from(new Set([...String(featureChoices.spellbook || "").split("|").filter(Boolean), ...bookFree])) : null;
+  const spellInfo = useMemo(() => sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists, spellbook), [cls, className, level, spells, derived, featureChoices]);
   // Everything on this sheet that goes past the rules, in words.
   const customizations = useMemo(() => {
     const out = [];
@@ -2620,6 +2658,7 @@ function CharacterSheet() {
     derived.spellPicks.filter(q => q.cast !== "book").forEach(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean).forEach(n => { const sp = spellOf(n); if (!sp) return; // spells chosen through a feature (Mystic Arcanum, Magical Discoveries, Pact of the Tome)
       push(sp, { ...tune, ctx: abCtx(q.ability), cast: q.cast, self: q.self, ...(q.cast !== "slot" ? { label: `${sp.n} (${q.source})` } : {}) }); }));
     if (derived.cantripRange) out.filter(a => a.spell && a.slot === 0 && a.range && a.range.feet >= 10 && (spellOf(a.name) || {}).c && spellOf(a.name).c.includes(className)).forEach(a => { a.range = { ...a.range, feet: a.range.feet + derived.cantripRange }; }); // Improved Elemental Fury
+    if (derived.ritualsFromBook && spellbook) spellbook.forEach(n => { const sp = spellOf(n); if (sp && sp.rit && !spells.includes(sp.n)) push(sp, { ...tune, cast: "ritualOnly", label: `${sp.n} (Ritual Adept)` }); });
     derived.spellUses.forEach(u => { const sp = spellOf(u.spell); if (sp) push(sp, { ...tune, cast: u.cast, self: u.self, maxRoll: u.maxRoll, note: u.note, label: `${sp.n} (${u.source})` }); }); // Armor of Shadows: Mage Armor at will
     derived.spellMods.forEach(m => out.filter(a => a.name === m.spell || a.name.startsWith(m.spell + " (")).forEach(a => { // Agonizing Blast, Eldritch Spear, Repelling Blast
       if (m.damage && a.dmgList && a.dmgList.length) a.dmgList = [[evalDice(`${a.dmgList[0][0]}+${m.damage}`, spellCtx) || a.dmgList[0][0], a.dmgList[0][1]], ...a.dmgList.slice(1)];
@@ -2773,7 +2812,7 @@ function CharacterSheet() {
       maxHP: effectiveMaxHp, currentHP: displayHp, tempHP: tempHp,
       ac: armorClass, initiativeBonus: initiative, speed,
       features: featureLedger.map(f => f.detail ? `${f.text}. ${f.detail}` : f.text),
-      spells: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name), ...derived.spellPicks.flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)), ...derived.spellUses.map(u => u.spell)].map(x => { const sp = spellOf(x); return sp ? `${sp.n} (${spellLine(sp)})` : x; }))),
+      spells: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name), ...derived.spellPicks.filter(q => q.cast !== "book").flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)), ...derived.spellUses.map(u => u.spell)].map(x => { const sp = spellOf(x); return sp ? `${sp.n} (${spellLine(sp)})` : x; }))),
       feats: takenFeats.map(f => f.name),
       rules: 1, // this sheet carries its own attacks, features and spells, so the Resolver adds no placeholders
       actions: [...sheetActions, ...spellActions],
@@ -2818,7 +2857,8 @@ function CharacterSheet() {
       // for the character sheet in the Combat Resolver
       featureList: featureLedger.map(f => { const cut = f.detail ? -1 : String(f.text).indexOf(": "); return { lv: f.level, src: f.source, n: cut > 0 ? f.text.slice(0, cut) : f.text, d: String(f.detail || (cut > 0 ? f.text.slice(cut + 2) : "")).slice(0, 2500) }; }).slice(0, 120),
       saveProfs: ABILITIES.filter(a => saveInfo[a] === "class" || saveInfo[a] === "added"),
-      spellList: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name), ...derived.spellPicks.flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)), ...derived.spellUses.map(u => u.spell)].map(x => spellOf(x)).filter(Boolean))).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n)).slice(0, 120).map(sheetSpell),
+      spellList: Array.from(new Set([...spells.filter(Boolean), ...featSpells, ...derived.spells.map(g => g.name), ...derived.spellPicks.filter(q => q.cast !== "book").flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)), ...derived.spellUses.map(u => u.spell)].map(x => spellOf(x)).filter(Boolean))).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n)).slice(0, 120).map(sheetSpell),
+      ...(spellbook ? { spellbook: spellbook.slice(0, 200) } : {}),
       languages: Array.from(new Set([...journal.languages, ...derived.languages])), tools: Array.from(new Set([...knownTools.map(t => t.name), ...journal.tools])),
       importantItems: pinnedItems.map(i => i && i.name).filter(Boolean),
       spellcasting: cls && cls.casterType ? {
@@ -3223,7 +3263,7 @@ function CharacterSheet() {
           <FeaturesTab {...{ masteries, setMasteries, masteryCount: derived.masteryCount, className, glowOf, optionSlots: mech.optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay, slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }} />
         )}
         {tab === "spells" && (
-          <SpellsTab {...{ picks: derived.spellPicks, featureChoices, setFeatureChoices, glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }} />
+          <SpellsTab {...{ bookInfo: derived.spellbook || null, spellbook, picks: derived.spellPicks, featureChoices, setFeatureChoices, glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }} />
         )}
         {tab === "journal" && (
           <JournalTab {...{ journal, setJournal, alignment, setAlignment, knownTools, colors, fontDisplay }} />
@@ -4073,7 +4113,7 @@ function maxSpellLevel(cls, className, level) {
   return (getSpellSlots(className, level) || []).length;
 }
 // Sorts a character's spells into what the rules allow and what goes past them.
-function sortSpells(cls, className, level, names, cantripBonus, extraLists) {
+function sortSpells(cls, className, level, names, cantripBonus, extraLists, book) {
   const onList = (sp) => sp.c.includes(className) || (sp.l > 0 && (extraLists || []).some(l => sp.c.includes(l)));
   const caster = !!(cls && cls.casterType);
   const maxLevel = maxSpellLevel(cls, className, level);
@@ -4089,11 +4129,12 @@ function sortSpells(cls, className, level, names, cantripBonus, extraLists) {
     if (!caster) problem = `${className} has no Spellcasting feature`;
     else if (!onList(sp)) problem = `not on the ${className} spell list`;
     else if (sp.l > maxLevel) problem = `Level ${sp.l} is higher than a level ${level} ${className} can cast`;
+    else if (book && sp.l > 0 && !book.includes(sp.n)) problem = `not in your spellbook`;
     else if (sp.l === 0 && cantrips > cantripMax) problem = `more cantrips than a level ${level} ${className} knows`;
     else if (sp.l > 0 && prepMax != null && prepared > prepMax) problem = `more prepared spells than a level ${level} ${className} has`;
     return { raw, index, sp, problem };
   });
-  return { list, caster, maxLevel, cantripMax, prepMax, cantrips, prepared, extraLists: extraLists || [] };
+  return { list, caster, maxLevel, cantripMax, prepMax, cantrips, prepared, extraLists: extraLists || [], book: book || null };
 }
 // How a spell resolves in the Combat Resolver, worked out from this character's numbers. Returns null for a spell with no roll.
 // One line of a spell for the character sheet: short school, components, range, save, duration and casting time.
@@ -4388,7 +4429,7 @@ function SpellRow({ entry, onRemove, colors, fontDisplay, summary }) {
   );
 }
 
-function SpellsTab({ picks, featureChoices, setFeatureChoices, glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
+function SpellsTab({ bookInfo, spellbook, picks, featureChoices, setFeatureChoices, glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
   const [levelsOff, setLevelsOff] = useState([]);     // spell levels switched off in the Add Spells list (none: every level shows)
   const [sortBy, setSortBy] = useState("level");      // "level" (alphabetical inside each level) or "name"
   const [search, setSearch] = useState("");
@@ -4403,7 +4444,7 @@ function SpellsTab({ picks, featureChoices, setFeatureChoices, glow, grantedSpel
   const q = search.trim().toLowerCase();
   const pool = ALL_SPELLS.filter(sp =>
     !chosen.has(sp.n) && (wideList || (caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(l => sp.c.includes(l) && sp.l > 0)))) && (sp.l === 0 || sp.l <= topLevel)
-    && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
+    && (!spellInfo.book || wideList || sp.l === 0 || spellInfo.book.includes(sp.n)) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
     .sort((a, b) => (sortBy === "level" ? a.l - b.l : 0) || a.n.localeCompare(b.n));
   const levelChoices = Array.from({ length: topLevel + 1 }).map((_, i) => i); // 0 is cantrips; only the levels this character can reach
   const shownLevels = levelChoices.filter(l => !levelsOff.includes(l));
@@ -4463,9 +4504,22 @@ function SpellsTab({ picks, featureChoices, setFeatureChoices, glow, grantedSpel
         </Section>
       )}
 
+      {bookInfo && <Section title="Your Spellbook" colors={colors} fontDisplay={fontDisplay}>
+        {(() => { const own = String(featureChoices.spellbook || "").split("|").filter(Boolean), extra = (spellbook || []).filter(n => !own.includes(n));
+          const setBook = (list) => setFeatureChoices(prev => ({ ...prev, spellbook: list.join("|") }));
+          const opts = ALL_SPELLS.filter(sp => sp.l > 0 && sp.l <= maxLevel && (bookInfo.lists.length ? bookInfo.lists : [className]).some(l => sp.c.includes(l)) && !(spellbook || []).includes(sp.n)).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n));
+          return <div data-testid="spellbook">
+            <div style={{ fontSize: 13, marginBottom: 6 }}>Your prepared spells come from this book. <strong data-testid="spellbook-count">{own.length} of {bookInfo.free}</strong> spells from your Wizard levels{extra.length ? `, plus ${extra.length} added free by features` : ""}.{own.length > bookInfo.free ? <span style={{ color: CUSTOM_RED }}> The rest were copied from scrolls or other books (2 hours and 50 GP per spell level).</span> : null}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              {(spellbook || []).map(n => { const sp = spellOf(n); return <span key={n} data-testid="spellbook-item" style={{ border: `1px solid ${colors.brass}77`, borderRadius: 6, padding: "2px 8px", fontSize: 13 }}>{n}{sp ? ` (Level ${sp.l}${sp.rit ? ", Ritual" : ""})` : ""}{own.includes(n) ? <button aria-label={`Remove ${n} from the spellbook`} onClick={() => setBook(own.filter(x => x !== n))} style={{ marginLeft: 6, background: "none", border: "none", color: colors.brassLight, cursor: "pointer" }}>×</button> : <span style={{ opacity: 0.6 }}> · free</span>}</span>; })}
+            </div>
+            <select aria-label="Add a spell to the spellbook" data-testid="spellbook-add" value="" onChange={e => e.target.value && setBook([...own, e.target.value])} style={{ ...fieldStyle(colors), width: 300 }}>
+              <option value="">Write a spell in the book...</option>{opts.map(sp => <option key={sp.n} value={sp.n}>{sp.n} (Level {sp.l})</option>)}</select>
+          </div>; })()}
+      </Section>}
       {(picks || []).length > 0 && <Section title="Spells Your Features Let You Choose" colors={colors} fontDisplay={fontDisplay}>
         {picks.map(q => { const k = "spells:" + q.key, cur = String(featureChoices[k] || "").split("|"), top = q.level === "slot" ? maxLevel : q.level;
-          const ok = (sp) => (q.lists === "any" || q.lists.some(l => sp.c.includes(l))) && (q.level === "slot" ? sp.l <= maxLevel : q.upTo ? sp.l <= top : sp.l === top) && (!q.ritual || sp.rit) && (!q.school || sp.s === q.school);
+          const ok = (sp) => (q.lists === "any" || q.lists.some(l => sp.c.includes(l))) && (q.level === "slot" ? sp.l <= maxLevel && (q.cast !== "book" || sp.l > 0) : q.upTo ? sp.l <= top && sp.l > 0 : sp.l === top) && (!q.ritual || sp.rit) && (!q.school || sp.s === q.school) && (!q.fromBook || !spellbook || spellbook.includes(sp.n)) && (!q.castingTime || String(sp.t || "").toLowerCase().startsWith(q.castingTime.toLowerCase())) && (q.cast !== "book" || !spellbook || !String(featureChoices.spellbook || "").split("|").includes(sp.n));
           const opts = ALL_SPELLS.filter(ok).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n));
           const set = (i, v) => { const a = Array.from({ length: q.count }, (_, j) => cur[j] || ""); a[i] = v; setFeatureChoices(prev => ({ ...prev, [k]: a.join("|") })); };
           return <div key={q.key} data-testid="spell-pick" style={{ marginBottom: 10 }}>
