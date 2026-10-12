@@ -391,7 +391,10 @@
     .left-tabs button { flex: 1; background: transparent; border: none; color: var(--text-muted); font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase; padding: 9px 4px; cursor: pointer; }
     .left-tabs button.on { color: var(--brass-light); border-bottom: 2px solid var(--brass-light); }
     .do-why { font-size: 0.85rem; color: #ff8a80; flex: 1; }
-    .pick-box { position: sticky; top: -16px; z-index: 5; background: #161f2b; padding: 4px 0 8px; border-bottom: 1px solid #2C3E50; margin-bottom: 8px; max-height: 46vh; overflow-y: auto; }
+    .pick-box { padding: 0; margin-bottom: 8px; }
+    .pick-box:empty { display: none; }
+    .pp-sticky { position: sticky; top: -16px; z-index: 6; background: var(--pp-main, #1a2535); padding-top: 4px; }
+    .pp-mini { font-size: 13px; padding: 2px 6px; opacity: .9; border-bottom: 1px solid var(--pp-border); }
     /* ── RESOLVE BUTTON ── */
     .resolve-bar {
       background: #0F1923; border-top: 1px solid #2C3E50; padding: 10px 16px;
@@ -511,6 +514,15 @@
     .card-untarget { display: block; width: 100%; margin: 0 0 6px; background: rgba(229,57,53,.18); border: 2px solid #e53935; color: #ff8a80; border-radius: 6px; font-weight: 700; padding: 4px; cursor: pointer; }
     .roster-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; font-size: 13px; }
     .roster-src { position: relative; } .roster-src-menu { position: absolute; z-index: 30; top: 100%; left: 0; background: #0F1923; border: 1px solid var(--brass); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+    .spf-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; font-size: 13px; }
+    .spf-menu { position: relative; } .spf-list { position: absolute; z-index: 20; top: 100%; left: 0; background: var(--pp-main, #1a2535); border: 1px solid var(--pp-border); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 3px; min-width: 170px; }
+    .app.dm-wide { grid-template-columns: min(760px, 62vw) 1fr 300px; }
+    .left-tabs button[data-testid=dm-wide] { flex: 0 0 auto; padding: 0 10px; }
+    .track-page { position: fixed; inset: 56px 0 0 0; z-index: 2000; background: #121a24; display: flex; flex-direction: column; }
+    .track-head { display: flex; gap: 8px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--brass); font-family: 'Cinzel', serif; }
+    .track-body { flex: 1; overflow: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; padding: 12px 16px; }
+    .track-crea { border-bottom: 1px solid #2C3E50; padding: 4px 0; }
+    .track-min { position: fixed; right: 320px; bottom: 10px; z-index: 2000; background: var(--brass); color: #111; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 700; cursor: pointer; }
     .gloss-send { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0 10px; padding: 6px; border: 1px dashed var(--brass); border-radius: 6px; }
     .item-card-text { white-space: pre-wrap; line-height: 1.45; color: var(--text-light); }
     .notice-sep { border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0; }
@@ -977,6 +989,13 @@ function reactEvents(name, trigger, text) {
   return out;
 }
 const SPELL_NAMES = new Set((window.HBA_SPELLS || []).map(x => String(x.n || '').toLowerCase()));
+let ENC_TABLE = ''; // the DM's encumbrance rule for the table ('off', 'on', 'variant'); empty: each player chooses
+// Encumbrance: what a character carries, and the rule in use. On is the 2024 rule (over capacity: Speed at most 5 feet); Variant is the 2014 PHB variant.
+function carriedOf(c) { return (((c && c.sheet) || {}).itemsFull || []).reduce((t, it) => t + (parseFloat(String(it.weight || '').replace(/[^\d.]/g, '')) || 0), 0); }
+function encOf(c) { if (!c || !c.sheet || c.type !== 'player') return null; const mode = ENC_TABLE || c.enc || 'off'; if (mode === 'off') return null;
+  const st = (c.scores || {}).Strength || 10, w = carriedOf(c), mult = {Tiny: 7.5, Small: 15, Medium: 15, Large: 30, Huge: 60, Gargantuan: 120}[sizeOf(c)] || 15;
+  if (mode === 'on') return w > st * mult ? {level: 'over', text: `Carrying ${Math.round(w)} lb., more than ${st * mult} lb.: Speed at most 5 feet`} : null;
+  return w > st * 10 ? {level: 'heavy', text: `Heavily encumbered (over ${st * 10} lb.): Speed -20, Disadvantage on Strength, Dexterity and Constitution checks, saves and attack rolls`} : w > st * 5 ? {level: 'light', text: `Encumbered (over ${st * 5} lb.): Speed -10`} : null; }
 let ROLL_R1 = false, ROLL_LOW3 = false; // the roll switch: reroll each 1 once; a 1 or 2 on a die counts as 3
 let PROMPT = null;
 let LUCK_NEXT = false; // Halfling Luck: set by the d20 Test of a creature that has it, used by the roll that follows // while a roll that was asked for is made: {adv} from the buttons on that prompt (the dice roller's switch waits for the next roll made unasked)
@@ -1720,6 +1739,7 @@ function d20Test(c, kind, ctx) {
   const addFlat = (n, label) => { if (Number.isFinite(+n) && +n) { flat += +n; flatParts.push(`${esc(label)} ${signed(+n)}`); } };
   es.forEach(e => addFlat(e.d20, e.name));
   const abNow = kind === 'attack' ? ctx.abil : ctx.ability; // a score set by an effect: the difference in modifier counts
+  { const en = encOf(c); if (en && en.level === 'heavy' && ['Strength', 'Dexterity', 'Constitution'].includes(abNow || (kind === 'attack' ? 'Strength' : ''))) dis.push('heavily encumbered'); }
   if (abNow) es.forEach(e => { const v = +((e.abilMin || {})[abNow]); const sc = +((c.scores || {})[abNow]); if (v > 0 && Number.isFinite(sc) && v > sc) addFlat(Math.floor((v - 10) / 2) - Math.floor((sc - 10) / 2), e.name); });
   if (kind === 'attack') {
     dice = effectDice(c, 'atk');
@@ -1823,7 +1843,8 @@ function effectiveSpeed(c) {
   const free = effs(c).some(e => e.noSlow);
   if (SPEED_ZERO.some(n => hasCond(c, n)) || effs(c).some(e => e.speedZero && !free)) return 0;
   const mult = effs(c).filter(e => !(free && +e.speedMult < 1)).reduce((t, e) => t * (Number.isFinite(+e.speedMult) && +e.speedMult > 0 ? Math.min(4, +e.speedMult) : 1), 1);
-  return Math.max(0, Math.floor(((+c.speed || 0) + (free ? effs(c).reduce((t, e) => t + Math.max(0, +e.speed || 0), 0) : sumEff(c, 'speed'))) * mult));
+  const sp = Math.max(0, Math.floor(((+c.speed || 0) + (free ? effs(c).reduce((t, e) => t + Math.max(0, +e.speed || 0), 0) : sumEff(c, 'speed'))) * mult));
+  const en = encOf(c); return !en ? sp : en.level === 'over' ? Math.min(sp, 5) : Math.max(0, sp - (en.level === 'heavy' ? 20 : 10));
 }
 function slotKinds(sh, items) { // the kinds of item slots this character uses: Attunement, then any a Content Pack added
   const list = (sh.slots && sh.slots.length ? sh.slots : [{name: 'Attunement', on: 'Attuned', max: sh.attuneMax || 3}]).map(t => t.name === 'Attunement' ? {...t, max: sh.attuneMax || t.max} : t);
@@ -2056,6 +2077,13 @@ function monsterInfo(m) {
 function glossInline(t) { return esc(t).replace(/\\\[/g, '[').replace(/\\\]/g, ']').replace(/_\*\*(.+?)\*\*_/g, '<em><strong>$1</strong></em>').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>').replace(/(^|\W)_(.+?)_(?=\W|$)/g, '$1<em>$2</em>'); }
 // Rules text as the app shows it: **bold**, lists, and a table becomes a list (its first column in bold). Every other glossary term in it is a link.
 let GLOSS_RE = null, GLOSS_NAMES = {};
+// Spell filters on the sheet: what a spell is for, and its times and ranges as numbers to sort by
+const SPELL_CATS = ['Attack roll', 'Saving throw', 'Healing', 'Buff or effect', 'Utility'];
+function spellCatOf(sp, a) { const t = (a && a.type) || ''; const k = ((sp && sp.m) || {}).k || '';
+  if (t === 'attack' || k === 'attack') return 'Attack roll'; if (t === 'save' || k === 'save') return 'Saving throw'; if (t === 'heal' || k === 'heal') return 'Healing'; if (t === 'apply' || k === 'auto' || k === 'apply') return 'Buff or effect'; return 'Utility'; }
+function timeNum(t) { const x = String(t || '').toLowerCase(); if (/reaction/.test(x)) return 1; if (/bonus/.test(x)) return 2; if (/^1? ?action|action/.test(x) && !/minute|hour/.test(x)) return 3; const n = parseFloat(x) || 1; if (/minute/.test(x)) return 10 + n; if (/hour/.test(x)) return 1000 + n; return 5; }
+function rangeNum(r) { const x = String(r || '').toLowerCase(); if (/^self/.test(x)) return 0; if (/touch/.test(x)) return 5; if (/sight/.test(x)) return 1e6; if (/unlimited/.test(x)) return 1e9; const n = parseFloat(x) || 0; return /mile/.test(x) ? n * 5280 : n; }
+function durNum(d) { const x = String(d || '').toLowerCase(); if (/instant/.test(x)) return 0; if (/until dispelled/.test(x)) return 1e9; if (/special/.test(x)) return 1e8; const n = parseFloat(x.replace(/^.*?(\d)/, '$1')) || 1; if (/round/.test(x)) return 6 * n; if (/minute/.test(x)) return 60 * n; if (/hour/.test(x)) return 3600 * n; if (/day/.test(x)) return 86400 * n; return 1; }
 // Concentration and Ritual as small diamond badges, like a printed sheet ("1Hr<*>" and "1A (R*)" come from the Character Builder)
 function spIcons(t) { const str = String(t == null ? '' : t), conc = /<\*>/.test(str), rit = /\(R\*\)/.test(str), base = str.replace(/<\*>/g, '').replace(/\s*\(R\*\)/g, '').trim();
   return <>{base}{conc && <span className="sp-icon" title="Concentration" aria-label="Concentration" data-testid="icon-conc"><b>C</b></span>}{rit && <span className="sp-icon" title="Ritual" aria-label="Ritual" data-testid="icon-rit"><b>R</b></span>}</>; }
@@ -2532,6 +2560,12 @@ function App() {
   const [reveal, setReveal] = useState('full');            // table rule: what players see of creatures that are not theirs: full | bar | conditions | none
   const [revealAC, setRevealAC] = useState(true);
   const [trackerDraft, setTrackerDraft] = useState('');
+  const [dmWide, setDmWide] = useState(false); // the DM controls widened to the right
+  const [trackPage, setTrackPage] = useState(''); // the DM's Trackers page: '' closed, 'open' full screen, 'min' folded to a bar
+  const [multiT, setMultiT] = useState({name: '', val: '0', ids: []}); // one tracker added to several creatures
+  const [encTable, setEncTableRaw] = useState(''); const setEncTable = v => { ENC_TABLE = v || ''; setEncTableRaw(v || ''); };
+  const [spf, setSpf] = useState({level: true, schools: [], comps: [], cats: [], sort: '', menu: ''}); // spell filters on the sheet
+  const [lvlShut, setLvlShut] = useState([]); // spell levels folded on the sheet
   const [dmgPop, setDmgPop] = useState(null); // the attack's result card: a hit waits for its damage roll; a miss or the damage goes away by itself
   useEffect(() => { if (!dmgPop || dmgPop.kind === 'hit') return; const t = setTimeout(() => setDmgPop(p => p === dmgPop ? null : p), 3000); return () => clearTimeout(t); }, [dmgPop]);
   const [folded, setFolded] = useState(() => { try { return JSON.parse(window.localStorage.getItem('hba-folded-cards') || '[]'); } catch (e) { return []; } }); // turn-order cards folded to one line, on this computer
@@ -2587,6 +2621,12 @@ function App() {
   const setNoticesOn = v => { if (isDM) { setNoticesDm(v); try { window.localStorage.setItem('hba-notices-dm', v ? 'on' : 'off'); } catch (e) {} } else { setNoticesPl(v); try { window.localStorage.setItem('hba-notices', v ? 'on' : 'off'); } catch (e) {} } };
   const canControl = c => !!c && (isDM || (!!c.owner && c.owner === myId));
   const veil = c => !isDM && !canControl(c) && c.type !== 'player'; // a creature whose numbers the DM may be hiding from this player
+  const SEE_KEYS = [['cond', 'Conditions'], ['cr', 'CR and type'], ['bar', 'HP bar'], ['hp', 'HP numbers'], ['ac', 'AC']];
+  // What a player sees of a creature: its own choice from the DM (it wins), or the table setting. Its name and size always show.
+  const seeOfTable = k => ({cond: reveal !== 'none', cr: reveal !== 'none' && reveal !== 'conditions', bar: reveal === 'full' || reveal === 'bar', hp: reveal === 'full', ac: !!revealAC && reveal !== 'none'})[k];
+  const seeOf = c => { if (!veil(c)) return {cond: true, cr: true, bar: true, hp: true, ac: true};
+    if (Array.isArray(c.see)) { const o = {}; SEE_KEYS.forEach(([k]) => { o[k] = c.see.includes(k); }); return o; }
+    return {cond: reveal !== 'none', cr: reveal !== 'none' && reveal !== 'conditions', bar: reveal === 'full' || reveal === 'bar', hp: reveal === 'full', ac: !!revealAC && reveal !== 'none'}; };
   // When an effect that raised a Hit Point total ends, current Hit Points come down to the total again.
   useEffect(() => {
     if (combatants.some(c => canControl(c) && c.currentHP > totalHP(c))) setCombatants(prev => prev.map(c => canControl(c) && c.currentHP > totalHP(c) ? {...c, currentHP: totalHP(c)} : c));
@@ -2759,6 +2799,7 @@ function App() {
       if (k === 'speed' && +e.speed) out.push([e.name, signed(+e.speed)]); if (k === 'speed' && e.speedMult && +e.speedMult !== 1) out.push([e.name, `× ${e.speedMult}`]); if (k === 'speed' && e.speedZero) out.push([e.name, 'Speed 0']);
       if (k === 'init' && e.init) out.push([e.name, signed(+e.init)]); if (k === 'hp' && +e.hpMax) out.push([e.name, `${signed(+e.hpMax)} maximum`]); });
       if (k === 'ac' && shieldOff(c)) out.push(['Shield not held', '-2']);
+      if (k === 'speed' && encOf(c)) out.push(['Encumbrance', encOf(c).level === 'over' ? 'at most 5 ft.' : encOf(c).level === 'heavy' ? '-20' : '-10']);
       if (k === 'speed') (c.conditions || []).filter(n => ['Grappled', 'Restrained', 'Paralyzed', 'Petrified', 'Stunned', 'Unconscious'].includes(n)).forEach(n => out.push([n, 'Speed 0']));
       return out; };
     const test = (k, ctx) => { let t; try { t = d20Test(c, k, ctx); } catch (e) { return []; } const out = []; if (t.bonusText) out.push(['Right now', t.bonusText.replace(/<[^>]*>/g, '')]);
@@ -2806,8 +2847,8 @@ function App() {
     if (kind === 'card' && !isDM && !canControl(c)) { const hunter = combatants.find(h => canControl(h) && (h.passives || {}).revealMarked && effs(c).some(e => String(e.name).startsWith(h.passives.revealMarked) && (e.casterId === h.id || e.src === h.id)));
       if (hunter && !c.owner) { const d = defensesOf(c); return {title: c.name, lines: d.length ? d.map(([k, v]) => [{res: 'Resistance', imm: 'Immunity', vul: 'Vulnerability', ci: 'Condition Immunity'}[k] || k, v]) : [['Defenses', 'No Immunities, Resistances or Vulnerabilities']], text: `${hunter.name} knows these while it is marked (Hunter's Lore).`}; } }
     if (kind === 'card' && !isDM && !canControl(c) && !c.owner) return {title: c.name, lines: [], text: "The DM has not shared this creature's card. The DM can show it to everyone in the Combat Log, or to one character."};
-    if (kind === 'card') { const vis = isDM || canControl(c) || !veil(c); return {title: c.name, lines: [...(vis ? [['Armor Class', effectiveAC(c)], ['Hit Points', `${c.currentHP} of ${totalHP(c)}${+c.tempHP ? ` + ${c.tempHP} temporary` : ''}`], ['Speed', `${effectiveSpeed(c)} ft.`]] : []), ['Initiative', c.initiative ?? '-'],
-      ...(c.conditions || []).map(k => ['Condition', k]), ...effs(c).map(e => ['Effect', `${e.name}${+e.left > 0 ? ` (${timeText(e.left)} left)` : ''}`]), ...defensesOf(c).map(([k, v]) => [{res: 'Resistance', imm: 'Immunity', vul: 'Vulnerability', ci: 'Condition Immunity'}[k], v])], text: c.sub || ''}; }
+    if (kind === 'card') { const sv = seeOf(c), vis = sv.ac && sv.hp; return {title: c.name, lines: [['Size', sizeOf(c)], ...(sv.cr && c.sub ? [['Creature', c.sub]] : []), ...(sv.ac && !vis ? [['Armor Class', effectiveAC(c)]] : []), ...(vis ? [['Armor Class', effectiveAC(c)], ['Hit Points', `${c.currentHP} of ${totalHP(c)}${+c.tempHP ? ` + ${c.tempHP} temporary` : ''}`], ['Speed', `${effectiveSpeed(c)} ft.`]] : []), ['Initiative', c.initiative ?? '-'],
+      ...(sv.cond ? [...(c.conditions || []).map(k => ['Condition', k]), ...effs(c).map(e => ['Effect', `${e.name}${+e.left > 0 ? ` (${timeText(e.left)} left)` : ''}`])] : []), ...(vis ? defensesOf(c).map(([k, v]) => [{res: 'Resistance', imm: 'Immunity', vul: 'Vulnerability', ci: 'Condition Immunity'}[k], v]) : [])], text: sv.cr ? c.sub || '' : ''}; }
     if (kind === 'boon') { const b = (sh.boons || []).find(x => x.name === arg) || {}; return {title: `Epic Boon: ${arg}`, lines: [], text: b.text || ''}; }
     if (kind === 'feature') { const f = (sh.featureList || [])[+arg] || {}, pz = c.passives || {}, n = String(f.n || '').replace(/^Feat: /, '');
       const PASSIVE_LINES = [['Alert', pz.initiativeSwap, [['Initiative', `+${c.pb || 2} Proficiency Bonus (in the Initiative breakdown)`], ['Initiative Swap', 'Offered in round 1 of a fight']]],
@@ -4370,7 +4411,7 @@ function App() {
   };
 
   // ── LIVE SYNC ───────────────────────────────────────────────────────────────
-  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || '', reveal: reveal || 'full', revealAC: revealAC !== false, stepOn: stepOn !== false, allowUndo: allowUndo !== false, hideRolls: !!hideRolls, ammoOn: !!ammoOn, name: sessName || '', turnSecs: +turnSecs || 0, initCall: +initCall || 0, askInit: askInit !== false, ...(ended ? {ended} : {}), ...(world ? {world} : {}), ...(timeMute.length ? {timeMute} : {}), ...(rest ? {rest} : {}), ...(turnPaused ? {turnPaused: true} : {}), ...(restStd.short !== 3600 || restStd.long !== 28800 ? {restStd} : {}), ...(tableCoins.length ? {coins: tableCoins} : {})});
+  const metaOf = () => ({round, combatStarted, activeId: activeId || '', dm: dmId || '', approval: !!approval, handsOn: !!handsOn, compMode: compMode || '', reveal: reveal || 'full', revealAC: revealAC !== false, stepOn: stepOn !== false, allowUndo: allowUndo !== false, hideRolls: !!hideRolls, ammoOn: !!ammoOn, name: sessName || '', turnSecs: +turnSecs || 0, initCall: +initCall || 0, askInit: askInit !== false, ...(ended ? {ended} : {}), ...(world ? {world} : {}), ...(timeMute.length ? {timeMute} : {}), ...(rest ? {rest} : {}), ...(turnPaused ? {turnPaused: true} : {}), ...(restStd.short !== 3600 || restStd.long !== 28800 ? {restStd} : {}), ...(tableCoins.length ? {coins: tableCoins} : {}), ...(encTable ? {enc: encTable} : {})});
   const setHash = h => { try { (window.parent || window).history.replaceState(null, '', h); } catch (e) {} };
   const enterSession = code => { promptedRef.current = false; setRemoteSigs(null); setSyncMsg(''); setRoom(code); setRoomInput(''); setHash('#room=' + code); };
 
@@ -4454,7 +4495,7 @@ function App() {
         .sort((a, b) => ((a.seq || 0) - (b.seq || 0)) || (a.id < b.id ? -1 : 1));
       const logList = Object.values(v.log || {}).filter(e => e && e.id).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const m = v.meta || {};
-      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : '', reveal: ['full','bar','conditions','none'].includes(m.reveal) ? m.reveal : 'full', revealAC: m.revealAC !== false, stepOn: m.stepOn !== false, allowUndo: m.allowUndo !== false, hideRolls: !!m.hideRolls, ammoOn: !!m.ammoOn, name: String(m.name || '').slice(0, 60), turnSecs: Math.max(0, Math.min(900, +m.turnSecs || 0)), initCall: +m.initCall || 0, askInit: m.askInit !== false, ...(m.ended && m.ended.at ? {ended: m.ended} : {}), world: cleanWorld(m.world), rest: cleanRest(m.rest), ...(m.turnPaused ? {turnPaused: true} : {}), ...(m.coins && Object.values(m.coins).length ? {coins: Object.values(m.coins).map(x => String(x).slice(0, 24)).slice(0, 8)} : {}), ...(m.restStd ? {restStd: {short: Math.max(60, Math.min(86400 * 7, +m.restStd.short || 3600)), long: Math.max(60, Math.min(86400 * 7, +m.restStd.long || 28800))}} : {}), timeMute: Array.isArray(m.timeMute) ? m.timeMute.map(x => String(x).slice(0, 20)).slice(0, 10) : (m.timeMute && typeof m.timeMute === 'object' ? Object.values(m.timeMute).map(x => String(x).slice(0, 20)).slice(0, 10) : [])};
+      const meta = {round: m.round || 1, combatStarted: !!m.combatStarted, activeId: m.activeId || '', dm: m.dm || '', approval: !!m.approval, handsOn: !!m.handsOn, compMode: ['simple','full'].includes(m.compMode) ? m.compMode : '', reveal: ['full','bar','conditions','none'].includes(m.reveal) ? m.reveal : 'full', revealAC: m.revealAC !== false, stepOn: m.stepOn !== false, allowUndo: m.allowUndo !== false, hideRolls: !!m.hideRolls, ammoOn: !!m.ammoOn, name: String(m.name || '').slice(0, 60), turnSecs: Math.max(0, Math.min(900, +m.turnSecs || 0)), initCall: +m.initCall || 0, askInit: m.askInit !== false, ...(m.ended && m.ended.at ? {ended: m.ended} : {}), world: cleanWorld(m.world), rest: cleanRest(m.rest), ...(m.turnPaused ? {turnPaused: true} : {}), ...(['off', 'on', 'variant'].includes(m.enc) ? {enc: m.enc} : {}), ...(m.coins && Object.values(m.coins).length ? {coins: Object.values(m.coins).map(x => String(x).slice(0, 24)).slice(0, 8)} : {}), ...(m.restStd ? {restStd: {short: Math.max(60, Math.min(86400 * 7, +m.restStd.short || 3600)), long: Math.max(60, Math.min(86400 * 7, +m.restStd.long || 28800))}} : {}), timeMute: Array.isArray(m.timeMute) ? m.timeMute.map(x => String(x).slice(0, 20)).slice(0, 10) : (m.timeMute && typeof m.timeMute === 'object' ? Object.values(m.timeMute).map(x => String(x).slice(0, 20)).slice(0, 10) : [])};
       const promptList = Object.values(v.prompts || {}).filter(q => q && q.id && q.targetId).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const sigs = {combatants: {}, log: {}, prompts: {}, meta: stable(meta)};
       promptList.forEach(q => { sigs.prompts[q.id] = true; });
@@ -4468,7 +4509,7 @@ function App() {
       setActiveId(meta.activeId);
       setDmId(meta.dm);
       setApproval(meta.approval);
-      setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn); setSessName(meta.name); setTurnSecs(meta.turnSecs); setInitCall(meta.initCall); setAskInit(meta.askInit); setEnded(prev => stable(prev) === stable(meta.ended || null) ? prev : (meta.ended || null)); setWorld(prev => stable(prev) === stable(meta.world || null) ? prev : (meta.world || null)); setTimeMute(prev => stable(prev) === stable(meta.timeMute) ? prev : meta.timeMute); setRest(prev => stable(prev) === stable(meta.rest) ? prev : meta.rest); setTurnPaused(!!meta.turnPaused); { const rs = meta.restStd || {short: 3600, long: 28800}; setRestStd(prev => stable(prev) === stable(rs) ? prev : rs); { const tc = meta.coins || []; setTableCoins(prev => stable(prev) === stable(tc) ? prev : tc); } }
+      setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn); setSessName(meta.name); setTurnSecs(meta.turnSecs); setInitCall(meta.initCall); setAskInit(meta.askInit); setEnded(prev => stable(prev) === stable(meta.ended || null) ? prev : (meta.ended || null)); setWorld(prev => stable(prev) === stable(meta.world || null) ? prev : (meta.world || null)); setTimeMute(prev => stable(prev) === stable(meta.timeMute) ? prev : meta.timeMute); setRest(prev => stable(prev) === stable(meta.rest) ? prev : meta.rest); setTurnPaused(!!meta.turnPaused); { const rs = meta.restStd || {short: 3600, long: 28800}; setRestStd(prev => stable(prev) === stable(rs) ? prev : rs); { const tc = meta.coins || []; setTableCoins(prev => stable(prev) === stable(tc) ? prev : tc); } if ((meta.enc || '') !== ENC_TABLE) setEncTable(meta.enc || ''); }
       setShared(prev => stable(prev) === stable(v.shared || {}) ? prev : (v.shared && typeof v.shared === 'object' ? v.shared : {}));
       setRemoteSigs(sigs);
       setSyncStatus('live');
@@ -4492,7 +4533,7 @@ function App() {
     if (stable(meta) !== remoteSigs.meta) updates['meta'] = meta;
     if (Object.keys(updates).length) updates['touched'] = firebase.database.ServerValue.TIMESTAMP; // last activity, for the 90-day cleanup
     if (Object.keys(updates).length) db.ref('rooms/' + room).update(updates).catch(err => { console.error('Session write failed', err); setSyncStatus('error'); setSyncMsg('Could not save'); });
-  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, reveal, revealAC, stepOn, allowUndo, hideRolls, ammoOn, ended, sessName, turnSecs, initCall, askInit, world, timeMute, rest, turnPaused, restStd, tableCoins, room, remoteSigs]);
+  }, [combatants, log, prompts, round, activeId, combatStarted, approval, handsOn, compMode, reveal, revealAC, stepOn, allowUndo, hideRolls, ammoOn, ended, sessName, turnSecs, initCall, askInit, world, timeMute, rest, turnPaused, restStd, tableCoins, encTable, room, remoteSigs]);
 
   // This browser keeps a list of the sessions it has been in.
   const sessKey = room && remoteSigs ? [room, sessName, dmId === myId ? 'dm' : 'player', combatants.filter(c => c.type !== 'monster' && !c.pending).map(c => c.name).join('|')].join('~') : '';
@@ -4659,6 +4700,8 @@ function App() {
         {ctl && <label><input aria-label="New purse name" data-testid="purse-name" placeholder="Another purse (rations, favors...)" value={purseName} onChange={e => setPurseName(e.target.value)} style={{width: 190}}/>
           <button className="pp-chip on" data-testid="purse-add" disabled={!purseName.trim()} onClick={() => { const nm = purseName.trim().slice(0, 30); setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, purses: [...(x.purses || []), {id: newId().slice(0, 12), name: nm, amt: 0}].slice(0, 12)})); setPurseName(''); }}>Add</button></label>}
       </span>}</span>; };
+  const renameCreature = (c, raw) => { const nm = String(raw || '').trim().slice(0, 40); if (!isDM || !c || !nm || nm === c.name) return;
+    setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, name: nm})); setLog(prev => [...prev, stamp({type: 'info', sys: true, html: `<strong>The DM</strong> renames ${esc(c.name)} to <strong>${esc(nm)}</strong>`})]); };
   const doCustomAct = (c) => { const text = customAct.text.trim().slice(0, 300); if (!c || !text) return; if (!spendEconomy(c, {activation: customAct.act, name: text})) return;
     const ex = normExpr(customAct.dice), r = ex && DMG_RE.test(ex) ? parseDamage(ex) : null;
     setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> (${esc(ACTIVATIONS[customAct.act] || 'Action')}): ${esc(text)}${r ? `<br/><span class="log-result">🎲 ${r.total}</span><div class="log-dice">${esc(ex)}: ${r.parts.join(' + ')}</div>` : ''}`})]);
@@ -4947,6 +4990,7 @@ function App() {
           {s.up && s.l > 0 && <div className="pp-sum"><strong>Upcast.</strong> {s.up}</div>}
           {a && a.mat && <div className="pp-sum"><strong>Material.</strong> {a.mat}</div>}
           {a && a.desc && <div className="pp-sum pp-full">{a.desc}</div>}
+          {ctl && <button className="pp-chip" data-testid="spell-show" title="Post this spell's rules to the log for the table" onClick={e => { e.stopPropagation(); const si = spellInfoOf(s.n); setLog(prev => [...prev, stamp({type: 'info', html: `<strong>${esc(c.name)}</strong> · <span class="log-result">${esc(s.n)}</span>${glossLogHtml(si ? si.lines.map(([k, v]) => `**${k}:** ${v}`).join('\n') + '\n\n' + si.text : (s.sum || ''))}`})]); }}>Show to table</button>}
         </div>}
       </div>); };
     const tabBtn = (k, t) => <button key={k} data-testid={`sheet-tab-${k}`} className={`pp-tab ${sheetTab === k ? 'on' : ''}`} onClick={() => setSheetTab(k)}>{t}</button>;
@@ -4984,9 +5028,11 @@ function App() {
           <div className="pp-title">{c.name} <span className="pp-the">the</span> {[sh.species, c.charClass].filter(Boolean).join(' ')}</div>
           <div className="pp-level"><span>Level</span><strong>{c.level}</strong></div>
         </div>
+        <div className="pp-sticky" data-testid="pp-sticky"><div className="pp-mini">{c.name} the {[sh.species, c.charClass].filter(Boolean).join(' ')} · Level {c.level}</div>
         <div className="pp-tabs">
           {tabBtn('main', 'Main')}{(list.length > 0 || sh.spell) && tabBtn('spells', 'Spells')}{tabBtn('inventory', 'Inventory')}{tabBtn('character', 'Character')}{tabBtn('features', 'Features & Traits')}{tabBtn('blocks', `Stat Blocks${(c.blocks || []).length ? ` (${c.blocks.length})` : ''}`)}
           <button className="pp-tab pp-colors" data-testid="sheet-colors" onClick={() => setShowTheme(v => !v)} title="Choose the colors of your sheet">Colors {showTheme ? '▲' : '▼'}</button>
+        </div>
         </div>
         {showTheme && (
           <div className="pp-theme" data-testid="theme-panel">
@@ -5200,13 +5246,32 @@ function App() {
             {sh.spell && <><span data-ex="spellatk"><strong>Attack</strong> {signed(sh.spell.attack)}</span><span data-ex="spellmod"><strong>Modifier</strong> {signed(mod((c.scores || {})[sh.spell.ability] ?? 10))}</span><span data-ex="spelldc"><strong>Save DC</strong> {sh.spell.dc}</span></>}
           </div>
           {(() => { const pa = spellActs.find(a => a.pointCosts); return pa ? <div className="pp-note" data-testid="points-line"><strong>{pa.pool}</strong> {poolLeft(c, pa.pool)}/{((sh.pools || {})[pa.pool] || {}).max || 0} · a spell costs {pa.pointCosts.slice(0, pa.maxLvl || 1).map((n, i) => `${n} at Level ${i + 1}`).join(', ')}</div> : null; })()}
-          {levels.length === 0 && <div className="pp-center pp-muted">No spells above cantrips yet.</div>}
-          {levels.map(l => (
-            <div key={l} data-testid={`paper-spells-${l}`}>
-              <div className="pp-lvl">Level {l} {slotCircles(l)}<span className="pp-muted"> {((sh.slotMax || [])[l - 1]) ? `${slotsLeft(c, l)} of ${sh.slotMax[l - 1]} slots left` : ''}</span></div>
-              <div className="pp-spellrow pp-head" style={{gridTemplateColumns: '18px 2.4fr 0.7fr 0.9fr 1fr 0.7fr 1fr 0.9fr'}}><span></span><span>Name</span><span>School</span><span>Comps</span><span>Range</span><span>Save</span><span>Duration</span><span>C Time</span></div>
-              {list.filter(s => s.l === l).map(s => spellRow(s, '2.4fr 0.7fr 0.9fr 1fr 0.7fr 1fr 0.9fr'))}
-            </div>))}
+          {(() => { const full = n => (window.HBA_SPELLS || []).find(x => x.n === n) || null;
+            const schoolOf = s0 => (full(s0.n) || {}).s || s0.s, catOf = s0 => spellCatOf(full(s0.n), actOf(s0.n)), compsOf = s0 => String((full(s0.n) || {}).k || String(s0.k || '').replace(/\//g, ''));
+            const allSchools = Array.from(new Set(list.map(schoolOf))).sort();
+            const keep = s0 => (!spf.schools.length || spf.schools.includes(schoolOf(s0))) && (!spf.cats.length || spf.cats.includes(catOf(s0))) && spf.comps.every(k => compsOf(s0).includes(k));
+            const key = s0 => { const f = full(s0.n) || {}; return spf.sort === 'time' ? timeNum(f.t || s0.t) : spf.sort === 'range' ? rangeNum(f.r || s0.r) : spf.sort === 'dur' ? durNum(f.d || s0.d) : 0; };
+            const order = arr => spf.sort ? arr.slice().sort((x, y) => key(x) - key(y) || x.n.localeCompare(y.n)) : arr;
+            const cols = '2.4fr 0.7fr 0.9fr 1fr 0.7fr 1fr 0.9fr', head = <div className="pp-spellrow pp-head" style={{gridTemplateColumns: '18px ' + cols}}><span></span><span>Name</span><span>School</span><span>Comps</span><span>Range</span><span>Save</span><span>Duration</span><span>C Time</span></div>;
+            const menu = (k, label, opts, sel, set) => <span className="spf-menu"><button className={`pp-chip ${sel.length ? 'on' : ''}`} data-testid={`spf-${k}`} onClick={() => setSpf({...spf, menu: spf.menu === k ? '' : k})}>{label}{sel.length ? ` (${sel.length})` : ''} ▾</button>
+              {spf.menu === k && <span className="spf-list">{opts.map(o => <label key={o}><input type="checkbox" checked={sel.includes(o)} onChange={() => set(sel.includes(o) ? sel.filter(x => x !== o) : [...sel, o])}/> {o}</label>)}<button className="pp-chip" onClick={() => set([])}>All</button></span>}</span>;
+            const shown = list.filter(keep), groups = spf.level ? [0, ...levels].filter(l => shown.some(s0 => s0.l === l)) : ['all'];
+            return <>
+              <div className="spf-bar" data-testid="spf-bar">
+                <label className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="spf-level" checked={spf.level} onChange={e => setSpf({...spf, level: e.target.checked})}/> By level</label>
+                {menu('school', 'School', allSchools, spf.schools, v => setSpf({...spf, schools: v}))}
+                {menu('cat', 'Kind', SPELL_CATS, spf.cats, v => setSpf({...spf, cats: v}))}
+                {['V', 'S', 'M'].map(k => <label key={k} className="rule-label" style={{margin: 0}} title={`Only spells with ${k === 'V' ? 'a Verbal' : k === 'S' ? 'a Somatic' : 'a Material'} component`}><input type="checkbox" data-testid={`spf-comp-${k}`} checked={spf.comps.includes(k)} onChange={() => setSpf({...spf, comps: spf.comps.includes(k) ? spf.comps.filter(x => x !== k) : [...spf.comps, k]})}/> {k}</label>)}
+                <select aria-label="Sort spells" data-testid="spf-sort" value={spf.sort} onChange={e => setSpf({...spf, sort: e.target.value})}><option value="">Sort: A to Z</option><option value="time">Casting time</option><option value="range">Range</option><option value="dur">Duration, shortest first</option></select>
+                <span className="pp-muted">{shown.length} of {list.length}</span>
+              </div>
+              {shown.length === 0 && <div className="pp-center pp-muted">{list.length ? 'No spell matches these filters.' : 'No spells above cantrips yet.'}</div>}
+              {groups.map(l => { const shut = lvlShut.includes(l), rows = order(l === 'all' ? shown : shown.filter(s0 => s0.l === l)); return (
+                <div key={l} data-testid={`paper-spells-${l}`}>
+                  {l !== 'all' && <div className="pp-lvl" data-testid="spf-lvl" role="button" style={{cursor: 'pointer'}} onClick={e => { if (e.target.closest('.pp-circles')) return; setLvlShut(shut ? lvlShut.filter(x => x !== l) : [...lvlShut, l]); }}>{shut ? '▸' : '▾'} {l === 0 ? 'Cantrips' : `Level ${l}`} {l > 0 && slotCircles(l)}<span className="pp-muted"> {l > 0 && ((sh.slotMax || [])[l - 1]) ? `${slotsLeft(c, l)} of ${sh.slotMax[l - 1]} slots left` : ''} · {rows.length}</span></div>}
+                  {!shut && <>{head}{rows.map(s0 => spellRow(s0, cols))}</>}
+                </div>); })}
+            </>; })()}
           <div className="pp-key">{spIcons('<*>')} Concentration &nbsp; {spIcons('(R*)')} can be cast as a Ritual</div>
         </div>)}
 
@@ -5217,7 +5282,9 @@ function App() {
           {(() => { const sz = {Tiny: 7.5, Small: 15, Medium: 15, Large: 30, Huge: 60, Gargantuan: 120}[sizeOf(c)] || 15, cap = Math.floor(((c.scores || {}).Strength || 10) * sz), wt = full.reduce((t, it) => t + (parseFloat(String(it.weight || '').replace(/[^\d.]/g, '')) || 0), 0);
             return <div className="pp-card" data-testid="inv-money" style={{display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10}}>
               {moneyBox(c, ctl)}
-              <span data-testid="inv-carry"><strong>Carrying capacity</strong> {cap} lb.{wt ? ` · carrying ${Math.round(wt * 10) / 10} lb.` : ''}</span>
+              <span data-testid="inv-carry"><strong>Carrying capacity</strong> {cap} lb.{wt ? ` · carrying ${Math.round(wt * 10) / 10} lb.` : ''}
+                <label className="rule-label" style={{margin: '0 0 0 10px'}} title={encTable ? 'The DM set this for the table' : 'Encumbrance for this character'}>Encumbrance <select data-testid="enc-mode" disabled={!ctl || !!encTable} value={encTable || c.enc || 'off'} onChange={e => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, enc: e.target.value}))}><option value="off">Off</option><option value="on">On (2024)</option><option value="variant">Variant (2014)</option></select></label>
+                {encOf(c) && <span className="pp-muted" data-testid="enc-note" style={{display: 'block', color: '#ff8a80'}}>{encOf(c).text}</span>}</span>
             </div>; })()}
           {Object.values(sh.pools || {}).some(q => q.recharge === 'dawn') && <label className="rule-label" style={{display: 'block', margin: '0 0 6px'}} title="Off: the app rolls each item's charges at dawn. On: you get a prompt with a Roll button for each."><input type="checkbox" data-testid="manual-charges" disabled={!ctl} checked={!!c.manualCharges} onChange={e => setCombatants(prev => prev.map(x => x.id === c.id ? {...x, manualCharges: e.target.checked} : x))}/> Roll my items' charges myself at dawn</label>}
           {allItems.some(it => it.attune) && <div className="attune-line" data-testid="attune-inv">{slotKinds(sh, allItems).map((t, i) => <span key={t.name}>{i ? ' · ' : ''}{t.on}{t.name === 'Attunement' ? '' : ` (${t.name})`}: <strong>{allItems.filter(it => it.slot === t.name && it.attuned).length} of {t.max}</strong>{allItems.filter(it => it.slot === t.name && it.attuned).length ? ` (${allItems.filter(it => it.slot === t.name && it.attuned).map(it => it.name).join(', ')})` : ''}</span>)}<span className="pp-muted"> (attune or end it in the Character Builder)</span></div>}
@@ -5628,6 +5695,34 @@ function App() {
           </div>
         </div>
       </div>}
+      {isDM && trackPage === 'min' && <button className="track-min" data-testid="trackers-restore" onClick={() => setTrackPage('open')}>Trackers ▴</button>}
+      {isDM && trackPage === 'open' && <div className="track-page" data-testid="trackers-page">
+        <div className="track-head"><strong>Trackers</strong><span style={{flex: 1}}/>
+          <button className="btn btn-ghost btn-sm" data-testid="trackers-min" onClick={() => setTrackPage('min')}>Collapse ▾</button>
+          <button className="btn btn-ghost btn-sm" data-testid="trackers-close" onClick={() => setTrackPage('')}>Close</button></div>
+        <div className="track-body">
+          <div className="track-col"><WorldPanel world={world} setWorld={setWorld} log={setLog}/></div>
+          <div className="track-col" data-testid="creature-trackers">
+            <div className="section-title">Every creature's trackers</div>
+            {combatants.filter(c => (c.trackers || []).length).length === 0 && <div className="pp-muted">No creature has a tracker yet.</div>}
+            {combatants.filter(c => (c.trackers || []).length).map(c => <div key={c.id} className="track-crea"><strong>{c.name}</strong>
+              {(c.trackers || []).map(t => <div key={t.id} className="pp-arow" data-testid="dm-tracker"><span>{t.name}</span>
+                <span style={{display: 'inline-flex', gap: 6, alignItems: 'center'}}>
+                  <button className="pp-chip on" aria-label={`Lower ${t.name} for ${c.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.map(y => y.id === t.id ? {...y, val: y.val - 1} : y)}))}>−</button>
+                  <input type="number" aria-label={`${t.name} for ${c.name}`} data-testid="dm-tracker-val" value={t.val} style={{width: 64}} onChange={e => { const v = parseInt(e.target.value, 10) || 0; setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.map(y => y.id === t.id ? {...y, val: v} : y)})); }}/>
+                  <button className="pp-chip on" aria-label={`Raise ${t.name} for ${c.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.map(y => y.id === t.id ? {...y, val: y.val + 1} : y)}))}>+</button>
+                  <button className="pp-chip" aria-label={`Remove ${t.name} from ${c.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.filter(y => y.id !== t.id)}))}>×</button></span></div>)}</div>)}
+            <div className="section-title" style={{marginTop: 10}}>Add a tracker to several creatures</div>
+            <div className="time-row" style={{gridTemplateColumns: '2fr 1fr auto'}}>
+              <input aria-label="Tracker name" data-testid="multi-tracker-name" placeholder="Torch, Bardic die, Rations..." value={multiT.name} onChange={e => setMultiT({...multiT, name: e.target.value})}/>
+              <input type="number" aria-label="Starting value" data-testid="multi-tracker-val" value={multiT.val} onChange={e => setMultiT({...multiT, val: e.target.value})}/>
+              <button className="btn btn-primary btn-sm" data-testid="multi-tracker-add" disabled={!multiT.name.trim() || !multiT.ids.length} onClick={() => { const n = multiT.name.trim().slice(0, 40), v = parseInt(multiT.val, 10) || 0; setCombatants(prev => prev.map(x => !multiT.ids.includes(x.id) ? x : {...x, trackers: [...(x.trackers || []), {id: newId(), name: n, val: v}].slice(0, 20)})); setMultiT({name: '', val: '0', ids: multiT.ids}); }}>Add</button>
+            </div>
+            <div className="buff-row" style={{flexWrap: 'wrap'}}>{combatants.filter(c => !c.pending).map(c => <label key={c.id} className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="multi-tracker-who" checked={multiT.ids.includes(c.id)} onChange={e => setMultiT({...multiT, ids: e.target.checked ? [...multiT.ids, c.id] : multiT.ids.filter(x => x !== c.id)})}/> {c.name}</label>)}
+              <button className="btn btn-ghost btn-sm" onClick={() => setMultiT({...multiT, ids: multiT.ids.length ? [] : combatants.filter(c => !c.pending).map(c => c.id)})}>{multiT.ids.length ? 'None' : 'All'}</button></div>
+          </div>
+        </div>
+      </div>}
       {explained && <div className="modal-overlay" style={{zIndex: 3000}} data-testid="explain-overlay" onClick={() => setExplained(null)}>
         <div className="modal" data-testid="explain-box" style={{maxWidth: 480}} onClick={e => e.stopPropagation()}>
           <div className="modal-header">{explained.title}</div>
@@ -5689,6 +5784,7 @@ function App() {
             {fold && ctl && <button onClick={() => { setOpenDown(p => ({...p, [c.id]: !p[c.id]})); close(); }}>{openDown[c.id] ? 'Fold away' : 'Open up'}</button>}
             {isDM && !c.owner && <button data-testid="menu-card-all" onClick={() => { showCard(c, null); close(); }}>Show its card to everyone</button>}
             {isDM && !c.owner && combatants.filter(x => x.type === 'player' && x.owner && !x.pending).map(x => <button key={x.id} data-testid="menu-card-to" onClick={() => { showCard(c, x); close(); }}>Show its card to {x.name}</button>)}
+            {isDM && <button data-testid="menu-rename" onClick={() => { close(); const nm = window.prompt(`New name for ${c.name}`, c.name); if (nm != null) renameCreature(c, nm); }}>Rename</button>}
             {ctl && <button onClick={() => { close(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id); }}>Remove from combat</button>}
             {!ctl && !(selAction && needsTarget) && <button onClick={close}>Nothing to do here</button>}
           </div>
@@ -5815,11 +5911,11 @@ function App() {
           <button key={k} role="tab" aria-selected={pane===k} className={pane===k?'on':''} onClick={()=>setPane(k)}>{l}{k==='log' && log.length>0 ? ` (${log.filter(e=>e.type!=='round').length})` : ''}</button>
         ))}
       </div>
-      <div className={`app pane-${pane} ${targeting ? 'targeting' : ''} ${!isDM && !revealAC ? 'hide-ac' : ''} ${!isDM && hideRolls ? 'hide-dm' : ''}`}>
+      <div className={`app pane-${pane} ${isDM && dmWide && leftTab === 'dm' ? 'dm-wide' : ''} ${targeting ? 'targeting' : ''} ${!isDM && !revealAC ? 'hide-ac' : ''} ${!isDM && hideRolls ? 'hide-dm' : ''}`}>
         {/* ── LEFT: INITIATIVE TRACKER ── */}
         <div className="panel">
           {isDM
-            ? <div className="left-tabs" role="tablist"><button data-testid="left-order" className={leftTab === 'order' ? 'on' : ''} onClick={() => setLeftTab('order')}>Initiative</button><button data-testid="left-dm" className={leftTab === 'dm' ? 'on' : ''} onClick={() => setLeftTab('dm')}>DM Controls</button></div>
+            ? <div className="left-tabs" role="tablist"><button data-testid="left-order" className={leftTab === 'order' ? 'on' : ''} onClick={() => setLeftTab('order')}>Initiative</button><button data-testid="left-dm" className={leftTab === 'dm' ? 'on' : ''} onClick={() => setLeftTab('dm')}>DM Controls</button>{leftTab === 'dm' && <button data-testid="dm-wide" title={dmWide ? 'Make the DM controls narrow again' : 'Widen the DM controls to the right'} onClick={() => setDmWide(!dmWide)}>{dmWide ? '⇤' : '⇥'}</button>}</div>
             : <div className="panel-header">Initiative Order</div>}
           <div className="panel-body">
             {(!isDM || leftTab === 'order') && <>
@@ -5883,23 +5979,23 @@ function App() {
                     <div className="combatant-name">{c.name} {c.currentHP<=0?'☠':''}{c.summonOf && c.currentHP > 0 && !openDown[c.id] ? <span style={{fontSize:'0.72rem', opacity:0.75}}> · {c.currentHP}/{totalHP(c)} HP · summoned</span> : null}</div>
                     {isDM && c.type === 'monster' && c.currentHP > 0 && <select className="rel-select" aria-label={`What ${c.name} is to the party`} data-testid="rel-select" value={c.rel || 'hostile'} onClick={e=>e.stopPropagation()} onChange={e=>{ const v = e.target.value; setCombatants(prev => prev.map(x => x.id === c.id ? {...x, rel: v} : x)); }}>
                       <option value="hostile">Hostile</option><option value="neutral">Neutral</option><option value="ally">Ally</option><option value="none">No designation</option></select>}
-                    <div className="combatant-type">{typeLine(c)}{veil(c) && !revealAC ? '' : ` · AC ${effectiveAC(c)} · ${effectiveSpeed(c)} ft.`} {c.owner===myId && <span className="owner-tag">· yours</span>}{ctl && !c.pending && !targeting && <button className={`card-view ${viewed && viewed.id === c.id && showSheet ? 'on' : ''}`} data-testid="card-view" title="Open this sheet" onClick={e=>{ e.stopPropagation(); setViewId(c.id); setSelectedAction(null); setPane('sheet'); }}>{viewed && viewed.id === c.id && showSheet ? 'Viewing' : 'View'}</button>}</div>
+                    <div className="combatant-type">{seeOf(c).cr ? typeLine(c) : sizeOf(c)}{!seeOf(c).ac ? '' : ` · AC ${effectiveAC(c)} · ${effectiveSpeed(c)} ft.`} {c.owner===myId && <span className="owner-tag">· yours</span>}{ctl && !c.pending && !targeting && <button className={`card-view ${viewed && viewed.id === c.id && showSheet ? 'on' : ''}`} data-testid="card-view" title="Open this sheet" onClick={e=>{ e.stopPropagation(); setViewId(c.id); setSelectedAction(null); setPane('sheet'); }}>{viewed && viewed.id === c.id && showSheet ? 'Viewing' : 'View'}</button>}</div>
                     {c.conc && <span className="conc-badge" data-testid={`conc-${c.name}`} title={`Concentrating on ${c.conc.name}${+c.conc.left > 0 ? `, ${timeText(c.conc.left)} left` : ''}${canControl(c) ? '. Click to stop concentrating.' : ''}`}
                       onClick={e=>{ e.stopPropagation(); if (canControl(c)) { if (window.confirm(`Stop concentrating on ${c.conc.name}?`)) endConcentration(c.id); } else window.alert(`${c.name} is concentrating on ${c.conc.name}.`); }}>◈ {c.conc.name}{+c.conc.left > 0 ? ` · ${timeText(c.conc.left)}` : ''}</span>}
                   </div>
                   {c.summonOf && c.currentHP > 0 && ctl && <button className="card-remove" style={{right: 30}} data-testid="fold-toggle" title={openDown[c.id] ? 'Fold this summoned creature away' : 'Open this summoned creature up'} onClick={e=>{e.stopPropagation(); setOpenDown(p => ({...p, [c.id]: !p[c.id]}));}}>{openDown[c.id] ? '▾' : '▸'}</button>}
                   {isDM && c.type==='monster' && c.currentHP<=0 && <button className="card-remove" style={{right: 30}} data-testid="down-toggle" title={openDown[c.id] ? 'Fold this defeated creature away' : 'Open this defeated creature up'} onClick={e=>{e.stopPropagation(); setOpenDown(p => ({...p, [c.id]: !p[c.id]}));}}>{openDown[c.id] ? '▾' : '▸'}</button>}
                   <button className="card-fold" data-testid="card-fold" aria-expanded={!folded.includes(c.id)} title={folded.includes(c.id) ? 'Open this card' : 'Fold this card to one line'} onClick={e => { e.stopPropagation(); toggleFold(c.id); }}>{folded.includes(c.id) ? '▸' : '▾'}</button>
-                  {folded.includes(c.id) && !(veil(c) && reveal !== 'full') && <span className="fold-hp">{c.currentHP}/{totalHP(c)}</span>}
+                  {folded.includes(c.id) && seeOf(c).hp && <span className="fold-hp">{c.currentHP}/{totalHP(c)}</span>}
                   {ctl && <button className="card-remove" title="Remove from combat" onClick={e=>{e.stopPropagation(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id);}}>×</button>}
                 </div>
-                {!(veil(c) && (reveal === 'conditions' || reveal === 'none')) && <>
+                {(seeOf(c).bar || seeOf(c).hp) && <>
                 <div className="hp-bar-wrap">
                   <div className="hp-bar" style={{width:`${Math.max(0,Math.min(100,(c.currentHP/totalHP(c))*100))}%`,background:hpColor(c.currentHP,totalHP(c))}}/>
                 </div>
-                {veil(c) && reveal === 'bar' ? <div className="hp-text"><span>{c.currentHP <= 0 ? 'Down' : c.currentHP >= totalHP(c) ? 'Unhurt' : c.currentHP * 2 > totalHP(c) ? 'Hurt' : 'Bloodied'}</span></div> : <div className="hp-text" data-testid={`hp-${c.name}`} title="Current Hit Points out of the total"><span>{c.currentHP} HP{+c.tempHP > 0 && <span className="temp-hp"> +{c.tempHP} temp</span>}</span><span style={{color:'var(--text-muted)'}}>of {totalHP(c)} total</span></div>}
+                {!seeOf(c).hp ? <div className="hp-text"><span>{c.currentHP <= 0 ? 'Down' : c.currentHP >= totalHP(c) ? 'Unhurt' : c.currentHP * 2 > totalHP(c) ? 'Hurt' : 'Bloodied'}</span></div> : <div className="hp-text" data-testid={`hp-${c.name}`} title="Current Hit Points out of the total"><span>{c.currentHP} HP{+c.tempHP > 0 && <span className="temp-hp"> +{c.tempHP} temp</span>}</span><span style={{color:'var(--text-muted)'}}>of {totalHP(c)} total</span></div>}
                 </>}
-                {!(veil(c) && reveal === 'none') && (c.conditions.length > 0 || (c.effects||[]).length > 0) && (
+                {seeOf(c).cond && (c.conditions.length > 0 || (c.effects||[]).length > 0) && (
                   <div className="conditions">
                     {c.conditions.map(cond=>(
                       <span key={cond} className={`condition-tag bad ${isDM?'removable':''}`} data-ex={`cond:${cond}`} data-exc={c.id} onClick={e=>{e.stopPropagation(); if (isDM) removeCondition(c.id,cond);}} title={[condSaveText(condInfoOf(c,cond), inPlay, c), isDM?'Click to remove':''].filter(Boolean).join('. ') || cond}>{CONDITION_ICON[cond] ? CONDITION_ICON[cond] + ' ' : ''}{cond}{condInfoOf(c,cond) && +condInfoOf(c,cond).left > 0 ? ` · ${timeText(condInfoOf(c,cond).left)}` : ''}{isDM?' ×':''}</span>
@@ -6012,7 +6108,7 @@ function App() {
                   : mine.map(p => <label key={p.name} className="rule-label" style={{display: 'block', margin: '2px 0'}}><input type="checkbox" data-testid="share-pack" checked={!!shared[packKey(p.name)]} onChange={e => sharePack(p, e.target.checked)}/> {p.name}{p.author ? ` (${p.author})` : ''}</label>)}
                 <div className="buff-note" style={{margin: '4px 0 0'}}>Players in this session can install what you tick into their own Character Builder.</div>
               </div>); })()}
-            {isDM && leftTab === 'dm' && <WorldPanel world={world} setWorld={setWorld} log={setLog}/>}
+            {isDM && leftTab === 'dm' && <div className="manual-roll"><span className="label">Trackers</span><button className="btn btn-primary btn-sm btn-full" data-testid="trackers-open" onClick={() => setTrackPage('open')}>Open the Trackers page</button><div className="buff-note" style={{margin: '4px 0 0'}}>Time, calendar, weather, world trackers and timers, and every creature's trackers.</div></div>}
             {isDM && leftTab === 'dm' && (
               <div className="manual-roll" data-testid="time-panel">
                 <span className="label">Pass Time</span>
@@ -6030,6 +6126,8 @@ function App() {
                   </select>
                   <button className="btn btn-primary btn-sm" disabled={!(parseFloat(lapse.n) > 0)} onClick={advanceCustom}>Advance Time</button>
                 </div>
+                <div className="section-title" style={{marginTop: 8}}>Encumbrance at this table</div>
+                <select aria-label="Encumbrance at this table" data-testid="enc-table" value={encTable} onChange={e => setEncTable(e.target.value)}><option value="">Each player chooses</option><option value="off">Off for everyone</option><option value="on">On (2024): over capacity, Speed at most 5 feet</option><option value="variant">Variant (2014 PHB): -10 / -20 Speed</option></select>
                 <div className="section-title" style={{marginTop: 8}}>Kinds of money at this table</div>
                 <div className="time-row" data-testid="table-coins" style={{gridTemplateColumns: '1fr auto'}}>
                   <input aria-label="New kind of money" data-testid="table-coin-name" placeholder="Crowns, ration chits, favor..." value={coinName} onChange={e => setCoinName(e.target.value)}/>
@@ -6101,6 +6199,13 @@ function App() {
                     <input aria-label="What it does" data-testid="custom-act-text" placeholder="It knocks over the brazier" value={customAct.text} onChange={e => setCustomAct({...customAct, text: e.target.value})} style={{minWidth: 180}}/>
                     <input aria-label="Dice to roll (optional)" data-testid="custom-act-dice" placeholder="dice (optional)" value={customAct.dice} onChange={e => setCustomAct({...customAct, dice: e.target.value})} style={{width: 110}}/>
                     <button className="pp-chip on" data-testid="custom-act-go" disabled={!customAct.text.trim()} onClick={() => doCustomAct(viewed)}>Do it</button></div>}
+                  {isDM && <div className="senses-line" data-testid="rename-row"><strong>Name</strong> <input aria-label="Creature name" data-testid="rename-input" defaultValue={viewed.name} key={viewed.id + viewed.name} onBlur={e => renameCreature(viewed, e.target.value)} onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }} style={{width: 180}}/></div>}
+                  {isDM && viewed.type !== 'player' && <div className="senses-line" data-testid="see-row"><strong>Players see</strong> <span className="pp-muted">(name and size always)</span>
+                    {(() => { const cur = Array.isArray(viewed.see) ? viewed.see : null, set = v => setCombatants(prev => prev.map(x => x.id !== viewed.id ? x : {...x, see: v})); return <>
+                      <button className={`pp-chip ${!cur ? 'on' : ''}`} data-testid="see-table" title="Follow the table setting" onClick={() => set(null)}>Table setting</button>
+                      <button className={`pp-chip ${cur && cur.length === SEE_KEYS.length ? 'on' : ''}`} data-testid="see-all" onClick={() => set(SEE_KEYS.map(([k]) => k))}>Everything</button>
+                      <button className={`pp-chip ${cur && !cur.some(x => x !== 'none') ? 'on' : ''}`} data-testid="see-none" onClick={() => set(['none'])}>Nothing</button>
+                      {SEE_KEYS.map(([k, label]) => { const on = cur ? cur.includes(k) : seeOfTable(k); return <label key={k} className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid={`see-${k}`} checked={on} onChange={() => { const base = (cur || SEE_KEYS.map(([x]) => x).filter(seeOfTable)).filter(x => x !== 'none'), next = on ? base.filter(x => x !== k) : [...base, k]; set(next.length ? next : ['none']); }}/> {label}</label>; })}</>; })()}</div>}
                   </>}
                   {combatStarted && !canAct && active && <div className="turn-note">Waiting: it is {active.name}'s turn</div>}
                   {combatStarted && canAct && !isDM && <div className="turn-note yours">It is your turn</div>}
@@ -6108,22 +6213,16 @@ function App() {
                 </div>
 
                 <div className="pick-box" data-testid="pick-box">
-                {/* Target */}
-                <div className="section-title">🎯 {selMax > 1 ? `Targets (${Math.min(targetIds.length, selMax)} of ${selMax >= 99 ? 'any number' : 'up to ' + selMax})` : 'Target'}</div>
-                {selMax > 1 && <div className="buff-note">This can affect more than one creature. Pick each target; one use covers them all.</div>}
-                {targetOverlay && <div className="buff-note" data-testid="target-summary" style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
-                  <span>{freeT != null && needsTarget ? <>Chosen: <strong>{freeT.trim() || 'something not on the tracker'}</strong> (not on the tracker)</> : targetIds.length ? <>Chosen: <strong>{targetIds.map(id => (inPlay.find(c => c.id === id) || {}).name).filter(Boolean).join(', ')}</strong></> : needsTarget ? 'No target chosen.' : 'Pick an attack, action or spell. If it needs a target you choose it on the Initiative tracker.'}</span>
-                  {needsTarget && canControl(viewed) && !isArmed && <button className="btn btn-ghost btn-sm" data-testid="retarget" onClick={() => { setTargeting(true); setLeftTab('order'); setPane('order'); }}>{targetIds.length || freeT != null ? 'Change target' : 'Choose a target'}</button>}
-                </div>}
-                {!targetOverlay && pickTargets.length===0 && (
+                {selMax > 1 && selAction && <div className="buff-note">This can affect more than one creature. Pick each target; one use covers them all.</div>}
+                {selAction && !targetOverlay && pickTargets.length===0 && (
                   <div className="empty-state">No valid targets</div>
                 )}
-                {!targetOverlay && pickTargets.map(c=>(
+                {selAction && !targetOverlay && pickTargets.map(c=>(
                   <div key={c.id} className={`target-row ${targetIds.includes(c.id)?'selected':''}`} data-testid={`target-${c.name}`}
                     onClick={()=>toggleTarget(c.id)}>
                     <span className="t-name">{c.name}{viewed && c.id === viewed.id ? ' (yourself)' : ''}</span>
-                    {!(veil(c) && !revealAC) && <span className="t-ac">AC {effectiveAC(c)}</span>}
-                    {!veil(c) || reveal === 'full' ? <span className="t-hp">{c.currentHP}/{totalHP(c)} HP</span> : null}
+                    {seeOf(c).ac && <span className="t-ac">AC {effectiveAC(c)}</span>}
+                    {seeOf(c).hp ? <span className="t-hp">{c.currentHP}/{totalHP(c)} HP</span> : null}
                   </div>
                 ))}
 
