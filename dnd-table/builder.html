@@ -86,7 +86,8 @@ FILE SHAPE
   "feats": { },
   "spells": [ ],
   "items": [ ],
-  "abilities": [ ]
+  "abilities": [ ],
+  "monsters": [ ]
 }
 
 Leave out any section you have nothing for. Names are the keys. A pack entry with the same name as a built-in option replaces it.
@@ -377,6 +378,27 @@ ITEM SLOTS. Attunement is one kind of item slot. When the source has another kin
   name: the slot kind, as the source names it, singular. max: how many every character has (0 when only some features give them). verb: the word on the button that puts an item in the slot. on: the word shown while it is in one.
   { "name": "Ember Ward Tattoo", "rarity": "Uncommon", "type": "Wondrous Item", "slot": "Tattoo", "description": "Full item text." }
 The builder shows each kind of slot next to Attunement, with its own count, and the Combat Resolver shows them on the sheet. A feature that gives more slots of any kind (Attunement included) uses the statics key "itemSlots". To change how many Attunement slots everyone has, define { "name": "Attunement", "max": 4 } in "slotTypes".
+
+---------------------------------------------------------------------
+MONSTERS AND NPCS
+---------------------------------------------------------------------
+
+Every stat block in the source (monsters, NPCs, summoned creatures with a fixed stat block) goes in "monsters". The DM finds them in the Combat Resolver's Monster Roster, under this pack's name as their source, and adds them to a fight like the built-in ones.
+{ "name": "Cinder Hound", "size": "Medium", "type": "Fiend", "cr": "2", "ac": 14, "hp": 39, "hitDice": "6d8+12", "speed": "40 ft.",
+  "scores": [16, 14, 15, 6, 12, 7], "proficiencyBonus": 2,
+  "saves": { "Dexterity": 4 }, "skills": { "Perception": 3, "Stealth": 4 },
+  "senses": ["Darkvision 60 ft."], "passivePerception": 13,
+  "resistances": ["Fire"], "immunities": ["Poison"], "vulnerabilities": ["Cold"], "conditionImmunities": ["Poisoned"],
+  "traits": [ { "name": "Ash Trail", "text": "Its rules text, word for word." } ],
+  "actions": [
+    { "name": "Bite", "text": "Melee Attack Roll: +5, reach 5 ft. Hit: 8 (1d10 + 3) Piercing damage plus 3 (1d6) Fire damage.", "attack": { "bonus": 5 }, "damage": [ { "dice": "1d10+3", "type": "Piercing" }, { "dice": "1d6", "type": "Fire" } ] },
+    { "name": "Ember Breath", "text": "Dexterity Saving Throw: DC 12, each creature in a 15-foot Cone. Failure: 14 (4d6) Fire damage. Success: Half damage.", "save": { "ability": "Dexterity", "dc": 12, "half": true }, "damage": [ { "dice": "4d6", "type": "Fire" } ] }
+  ],
+  "bonusActions": [ { "name": "...", "text": "..." } ], "reactions": [ ], "legendaryActions": [ ] }
+  size: Tiny, Small, Medium, Large, Huge or Gargantuan. type: the creature type as written. cr: "0" to "30", "1/8", "1/4" or "1/2".
+  scores: the six ability scores, Strength first. saves and skills: the total bonus as the stat block prints it, only the ones it lists.
+  actions: an attack gets "attack": { "bonus": 5 } (add "ranged": true for a ranged attack) and its "damage"; an action with a saving throw gets "save" and its "damage" if any. Anything else is its name and text only: the DM resolves it from the text.
+  Every "text" is the stat block's own words, unchanged. Multiattack is an action with its text only.
 
 ---------------------------------------------------------------------
 ABILITIES: EVERYTHING A CHARACTER ACTIVATES
@@ -814,7 +836,7 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 var _excluded = ["versions", "hitPointBands", "uses", "name", "atLevel", "choices"],
   _excluded2 = ["versions", "hitPointBands", "uses", "atLevel"],
   _excluded3 = ["name", "desc", "activation"],
-  _excluded4 = ["feats", "spells", "items", "abilities"],
+  _excluded4 = ["feats", "spells", "items", "abilities", "monsters"],
   _excluded5 = ["options"],
   _excluded6 = ["options"],
   _excluded7 = ["name", "spell", "slot", "desc", "comp", "mat", "matCost", "matConsumed", "conc", "concSecs", "range", "hand", "ritual", "gp", "gpConsumed"];
@@ -3950,7 +3972,8 @@ var PACK_LIMITS = {
   feats: 300,
   spells: 600,
   items: 600,
-  abilities: 800
+  abilities: 800,
+  monsters: 400
 };
 function splitPack(raw) {
   if (!raw || _typeof(raw) !== "object" || raw.format !== "homebrew-academy-content") return [raw];
@@ -3965,7 +3988,8 @@ function splitPack(raw) {
       }),
       spells: pArr(raw.spells),
       items: pArr(raw.items),
-      abilities: pArr(raw.abilities)
+      abilities: pArr(raw.abilities),
+      monsters: pArr(raw.monsters)
     };
   var fits = Object.keys(lists).every(function (k) {
     return lists[k].length <= PACK_LIMITS[k];
@@ -3975,12 +3999,14 @@ function splitPack(raw) {
     spells = raw.spells,
     items = raw.items,
     abilities = raw.abilities,
+    monsters = raw.monsters,
     core = _objectWithoutProperties(raw, _excluded4);
   var parts = [_objectSpread(_objectSpread({}, core), {}, {
     feats: {},
     spells: [],
     items: [],
-    abilities: []
+    abilities: [],
+    monsters: []
   })];
   var sizes = [size(parts[0])],
     blank = function blank() {
@@ -3992,7 +4018,8 @@ function splitPack(raw) {
         feats: {},
         spells: [],
         items: [],
-        abilities: []
+        abilities: [],
+        monsters: []
       };
     };
   Object.keys(lists).forEach(function (k) {
@@ -4404,6 +4431,120 @@ function checkPack(raw) {
     }
     pack.abilities.push(ab);
   });
+  // Monsters and NPCs: written in readable words, kept in the same compact stat block the built-in monsters use, so the Combat Resolver runs them the same way
+  var ABS = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"];
+  pArr(raw.monsters).slice(0, 400).forEach(function (m0, i) {
+    var m = pObj(m0),
+      name = pStr(m.name, 60).trim(),
+      label = "Monster ".concat(name || "#" + (i + 1));
+    if (!name) {
+      errors.push("".concat(label, ": it has no name. It was skipped."));
+      return;
+    }
+    var sc = pArr(m.scores).map(function (x) {
+      return parseInt(x, 10);
+    });
+    if (sc.length !== 6 || sc.some(function (x) {
+      return !(x >= 1 && x <= 30);
+    })) {
+      errors.push("".concat(label, ": \"scores\" must be the six ability scores, 1 to 30, Strength first. It was skipped."));
+      return;
+    }
+    var ac = parseInt(m.ac, 10),
+      hp = parseInt(m.hp, 10);
+    if (!(ac >= 1 && ac <= 40) || !(hp >= 1 && hp <= 2000)) {
+      errors.push("".concat(label, ": \"ac\" and \"hp\" must be numbers. It was skipped."));
+      return;
+    }
+    var size = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"].includes(m.size) ? m.size : "Medium";
+    if (m.size && size !== m.size) warnings.push("".concat(label, ": size \"").concat(m.size, "\" is not a size; it was set to Medium."));
+    var cr = pStr(m.cr != null ? String(m.cr) : "0", 6).trim();
+    if (!/^(\d{1,2}|1\/2|1\/4|1\/8)$/.test(cr)) warnings.push("".concat(label, ": cr \"").concat(cr, "\" should be 0 to 30, 1/2, 1/4 or 1/8."));
+    var named = function named(list) {
+      return pArr(list).map(function (t) {
+        var o = pObj(t);
+        return [pStr(o.name, 60), pStr(o.text, 2000)];
+      }).filter(function (x) {
+        return x[0];
+      });
+    };
+    var dmgOf = function dmgOf(d) {
+      return pArr(d).map(function (x) {
+        return [pStr(pObj(x).dice, 30).replace(/\s/g, ""), pStr(pObj(x).type, 20)];
+      }).filter(function (x) {
+        return /^\d+(d\d+)?([+-]\d+(d\d+)?)*$/i.test(x[0]);
+      });
+    };
+    var acts = pArr(m.actions).map(function (a0) {
+      var a = pObj(a0),
+        n = pStr(a.name, 60).trim();
+      if (!n) return null;
+      var o = {
+        n: n,
+        d: pStr(a.text, 2000)
+      };
+      var at = pObj(a.attack),
+        sv = pObj(a.save),
+        dm = dmgOf(a.damage);
+      if (a.attack) {
+        o.ab = parseInt(at.bonus, 10) || 0;
+        o.dm = dm.length ? dm : [["1", "Bludgeoning"]];
+        if (at.ranged && !/^Ranged Attack Roll/.test(o.d)) o.d = "Ranged Attack Roll: " + o.d;
+      } else if (a.save) {
+        if (!ABS.includes(sv.ability)) {
+          warnings.push("".concat(label, ", ").concat(n, ": save.ability must be a full ability name."));
+          return o;
+        }
+        o.dc = [sv.ability, parseInt(sv.dc, 10) || 10, sv.half ? 1 : 0];
+        if (dm.length) o.dm = dm;
+      }
+      return o;
+    }).filter(Boolean);
+    var out = {
+      n: name,
+      t: "".concat(size, " ").concat(pStr(m.type, 40) || "Creature"),
+      cr: cr,
+      ac: ac,
+      hp: hp,
+      hd: pStr(m.hitDice, 20),
+      sp: pStr(m.speed, 80) || "30 ft.",
+      s: sc,
+      pb: parseInt(m.proficiencyBonus, 10) || 2,
+      a: acts
+    };
+    var sv = {};
+    Object.keys(pObj(m.saves)).forEach(function (k) {
+      if (ABS.includes(k)) sv[k] = parseInt(m.saves[k], 10) || 0;
+    });
+    if (Object.keys(sv).length) out.sv = sv;
+    var sk = {};
+    Object.keys(pObj(m.skills)).forEach(function (k) {
+      if (ALL_SKILLS.includes(k)) sk[k] = parseInt(m.skills[k], 10) || 0;else warnings.push("".concat(label, ": \"").concat(k, "\" is not a skill."));
+    });
+    if (Object.keys(sk).length) out.sk = sk;
+    var se = pArr(m.senses).map(function (x) {
+      return pStr(x, 40);
+    }).filter(Boolean);
+    if (se.length) out.se = se;
+    if (m.passivePerception != null) out.pp = parseInt(m.passivePerception, 10) || 10;
+    [["resistances", "res"], ["immunities", "imm"], ["vulnerabilities", "vul"], ["conditionImmunities", "ci"]].forEach(function (_ref17) {
+      var _ref18 = _slicedToArray(_ref17, 2),
+        k = _ref18[0],
+        j = _ref18[1];
+      var v = pArr(m[k]).map(function (x) {
+        return pStr(x, 30);
+      }).filter(Boolean).join(", ") || pStr(typeof m[k] === "string" ? m[k] : "", 200);
+      if (v) out[j] = v;
+    });
+    [["traits", "tr"], ["bonusActions", "ba"], ["reactions", "re"], ["legendaryActions", "la"]].forEach(function (_ref19) {
+      var _ref20 = _slicedToArray(_ref19, 2),
+        k = _ref20[0],
+        j = _ref20[1];
+      var v = named(m[k]);
+      if (v.length) out[j] = v;
+    });
+    (pack.monsters = pack.monsters || []).push(out);
+  });
   var counts = {
     classes: Object.keys(pack.classes).length,
     subclasses: Object.values(pack.subclasses).reduce(function (t, o) {
@@ -4417,6 +4558,7 @@ function checkPack(raw) {
     spells: pack.spells.length,
     items: pack.items.length,
     abilities: pack.abilities.length,
+    monsters: (pack.monsters || []).length,
     "slot kinds": (pack.slotTypes || []).length
   };
   if (!Object.values(counts).some(Boolean)) errors.push("Nothing usable was found in this file.");
@@ -4538,9 +4680,9 @@ var INSTALLED_PACKS = [];
 // Installed packs are merged in at the bottom of this script, once every list they add to exists.
 
 // The Enable / Disable Content button at the top of the page, and the list it opens.
-function ContentSwitch(_ref17) {
-  var colors = _ref17.colors,
-    fontDisplay = _ref17.fontDisplay;
+function ContentSwitch(_ref21) {
+  var colors = _ref21.colors,
+    fontDisplay = _ref21.fontDisplay;
   var _useState = useState(false),
     _useState2 = _slicedToArray(_useState, 2),
     open = _useState2[0],
@@ -4696,10 +4838,10 @@ function ContentSwitch(_ref17) {
     }
   }, "Click anywhere else to close. Changes take effect when it closes. Add content on the Content Packs tab.")));
 }
-function ContentPacksTab(_ref18) {
-  var colors = _ref18.colors,
-    fontDisplay = _ref18.fontDisplay,
-    sheetActions = _ref18.sheetActions;
+function ContentPacksTab(_ref22) {
+  var colors = _ref22.colors,
+    fontDisplay = _ref22.fontDisplay,
+    sheetActions = _ref22.sheetActions;
   var inputRef = useRef(null);
   var _useState5 = useState("Homebrew"),
     _useState6 = _slicedToArray(_useState5, 2),
@@ -4834,14 +4976,14 @@ function ContentPacksTab(_ref18) {
     reloadHere();
   };
   var countText = function countText(c) {
-    return Object.entries(c).filter(function (_ref19) {
-      var _ref20 = _slicedToArray(_ref19, 2),
-        n = _ref20[1];
+    return Object.entries(c).filter(function (_ref23) {
+      var _ref24 = _slicedToArray(_ref23, 2),
+        n = _ref24[1];
       return n;
-    }).map(function (_ref21) {
-      var _ref22 = _slicedToArray(_ref21, 2),
-        k = _ref22[0],
-        n = _ref22[1];
+    }).map(function (_ref25) {
+      var _ref26 = _slicedToArray(_ref25, 2),
+        k = _ref26[0],
+        n = _ref26[1];
       return "".concat(n, " ").concat(k);
     }).join(", ") || "nothing";
   };
@@ -5864,22 +6006,22 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) {
   });
   return out;
 }
-function GearSection(_ref23) {
-  var inventory = _ref23.inventory,
-    armor = _ref23.armor,
-    setArmor = _ref23.setArmor,
-    shield = _ref23.shield,
-    setShield = _ref23.setShield,
-    weapons = _ref23.weapons,
-    setWeapons = _ref23.setWeapons,
-    ac = _ref23.ac,
-    colors = _ref23.colors,
-    fontDisplay = _ref23.fontDisplay,
-    masteries = _ref23.masteries,
-    setMasteries = _ref23.setMasteries,
-    masteryCount = _ref23.masteryCount,
-    custom = _ref23.custom,
-    glow = _ref23.glow;
+function GearSection(_ref27) {
+  var inventory = _ref27.inventory,
+    armor = _ref27.armor,
+    setArmor = _ref27.setArmor,
+    shield = _ref27.shield,
+    setShield = _ref27.setShield,
+    weapons = _ref27.weapons,
+    setWeapons = _ref27.setWeapons,
+    ac = _ref27.ac,
+    colors = _ref27.colors,
+    fontDisplay = _ref27.fontDisplay,
+    masteries = _ref27.masteries,
+    setMasteries = _ref27.setMasteries,
+    masteryCount = _ref27.masteryCount,
+    custom = _ref27.custom,
+    glow = _ref27.glow;
   var sel = _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
     width: 260
   });
@@ -6528,10 +6670,10 @@ function CharacterSheet() {
       var pk = featPicks[sl.id] || {};
       add(sl.id, sl.label, sl.fixed != null ? sl.fixed : pk.name, pk.choices, sl.cats, false);
     });
-    Object.entries(asiChoices).forEach(function (_ref24) {
-      var _ref25 = _slicedToArray(_ref24, 2),
-        lvl = _ref25[0],
-        c = _ref25[1];
+    Object.entries(asiChoices).forEach(function (_ref28) {
+      var _ref29 = _slicedToArray(_ref28, 2),
+        lvl = _ref29[0],
+        c = _ref29[1];
       if (parseInt(lvl) > level || !c || c.type !== "feat" || !availableAsiLevels.includes(parseInt(lvl))) return;
       add("asi" + lvl, "Level ".concat(lvl), c.name, c.choices, ["General", "Origin"].concat(parseInt(lvl) >= 19 ? ["Epic Boon"] : []), false);
     });
@@ -6770,10 +6912,10 @@ function CharacterSheet() {
     // Class + subclass features
     entries.push.apply(entries, _toConsumableArray(getFeaturesUpToLevel(className, subclassName, level)));
     // Ability Score Improvements
-    Object.entries(asiChoices).forEach(function (_ref26) {
-      var _ref27 = _slicedToArray(_ref26, 2),
-        lvl = _ref27[0],
-        choice = _ref27[1];
+    Object.entries(asiChoices).forEach(function (_ref30) {
+      var _ref31 = _slicedToArray(_ref30, 2),
+        lvl = _ref31[0],
+        choice = _ref31[1];
       if (parseInt(lvl) > level || !choice) return;
       if (choice.type === "asi" && choice.abilities && choice.abilities.filter(Boolean).length) {
         entries.push({
@@ -6904,10 +7046,10 @@ function CharacterSheet() {
       if (e.sp && e.problem) out.push("Spell ".concat(e.sp.n, ": ").concat(e.problem));
     });
     if (maxHp + hpDelta > possibleMaxHp) out.push("Hit Points: ".concat(maxHp + hpDelta, ", above the highest possible ").concat(possibleMaxHp));
-    [["ac", "Armor Class"], ["initiative", "Initiative"], ["speed", "Speed"]].forEach(function (_ref28) {
-      var _ref29 = _slicedToArray(_ref28, 2),
-        k = _ref29[0],
-        l = _ref29[1];
+    [["ac", "Armor Class"], ["initiative", "Initiative"], ["speed", "Speed"]].forEach(function (_ref32) {
+      var _ref33 = _slicedToArray(_ref32, 2),
+        k = _ref33[0],
+        l = _ref33[1];
       if (statAdj[k]) out.push("".concat(l, ": additional modifier ").concat(fmt(statAdj[k])));
     });
     masteries.slice(derived.masteryCount).forEach(function (n) {
@@ -7432,10 +7574,10 @@ function CharacterSheet() {
       setTempHp(0);
       setHitDiceUsed(0);
     }
-    Object.entries(pools).forEach(function (_ref30) {
-      var _ref31 = _slicedToArray(_ref30, 2),
-        name = _ref31[0],
-        q = _ref31[1];
+    Object.entries(pools).forEach(function (_ref34) {
+      var _ref35 = _slicedToArray(_ref34, 2),
+        name = _ref35[0],
+        q = _ref35[1];
       if (_long || q.recharge === "short") summary.push("".concat(name, ": back to ").concat(q.max));else if (q.shortRegain) summary.push("".concat(name, ": ").concat(q.shortRegain, " use back"));
     });
     var all = [].concat(_toConsumableArray(sheetActions), _toConsumableArray(spellActions));
@@ -8236,10 +8378,10 @@ function CharacterSheet() {
     return startRest("long");
   }, true]].filter(function (x) {
     return x[2];
-  }).map(function (_ref32) {
-    var _ref33 = _slicedToArray(_ref32, 2),
-      label = _ref33[0],
-      fn = _ref33[1];
+  }).map(function (_ref36) {
+    var _ref37 = _slicedToArray(_ref36, 2),
+      label = _ref37[0],
+      fn = _ref37[1];
     return /*#__PURE__*/React.createElement("button", {
       key: label,
       onClick: fn,
@@ -8302,11 +8444,11 @@ function CharacterSheet() {
     return openPlayerCode(codeInput);
   }, !codeInput], ["New Player Code", function () {
     return openPlayerCode(makeCode());
-  }, false]].map(function (_ref34) {
-    var _ref35 = _slicedToArray(_ref34, 3),
-      label = _ref35[0],
-      fn = _ref35[1],
-      off = _ref35[2];
+  }, false]].map(function (_ref38) {
+    var _ref39 = _slicedToArray(_ref38, 3),
+      label = _ref39[0],
+      fn = _ref39[1],
+      off = _ref39[2];
     return /*#__PURE__*/React.createElement("button", {
       key: label,
       onClick: fn,
@@ -8340,10 +8482,10 @@ function CharacterSheet() {
       background: colors.ink,
       borderBottom: "1px solid ".concat(colors.brass, "55")
     }
-  }, [["AC", armorClass], ["Initiative", fmt(initiative)], ["Speed", "".concat(speed, " ft")], ["HP", effectiveMaxHp], ["Prof Bonus", fmt(profBonus)], ["Passive Perception", passivePerception]].map(function (_ref36) {
-    var _ref37 = _slicedToArray(_ref36, 2),
-      label = _ref37[0],
-      val = _ref37[1];
+  }, [["AC", armorClass], ["Initiative", fmt(initiative)], ["Speed", "".concat(speed, " ft")], ["HP", effectiveMaxHp], ["Prof Bonus", fmt(profBonus)], ["Passive Perception", passivePerception]].map(function (_ref40) {
+    var _ref41 = _slicedToArray(_ref40, 2),
+      label = _ref41[0],
+      val = _ref41[1];
     return /*#__PURE__*/React.createElement("div", {
       key: label,
       style: {
@@ -8380,10 +8522,10 @@ function CharacterSheet() {
       borderBottom: "2px solid ".concat(colors.brass),
       overflowX: "auto"
     }
-  }, [["identity", "Identity"], ["abilities", "Abilities"], ["skills", "Skills & Saves"], ["combat", "Combat"], ["features", "Features"], ["spells", "Spellcasting"], ["inventory", "Inventory"], ["journal", "Journal"], ["packs", "Content Packs"]].map(function (_ref38) {
-    var _ref39 = _slicedToArray(_ref38, 2),
-      key = _ref39[0],
-      label = _ref39[1];
+  }, [["identity", "Identity"], ["abilities", "Abilities"], ["skills", "Skills & Saves"], ["combat", "Combat"], ["features", "Features"], ["spells", "Spellcasting"], ["inventory", "Inventory"], ["journal", "Journal"], ["packs", "Content Packs"]].map(function (_ref42) {
+    var _ref43 = _slicedToArray(_ref42, 2),
+      key = _ref43[0],
+      label = _ref43[1];
     return /*#__PURE__*/React.createElement("button", {
       key: key,
       className: "tab-btn",
@@ -8883,11 +9025,11 @@ function CharacterSheet() {
 
 /* ============ TAB COMPONENTS ============ */
 
-function Section(_ref40) {
-  var title = _ref40.title,
-    colors = _ref40.colors,
-    fontDisplay = _ref40.fontDisplay,
-    children = _ref40.children;
+function Section(_ref44) {
+  var title = _ref44.title,
+    colors = _ref44.colors,
+    fontDisplay = _ref44.fontDisplay,
+    children = _ref44.children;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 24
@@ -8906,12 +9048,12 @@ function Section(_ref40) {
   }, title), children);
 }
 var FOLDED = {};
-function FoldSection(_ref41) {
-  var id = _ref41.id,
-    title = _ref41.title,
-    colors = _ref41.colors,
-    fontDisplay = _ref41.fontDisplay,
-    children = _ref41.children;
+function FoldSection(_ref45) {
+  var id = _ref45.id,
+    title = _ref45.title,
+    colors = _ref45.colors,
+    fontDisplay = _ref45.fontDisplay,
+    children = _ref45.children;
   var _React$useState = React.useState(!!FOLDED[id]),
     _React$useState2 = _slicedToArray(_React$useState, 2),
     shut = _React$useState2[0],
@@ -8952,38 +9094,38 @@ function fieldStyle(colors) {
   };
 }
 var XP_LEVELS = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000]; // Experience Points needed for each level
-function IdentityTab(_ref42) {
-  var gold = _ref42.gold,
-    setGold = _ref42.setGold,
-    xp = _ref42.xp,
-    setXp = _ref42.setXp,
-    className = _ref42.className,
-    setClassName = _ref42.setClassName,
-    subclassName = _ref42.subclassName,
-    setSubclassName = _ref42.setSubclassName,
-    level = _ref42.level,
-    setLevel = _ref42.setLevel,
-    species = _ref42.species,
-    setSpecies = _ref42.setSpecies,
-    background = _ref42.background,
-    setBackground = _ref42.setBackground,
-    alignment = _ref42.alignment,
-    setAlignment = _ref42.setAlignment,
-    cls = _ref42.cls,
-    colors = _ref42.colors,
-    fontDisplay = _ref42.fontDisplay,
-    bgBonusMode = _ref42.bgBonusMode,
-    setBgBonusMode = _ref42.setBgBonusMode,
-    bgBonusChoices = _ref42.bgBonusChoices,
-    setBgBonusChoices = _ref42.setBgBonusChoices,
-    pinnedItems = _ref42.pinnedItems,
-    setPinnedItems = _ref42.setPinnedItems,
-    inv = _ref42.inv,
-    bgEff = _ref42.bgEff,
-    originCustom = _ref42.originCustom,
-    setOriginCustom = _ref42.setOriginCustom,
-    lineage = _ref42.lineage,
-    setLineage = _ref42.setLineage;
+function IdentityTab(_ref46) {
+  var gold = _ref46.gold,
+    setGold = _ref46.setGold,
+    xp = _ref46.xp,
+    setXp = _ref46.setXp,
+    className = _ref46.className,
+    setClassName = _ref46.setClassName,
+    subclassName = _ref46.subclassName,
+    setSubclassName = _ref46.setSubclassName,
+    level = _ref46.level,
+    setLevel = _ref46.setLevel,
+    species = _ref46.species,
+    setSpecies = _ref46.setSpecies,
+    background = _ref46.background,
+    setBackground = _ref46.setBackground,
+    alignment = _ref46.alignment,
+    setAlignment = _ref46.setAlignment,
+    cls = _ref46.cls,
+    colors = _ref46.colors,
+    fontDisplay = _ref46.fontDisplay,
+    bgBonusMode = _ref46.bgBonusMode,
+    setBgBonusMode = _ref46.setBgBonusMode,
+    bgBonusChoices = _ref46.bgBonusChoices,
+    setBgBonusChoices = _ref46.setBgBonusChoices,
+    pinnedItems = _ref46.pinnedItems,
+    setPinnedItems = _ref46.setPinnedItems,
+    inv = _ref46.inv,
+    bgEff = _ref46.bgEff,
+    originCustom = _ref46.originCustom,
+    setOriginCustom = _ref46.setOriginCustom,
+    lineage = _ref46.lineage,
+    setLineage = _ref46.setLineage;
   var bg = bgEff;
   var _useState125 = useState(false),
     _useState126 = _slicedToArray(_useState125, 2),
@@ -9441,12 +9583,12 @@ function IdentityTab(_ref42) {
     }
   }, /*#__PURE__*/React.createElement("strong", null, "Origin Feat:"), " ", bg.feat, /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("strong", null, "Skill Proficiencies:"), " ", bg.skills.join(", "), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("strong", null, "Tool Proficiency:"), " ", bg.tool))));
 }
-function PinnedItemRow(_ref43) {
-  var item = _ref43.item,
-    isMagic = _ref43.isMagic,
-    dotColor = _ref43.dotColor,
-    onRemove = _ref43.onRemove,
-    colors = _ref43.colors;
+function PinnedItemRow(_ref47) {
+  var item = _ref47.item,
+    isMagic = _ref47.isMagic,
+    dotColor = _ref47.dotColor,
+    onRemove = _ref47.onRemove,
+    colors = _ref47.colors;
   var _React$useState3 = React.useState(false),
     _React$useState4 = _slicedToArray(_React$useState3, 2),
     hovered = _React$useState4[0],
@@ -9526,10 +9668,10 @@ function PinnedItemRow(_ref43) {
 var REST_PURPLE = "#B388FF"; // something a rest lets you change, until you change it
 var CUSTOM_RED = "#E5484D"; // anything changed beyond the rules: red outline when added, red letters when removed
 
-function SourceTag(_ref44) {
-  var text = _ref44.text,
-    custom = _ref44.custom,
-    colors = _ref44.colors;
+function SourceTag(_ref48) {
+  var text = _ref48.text,
+    custom = _ref48.custom,
+    colors = _ref48.colors;
   return /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
@@ -9543,24 +9685,24 @@ function SourceTag(_ref44) {
     }
   }, text);
 }
-function AbilitiesTab(_ref45) {
-  var featBonuses = _ref45.featBonuses,
-    pointBuy = _ref45.pointBuy,
-    updatePointBuy = _ref45.updatePointBuy,
-    pointBuyRemaining = _ref45.pointBuyRemaining,
-    finalScores = _ref45.finalScores,
-    finalMods = _ref45.finalMods,
-    bgBonuses = _ref45.bgBonuses,
-    asiBonuses = _ref45.asiBonuses,
-    colors = _ref45.colors,
-    fontDisplay = _ref45.fontDisplay,
-    custom = _ref45.custom,
-    abilityMode = _ref45.abilityMode,
-    setAbilityMode = _ref45.setAbilityMode,
-    customScores = _ref45.customScores,
-    setCustomScores = _ref45.setCustomScores,
-    abilityAdj = _ref45.abilityAdj,
-    setAbilityAdj = _ref45.setAbilityAdj;
+function AbilitiesTab(_ref49) {
+  var featBonuses = _ref49.featBonuses,
+    pointBuy = _ref49.pointBuy,
+    updatePointBuy = _ref49.updatePointBuy,
+    pointBuyRemaining = _ref49.pointBuyRemaining,
+    finalScores = _ref49.finalScores,
+    finalMods = _ref49.finalMods,
+    bgBonuses = _ref49.bgBonuses,
+    asiBonuses = _ref49.asiBonuses,
+    colors = _ref49.colors,
+    fontDisplay = _ref49.fontDisplay,
+    custom = _ref49.custom,
+    abilityMode = _ref49.abilityMode,
+    setAbilityMode = _ref49.setAbilityMode,
+    customScores = _ref49.customScores,
+    setCustomScores = _ref49.setCustomScores,
+    abilityAdj = _ref49.abilityAdj,
+    setAbilityAdj = _ref49.setAbilityAdj;
   var _useState127 = useState(false),
     _useState128 = _slicedToArray(_useState127, 2),
     editing = _useState128[0],
@@ -9839,24 +9981,24 @@ function AbilitiesTab(_ref45) {
     }
   }, isCustom ? "Custom scores have no point limit: set each score from 1 to 30, then press Accept. Background increases, Ability Score Improvements and additional modifiers are added on top." : "Standard point buy: scores range 8 to 15 before bonuses. Cost: 9=1pt, 10=2, 11=3, 12=4, 13=5, 14=7, 15=9. Background increases and Ability Score Improvements are added automatically above.", !custom && " Turn on Further Customization to set scores freely or add modifiers.")));
 }
-function SkillsTab(_ref46) {
-  var expertiseMax = _ref46.expertiseMax,
-    expertiseList = _ref46.expertiseList,
-    expertiseCustom = _ref46.expertiseCustom,
-    cls = _ref46.cls,
-    skillInfo = _ref46.skillInfo,
-    toggleSkill = _ref46.toggleSkill,
-    addSkill = _ref46.addSkill,
-    removeSkill = _ref46.removeSkill,
-    skillExpertise = _ref46.skillExpertise,
-    toggleExpertise = _ref46.toggleExpertise,
-    skillMods = _ref46.skillMods,
-    savingThrows = _ref46.savingThrows,
-    saveInfo = _ref46.saveInfo,
-    toggleSave = _ref46.toggleSave,
-    custom = _ref46.custom,
-    colors = _ref46.colors,
-    fontDisplay = _ref46.fontDisplay;
+function SkillsTab(_ref50) {
+  var expertiseMax = _ref50.expertiseMax,
+    expertiseList = _ref50.expertiseList,
+    expertiseCustom = _ref50.expertiseCustom,
+    cls = _ref50.cls,
+    skillInfo = _ref50.skillInfo,
+    toggleSkill = _ref50.toggleSkill,
+    addSkill = _ref50.addSkill,
+    removeSkill = _ref50.removeSkill,
+    skillExpertise = _ref50.skillExpertise,
+    toggleExpertise = _ref50.toggleExpertise,
+    skillMods = _ref50.skillMods,
+    savingThrows = _ref50.savingThrows,
+    saveInfo = _ref50.saveInfo,
+    toggleSave = _ref50.toggleSave,
+    custom = _ref50.custom,
+    colors = _ref50.colors,
+    fontDisplay = _ref50.fontDisplay;
   var pick = _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
     width: "auto",
     cursor: "pointer"
@@ -9937,10 +10079,10 @@ function SkillsTab(_ref46) {
       lineHeight: 1.6
     },
     "data-testid": "skill-choices"
-  }, Object.entries(skillInfo.grantedBy).map(function (_ref47) {
-    var _ref48 = _slicedToArray(_ref47, 2),
-      src = _ref48[0],
-      list = _ref48[1];
+  }, Object.entries(skillInfo.grantedBy).map(function (_ref51) {
+    var _ref52 = _slicedToArray(_ref51, 2),
+      src = _ref52[0],
+      list = _ref52[1];
     return /*#__PURE__*/React.createElement("div", {
       key: src
     }, /*#__PURE__*/React.createElement("strong", null, src), " grants ", list.join(" and "), ".");
@@ -10058,42 +10200,42 @@ function SkillsTab(_ref46) {
     }, fmt(skillMods[skill])));
   }))));
 }
-function CombatTab(_ref49) {
-  var possibleMaxHp = _ref49.possibleMaxHp,
-    averageHp = _ref49.averageHp,
-    setHpTotal = _ref49.setHpTotal,
-    statAdj = _ref49.statAdj,
-    setStatAdj = _ref49.setStatAdj,
-    inventory = _ref49.inventory,
-    masteries = _ref49.masteries,
-    setMasteries = _ref49.setMasteries,
-    custom = _ref49.custom,
-    masteryGlow = _ref49.masteryGlow,
-    armor = _ref49.armor,
-    setArmor = _ref49.setArmor,
-    shield = _ref49.shield,
-    setShield = _ref49.setShield,
-    weapons = _ref49.weapons,
-    setWeapons = _ref49.setWeapons,
-    ac = _ref49.ac,
-    sheetActions = _ref49.sheetActions,
-    pools = _ref49.pools,
-    derived = _ref49.derived,
-    cls = _ref49.cls,
-    level = _ref49.level,
-    effectiveMaxHp = _ref49.effectiveMaxHp,
-    currentHp = _ref49.currentHp,
-    setCurrentHp = _ref49.setCurrentHp,
-    tempHp = _ref49.tempHp,
-    setTempHp = _ref49.setTempHp,
-    hitDiceUsed = _ref49.hitDiceUsed,
-    setHitDiceUsed = _ref49.setHitDiceUsed,
-    finalMods = _ref49.finalMods,
-    armorClass = _ref49.armorClass,
-    initiative = _ref49.initiative,
-    speed = _ref49.speed,
-    colors = _ref49.colors,
-    fontDisplay = _ref49.fontDisplay;
+function CombatTab(_ref53) {
+  var possibleMaxHp = _ref53.possibleMaxHp,
+    averageHp = _ref53.averageHp,
+    setHpTotal = _ref53.setHpTotal,
+    statAdj = _ref53.statAdj,
+    setStatAdj = _ref53.setStatAdj,
+    inventory = _ref53.inventory,
+    masteries = _ref53.masteries,
+    setMasteries = _ref53.setMasteries,
+    custom = _ref53.custom,
+    masteryGlow = _ref53.masteryGlow,
+    armor = _ref53.armor,
+    setArmor = _ref53.setArmor,
+    shield = _ref53.shield,
+    setShield = _ref53.setShield,
+    weapons = _ref53.weapons,
+    setWeapons = _ref53.setWeapons,
+    ac = _ref53.ac,
+    sheetActions = _ref53.sheetActions,
+    pools = _ref53.pools,
+    derived = _ref53.derived,
+    cls = _ref53.cls,
+    level = _ref53.level,
+    effectiveMaxHp = _ref53.effectiveMaxHp,
+    currentHp = _ref53.currentHp,
+    setCurrentHp = _ref53.setCurrentHp,
+    tempHp = _ref53.tempHp,
+    setTempHp = _ref53.setTempHp,
+    hitDiceUsed = _ref53.hitDiceUsed,
+    setHitDiceUsed = _ref53.setHitDiceUsed,
+    finalMods = _ref53.finalMods,
+    armorClass = _ref53.armorClass,
+    initiative = _ref53.initiative,
+    speed = _ref53.speed,
+    colors = _ref53.colors,
+    fontDisplay = _ref53.fontDisplay;
   var displayHp = currentHp === null ? effectiveMaxHp : currentHp;
   // Further Customization: an additional modifier on a stat, shown in red
   var adjust = function adjust(k, step) {
@@ -10279,13 +10421,13 @@ function CombatTab(_ref49) {
       gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
       gap: 12
     }
-  }, [["Armor Class", armorClass, ac.how, "ac", 1], ["Initiative", fmt(initiative), "", "initiative", 1], ["Speed", "".concat(speed, " ft"), "", "speed", 5]].map(function (_ref50) {
-    var _ref51 = _slicedToArray(_ref50, 5),
-      label = _ref51[0],
-      val = _ref51[1],
-      note = _ref51[2],
-      k = _ref51[3],
-      step = _ref51[4];
+  }, [["Armor Class", armorClass, ac.how, "ac", 1], ["Initiative", fmt(initiative), "", "initiative", 1], ["Speed", "".concat(speed, " ft"), "", "speed", 5]].map(function (_ref54) {
+    var _ref55 = _slicedToArray(_ref54, 5),
+      label = _ref55[0],
+      val = _ref55[1],
+      note = _ref55[2],
+      k = _ref55[3],
+      step = _ref55[4];
     return /*#__PURE__*/React.createElement("div", {
       key: label,
       style: {
@@ -10357,10 +10499,10 @@ function CombatTab(_ref49) {
       marginBottom: 10
     },
     "data-testid": "pools"
-  }, /*#__PURE__*/React.createElement("strong", null, "Resources:"), " ", Object.entries(pools).map(function (_ref52) {
-    var _ref53 = _slicedToArray(_ref52, 2),
-      n = _ref53[0],
-      p = _ref53[1];
+  }, /*#__PURE__*/React.createElement("strong", null, "Resources:"), " ", Object.entries(pools).map(function (_ref56) {
+    var _ref57 = _slicedToArray(_ref56, 2),
+      n = _ref57[0],
+      p = _ref57[1];
     return "".concat(n, " ").concat(p.max, " (").concat(p.recharge === "short" ? "Short Rest" : p.shortRegain ? "Long Rest, 1 back on a Short Rest" : "Long Rest", ")");
   }).join(" · ")), sheetActions.map(function (a, i) {
     return /*#__PURE__*/React.createElement("div", {
@@ -10606,10 +10748,10 @@ var EXPERTISE_SLOTS = {
 };
 function expertiseSlots(className, level) {
   var n = 0;
-  Object.entries(EXPERTISE_SLOTS[className] || {}).forEach(function (_ref54) {
-    var _ref55 = _slicedToArray(_ref54, 2),
-      l = _ref55[0],
-      total = _ref55[1];
+  Object.entries(EXPERTISE_SLOTS[className] || {}).forEach(function (_ref58) {
+    var _ref59 = _slicedToArray(_ref58, 2),
+      l = _ref59[0],
+      total = _ref59[1];
     if (level >= +l) n = Math.max(n, total);
   });
   return n;
@@ -10660,11 +10802,11 @@ function featProblem(name, cats, ch) {
 }
 
 // The choices a feat asks for, shown right where the feat is picked.
-function FeatChoices(_ref56) {
-  var name = _ref56.name,
-    choices = _ref56.choices,
-    onChange = _ref56.onChange,
-    colors = _ref56.colors;
+function FeatChoices(_ref60) {
+  var name = _ref60.name,
+    choices = _ref60.choices,
+    onChange = _ref60.onChange,
+    colors = _ref60.colors;
   var def = featDef(name);
   if (!def) return null;
   var g = def.grants || {};
@@ -10816,11 +10958,11 @@ function FeatChoices(_ref56) {
       gap: 8,
       flexWrap: "wrap"
     }
-  }, [["cantrip1", "Cantrip...", 0], ["cantrip2", "Cantrip...", 0], ["spell", "Level 1 spell...", 1]].map(function (_ref57) {
-    var _ref58 = _slicedToArray(_ref57, 3),
-      k = _ref58[0],
-      ph = _ref58[1],
-      lvl = _ref58[2];
+  }, [["cantrip1", "Cantrip...", 0], ["cantrip2", "Cantrip...", 0], ["spell", "Level 1 spell...", 1]].map(function (_ref61) {
+    var _ref62 = _slicedToArray(_ref61, 3),
+      k = _ref62[0],
+      ph = _ref62[1],
+      lvl = _ref62[2];
     var list = c.list || featPreset(name);
     var other = k === "cantrip1" ? c.cantrip2 : k === "cantrip2" ? c.cantrip1 : "";
     return /*#__PURE__*/React.createElement("select", {
@@ -10898,15 +11040,16 @@ function FeatChoices(_ref56) {
 }
 
 // A dropdown of feats. allowed: names the rules allow in this slot. With Further Customization on, the rest are listed too.
-function FeatPicker(_ref59) {
-  var value = _ref59.value,
-    onPick = _ref59.onPick,
-    cats = _ref59.cats,
-    taken = _ref59.taken,
-    custom = _ref59.custom,
-    colors = _ref59.colors,
-    label = _ref59.label,
-    hide = _ref59.hide;
+function FeatPicker(_ref63) {
+  var value = _ref63.value,
+    onPick = _ref63.onPick,
+    cats = _ref63.cats,
+    taken = _ref63.taken,
+    custom = _ref63.custom,
+    colors = _ref63.colors,
+    label = _ref63.label,
+    hide = _ref63.hide,
+    className = _ref63.className;
   // hide: categories the rules allow here but that are only listed with Further Customization on
   var names = Object.keys(FEATS).filter(function (n) {
     return n !== "Ability Score Improvement";
@@ -10917,8 +11060,14 @@ function FeatPicker(_ref59) {
   var show = cats.filter(function (c) {
     return custom || !(hide || []).includes(c);
   });
+  var forClass = function forClass(n) {
+    var k = (FEATS[n].needs || {}).className;
+    return !k || !className || [].concat(k).some(function (c) {
+      return sameName(c, className);
+    });
+  }; // Blessed Warrior: Paladins only
   var legal = names.filter(function (n) {
-    return (FEATS[n].category === "Any" || show.includes(FEATS[n].category) || n === value) && free(n);
+    return (FEATS[n].category === "Any" || show.includes(FEATS[n].category) || n === value) && free(n) && (forClass(n) || n === value);
   });
   var others = custom ? names.filter(function (n) {
     return !legal.includes(n);
@@ -10959,31 +11108,31 @@ function FeatPicker(_ref59) {
     }, n, " (", FEATS[n].category, ")");
   })));
 }
-function FeaturesTab(_ref60) {
-  var masteries = _ref60.masteries,
-    setMasteries = _ref60.setMasteries,
-    masteryCount = _ref60.masteryCount,
-    className = _ref60.className,
-    glowOf = _ref60.glowOf,
-    optionSlots = _ref60.optionSlots,
-    featureChoices = _ref60.featureChoices,
-    setFeatureChoices = _ref60.setFeatureChoices,
-    featureLedger = _ref60.featureLedger,
-    reachedAsiLevels = _ref60.reachedAsiLevels,
-    asiChoices = _ref60.asiChoices,
-    setAsiAbilities = _ref60.setAsiAbilities,
-    setAsiType = _ref60.setAsiType,
-    setFeatName = _ref60.setFeatName,
-    setAsiFeatChoices = _ref60.setAsiFeatChoices,
-    colors = _ref60.colors,
-    fontDisplay = _ref60.fontDisplay,
-    slots = _ref60.slots,
-    featPicks = _ref60.featPicks,
-    setFeatPick = _ref60.setFeatPick,
-    extraFeats = _ref60.extraFeats,
-    setExtraFeats = _ref60.setExtraFeats,
-    takenFeats = _ref60.takenFeats,
-    custom = _ref60.custom;
+function FeaturesTab(_ref64) {
+  var masteries = _ref64.masteries,
+    setMasteries = _ref64.setMasteries,
+    masteryCount = _ref64.masteryCount,
+    className = _ref64.className,
+    glowOf = _ref64.glowOf,
+    optionSlots = _ref64.optionSlots,
+    featureChoices = _ref64.featureChoices,
+    setFeatureChoices = _ref64.setFeatureChoices,
+    featureLedger = _ref64.featureLedger,
+    reachedAsiLevels = _ref64.reachedAsiLevels,
+    asiChoices = _ref64.asiChoices,
+    setAsiAbilities = _ref64.setAsiAbilities,
+    setAsiType = _ref64.setAsiType,
+    setFeatName = _ref64.setFeatName,
+    setAsiFeatChoices = _ref64.setAsiFeatChoices,
+    colors = _ref64.colors,
+    fontDisplay = _ref64.fontDisplay,
+    slots = _ref64.slots,
+    featPicks = _ref64.featPicks,
+    setFeatPick = _ref64.setFeatPick,
+    extraFeats = _ref64.extraFeats,
+    setExtraFeats = _ref64.setExtraFeats,
+    takenFeats = _ref64.takenFeats,
+    custom = _ref64.custom;
   var taken = takenFeats.map(function (f) {
     return f.base;
   });
@@ -11065,10 +11214,10 @@ function FeaturesTab(_ref60) {
         })
       }, /*#__PURE__*/React.createElement("option", {
         value: ""
-      }, "Choose a weapon..."), WEAPON_GROUPS.map(function (_ref61) {
-        var _ref62 = _slicedToArray(_ref61, 2),
-          cat = _ref62[0],
-          fits = _ref62[1];
+      }, "Choose a weapon..."), WEAPON_GROUPS.map(function (_ref65) {
+        var _ref66 = _slicedToArray(_ref65, 2),
+          cat = _ref66[0],
+          fits = _ref66[1];
         var list = WEAPONS.filter(function (w) {
           return fits(w) && (custom || masteryEligible(className, w) || w.name === masteries[i]) && (!masteries.includes(w.name) || masteries[i] === w.name);
         });
@@ -11161,6 +11310,7 @@ function FeaturesTab(_ref60) {
         opacity: 0.7
       }
     }, "(change it with Customize Origin on the Identity tab)")) : /*#__PURE__*/React.createElement(FeatPicker, {
+      className: typeof className === "undefined" ? "" : className,
       label: "Feat for ".concat(slot.label),
       value: name,
       cats: slot.cats,
@@ -11213,6 +11363,7 @@ function FeaturesTab(_ref60) {
         cursor: "pointer"
       }
     }, "Remove")), /*#__PURE__*/React.createElement(FeatPicker, {
+      className: typeof className === "undefined" ? "" : className,
       label: "Extra feat ".concat(i + 1),
       value: f.name,
       cats: FEAT_CATEGORIES,
@@ -11328,6 +11479,7 @@ function FeaturesTab(_ref60) {
         }, a);
       }));
     })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(FeatPicker, {
+      className: typeof className === "undefined" ? "" : className,
       label: "Feat for level ".concat(lvl),
       value: choice.name || "",
       cats: ["General", "Origin"].concat(lvl >= 19 ? ["Epic Boon"] : []),
@@ -12191,23 +12343,23 @@ function fullSpellAction(sp, ctx, opts) {
         cost: x.cost
       }
     }), ctx, opts);
-    return a ? function (_ref63) {
-      var name = _ref63.name,
-        spell = _ref63.spell,
-        slot = _ref63.slot,
-        desc = _ref63.desc,
-        comp = _ref63.comp,
-        mat = _ref63.mat,
-        matCost = _ref63.matCost,
-        matConsumed = _ref63.matConsumed,
-        conc = _ref63.conc,
-        concSecs = _ref63.concSecs,
-        range = _ref63.range,
-        hand = _ref63.hand,
-        ritual = _ref63.ritual,
-        gp = _ref63.gp,
-        gpConsumed = _ref63.gpConsumed,
-        keep = _objectWithoutProperties(_ref63, _excluded7);
+    return a ? function (_ref67) {
+      var name = _ref67.name,
+        spell = _ref67.spell,
+        slot = _ref67.slot,
+        desc = _ref67.desc,
+        comp = _ref67.comp,
+        mat = _ref67.mat,
+        matCost = _ref67.matCost,
+        matConsumed = _ref67.matConsumed,
+        conc = _ref67.conc,
+        concSecs = _ref67.concSecs,
+        range = _ref67.range,
+        hand = _ref67.hand,
+        ritual = _ref67.ritual,
+        gp = _ref67.gp,
+        gpConsumed = _ref67.gpConsumed,
+        keep = _objectWithoutProperties(_ref67, _excluded7);
       return keep;
     }(a) : null;
   };
@@ -12250,12 +12402,12 @@ function fullSpellAction(sp, ctx, opts) {
   } // a class that spends points, not slots
   return out;
 }
-function SpellRow(_ref64) {
-  var entry = _ref64.entry,
-    onRemove = _ref64.onRemove,
-    colors = _ref64.colors,
-    fontDisplay = _ref64.fontDisplay,
-    summary = _ref64.summary;
+function SpellRow(_ref68) {
+  var entry = _ref68.entry,
+    onRemove = _ref68.onRemove,
+    colors = _ref68.colors,
+    fontDisplay = _ref68.fontDisplay,
+    summary = _ref68.summary;
   var _useState131 = useState(false),
     _useState132 = _slicedToArray(_useState131, 2),
     open = _useState132[0],
@@ -12345,26 +12497,26 @@ function SpellRow(_ref64) {
     }
   }, /*#__PURE__*/React.createElement("strong", null, "Using a Higher-Level Spell Slot."), " ", sp.h) : null));
 }
-function SpellsTab(_ref65) {
-  var bookInfo = _ref65.bookInfo,
-    spellbook = _ref65.spellbook,
-    picks = _ref65.picks,
-    featureChoices = _ref65.featureChoices,
-    setFeatureChoices = _ref65.setFeatureChoices,
-    glow = _ref65.glow,
-    grantedSpells = _ref65.grantedSpells,
-    cls = _ref65.cls,
-    className = _ref65.className,
-    level = _ref65.level,
-    finalMods = _ref65.finalMods,
-    profBonus = _ref65.profBonus,
-    colors = _ref65.colors,
-    fontDisplay = _ref65.fontDisplay,
-    spells = _ref65.spells,
-    setSpells = _ref65.setSpells,
-    spellInfo = _ref65.spellInfo,
-    custom = _ref65.custom,
-    spellSummary = _ref65.spellSummary;
+function SpellsTab(_ref69) {
+  var bookInfo = _ref69.bookInfo,
+    spellbook = _ref69.spellbook,
+    picks = _ref69.picks,
+    featureChoices = _ref69.featureChoices,
+    setFeatureChoices = _ref69.setFeatureChoices,
+    glow = _ref69.glow,
+    grantedSpells = _ref69.grantedSpells,
+    cls = _ref69.cls,
+    className = _ref69.className,
+    level = _ref69.level,
+    finalMods = _ref69.finalMods,
+    profBonus = _ref69.profBonus,
+    colors = _ref69.colors,
+    fontDisplay = _ref69.fontDisplay,
+    spells = _ref69.spells,
+    setSpells = _ref69.setSpells,
+    spellInfo = _ref69.spellInfo,
+    custom = _ref69.custom,
+    spellSummary = _ref69.spellSummary;
   var _useState133 = useState([]),
     _useState134 = _slicedToArray(_useState133, 2),
     levelsOff = _useState134[0],
@@ -12875,12 +13027,12 @@ function SpellsTab(_ref65) {
     return [l, levelName(l), !levelsOff.includes(l), function () {
       return toggleLevel(l);
     }];
-  })).map(function (_ref66) {
-    var _ref67 = _slicedToArray(_ref66, 4),
-      k = _ref67[0],
-      text = _ref67[1],
-      on = _ref67[2],
-      click = _ref67[3];
+  })).map(function (_ref70) {
+    var _ref71 = _slicedToArray(_ref70, 4),
+      k = _ref71[0],
+      text = _ref71[1],
+      on = _ref71[2],
+      click = _ref71[3];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       "data-testid": "level-chip-".concat(k),
@@ -13164,14 +13316,14 @@ function cleanJournal(raw, oldNotes, oldEquipment) {
   }
   return j;
 }
-function JournalTab(_ref68) {
-  var journal = _ref68.journal,
-    setJournal = _ref68.setJournal,
-    alignment = _ref68.alignment,
-    setAlignment = _ref68.setAlignment,
-    knownTools = _ref68.knownTools,
-    colors = _ref68.colors,
-    fontDisplay = _ref68.fontDisplay;
+function JournalTab(_ref72) {
+  var journal = _ref72.journal,
+    setJournal = _ref72.setJournal,
+    alignment = _ref72.alignment,
+    setAlignment = _ref72.setAlignment,
+    knownTools = _ref72.knownTools,
+    colors = _ref72.colors,
+    fontDisplay = _ref72.fontDisplay;
   var _React$useState5 = React.useState(0),
     _React$useState6 = _slicedToArray(_React$useState5, 2),
     page = _React$useState6[0],
@@ -13230,9 +13382,9 @@ function JournalTab(_ref68) {
       i = o.indexOf(key),
       k = i + by;
     if (k < 0 || k >= o.length) return;
-    var _ref69 = [o[k], o[i]];
-    o[i] = _ref69[0];
-    o[k] = _ref69[1];
+    var _ref73 = [o[k], o[i]];
+    o[i] = _ref73[0];
+    o[k] = _ref73[1];
     set({
       order: o
     });
@@ -13385,10 +13537,10 @@ function JournalTab(_ref68) {
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 12
         }
-      }, [["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(function (_ref70) {
-        var _ref71 = _slicedToArray(_ref70, 2),
-          k = _ref71[0],
-          t = _ref71[1];
+      }, [["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(function (_ref74) {
+        var _ref75 = _slicedToArray(_ref74, 2),
+          k = _ref75[0],
+          t = _ref75[1];
         return /*#__PURE__*/React.createElement("div", {
           key: k
         }, /*#__PURE__*/React.createElement("div", {
@@ -13932,16 +14084,16 @@ function inventoryGroup(item) {
 }
 var inventoryFolded = false,
   inventoryOnlyProf = false; // stay as you left them while the page is open
-function InventoryTab(_ref72) {
-  var inv = _ref72.inv,
-    prof = _ref72.prof,
-    magic = _ref72.magic,
-    mundane = _ref72.mundane,
-    components = _ref72.components,
-    setComponents = _ref72.setComponents,
-    spellMats = _ref72.spellMats,
-    colors = _ref72.colors,
-    fontDisplay = _ref72.fontDisplay;
+function InventoryTab(_ref76) {
+  var inv = _ref76.inv,
+    prof = _ref76.prof,
+    magic = _ref76.magic,
+    mundane = _ref76.mundane,
+    components = _ref76.components,
+    setComponents = _ref76.setComponents,
+    spellMats = _ref76.spellMats,
+    colors = _ref76.colors,
+    fontDisplay = _ref76.fontDisplay;
   var isCaster = function isCaster(item) {
     return /component pouch|arcane focus|druidic focus|holy symbol/i.test(item.name);
   };
@@ -14091,10 +14243,10 @@ function InventoryTab(_ref72) {
     }));
   }), /*#__PURE__*/React.createElement("div", {
     "data-testid": "inventory-list"
-  }, groups.map(function (_ref73) {
-    var _ref74 = _slicedToArray(_ref73, 2),
-      g = _ref74[0],
-      items = _ref74[1];
+  }, groups.map(function (_ref77) {
+    var _ref78 = _slicedToArray(_ref77, 2),
+      g = _ref78[0],
+      items = _ref78[1];
     return /*#__PURE__*/React.createElement("div", {
       key: g,
       "data-testid": "inv-group-".concat(g),
@@ -14513,8 +14665,8 @@ var WEAPON_GROUPS = [["Simple Melee weapons", function (w) {
 }], ["Martial Ranged weapons", function (w) {
   return w.cat === "Martial" && w.ranged;
 }]];
-function KindOptions(_ref75) {
-  var item = _ref75.item;
+function KindOptions(_ref79) {
+  var item = _ref79.item;
   var kinds = magicGearKinds(item),
     info = magicGearInfo(item) || {};
   if (info.kind === "armor") return ["Light", "Medium", "Heavy"].map(function (cat) {
@@ -14531,10 +14683,10 @@ function KindOptions(_ref75) {
       }, a.name, " (AC ", a.base, a.dex ? a.max != null ? " + Dex, max ".concat(a.max) : " + Dex" : "", ")");
     })) : null;
   });
-  return WEAPON_GROUPS.map(function (_ref76) {
-    var _ref77 = _slicedToArray(_ref76, 2),
-      cat = _ref77[0],
-      fits = _ref77[1];
+  return WEAPON_GROUPS.map(function (_ref80) {
+    var _ref81 = _slicedToArray(_ref80, 2),
+      cat = _ref81[0],
+      fits = _ref81[1];
     var list = WEAPONS.filter(function (w) {
       return fits(w) && kinds.includes(w.name);
     });
@@ -14550,12 +14702,12 @@ function KindOptions(_ref75) {
   });
 }
 // The controls for one item: add it to the inventory, mark it important, or remove it.
-function ItemControls(_ref78) {
-  var item = _ref78.item,
-    inv = _ref78.inv,
-    colors = _ref78.colors,
-    small = _ref78.small,
-    onChoose = _ref78.onChoose;
+function ItemControls(_ref82) {
+  var item = _ref82.item,
+    inv = _ref82.inv,
+    colors = _ref82.colors,
+    small = _ref82.small,
+    onChoose = _ref82.onChoose;
   var b = function b(bg, fg) {
     return {
       minWidth: 22,
@@ -14605,10 +14757,10 @@ function ItemControls(_ref78) {
   }, "\xD7");
 }
 // A list of carried items with their controls (Notes tab and the side panels).
-function InventoryList(_ref79) {
-  var items = _ref79.items,
-    inv = _ref79.inv,
-    colors = _ref79.colors;
+function InventoryList(_ref83) {
+  var items = _ref83.items,
+    inv = _ref83.inv,
+    colors = _ref83.colors;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -14673,14 +14825,14 @@ function InventoryList(_ref79) {
     }));
   }));
 }
-function ItemRowHover(_ref80) {
-  var item = _ref80.item,
-    inv = _ref80.inv,
-    onSelect = _ref80.onSelect,
-    isSelected = _ref80.isSelected,
-    accentColor = _ref80.accentColor,
-    colors = _ref80.colors,
-    extraBadge = _ref80.extraBadge;
+function ItemRowHover(_ref84) {
+  var item = _ref84.item,
+    inv = _ref84.inv,
+    onSelect = _ref84.onSelect,
+    isSelected = _ref84.isSelected,
+    accentColor = _ref84.accentColor,
+    colors = _ref84.colors,
+    extraBadge = _ref84.extraBadge;
   var _React$useState25 = React.useState(false),
     _React$useState26 = _slicedToArray(_React$useState25, 2),
     hovered = _React$useState26[0],
@@ -14750,21 +14902,21 @@ function ItemRowHover(_ref80) {
     }
   }, "\u2713"));
 }
-function MagicItemsTab(_ref81) {
-  var itemSearch = _ref81.itemSearch,
-    setItemSearch = _ref81.setItemSearch,
-    itemRarityFilter = _ref81.itemRarityFilter,
-    setItemRarityFilter = _ref81.setItemRarityFilter,
-    itemTypeFilter = _ref81.itemTypeFilter,
-    setItemTypeFilter = _ref81.setItemTypeFilter,
-    itemAttunementFilter = _ref81.itemAttunementFilter,
-    setItemAttunementFilter = _ref81.setItemAttunementFilter,
-    selectedItem = _ref81.selectedItem,
-    setSelectedItem = _ref81.setSelectedItem,
-    inv = _ref81.inv,
-    keep = _ref81.keep,
-    colors = _ref81.colors,
-    fontDisplay = _ref81.fontDisplay;
+function MagicItemsTab(_ref85) {
+  var itemSearch = _ref85.itemSearch,
+    setItemSearch = _ref85.setItemSearch,
+    itemRarityFilter = _ref85.itemRarityFilter,
+    setItemRarityFilter = _ref85.setItemRarityFilter,
+    itemTypeFilter = _ref85.itemTypeFilter,
+    setItemTypeFilter = _ref85.setItemTypeFilter,
+    itemAttunementFilter = _ref85.itemAttunementFilter,
+    setItemAttunementFilter = _ref85.setItemAttunementFilter,
+    selectedItem = _ref85.selectedItem,
+    setSelectedItem = _ref85.setSelectedItem,
+    inv = _ref85.inv,
+    keep = _ref85.keep,
+    colors = _ref85.colors,
+    fontDisplay = _ref85.fontDisplay;
   var _React$useState27 = React.useState(false),
     _React$useState28 = _slicedToArray(_React$useState27, 2),
     expanded = _React$useState28[0],
@@ -14876,12 +15028,12 @@ function MagicItemsTab(_ref81) {
         return x !== r;
       }) : [].concat(_toConsumableArray(raritiesOff), [r]));
     }, RARITY_COLORS[r]];
-  })).map(function (_ref82) {
-    var _ref83 = _slicedToArray(_ref82, 4),
-      r = _ref83[0],
-      on = _ref83[1],
-      click = _ref83[2],
-      col = _ref83[3];
+  })).map(function (_ref86) {
+    var _ref87 = _slicedToArray(_ref86, 4),
+      r = _ref87[0],
+      on = _ref87[1],
+      click = _ref87[2],
+      col = _ref87[3];
     return /*#__PURE__*/React.createElement("button", {
       key: r,
       "data-testid": "rarity-chip-".concat(r),
@@ -15149,17 +15301,17 @@ function MagicItemsTab(_ref81) {
     }
   }, "Select an item to view details"))));
 }
-function MundaneItemsTab(_ref84) {
-  var mundaneSearch = _ref84.mundaneSearch,
-    setMundaneSearch = _ref84.setMundaneSearch,
-    mundaneTypeFilter = _ref84.mundaneTypeFilter,
-    setMundaneTypeFilter = _ref84.setMundaneTypeFilter,
-    selectedMundane = _ref84.selectedMundane,
-    setSelectedMundane = _ref84.setSelectedMundane,
-    inv = _ref84.inv,
-    keep = _ref84.keep,
-    colors = _ref84.colors,
-    fontDisplay = _ref84.fontDisplay;
+function MundaneItemsTab(_ref88) {
+  var mundaneSearch = _ref88.mundaneSearch,
+    setMundaneSearch = _ref88.setMundaneSearch,
+    mundaneTypeFilter = _ref88.mundaneTypeFilter,
+    setMundaneTypeFilter = _ref88.setMundaneTypeFilter,
+    selectedMundane = _ref88.selectedMundane,
+    setSelectedMundane = _ref88.setSelectedMundane,
+    inv = _ref88.inv,
+    keep = _ref88.keep,
+    colors = _ref88.colors,
+    fontDisplay = _ref88.fontDisplay;
   var allCategories = React.useMemo(function () {
     var cats = new Set(MUNDANE_ITEMS.map(function (i) {
       return i.category;
