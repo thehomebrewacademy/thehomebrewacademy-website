@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>D&D Combat Resolver</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=IM+Fell+English&family=MedievalSharp&family=Kalam:wght@400;700&family=Special+Elite&display=swap" rel="stylesheet" />
   <style>
     :root {
       --ink: #1B2430;
@@ -499,6 +499,26 @@
     .pp-move { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; margin: 6px 0; }
     .pp-movecol { min-width: 120px; font-size: 15px; line-height: 1.4; }
     .pp-movecol strong { display: block; font-size: 12px; text-transform: uppercase; opacity: .8; }
+    /* Rows in a list take turns between two shades, so each line stands apart */
+    .paper .pp-spell:nth-child(even of .pp-spell), .paper .item-row:nth-child(even of .item-row), .paper .action-btn:not(.selected):nth-child(even of .action-btn), .paper .pp-arow:not(.hot):nth-child(even of .pp-arow), .paper .inv-wrap:nth-child(even of .inv-wrap), .paper .pp-entry:nth-child(even of .pp-entry) { background: var(--pp-card); }
+    /* Border styles: buttons and boxes */
+    .paper[data-fb=gradient] :is(.pp-chip.on, .pp-tab.on, .econ, .econ-tile, .pp-tag, .pp-mast.on, .pp-heroic.on .pp-heroic-box) { background: linear-gradient(180deg, color-mix(in srgb, var(--pp-border) 70%, #fff), var(--pp-border) 50%, color-mix(in srgb, var(--pp-border) 65%, #000)); }
+    .paper[data-fb=gradient] :is(.pp-chip:not(.on), .pp-mod, .pp-save, .pp-stdbtn, .pp-abil, .pp-hp, .pp-stat, .pp-banner) { background-image: linear-gradient(180deg, color-mix(in srgb, var(--pp-border) 22%, transparent), transparent 75%); }
+    .paper[data-fb=raised] :is(.pp-chip, .pp-tab, .pp-mod, .pp-save, .pp-stdbtn, .pp-abil, .pp-hp, .pp-stat, .pp-banner, .pp-card, .pp-jumps, .pp-heroic, .econ-tile, .hand-box) { box-shadow: 0 3px 6px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.12); }
+    .paper[data-fb=glow] :is(.pp-chip.on, .pp-tab.on, .pp-abil, .pp-hp, .pp-stat, .pp-banner, .econ-tile, .pp-heroic) { box-shadow: 0 0 8px color-mix(in srgb, var(--pp-border) 65%, transparent); }
+    .paper[data-fb=double] :is(.pp-abil, .pp-hp, .pp-stat, .pp-banner, .pp-card, .hand-box) { border-style: double; border-width: 4px; }
+    .paper[data-fb=double] { border-style: double; border-width: 4px; }
+    /* Text styles and fonts */
+    .paper[data-ft=shadow] { text-shadow: 1px 1px 2px rgba(0,0,0,.75); }
+    .paper[data-ft=emboss] { text-shadow: 0 1px 0 rgba(255,255,255,.2), 0 -1px 0 rgba(0,0,0,.55); }
+    .paper[data-ft=glow] { text-shadow: 0 0 6px color-mix(in srgb, var(--pp-text) 55%, transparent); }
+    .paper[data-ft=outline] { text-shadow: -1px 0 0 var(--pp-main), 1px 0 0 var(--pp-main), 0 -1px 0 var(--pp-main), 0 1px 0 var(--pp-main); }
+    .paper[data-font=fell], .paper[data-font=fell] * { font-family: 'IM Fell English', Georgia, serif !important; }
+    .paper[data-font=medieval], .paper[data-font=medieval] * { font-family: 'MedievalSharp', Georgia, serif !important; }
+    .paper[data-font=hand], .paper[data-font=hand] * { font-family: 'Kalam', 'Comic Sans MS', cursive !important; }
+    .paper[data-font=clean], .paper[data-font=clean] * { font-family: system-ui, 'Segoe UI', Roboto, Arial, sans-serif !important; }
+    .paper[data-font=type], .paper[data-font=type] * { font-family: 'Special Elite', 'Courier New', monospace !important; }
+    .pp-share-note { font-size: 13px; margin: 4px 0 8px; }
     .pp-jumps { border: 1px solid var(--pp-border); border-radius: 6px; padding: 3px 8px; font-size: 13px; display: flex; flex-direction: column; justify-content: center; }
     .pp-jumps div { display: flex; gap: 8px; justify-content: space-between; } .pp-jumps span { opacity: .8; }
     .pp-heroic { border: 1px solid var(--pp-border); border-radius: 6px; padding: 4px 8px; display: flex; gap: 8px; align-items: center; margin-left: auto; }
@@ -1597,6 +1617,26 @@ const SHEET_TEXTURES = [['', 'None', ''],
   ['linen', 'Linen', 'repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(0,0,0,.09) 0 1px, transparent 1px 3px)'],
   ['arcane', 'Arcane', 'radial-gradient(circle at 50% 0%, rgba(120,80,255,.45), transparent 55%), radial-gradient(circle at 10% 90%, rgba(60,200,255,.3), transparent 45%), repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,.05) 0 2px, transparent 2px 22px)'],
   ['wood', 'Wood', 'repeating-linear-gradient(88deg, rgba(60,30,10,.35) 0 3px, rgba(120,70,30,.3) 3px 9px, rgba(80,45,15,.35) 9px 14px), linear-gradient(rgba(100,55,20,.4), rgba(60,30,10,.4))']];
+// Sheet styles, a few for each of the three colors. [key, name]
+const LOOK_MAIN = [['solid', 'Solid'], ['two', 'Two-tone, top to bottom'], ['diag', 'Two-tone, corner to corner'], ['radial', 'Glow from the top'], ['edges', 'Dark edges']];
+const LOOK_BORDER = [['plain', 'Plain'], ['gradient', 'Gradient buttons'], ['raised', 'Raised, with shadows'], ['glow', 'Glowing'], ['double', 'Double lines']];
+const LOOK_TEXT = [['plain', 'Plain'], ['shadow', 'Drop shadow'], ['emboss', 'Embossed'], ['glow', 'Glowing'], ['outline', 'Outlined']];
+const LOOK_FONTS = [['classic', 'Classic'], ['fell', 'Old print'], ['medieval', 'Medieval'], ['hand', 'Handwritten'], ['type', 'Typewriter'], ['clean', 'Clean']];
+// Two colors mixed: k of the second
+function mixHex(a, b, k) { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); try { const x = p(a), y = p(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * k).toString(16).padStart(2, '0')).join(''); } catch (e) { return a; } }
+// A sheet look, checked, with older saved looks carried over (Dark edges and Glowing border were checkboxes)
+function normLook(t) {
+  t = t && typeof t === 'object' ? t : {}; const hex = v => /^#[0-9a-f]{6}$/i.test(String(v || '')), has = (list, v) => list.some(x => x[0] === v);
+  const o = t.custom && hex(t.custom.main) && hex(t.custom.border) && hex(t.custom.text) ? {custom: {main: t.custom.main, border: t.custom.border, text: t.custom.text}} : {scheme: typeof t.scheme === 'string' ? t.scheme : 'Default'};
+  o.tex = t.tex === 'image' || SHEET_TEXTURES.some(x => x[0] === t.tex) ? t.tex : '';
+  o.op = Math.max(0, Math.min(100, +t.op || 0));
+  if (hex(t.main2)) o.main2 = t.main2;
+  o.fm = has(LOOK_MAIN, t.fm) ? t.fm : (t.vig ? 'edges' : 'solid');
+  o.fb = has(LOOK_BORDER, t.fb) ? t.fb : (t.glow ? 'glow' : 'plain');
+  o.ft = has(LOOK_TEXT, t.ft) ? t.ft : 'plain';
+  o.font = has(LOOK_FONTS, t.font) ? t.font : 'classic';
+  return o;
+}
 // Color schemes for the character sheet. The first is the app's own look.
 const SHEET_SCHEMES = [
   {name:'Default', main:'#1a2535', border:'#b8860b', text:'#ede4d3'},
@@ -2603,7 +2643,8 @@ function App() {
   const [actFilter, setActFilter] = useState({});          // which kinds of action the sheet lists; a kind set to false is hidden
   const [stdAct, setStdAct] = useState(null);              // the standard action being asked about
   const [showTheme, setShowTheme] = useState(false);
-  const [sheetTheme, setSheetTheme] = useState(() => { try { const t = JSON.parse(window.localStorage.getItem('hba-sheet-theme') || 'null'); const hex = v => /^#[0-9a-f]{6}$/i.test(String(v || '')); const extra = t ? {tex: SHEET_TEXTURES.some(x => x[0] === t.tex) ? t.tex : '', vig: !!t.vig, glow: !!t.glow, op: Math.max(0, Math.min(100, +t.op || 0))} : {}; if (t && t.custom && hex(t.custom.main) && hex(t.custom.border) && hex(t.custom.text)) return {custom: t.custom, ...extra}; if (t && typeof t.scheme === 'string') return {scheme: t.scheme, ...extra}; } catch (e) {} return {scheme: 'Default'}; });
+  const [sheetTheme, setSheetTheme] = useState(() => { try { return normLook(JSON.parse(window.localStorage.getItem('hba-sheet-theme') || 'null')); } catch (e) { return normLook(null); } });
+  const [sharedLooks, setSharedLooks] = useState({}); // looks players chose to share on their characters' sheets: {creature id: look}
   const [sheetBg, setSheetBg] = useState(() => { try { return window.localStorage.getItem('hba-sheet-bg') || ''; } catch (e) { return ''; } }); // an uploaded background image, on this computer
 
   useEffect(() => { logEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [log]);
@@ -4536,6 +4577,7 @@ function App() {
       setDmId(meta.dm);
       setApproval(meta.approval);
       setHandsOn(meta.handsOn); setCompMode(meta.compMode); setReveal(meta.reveal); setRevealAC(meta.revealAC); setStepOn(meta.stepOn); setAllowUndo(meta.allowUndo); setHideRolls(meta.hideRolls); setAmmoOn(meta.ammoOn); setSessName(meta.name); setTurnSecs(meta.turnSecs); setInitCall(meta.initCall); setAskInit(meta.askInit); setEnded(prev => stable(prev) === stable(meta.ended || null) ? prev : (meta.ended || null)); setWorld(prev => stable(prev) === stable(meta.world || null) ? prev : (meta.world || null)); setTimeMute(prev => stable(prev) === stable(meta.timeMute) ? prev : meta.timeMute); setRest(prev => stable(prev) === stable(meta.rest) ? prev : meta.rest); setTurnPaused(!!meta.turnPaused); { const rs = meta.restStd || {short: 3600, long: 28800}; setRestStd(prev => stable(prev) === stable(rs) ? prev : rs); { const tc = meta.coins || []; setTableCoins(prev => stable(prev) === stable(tc) ? prev : tc); } if ((meta.enc || '') !== ENC_TABLE) setEncTable(meta.enc || ''); }
+      { const lv = v.looks && typeof v.looks === 'object' ? v.looks : {}; setSharedLooks(prev => { const sig = o => Object.keys(o).sort().map(k => k + ':' + ((o[k] && o[k].at) || 0)).join(','); return sig(prev) === sig(lv) ? prev : lv; }); }
       setShared(prev => stable(prev) === stable(v.shared || {}) ? prev : (v.shared && typeof v.shared === 'object' ? v.shared : {}));
       setRemoteSigs(sigs);
       setSyncStatus('live');
@@ -4677,14 +4719,31 @@ function App() {
   const SKILL_SHORT = {'Animal Handling':'A. Handling', Intimidation:'Intimidate', Investigation:'Investigate', Performance:'Perform', Persuasion:'Persuade', 'Sleight of Hand':'Slight Hand'};
   const DMG_SHORT = {Bludgeoning:'Bl', Piercing:'Pc', Slashing:'Sl'};
   const ACT_SHORT = {action:'A', bonus:'BA', reaction:'R'};
-  const themeNow = sheetTheme.custom ? sheetTheme.custom : (SHEET_SCHEMES.find(s => s.name === sheetTheme.scheme) || SHEET_SCHEMES[0]);
-  const saveTheme = (t) => { setSheetTheme(t); try { window.localStorage.setItem('hba-sheet-theme', JSON.stringify(t)); } catch (e) {} };
-  const looks = () => ({tex: sheetTheme.tex || '', vig: !!sheetTheme.vig, glow: !!sheetTheme.glow, op: sheetTheme.op || 0}); // texture and effects stay when the colors change
-  const setBg = (url) => { setSheetBg(url); try { if (url) window.localStorage.setItem('hba-sheet-bg', url); else window.localStorage.removeItem('hba-sheet-bg'); } catch (e) { window.alert('That image is too large to keep on this computer.'); } };
-  const loadBg = (file) => { const r = new FileReader(); r.onload = () => { const img = new Image(); img.onload = () => { const k = Math.min(1, 1400 / Math.max(img.width, img.height)), cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); setBg(cv.toDataURL('image/jpeg', 0.82)); saveTheme({...sheetTheme, tex: 'image', op: sheetTheme.op || 45}); }; img.src = r.result; }; r.readAsDataURL(file); }; // made smaller so it fits on this computer
-  const sheetLook = () => { const tex = sheetTheme.tex || '', op = (sheetTheme.op || 45) / 100, layer = tex === 'image' && sheetBg ? `url(${sheetBg})` : (SHEET_TEXTURES.find(x => x[0] === tex) || [])[2] || '';
-    return {...(layer ? {backgroundImage: `linear-gradient(color-mix(in srgb, var(--pp-main) ${Math.round((1 - op) * 100)}%, transparent), color-mix(in srgb, var(--pp-main) ${Math.round((1 - op) * 100)}%, transparent)), ${layer}`, backgroundSize: tex === 'image' ? 'auto, cover' : undefined, backgroundPosition: 'center', backgroundAttachment: 'local'} : {}),
-      boxShadow: [sheetTheme.vig ? 'inset 0 0 70px rgba(0,0,0,0.65)' : '', sheetTheme.glow ? '0 0 14px var(--pp-border)' : ''].filter(Boolean).join(', ') || undefined}; };
+  const saveTheme = (t) => { const n = normLook(t); setSheetTheme(n); try { window.localStorage.setItem('hba-sheet-theme', JSON.stringify(n)); } catch (e) {} };
+  const setBgLocal = (url) => { setSheetBg(url); try { if (url) window.localStorage.setItem('hba-sheet-bg', url); else window.localStorage.removeItem('hba-sheet-bg'); } catch (e) { window.alert('That image is too large to keep on this computer.'); } };
+  // An image made smaller: the longest side at most `max` pixels, as a JPEG
+  const shrinkImg = (src, max, q) => new Promise(res => { if (!src) return res(''); const img = new Image(); img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(img.width * k)); cv.height = Math.max(1, Math.round(img.height * k)); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); res(cv.toDataURL('image/jpeg', q)); }; img.onerror = () => res(''); img.src = src; });
+  // The look of one creature's sheet: the one shared on that character, or else this computer's own
+  const lookFor = (c) => {
+    const sh = c && sharedLooks[c.id] && typeof sharedLooks[c.id] === 'object' ? sharedLooks[c.id] : null, can = !!sh && canControl(c);
+    const t = sh ? normLook(sh) : sheetTheme, bg = sh ? (typeof sh.img === 'string' ? sh.img : '') : sheetBg;
+    const colors = t.custom || SHEET_SCHEMES.find(x => x.name === t.scheme) || SHEET_SCHEMES[0];
+    const put = (n, img) => { if (!room || !db || !c) return; const rec = plain({...normLook(n), ...(img ? {img} : {}), by: myId, at: Date.now()}); setSharedLooks(prev => ({...prev, [c.id]: rec})); db.ref('rooms/' + room + '/looks/' + c.id).set(rec).catch(() => window.alert('That look could not be shared. The image may be too large.')); };
+    const save = sh ? (n => { if (can) put(n, bg); }) : saveTheme;
+    const setBg = sh ? (url => { if (!can) return; if (!url) { put({...t, tex: t.tex === 'image' ? '' : t.tex}, ''); return; } shrinkImg(url, 1000, 0.72).then(small => put({...t, tex: 'image', op: t.op || 45}, small)); }) : setBgLocal;
+    const loadBg = (file) => { const r = new FileReader(); r.onload = () => shrinkImg(r.result, 1400, 0.82).then(url => { if (!url) return; if (sh) setBg(url); else { setBgLocal(url); saveTheme({...t, tex: 'image', op: t.op || 45}); } }); r.readAsDataURL(file); };
+    const share = (on) => { if (!room || !db || !c || !canControl(c)) return; if (!on) { setSharedLooks(prev => { const n = {...prev}; delete n[c.id]; return n; }); db.ref('rooms/' + room + '/looks/' + c.id).remove().catch(() => {}); return; }
+      setSharedLooks(prev => ({...prev, [c.id]: plain({...normLook(t), by: myId, at: Date.now()})})); // shows as shared at once; the image follows
+      if (t.tex === 'image' && bg) shrinkImg(bg, 1000, 0.72).then(small => put(t, small)); else put({...t, tex: t.tex === 'image' ? '' : t.tex}, ''); };
+    const m2 = t.main2 || mixHex(colors.main, colors.text, 0.22);
+    const style = (() => { const tex = t.tex || '', op = (t.op || 45) / 100, layer = tex === 'image' && bg ? `url(${bg})` : (SHEET_TEXTURES.find(x => x[0] === tex) || [])[2] || '';
+      const grad = pct => { const a = x => pct >= 100 ? x : `color-mix(in srgb, ${x} ${pct}%, transparent)`, M = a('var(--pp-main)'), S = a(m2);
+        return t.fm === 'two' ? `linear-gradient(180deg, ${M}, ${S})` : t.fm === 'diag' ? `linear-gradient(135deg, ${M} 15%, ${S})` : t.fm === 'radial' ? `radial-gradient(ellipse at 50% 15%, ${S}, ${M} 75%)` : `linear-gradient(${M}, ${M})`; };
+      const two = ['two', 'diag', 'radial'].includes(t.fm), imgs = layer ? [grad(Math.round((1 - op) * 100)), layer] : two ? [grad(100)] : [];
+      return {...(imgs.length ? {backgroundImage: imgs.join(', '), backgroundSize: tex === 'image' && layer ? 'auto, cover' : undefined, backgroundPosition: 'center', backgroundAttachment: 'local'} : {}),
+        boxShadow: [t.fm === 'edges' ? 'inset 0 0 70px rgba(0,0,0,0.65)' : '', t.fb === 'glow' ? '0 0 14px var(--pp-border)' : ''].filter(Boolean).join(', ') || undefined}; })();
+    return {t, bg, colors, m2, shared: !!sh, can, sharedBy: sh ? sh.by : '', save, setBg, loadBg, share, style, attrs: {'data-fb': t.fb, 'data-ft': t.ft, 'data-font': t.font}};
+  };
   // One of the actions everyone has. Each does its own thing.
   const selfEffect = (c, eff, text) => {
     const e = {...eff, id: newId(), by: myId, byName: c.name};
@@ -5046,8 +5105,9 @@ function App() {
     const tabBtn = (k, t) => <button key={k} data-testid={`sheet-tab-${k}`} className={`pp-tab ${sheetTab === k ? 'on' : ''}`} onClick={() => setSheetTab(k)}>{t}</button>;
     const jr = sh.journal || {};
     const feats = sh.featureList && sh.featureList.length ? sh.featureList : ((c.info || []).find(x => x.h === 'Features and Traits') || {items: []}).items.map(it => { const m = /^([^:.]{2,60})[:.]\s*(.*)$/s.exec(it[1] || ''); return {n: m ? m[1] : it[1], d: m ? m[2] : '', lv: 0, src: ''}; });
+    const LK = lookFor(c), LT = LK.t;
     return (
-      <div className="paper" data-exc={c.id} data-testid="paper" style={{'--pp-main': themeNow.main, '--pp-border': themeNow.border, '--pp-text': themeNow.text, ...sheetLook()}}>
+      <div className="paper" data-exc={c.id} data-testid="paper" {...LK.attrs} style={{'--pp-main': LK.colors.main, '--pp-border': LK.colors.border, '--pp-text': LK.colors.text, ...LK.style}}>
         {itemCard && itemCard.cId === c.id && (() => { const it = allItems.find(x => x.name === itemCard.name) || {name: itemCard.name}, mx = chargesMax(it); return (
           <div className="modal-overlay" onClick={() => setItemCard(null)} data-testid="item-card">
             <div className="modal item-card" onClick={e => e.stopPropagation()}>
@@ -5086,21 +5146,27 @@ function App() {
         </div>
         {showTheme && (
           <div className="pp-theme" data-testid="theme-panel">
+            {LK.shared && <div className="pp-share-note pp-muted" data-testid="look-shared-note">{LK.can ? `This is ${c.name}'s shared look: everyone at the table sees it, and changes here change it for them too.` : `This is the look chosen for ${c.name}'s sheet.`}</div>}
+            <fieldset disabled={LK.shared && !LK.can} style={{border: 'none', margin: 0, padding: 0}}>
             <div className="pp-swatches">
-              {SHEET_SCHEMES.map(s => <button key={s.name} data-testid={`scheme-${s.name}`} className={`pp-swatch ${!sheetTheme.custom && themeNow.name === s.name ? 'on' : ''}`} style={{background: s.main, borderColor: s.border, color: s.text}} onClick={() => saveTheme({...looks(), scheme: s.name})}>{s.name}</button>)}
+              {SHEET_SCHEMES.map(s => <button key={s.name} data-testid={`scheme-${s.name}`} className={`pp-swatch ${!LT.custom && LK.colors.name === s.name ? 'on' : ''}`} style={{background: s.main, borderColor: s.border, color: s.text}} onClick={() => LK.save({...LT, custom: undefined, scheme: s.name})}>{s.name}</button>)}
             </div>
-            <div className="pp-pickers">
-              {[['main', 'Main color'], ['border', 'Border'], ['text', 'Text']].map(([k, t]) => <label key={k}>{t} <input type="color" aria-label={t} value={themeNow[k]} onChange={e => saveTheme({...looks(), custom: {main: themeNow.main, border: themeNow.border, text: themeNow.text, [k]: e.target.value}})}/></label>)}
-              <button className="pp-tab" data-testid="scheme-reset" onClick={() => { saveTheme({scheme: 'Default'}); setBg(''); }}>Back to default</button>
-            </div>
+            {[['main', 'Main color', 'Main style', LOOK_MAIN, 'fm'], ['border', 'Border', 'Border style', LOOK_BORDER, 'fb'], ['text', 'Text', 'Text style', LOOK_TEXT, 'ft']].map(([k, t, st, opts, fk]) => (
+            <div className="pp-pickers" key={k} data-testid={`look-row-${k}`}>
+              <label>{t} <input type="color" aria-label={t} value={LK.colors[k]} onChange={e => LK.save({...LT, custom: {main: LK.colors.main, border: LK.colors.border, text: LK.colors.text, [k]: e.target.value}})}/></label>
+              <label><select aria-label={st} data-testid={`look-${fk}`} value={LT[fk]} onChange={e => LK.save({...LT, [fk]: e.target.value})}>{opts.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></label>
+              {k === 'main' && ['two', 'diag', 'radial'].includes(LT.fm) && <label>Second color <input type="color" aria-label="Second color" data-testid="look-main2" value={LK.m2} onChange={e => LK.save({...LT, main2: e.target.value})}/></label>}
+              {k === 'text' && <label>Font <select aria-label="Font" data-testid="look-font" value={LT.font} onChange={e => LK.save({...LT, font: e.target.value})}>{LOOK_FONTS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></label>}
+            </div>))}
             <div className="pp-pickers" data-testid="theme-texture">
-              <label>Texture <select data-testid="sheet-texture" value={sheetTheme.tex || ''} onChange={e => saveTheme({...sheetTheme, tex: e.target.value})}>{SHEET_TEXTURES.map(([k, n]) => <option key={k} value={k}>{n}</option>)}{sheetBg && <option value="image">Your image</option>}</select></label>
-              <label><input type="checkbox" data-testid="sheet-vignette" checked={!!sheetTheme.vig} onChange={e => saveTheme({...sheetTheme, vig: e.target.checked})}/> Dark edges</label>
-              <label><input type="checkbox" data-testid="sheet-glow" checked={!!sheetTheme.glow} onChange={e => saveTheme({...sheetTheme, glow: e.target.checked})}/> Glowing border</label>
-              <label title="How much the texture or image shows through">Strength <input type="range" min="10" max="100" data-testid="sheet-op" value={sheetTheme.op || 45} onChange={e => saveTheme({...sheetTheme, op: +e.target.value})}/></label>
-              <label className="pp-tab" style={{cursor: 'pointer'}}>Upload a background image<input type="file" accept="image/*" data-testid="sheet-bg-file" style={{display: 'none'}} onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) loadBg(f); }}/></label>
-              {sheetBg && <button className="pp-tab" data-testid="sheet-bg-clear" onClick={() => { setBg(''); if (sheetTheme.tex === 'image') saveTheme({...sheetTheme, tex: ''}); }}>Remove image</button>}
+              <label>Texture <select data-testid="sheet-texture" value={LT.tex || ''} onChange={e => LK.save({...LT, tex: e.target.value})}>{SHEET_TEXTURES.map(([k, n]) => <option key={k} value={k}>{n}</option>)}{LK.bg && <option value="image">Your image</option>}</select></label>
+              <label title="How much the texture or image shows through">Strength <input type="range" min="10" max="100" data-testid="sheet-op" value={LT.op || 45} onChange={e => LK.save({...LT, op: +e.target.value})}/></label>
+              <label className="pp-tab" style={{cursor: 'pointer'}}>Upload a background image<input type="file" accept="image/*" data-testid="sheet-bg-file" style={{display: 'none'}} onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) LK.loadBg(f); }}/></label>
+              {LK.bg && <button className="pp-tab" data-testid="sheet-bg-clear" onClick={() => { if (LK.shared) LK.setBg(''); else { setBgLocal(''); if (LT.tex === 'image') saveTheme({...LT, tex: ''}); } }}>Remove image</button>}
+              <button className="pp-tab" data-testid="scheme-reset" onClick={() => { if (LK.shared) LK.save({scheme: 'Default'}); else { saveTheme({scheme: 'Default'}); setBgLocal(''); } }}>Back to default</button>
             </div>
+            </fieldset>
+            {room && canControl(c) && <label className="rule-label" style={{margin: '8px 0 0'}}><input type="checkbox" data-testid="look-share" checked={LK.shared} onChange={e => LK.share(e.target.checked)}/> Share this look on {c.name}'s sheet, so everyone at the table sees it (with the image)</label>}
           </div>
         )}
 
@@ -5350,7 +5416,7 @@ function App() {
           <div className="pp-h2">Carried</div>
           {full.length === 0 && <div className="pp-center pp-muted">Nothing listed. Items come from the Character Builder's inventory.</div>}
           <div className="item-list">{full.map((it, i) => { const base = it.name.replace(/ \(.*$/, ''), inHand = held.includes(base), lit = hi && hi.test(it.name); return (
-            <div key={it.name + i} data-testid="inv-item" style={lit ? {outline: '3px solid var(--gold)', borderRadius: 6} : undefined}>
+            <div key={it.name + i} className="inv-wrap" data-testid="inv-item" style={lit ? {outline: '3px solid var(--gold)', borderRadius: 6} : undefined}>
               {itemRow(it, 'inv')}
               {ctl && ((lit && selAction && selAction.needItem) || (/weapon|shield|armor \(shield\)/i.test(it.type || '') && !inHand && handsOn) || inHand) && <div className="item-sub">
                 {inHand && <span className="pp-muted">in hand</span>}
