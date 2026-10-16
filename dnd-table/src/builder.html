@@ -851,6 +851,14 @@ function currentPlayerCode() {
   if (!c) { c = makeCode(); lsSet(CODE_KEY, c); }
   return c;
 }
+// Every character this player has, each kept under its own key; the open one is also kept under the player code for the Combat Resolver
+const rosterKey = (code) => "hba-chars-" + code, oneKey = (code, id) => "hba-c-" + code + "-" + id;
+function readRoster(code) { try { const a = JSON.parse(lsGet(rosterKey(code)) || "[]"); return Array.isArray(a) ? a.filter(x => typeof x === "string") : []; } catch (e) { return []; } }
+function readOne(code, id) { try { const d = JSON.parse(lsGet(oneKey(code, id)) || "null"); return d && d.format === "homebrew-academy-character" ? d : null; } catch (e) { return null; } }
+function newCharId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+// A picture made smaller, as a JPEG
+function shrinkPic(src, max, q) { return new Promise(res => { const img = new Image(); img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)), cv = document.createElement("canvas"); cv.width = Math.max(1, Math.round(img.width * k)); cv.height = Math.max(1, Math.round(img.height * k)); cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); res(cv.toDataURL("image/jpeg", q)); }; img.onerror = () => res(""); img.src = src; }); }
+const isPic = (v) => typeof v === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(v) && v.length < 400000;
 function readStoredCharacter(code) {
   try { const d = JSON.parse(lsGet(charKey(code)) || "null"); return d && d.format === "homebrew-academy-character" ? d : null; }
   catch (e) { return null; }
@@ -2262,6 +2270,12 @@ function CharacterSheet() {
 
   // Identity
   const [charName, setCharName] = useState("");
+  const [charId, setCharId] = useState(() => newCharId());
+  const [portrait, setPortrait] = useState(""); // the character's picture
+  const [portraitThumb, setPortraitThumb] = useState(""); // a small copy for the menu and the Initiative tracker
+  const [showRoster, setShowRoster] = useState(false);
+  const [rosterTick, setRosterTick] = useState(0);
+  const picInputRef = useRef(null);
   const [playerName, setPlayerName] = useState("");
   const [className, setClassName] = useState("Fighter");
   const [subclassName, setSubclassName] = useState("");
@@ -2860,6 +2874,7 @@ function CharacterSheet() {
     return {
       format: "homebrew-academy-character",
       version: 3,
+      charId, ...(portrait ? { portrait, portraitThumb } : {}),
       name: charName, player: playerName,
       className, subclassName, level, species, background, alignment,
       scores: finalScores, saves: savingThrows, profBonus,
@@ -2936,9 +2951,10 @@ function CharacterSheet() {
     };
   }
 
-  async function saveCharacterFile() {
-    const json = JSON.stringify(buildCharacterFile(), null, 2);
-    const base = (charName || "character").trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || "character";
+  async function saveCharacterFile(given) {
+    const data = given && given.format ? given : buildCharacterFile();
+    const json = JSON.stringify(data, null, 2);
+    const base = (data.name || "character").trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || "character";
     const touch = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
     if (touch && navigator.canShare && navigator.share) {
       // On a phone or tablet the share sheet saves the file without leaving this page.
@@ -2947,7 +2963,7 @@ function CharacterSheet() {
         try {
           const file = new File([json], name, { type });
           if (!navigator.canShare({ files: [file] })) continue;
-          await navigator.share({ files: [file], title: charName || "Character" });
+          await navigator.share({ files: [file], title: data.name || "Character" });
           return;
         } catch (e) {
           if (e && e.name === "AbortError") return; // closed the share sheet
@@ -2969,6 +2985,9 @@ function CharacterSheet() {
     if (!data || data.format !== "homebrew-academy-character") { alert("That file is not a Character Builder save."); return; }
     const s = data.builder || {};
     const arr = (v) => Array.isArray(v) ? v : [];
+    setCharId(typeof data.charId === "string" && /^[a-z0-9]{4,20}$/.test(data.charId) ? data.charId : newCharId());
+    setPortrait(isPic(data.portrait) ? data.portrait : "");
+    setPortraitThumb(isPic(data.portraitThumb) ? data.portraitThumb : "");
     setCharName(String(data.name || ""));
     setPlayerName(String(data.player || ""));
     setClassName(CLASSES[data.className] ? data.className : "Fighter");
@@ -3031,7 +3050,24 @@ function CharacterSheet() {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    file.text().then(t => applyCharacterFile(JSON.parse(t))).catch(() => alert("Could not read that character file."));
+    file.text().then(t => { const d = JSON.parse(t); if (!d || d.format !== "homebrew-academy-character") { applyCharacterFile(d); return; }
+      const here = d.charId && readRoster(playerCode).includes(d.charId) && d.charId !== charId; // another of my characters already has this id: keep both
+      applyCharacterFile(here ? { ...d, charId: newCharId() } : (d.charId ? d : { ...d, charId: newCharId() })); setShowRoster(false); }).catch(() => alert("Could not read that character file."));
+  }
+
+  // The character menu
+  function openCharacter(id) { const d = readOne(playerCode, id); if (d) { applyCharacterFile(d); setShowRoster(false); } }
+  function newCharacter() { applyCharacterFile({ format: "homebrew-academy-character", charId: newCharId() }); setShowRoster(false); }
+  function deleteCharacter(id) {
+    const d = readOne(playerCode, id); if (!window.confirm(`Delete ${(d && d.name) || "this character"} from this computer? Save it to a file first if you may want it back.`)) return;
+    try { window.localStorage.removeItem(oneKey(playerCode, id)); } catch (e) {}
+    const r = readRoster(playerCode).filter(x => x !== id); lsSet(rosterKey(playerCode), JSON.stringify(r));
+    if (id === charId) { if (r.length) openCharacter(r[0]); else newCharacter(); }
+    setRosterTick(t => t + 1);
+  }
+  function pickPortrait(e) {
+    const file = e.target.files && e.target.files[0]; e.target.value = ""; if (!file) return;
+    const r = new FileReader(); r.onload = async () => { const big = await shrinkPic(r.result, 400, 0.82), small = await shrinkPic(r.result, 96, 0.8); if (big) { setPortrait(big); setPortraitThumb(small); } }; r.readAsDataURL(file);
   }
 
   function sendToResolver() {
@@ -3058,7 +3094,10 @@ function CharacterSheet() {
   // Every change is saved on this computer under the player code.
   useEffect(() => {
     if (!ready) return;
-    lsSet(charKey(playerCode), JSON.stringify(buildCharacterFile()));
+    const file = JSON.stringify(buildCharacterFile());
+    lsSet(charKey(playerCode), file);
+    lsSet(oneKey(playerCode, charId), file);
+    const r = readRoster(playerCode); if (!r.includes(charId)) lsSet(rosterKey(playerCode), JSON.stringify([...r, charId]));
   });
 
   // The Combat Resolver on this computer reports HP changes back, and can switch the player code.
@@ -3120,6 +3159,35 @@ function CharacterSheet() {
         }
       `}</style>
 
+      {showRoster && (() => { const ids = readRoster(playerCode); void rosterTick; return (
+        <div data-testid="roster" onClick={() => setShowRoster(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 12px", overflowY: "auto" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: colors.parchment, color: colors.ink, border: `2px solid ${colors.brass}`, borderRadius: 12, padding: 16, width: "min(640px, 100%)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <strong style={{ fontFamily: fontDisplay, fontSize: 20 }}>My Characters</strong>
+              <button onClick={() => setShowRoster(false)} style={{ background: "transparent", border: `1px solid ${colors.ink}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: colors.ink }}>Close</button>
+            </div>
+            <div style={{ fontSize: 13, fontStyle: "italic", marginBottom: 10 }}>Kept on this computer under player code {playerCode}. Save one to a file to keep a copy or move it to another device.</div>
+            {ids.map(id => { const d = id === charId ? buildCharacterFile() : readOne(playerCode, id); if (!d) return null; const pic = isPic(d.portraitThumb) ? d.portraitThumb : (isPic(d.portrait) ? d.portrait : ""); return (
+              <div key={id} data-testid="roster-char" style={{ display: "flex", gap: 12, alignItems: "center", padding: 8, borderRadius: 8, marginBottom: 6, background: id === charId ? `${colors.brass}33` : "rgba(0,0,0,.05)", border: `1px solid ${colors.ink}33` }}>
+                <div style={{ width: 56, height: 56, borderRadius: 8, flexShrink: 0, border: `1px solid ${colors.ink}66`, background: pic ? `center / cover no-repeat url(${pic})` : `${colors.ink}22`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: fontDisplay, fontSize: 22 }}>{pic ? "" : (d.name || "?").slice(0, 1).toUpperCase()}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 16 }}>{d.name || "Unnamed character"}{id === charId ? " (open)" : ""}</div>
+                  <div style={{ fontSize: 14 }}>Level {d.level || 1} {d.species || ""} {d.className || ""}{d.subclassName ? ` (${d.subclassName})` : ""}{d.background ? ` · ${d.background}` : ""}</div>
+                  <div style={{ fontSize: 13, opacity: 0.8 }}>{[d.maxHP ? `${d.maxHP} HP` : "", d.ac ? `AC ${d.ac}` : "", d.player ? `Player: ${d.player}` : ""].filter(Boolean).join(" · ")}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {id !== charId && <button data-testid="roster-open" onClick={() => openCharacter(id)} style={{ background: colors.ink, color: colors.parchment, border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: fontDisplay, fontSize: 12 }}>Open</button>}
+                  <button data-testid="roster-save" onClick={() => saveCharacterFile(d)} style={{ background: "transparent", color: colors.ink, border: `1px solid ${colors.ink}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 12 }}>Save to file</button>
+                  <button data-testid="roster-delete" onClick={() => deleteCharacter(id)} style={{ background: "transparent", color: "#8b1a1a", border: "1px solid #8b1a1a", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 12 }}>Delete</button>
+                </div>
+              </div>); })}
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              <button data-testid="roster-new" onClick={newCharacter} style={{ background: colors.ink, color: colors.parchment, border: "none", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontFamily: fontDisplay, fontSize: 12 }}>+ New Character</button>
+              <button data-testid="roster-load" onClick={() => fileInputRef.current && fileInputRef.current.click()} style={{ background: "transparent", color: colors.ink, border: `1px solid ${colors.ink}`, borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontFamily: fontDisplay, fontSize: 12 }}>Load from a File</button>
+            </div>
+          </div>
+        </div>); })()}
+
       {/* HEADER */}
       <div style={{
         background: `linear-gradient(180deg, ${colors.brass} 0%, #8B6508 100%)`,
@@ -3127,7 +3195,14 @@ function CharacterSheet() {
         padding: "20px 24px 16px",
       }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <button data-testid="portrait" title={portrait ? "Change the picture" : "Add a picture"} onClick={() => picInputRef.current && picInputRef.current.click()} style={{
+                width: 72, height: 72, borderRadius: 10, border: `2px solid ${colors.ink}`, background: portrait ? `center / cover no-repeat url(${portrait})` : colors.parchment,
+                color: colors.ink, fontFamily: fontDisplay, fontSize: 11, cursor: "pointer", padding: 4 }}>{portrait ? "" : "Add a picture"}</button>
+              {portrait && <button data-testid="portrait-clear" onClick={() => { setPortrait(""); setPortraitThumb(""); }} style={{ background: "transparent", border: "none", color: colors.ink, fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>Remove</button>}
+              <input ref={picInputRef} type="file" accept="image/*" data-testid="portrait-file" onChange={pickPortrait} style={{ display: "none" }} />
+            </div>
             <input
               value={charName}
               onChange={e => setCharName(e.target.value)}
@@ -3156,7 +3231,8 @@ function CharacterSheet() {
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, alignItems: "center" }}>
             {[
-              ["Save Character File", saveCharacterFile, true],
+              ["My Characters", () => { setShowRoster(true); setRosterTick(t => t + 1); }, true],
+              ["Save Character File", () => saveCharacterFile(), true],
               ["Load Character File", () => fileInputRef.current && fileInputRef.current.click(), true],
               ["Send to Combat Resolver", sendToResolver, inSuite],
               ["Take Short Rest", () => startRest("short"), true],
