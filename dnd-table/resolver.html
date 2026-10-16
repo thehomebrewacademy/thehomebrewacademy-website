@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>D&D Combat Resolver</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=IM+Fell+English&family=MedievalSharp&family=Kalam:wght@400;700&family=Special+Elite&display=swap" rel="stylesheet" />
   <style>
     :root {
       --ink: #1B2430;
@@ -499,6 +499,26 @@
     .pp-move { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; margin: 6px 0; }
     .pp-movecol { min-width: 120px; font-size: 15px; line-height: 1.4; }
     .pp-movecol strong { display: block; font-size: 12px; text-transform: uppercase; opacity: .8; }
+    /* Rows in a list take turns between two shades, so each line stands apart */
+    .paper .pp-spell:nth-child(even of .pp-spell), .paper .item-row:nth-child(even of .item-row), .paper .action-btn:not(.selected):nth-child(even of .action-btn), .paper .pp-arow:not(.hot):nth-child(even of .pp-arow), .paper .inv-wrap:nth-child(even of .inv-wrap), .paper .pp-entry:nth-child(even of .pp-entry) { background: var(--pp-card); }
+    /* Border styles: buttons and boxes */
+    .paper[data-fb=gradient] :is(.pp-chip.on, .pp-tab.on, .econ, .econ-tile, .pp-tag, .pp-mast.on, .pp-heroic.on .pp-heroic-box) { background: linear-gradient(180deg, color-mix(in srgb, var(--pp-border) 70%, #fff), var(--pp-border) 50%, color-mix(in srgb, var(--pp-border) 65%, #000)); }
+    .paper[data-fb=gradient] :is(.pp-chip:not(.on), .pp-mod, .pp-save, .pp-stdbtn, .pp-abil, .pp-hp, .pp-stat, .pp-banner) { background-image: linear-gradient(180deg, color-mix(in srgb, var(--pp-border) 22%, transparent), transparent 75%); }
+    .paper[data-fb=raised] :is(.pp-chip, .pp-tab, .pp-mod, .pp-save, .pp-stdbtn, .pp-abil, .pp-hp, .pp-stat, .pp-banner, .pp-card, .pp-jumps, .pp-heroic, .econ-tile, .hand-box) { box-shadow: 0 3px 6px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.12); }
+    .paper[data-fb=glow] :is(.pp-chip.on, .pp-tab.on, .pp-abil, .pp-hp, .pp-stat, .pp-banner, .econ-tile, .pp-heroic) { box-shadow: 0 0 8px color-mix(in srgb, var(--pp-border) 65%, transparent); }
+    .paper[data-fb=double] :is(.pp-abil, .pp-hp, .pp-stat, .pp-banner, .pp-card, .hand-box) { border-style: double; border-width: 4px; }
+    .paper[data-fb=double] { border-style: double; border-width: 4px; }
+    /* Text styles and fonts */
+    .paper[data-ft=shadow] { text-shadow: 1px 1px 2px rgba(0,0,0,.75); }
+    .paper[data-ft=emboss] { text-shadow: 0 1px 0 rgba(255,255,255,.2), 0 -1px 0 rgba(0,0,0,.55); }
+    .paper[data-ft=glow] { text-shadow: 0 0 6px color-mix(in srgb, var(--pp-text) 55%, transparent); }
+    .paper[data-ft=outline] { text-shadow: -1px 0 0 var(--pp-main), 1px 0 0 var(--pp-main), 0 -1px 0 var(--pp-main), 0 1px 0 var(--pp-main); }
+    .paper[data-font=fell], .paper[data-font=fell] * { font-family: 'IM Fell English', Georgia, serif !important; }
+    .paper[data-font=medieval], .paper[data-font=medieval] * { font-family: 'MedievalSharp', Georgia, serif !important; }
+    .paper[data-font=hand], .paper[data-font=hand] * { font-family: 'Kalam', 'Comic Sans MS', cursive !important; }
+    .paper[data-font=clean], .paper[data-font=clean] * { font-family: system-ui, 'Segoe UI', Roboto, Arial, sans-serif !important; }
+    .paper[data-font=type], .paper[data-font=type] * { font-family: 'Special Elite', 'Courier New', monospace !important; }
+    .pp-share-note { font-size: 13px; margin: 4px 0 8px; }
     .pp-jumps { border: 1px solid var(--pp-border); border-radius: 6px; padding: 3px 8px; font-size: 13px; display: flex; flex-direction: column; justify-content: center; }
     .pp-jumps div { display: flex; gap: 8px; justify-content: space-between; } .pp-jumps span { opacity: .8; }
     .pp-heroic { border: 1px solid var(--pp-border); border-radius: 6px; padding: 4px 8px; display: flex; gap: 8px; align-items: center; margin-left: auto; }
@@ -841,6 +861,7 @@ var _excluded = ["conc"],
   _excluded18 = ["seq"],
   _excluded19 = ["type", "dmgList", "onHit", "onFail", "onSuccess", "onUse", "selfEffs", "saveAbility", "dc", "halfOnSave", "healDice", "atk", "ranged", "self"],
   _excluded20 = ["id", "name", "detail"];
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 function _regenerator() { /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */ var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i["return"]) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
 function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); } r ? i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2)); }, _regeneratorDefine2(e, r, n, t); }
 function _toArray(r) { return _arrayWithHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableRest(); }
@@ -3132,6 +3153,59 @@ var STD_ACTIONS = [{
 }];
 // Textures for the character sheet, drawn with CSS so nothing has to load: [key, name, the background layer]
 var SHEET_TEXTURES = [['', 'None', ''], ['parchment', 'Parchment', 'radial-gradient(circle at 20% 30%, rgba(160,120,60,.35), transparent 40%), radial-gradient(circle at 80% 70%, rgba(120,80,30,.3), transparent 45%), radial-gradient(circle at 60% 15%, rgba(200,170,110,.25), transparent 35%), repeating-linear-gradient(17deg, rgba(90,60,20,.08) 0 2px, transparent 2px 7px)'], ['leather', 'Leather', 'repeating-linear-gradient(45deg, rgba(0,0,0,.14) 0 1px, transparent 1px 4px), repeating-linear-gradient(-45deg, rgba(0,0,0,.14) 0 1px, transparent 1px 4px), linear-gradient(135deg, rgba(110,55,25,.6), rgba(45,22,10,.6))'], ['stone', 'Stone', 'radial-gradient(circle at 30% 40%, rgba(255,255,255,.12), transparent 30%), radial-gradient(circle at 70% 60%, rgba(0,0,0,.3), transparent 35%), repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 2px, transparent 2px 90px), repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 2px, transparent 2px 46px), linear-gradient(rgba(120,120,120,.35), rgba(70,70,70,.35))'], ['linen', 'Linen', 'repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(0,0,0,.09) 0 1px, transparent 1px 3px)'], ['arcane', 'Arcane', 'radial-gradient(circle at 50% 0%, rgba(120,80,255,.45), transparent 55%), radial-gradient(circle at 10% 90%, rgba(60,200,255,.3), transparent 45%), repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,.05) 0 2px, transparent 2px 22px)'], ['wood', 'Wood', 'repeating-linear-gradient(88deg, rgba(60,30,10,.35) 0 3px, rgba(120,70,30,.3) 3px 9px, rgba(80,45,15,.35) 9px 14px), linear-gradient(rgba(100,55,20,.4), rgba(60,30,10,.4))']];
+// Sheet styles, a few for each of the three colors. [key, name]
+var LOOK_MAIN = [['solid', 'Solid'], ['two', 'Two-tone, top to bottom'], ['diag', 'Two-tone, corner to corner'], ['radial', 'Glow from the top'], ['edges', 'Dark edges']];
+var LOOK_BORDER = [['plain', 'Plain'], ['gradient', 'Gradient buttons'], ['raised', 'Raised, with shadows'], ['glow', 'Glowing'], ['double', 'Double lines']];
+var LOOK_TEXT = [['plain', 'Plain'], ['shadow', 'Drop shadow'], ['emboss', 'Embossed'], ['glow', 'Glowing'], ['outline', 'Outlined']];
+var LOOK_FONTS = [['classic', 'Classic'], ['fell', 'Old print'], ['medieval', 'Medieval'], ['hand', 'Handwritten'], ['type', 'Typewriter'], ['clean', 'Clean']];
+// Two colors mixed: k of the second
+function mixHex(a, b, k) {
+  var p = function p(h) {
+    return [1, 3, 5].map(function (i) {
+      return parseInt(h.slice(i, i + 2), 16);
+    });
+  };
+  try {
+    var x = p(a),
+      y = p(b);
+    return '#' + x.map(function (v, i) {
+      return Math.round(v + (y[i] - v) * k).toString(16).padStart(2, '0');
+    }).join('');
+  } catch (e) {
+    return a;
+  }
+}
+// A sheet look, checked, with older saved looks carried over (Dark edges and Glowing border were checkboxes)
+function normLook(t) {
+  t = t && _typeof(t) === 'object' ? t : {};
+  var hex = function hex(v) {
+      return /^#[0-9a-f]{6}$/i.test(String(v || ''));
+    },
+    has = function has(list, v) {
+      return list.some(function (x) {
+        return x[0] === v;
+      });
+    };
+  var o = t.custom && hex(t.custom.main) && hex(t.custom.border) && hex(t.custom.text) ? {
+    custom: {
+      main: t.custom.main,
+      border: t.custom.border,
+      text: t.custom.text
+    }
+  } : {
+    scheme: typeof t.scheme === 'string' ? t.scheme : 'Default'
+  };
+  o.tex = t.tex === 'image' || SHEET_TEXTURES.some(function (x) {
+    return x[0] === t.tex;
+  }) ? t.tex : '';
+  o.op = Math.max(0, Math.min(100, +t.op || 0));
+  if (hex(t.main2)) o.main2 = t.main2;
+  o.fm = has(LOOK_MAIN, t.fm) ? t.fm : t.vig ? 'edges' : 'solid';
+  o.fb = has(LOOK_BORDER, t.fb) ? t.fb : t.glow ? 'glow' : 'plain';
+  o.ft = has(LOOK_TEXT, t.ft) ? t.ft : 'plain';
+  o.font = has(LOOK_FONTS, t.font) ? t.font : 'classic';
+  return o;
+}
 // Color schemes for the character sheet. The first is the app's own look.
 var SHEET_SCHEMES = [{
   name: 'Default',
@@ -7004,42 +7078,28 @@ function App() {
     setShowTheme = _useState334[1];
   var _useState335 = useState(function () {
       try {
-        var t = JSON.parse(window.localStorage.getItem('hba-sheet-theme') || 'null');
-        var hex = function hex(v) {
-          return /^#[0-9a-f]{6}$/i.test(String(v || ''));
-        };
-        var extra = t ? {
-          tex: SHEET_TEXTURES.some(function (x) {
-            return x[0] === t.tex;
-          }) ? t.tex : '',
-          vig: !!t.vig,
-          glow: !!t.glow,
-          op: Math.max(0, Math.min(100, +t.op || 0))
-        } : {};
-        if (t && t.custom && hex(t.custom.main) && hex(t.custom.border) && hex(t.custom.text)) return _objectSpread({
-          custom: t.custom
-        }, extra);
-        if (t && typeof t.scheme === 'string') return _objectSpread({
-          scheme: t.scheme
-        }, extra);
-      } catch (e) {}
-      return {
-        scheme: 'Default'
-      };
+        return normLook(JSON.parse(window.localStorage.getItem('hba-sheet-theme') || 'null'));
+      } catch (e) {
+        return normLook(null);
+      }
     }),
     _useState336 = _slicedToArray(_useState335, 2),
     sheetTheme = _useState336[0],
     setSheetTheme = _useState336[1];
-  var _useState337 = useState(function () {
+  var _useState337 = useState({}),
+    _useState338 = _slicedToArray(_useState337, 2),
+    sharedLooks = _useState338[0],
+    setSharedLooks = _useState338[1]; // looks players chose to share on their characters' sheets: {creature id: look}
+  var _useState339 = useState(function () {
       try {
         return window.localStorage.getItem('hba-sheet-bg') || '';
       } catch (e) {
         return '';
       }
     }),
-    _useState338 = _slicedToArray(_useState337, 2),
-    sheetBg = _useState338[0],
-    setSheetBg = _useState338[1]; // an uploaded background image, on this computer
+    _useState340 = _slicedToArray(_useState339, 2),
+    sheetBg = _useState340[0],
+    setSheetBg = _useState340[1]; // an uploaded background image, on this computer
 
   useEffect(function () {
     var _logEndRef$current;
@@ -7359,10 +7419,10 @@ function App() {
     atkType: '',
     size: 'Medium'
   };
-  var _useState339 = useState(emptyForm),
-    _useState340 = _slicedToArray(_useState339, 2),
-    form = _useState340[0],
-    setForm = _useState340[1];
+  var _useState341 = useState(emptyForm),
+    _useState342 = _slicedToArray(_useState341, 2),
+    form = _useState342[0],
+    setForm = _useState342[1];
   var openAdd = function openAdd() {
     setForm(_objectSpread(_objectSpread({}, emptyForm), {}, {
       type: isDM ? 'monster' : 'companion'
@@ -14891,6 +14951,17 @@ function App() {
         }
         if ((meta.enc || '') !== ENC_TABLE) setEncTable(meta.enc || '');
       }
+      {
+        var lv = v.looks && _typeof(v.looks) === 'object' ? v.looks : {};
+        setSharedLooks(function (prev) {
+          var sig = function sig(o) {
+            return Object.keys(o).sort().map(function (k) {
+              return k + ':' + (o[k] && o[k].at || 0);
+            }).join(',');
+          };
+          return sig(prev) === sig(lv) ? prev : lv;
+        });
+      }
       setShared(function (prev) {
         return stable(prev) === stable(v.shared || {}) ? prev : v.shared && _typeof(v.shared) === 'object' ? v.shared : {};
       });
@@ -15187,24 +15258,14 @@ function App() {
     bonus: 'BA',
     reaction: 'R'
   };
-  var themeNow = sheetTheme.custom ? sheetTheme.custom : SHEET_SCHEMES.find(function (s) {
-    return s.name === sheetTheme.scheme;
-  }) || SHEET_SCHEMES[0];
   var saveTheme = function saveTheme(t) {
-    setSheetTheme(t);
+    var n = normLook(t);
+    setSheetTheme(n);
     try {
-      window.localStorage.setItem('hba-sheet-theme', JSON.stringify(t));
+      window.localStorage.setItem('hba-sheet-theme', JSON.stringify(n));
     } catch (e) {}
   };
-  var looks = function looks() {
-    return {
-      tex: sheetTheme.tex || '',
-      vig: !!sheetTheme.vig,
-      glow: !!sheetTheme.glow,
-      op: sheetTheme.op || 0
-    };
-  }; // texture and effects stay when the colors change
-  var setBg = function setBg(url) {
+  var setBgLocal = function setBgLocal(url) {
     setSheetBg(url);
     try {
       if (url) window.localStorage.setItem('hba-sheet-bg', url);else window.localStorage.removeItem('hba-sheet-bg');
@@ -15212,40 +15273,151 @@ function App() {
       window.alert('That image is too large to keep on this computer.');
     }
   };
-  var loadBg = function loadBg(file) {
-    var r = new FileReader();
-    r.onload = function () {
+  // An image made smaller: the longest side at most `max` pixels, as a JPEG
+  var shrinkImg = function shrinkImg(src, max, q) {
+    return new Promise(function (res) {
+      if (!src) return res('');
       var img = new Image();
       img.onload = function () {
-        var k = Math.min(1, 1400 / Math.max(img.width, img.height)),
+        var k = Math.min(1, max / Math.max(img.width, img.height)),
           cv = document.createElement('canvas');
-        cv.width = Math.round(img.width * k);
-        cv.height = Math.round(img.height * k);
+        cv.width = Math.max(1, Math.round(img.width * k));
+        cv.height = Math.max(1, Math.round(img.height * k));
         cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-        setBg(cv.toDataURL('image/jpeg', 0.82));
-        saveTheme(_objectSpread(_objectSpread({}, sheetTheme), {}, {
-          tex: 'image',
-          op: sheetTheme.op || 45
-        }));
+        res(cv.toDataURL('image/jpeg', q));
       };
-      img.src = r.result;
-    };
-    r.readAsDataURL(file);
-  }; // made smaller so it fits on this computer
-  var sheetLook = function sheetLook() {
-    var tex = sheetTheme.tex || '',
-      op = (sheetTheme.op || 45) / 100,
-      layer = tex === 'image' && sheetBg ? "url(".concat(sheetBg, ")") : (SHEET_TEXTURES.find(function (x) {
-        return x[0] === tex;
-      }) || [])[2] || '';
-    return _objectSpread(_objectSpread({}, layer ? {
-      backgroundImage: "linear-gradient(color-mix(in srgb, var(--pp-main) ".concat(Math.round((1 - op) * 100), "%, transparent), color-mix(in srgb, var(--pp-main) ").concat(Math.round((1 - op) * 100), "%, transparent)), ").concat(layer),
-      backgroundSize: tex === 'image' ? 'auto, cover' : undefined,
-      backgroundPosition: 'center',
-      backgroundAttachment: 'local'
-    } : {}), {}, {
-      boxShadow: [sheetTheme.vig ? 'inset 0 0 70px rgba(0,0,0,0.65)' : '', sheetTheme.glow ? '0 0 14px var(--pp-border)' : ''].filter(Boolean).join(', ') || undefined
+      img.onerror = function () {
+        return res('');
+      };
+      img.src = src;
     });
+  };
+  // The look of one creature's sheet: the one shared on that character, or else this computer's own
+  var lookFor = function lookFor(c) {
+    var sh = c && sharedLooks[c.id] && _typeof(sharedLooks[c.id]) === 'object' ? sharedLooks[c.id] : null,
+      can = !!sh && canControl(c);
+    var t = sh ? normLook(sh) : sheetTheme,
+      bg = sh ? typeof sh.img === 'string' ? sh.img : '' : sheetBg;
+    var colors = t.custom || SHEET_SCHEMES.find(function (x) {
+      return x.name === t.scheme;
+    }) || SHEET_SCHEMES[0];
+    var put = function put(n, img) {
+      if (!room || !db || !c) return;
+      var rec = plain(_objectSpread(_objectSpread(_objectSpread({}, normLook(n)), img ? {
+        img: img
+      } : {}), {}, {
+        by: myId,
+        at: Date.now()
+      }));
+      setSharedLooks(function (prev) {
+        return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, c.id, rec));
+      });
+      db.ref('rooms/' + room + '/looks/' + c.id).set(rec)["catch"](function () {
+        return window.alert('That look could not be shared. The image may be too large.');
+      });
+    };
+    var save = sh ? function (n) {
+      if (can) put(n, bg);
+    } : saveTheme;
+    var setBg = sh ? function (url) {
+      if (!can) return;
+      if (!url) {
+        put(_objectSpread(_objectSpread({}, t), {}, {
+          tex: t.tex === 'image' ? '' : t.tex
+        }), '');
+        return;
+      }
+      shrinkImg(url, 1000, 0.72).then(function (small) {
+        return put(_objectSpread(_objectSpread({}, t), {}, {
+          tex: 'image',
+          op: t.op || 45
+        }), small);
+      });
+    } : setBgLocal;
+    var loadBg = function loadBg(file) {
+      var r = new FileReader();
+      r.onload = function () {
+        return shrinkImg(r.result, 1400, 0.82).then(function (url) {
+          if (!url) return;
+          if (sh) setBg(url);else {
+            setBgLocal(url);
+            saveTheme(_objectSpread(_objectSpread({}, t), {}, {
+              tex: 'image',
+              op: t.op || 45
+            }));
+          }
+        });
+      };
+      r.readAsDataURL(file);
+    };
+    var share = function share(on) {
+      if (!room || !db || !c || !canControl(c)) return;
+      if (!on) {
+        setSharedLooks(function (prev) {
+          var n = _objectSpread({}, prev);
+          delete n[c.id];
+          return n;
+        });
+        db.ref('rooms/' + room + '/looks/' + c.id).remove()["catch"](function () {});
+        return;
+      }
+      setSharedLooks(function (prev) {
+        return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, c.id, plain(_objectSpread(_objectSpread({}, normLook(t)), {}, {
+          by: myId,
+          at: Date.now()
+        }))));
+      }); // shows as shared at once; the image follows
+      if (t.tex === 'image' && bg) shrinkImg(bg, 1000, 0.72).then(function (small) {
+        return put(t, small);
+      });else put(_objectSpread(_objectSpread({}, t), {}, {
+        tex: t.tex === 'image' ? '' : t.tex
+      }), '');
+    };
+    var m2 = t.main2 || mixHex(colors.main, colors.text, 0.22);
+    var style = function () {
+      var tex = t.tex || '',
+        op = (t.op || 45) / 100,
+        layer = tex === 'image' && bg ? "url(".concat(bg, ")") : (SHEET_TEXTURES.find(function (x) {
+          return x[0] === tex;
+        }) || [])[2] || '';
+      var grad = function grad(pct) {
+        var a = function a(x) {
+            return pct >= 100 ? x : "color-mix(in srgb, ".concat(x, " ").concat(pct, "%, transparent)");
+          },
+          M = a('var(--pp-main)'),
+          S = a(m2);
+        return t.fm === 'two' ? "linear-gradient(180deg, ".concat(M, ", ").concat(S, ")") : t.fm === 'diag' ? "linear-gradient(135deg, ".concat(M, " 15%, ").concat(S, ")") : t.fm === 'radial' ? "radial-gradient(ellipse at 50% 15%, ".concat(S, ", ").concat(M, " 75%)") : "linear-gradient(".concat(M, ", ").concat(M, ")");
+      };
+      var two = ['two', 'diag', 'radial'].includes(t.fm),
+        imgs = layer ? [grad(Math.round((1 - op) * 100)), layer] : two ? [grad(100)] : [];
+      return _objectSpread(_objectSpread({}, imgs.length ? {
+        backgroundImage: imgs.join(', '),
+        backgroundSize: tex === 'image' && layer ? 'auto, cover' : undefined,
+        backgroundPosition: 'center',
+        backgroundAttachment: 'local'
+      } : {}), {}, {
+        boxShadow: [t.fm === 'edges' ? 'inset 0 0 70px rgba(0,0,0,0.65)' : '', t.fb === 'glow' ? '0 0 14px var(--pp-border)' : ''].filter(Boolean).join(', ') || undefined
+      });
+    }();
+    return {
+      t: t,
+      bg: bg,
+      colors: colors,
+      m2: m2,
+      shared: !!sh,
+      can: can,
+      sharedBy: sh ? sh.by : '',
+      save: save,
+      setBg: setBg,
+      loadBg: loadBg,
+      share: share,
+      style: style,
+      attrs: {
+        'data-fb': t.fb,
+        'data-ft': t.ft,
+        'data-font': t.font
+      }
+    };
   };
   // One of the actions everyone has. Each does its own thing.
   var selfEffect = function selfEffect(c, eff, text) {
@@ -16036,38 +16208,38 @@ function App() {
       })]);
     });
   };
-  var _useState341 = useState(null),
-    _useState342 = _slicedToArray(_useState341, 2),
-    hdPick = _useState342[0],
-    setHdPick = _useState342[1];
   var _useState343 = useState(null),
     _useState344 = _slicedToArray(_useState343, 2),
-    fatePick = _useState344[0],
-    setFatePick = _useState344[1]; // the Improve Fate window: {cId, entryId}
-  var _useState345 = useState('fate'),
+    hdPick = _useState344[0],
+    setHdPick = _useState344[1];
+  var _useState345 = useState(null),
     _useState346 = _slicedToArray(_useState345, 2),
-    rollWin = _useState346[0],
-    setRollWin = _useState346[1]; // the roll window is for Improve Fate or Heroic Inspiration
-  var _useState347 = useState(null),
+    fatePick = _useState346[0],
+    setFatePick = _useState346[1]; // the Improve Fate window: {cId, entryId}
+  var _useState347 = useState('fate'),
     _useState348 = _slicedToArray(_useState347, 2),
-    fateChoose = _useState348[0],
-    setFateChoose = _useState348[1]; // picking a roll in the Combat Log for Improve Fate: the character's id
-  var _useState349 = useState(false),
+    rollWin = _useState348[0],
+    setRollWin = _useState348[1]; // the roll window is for Improve Fate or Heroic Inspiration
+  var _useState349 = useState(null),
     _useState350 = _slicedToArray(_useState349, 2),
-    flanked = _useState350[0],
-    setFlanked = _useState350[1]; // Flanking (an optional rule): Advantage on this attack
-  var _useState351 = useState([]),
+    fateChoose = _useState350[0],
+    setFateChoose = _useState350[1]; // picking a roll in the Combat Log for Improve Fate: the character's id
+  var _useState351 = useState(false),
     _useState352 = _slicedToArray(_useState351, 2),
-    sculpt = _useState352[0],
-    setSculpt = _useState352[1]; // Sculpt Spells: creatures that automatically succeed
-  var _useState353 = useState({}),
+    flanked = _useState352[0],
+    setFlanked = _useState352[1]; // Flanking (an optional rule): Advantage on this attack
+  var _useState353 = useState([]),
     _useState354 = _slicedToArray(_useState353, 2),
-    coverSel = _useState354[0],
-    setCoverSel = _useState354[1]; // which recent attack the sheet's Cover line is set to
+    sculpt = _useState354[0],
+    setSculpt = _useState354[1]; // Sculpt Spells: creatures that automatically succeed
   var _useState355 = useState({}),
     _useState356 = _slicedToArray(_useState355, 2),
-    promptCover = _useState356[0],
-    setPromptCover = _useState356[1]; // cover the creature making a Dexterity save says it has, per prompt
+    coverSel = _useState356[0],
+    setCoverSel = _useState356[1]; // which recent attack the sheet's Cover line is set to
+  var _useState357 = useState({}),
+    _useState358 = _slicedToArray(_useState357, 2),
+    promptCover = _useState358[0],
+    setPromptCover = _useState358[1]; // cover the creature making a Dexterity save says it has, per prompt
   var withCover = function withCover(q) {
     return promptCover[q.id] && q.action ? _objectSpread(_objectSpread({}, q), {}, {
       action: _objectSpread(_objectSpread({}, q.action), {}, {
@@ -16075,18 +16247,18 @@ function App() {
       })
     }) : q;
   };
-  var _useState357 = useState([]),
-    _useState358 = _slicedToArray(_useState357, 2),
-    reminders = _useState358[0],
-    setReminders = _useState358[1]; // what a feature lets a creature do right after an action: [{id, texts}]
-  var _useState359 = useState(null),
+  var _useState359 = useState([]),
     _useState360 = _slicedToArray(_useState359, 2),
-    blink = _useState360[0],
-    setBlink = _useState360[1]; // Blink Steps after the Attack or Magic action: {id, feet, key}
-  var _useState361 = useState({}),
+    reminders = _useState360[0],
+    setReminders = _useState360[1]; // what a feature lets a creature do right after an action: [{id, texts}]
+  var _useState361 = useState(null),
     _useState362 = _slicedToArray(_useState361, 2),
-    swapTo = _useState362[0],
-    setSwapTo = _useState362[1]; // Alert's Initiative Swap: {characterId: allyId}
+    blink = _useState362[0],
+    setBlink = _useState362[1]; // Blink Steps after the Attack or Magic action: {id, feet, key}
+  var _useState363 = useState({}),
+    _useState364 = _slicedToArray(_useState363, 2),
+    swapTo = _useState364[0],
+    setSwapTo = _useState364[1]; // Alert's Initiative Swap: {characterId: allyId}
   var INCAP = ['Incapacitated', 'Paralyzed', 'Petrified', 'Stunned', 'Unconscious'];
   var turnSeq = function turnSeq() {
     return combatStarted ? round * 1000 + Math.max(0, inPlay.findIndex(function (c) {
@@ -17132,16 +17304,19 @@ function App() {
         src: ''
       };
     });
-    return /*#__PURE__*/React.createElement("div", {
+    var LK = lookFor(c),
+      LT = LK.t;
+    return /*#__PURE__*/React.createElement("div", _extends({
       className: "paper",
       "data-exc": c.id,
-      "data-testid": "paper",
+      "data-testid": "paper"
+    }, LK.attrs, {
       style: _objectSpread({
-        '--pp-main': themeNow.main,
-        '--pp-border': themeNow.border,
-        '--pp-text': themeNow.text
-      }, sheetLook())
-    }, itemCard && itemCard.cId === c.id && function () {
+        '--pp-main': LK.colors.main,
+        '--pp-border': LK.colors.border,
+        '--pp-text': LK.colors.text
+      }, LK.style)
+    }), itemCard && itemCard.cId === c.id && function () {
       var it = allItems.find(function (x) {
           return x.name === itemCard.name;
         }) || {
@@ -17338,104 +17513,133 @@ function App() {
     }, "Colors ", showTheme ? '▲' : '▼'))), showTheme && /*#__PURE__*/React.createElement("div", {
       className: "pp-theme",
       "data-testid": "theme-panel"
+    }, LK.shared && /*#__PURE__*/React.createElement("div", {
+      className: "pp-share-note pp-muted",
+      "data-testid": "look-shared-note"
+    }, LK.can ? "This is ".concat(c.name, "'s shared look: everyone at the table sees it, and changes here change it for them too.") : "This is the look chosen for ".concat(c.name, "'s sheet.")), /*#__PURE__*/React.createElement("fieldset", {
+      disabled: LK.shared && !LK.can,
+      style: {
+        border: 'none',
+        margin: 0,
+        padding: 0
+      }
     }, /*#__PURE__*/React.createElement("div", {
       className: "pp-swatches"
     }, SHEET_SCHEMES.map(function (s) {
       return /*#__PURE__*/React.createElement("button", {
         key: s.name,
         "data-testid": "scheme-".concat(s.name),
-        className: "pp-swatch ".concat(!sheetTheme.custom && themeNow.name === s.name ? 'on' : ''),
+        className: "pp-swatch ".concat(!LT.custom && LK.colors.name === s.name ? 'on' : ''),
         style: {
           background: s.main,
           borderColor: s.border,
           color: s.text
         },
         onClick: function onClick() {
-          return saveTheme(_objectSpread(_objectSpread({}, looks()), {}, {
+          return LK.save(_objectSpread(_objectSpread({}, LT), {}, {
+            custom: undefined,
             scheme: s.name
           }));
         }
       }, s.name);
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "pp-pickers"
-    }, [['main', 'Main color'], ['border', 'Border'], ['text', 'Text']].map(function (_ref115) {
-      var _ref116 = _slicedToArray(_ref115, 2),
+    })), [['main', 'Main color', 'Main style', LOOK_MAIN, 'fm'], ['border', 'Border', 'Border style', LOOK_BORDER, 'fb'], ['text', 'Text', 'Text style', LOOK_TEXT, 'ft']].map(function (_ref115) {
+      var _ref116 = _slicedToArray(_ref115, 5),
         k = _ref116[0],
-        t = _ref116[1];
-      return /*#__PURE__*/React.createElement("label", {
-        key: k
-      }, t, " ", /*#__PURE__*/React.createElement("input", {
+        t = _ref116[1],
+        st = _ref116[2],
+        opts = _ref116[3],
+        fk = _ref116[4];
+      return /*#__PURE__*/React.createElement("div", {
+        className: "pp-pickers",
+        key: k,
+        "data-testid": "look-row-".concat(k)
+      }, /*#__PURE__*/React.createElement("label", null, t, " ", /*#__PURE__*/React.createElement("input", {
         type: "color",
         "aria-label": t,
-        value: themeNow[k],
+        value: LK.colors[k],
         onChange: function onChange(e) {
-          return saveTheme(_objectSpread(_objectSpread({}, looks()), {}, {
+          return LK.save(_objectSpread(_objectSpread({}, LT), {}, {
             custom: _defineProperty({
-              main: themeNow.main,
-              border: themeNow.border,
-              text: themeNow.text
+              main: LK.colors.main,
+              border: LK.colors.border,
+              text: LK.colors.text
             }, k, e.target.value)
           }));
         }
-      }));
-    }), /*#__PURE__*/React.createElement("button", {
-      className: "pp-tab",
-      "data-testid": "scheme-reset",
-      onClick: function onClick() {
-        saveTheme({
-          scheme: 'Default'
-        });
-        setBg('');
-      }
-    }, "Back to default")), /*#__PURE__*/React.createElement("div", {
+      })), /*#__PURE__*/React.createElement("label", null, /*#__PURE__*/React.createElement("select", {
+        "aria-label": st,
+        "data-testid": "look-".concat(fk),
+        value: LT[fk],
+        onChange: function onChange(e) {
+          return LK.save(_objectSpread(_objectSpread({}, LT), {}, _defineProperty({}, fk, e.target.value)));
+        }
+      }, opts.map(function (_ref117) {
+        var _ref118 = _slicedToArray(_ref117, 2),
+          v = _ref118[0],
+          n = _ref118[1];
+        return /*#__PURE__*/React.createElement("option", {
+          key: v,
+          value: v
+        }, n);
+      }))), k === 'main' && ['two', 'diag', 'radial'].includes(LT.fm) && /*#__PURE__*/React.createElement("label", null, "Second color ", /*#__PURE__*/React.createElement("input", {
+        type: "color",
+        "aria-label": "Second color",
+        "data-testid": "look-main2",
+        value: LK.m2,
+        onChange: function onChange(e) {
+          return LK.save(_objectSpread(_objectSpread({}, LT), {}, {
+            main2: e.target.value
+          }));
+        }
+      })), k === 'text' && /*#__PURE__*/React.createElement("label", null, "Font ", /*#__PURE__*/React.createElement("select", {
+        "aria-label": "Font",
+        "data-testid": "look-font",
+        value: LT.font,
+        onChange: function onChange(e) {
+          return LK.save(_objectSpread(_objectSpread({}, LT), {}, {
+            font: e.target.value
+          }));
+        }
+      }, LOOK_FONTS.map(function (_ref119) {
+        var _ref120 = _slicedToArray(_ref119, 2),
+          v = _ref120[0],
+          n = _ref120[1];
+        return /*#__PURE__*/React.createElement("option", {
+          key: v,
+          value: v
+        }, n);
+      }))));
+    }), /*#__PURE__*/React.createElement("div", {
       className: "pp-pickers",
       "data-testid": "theme-texture"
     }, /*#__PURE__*/React.createElement("label", null, "Texture ", /*#__PURE__*/React.createElement("select", {
       "data-testid": "sheet-texture",
-      value: sheetTheme.tex || '',
+      value: LT.tex || '',
       onChange: function onChange(e) {
-        return saveTheme(_objectSpread(_objectSpread({}, sheetTheme), {}, {
+        return LK.save(_objectSpread(_objectSpread({}, LT), {}, {
           tex: e.target.value
         }));
       }
-    }, SHEET_TEXTURES.map(function (_ref117) {
-      var _ref118 = _slicedToArray(_ref117, 2),
-        k = _ref118[0],
-        n = _ref118[1];
+    }, SHEET_TEXTURES.map(function (_ref121) {
+      var _ref122 = _slicedToArray(_ref121, 2),
+        k = _ref122[0],
+        n = _ref122[1];
       return /*#__PURE__*/React.createElement("option", {
         key: k,
         value: k
       }, n);
-    }), sheetBg && /*#__PURE__*/React.createElement("option", {
+    }), LK.bg && /*#__PURE__*/React.createElement("option", {
       value: "image"
-    }, "Your image"))), /*#__PURE__*/React.createElement("label", null, /*#__PURE__*/React.createElement("input", {
-      type: "checkbox",
-      "data-testid": "sheet-vignette",
-      checked: !!sheetTheme.vig,
-      onChange: function onChange(e) {
-        return saveTheme(_objectSpread(_objectSpread({}, sheetTheme), {}, {
-          vig: e.target.checked
-        }));
-      }
-    }), " Dark edges"), /*#__PURE__*/React.createElement("label", null, /*#__PURE__*/React.createElement("input", {
-      type: "checkbox",
-      "data-testid": "sheet-glow",
-      checked: !!sheetTheme.glow,
-      onChange: function onChange(e) {
-        return saveTheme(_objectSpread(_objectSpread({}, sheetTheme), {}, {
-          glow: e.target.checked
-        }));
-      }
-    }), " Glowing border"), /*#__PURE__*/React.createElement("label", {
+    }, "Your image"))), /*#__PURE__*/React.createElement("label", {
       title: "How much the texture or image shows through"
     }, "Strength ", /*#__PURE__*/React.createElement("input", {
       type: "range",
       min: "10",
       max: "100",
       "data-testid": "sheet-op",
-      value: sheetTheme.op || 45,
+      value: LT.op || 45,
       onChange: function onChange(e) {
-        return saveTheme(_objectSpread(_objectSpread({}, sheetTheme), {}, {
+        return LK.save(_objectSpread(_objectSpread({}, LT), {}, {
           op: +e.target.value
         }));
       }
@@ -17454,26 +17658,53 @@ function App() {
       onChange: function onChange(e) {
         var f = e.target.files && e.target.files[0];
         e.target.value = '';
-        if (f) loadBg(f);
+        if (f) LK.loadBg(f);
       }
-    })), sheetBg && /*#__PURE__*/React.createElement("button", {
+    })), LK.bg && /*#__PURE__*/React.createElement("button", {
       className: "pp-tab",
       "data-testid": "sheet-bg-clear",
       onClick: function onClick() {
-        setBg('');
-        if (sheetTheme.tex === 'image') saveTheme(_objectSpread(_objectSpread({}, sheetTheme), {}, {
-          tex: ''
-        }));
+        if (LK.shared) LK.setBg('');else {
+          setBgLocal('');
+          if (LT.tex === 'image') saveTheme(_objectSpread(_objectSpread({}, LT), {}, {
+            tex: ''
+          }));
+        }
       }
-    }, "Remove image"))), sheetTab === 'main' && /*#__PURE__*/React.createElement("div", {
+    }, "Remove image"), /*#__PURE__*/React.createElement("button", {
+      className: "pp-tab",
+      "data-testid": "scheme-reset",
+      onClick: function onClick() {
+        if (LK.shared) LK.save({
+          scheme: 'Default'
+        });else {
+          saveTheme({
+            scheme: 'Default'
+          });
+          setBgLocal('');
+        }
+      }
+    }, "Back to default"))), room && canControl(c) && /*#__PURE__*/React.createElement("label", {
+      className: "rule-label",
+      style: {
+        margin: '8px 0 0'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      "data-testid": "look-share",
+      checked: LK.shared,
+      onChange: function onChange(e) {
+        return LK.share(e.target.checked);
+      }
+    }), " Share this look on ", c.name, "'s sheet, so everyone at the table sees it (with the image)")), sheetTab === 'main' && /*#__PURE__*/React.createElement("div", {
       "data-testid": "paper-main"
     }, /*#__PURE__*/React.createElement("div", {
       className: "pp-top"
-    }, ABILITY_KEYS.map(function (_ref119) {
+    }, ABILITY_KEYS.map(function (_ref123) {
       var _ab3, _ab4;
-      var _ref120 = _slicedToArray(_ref119, 2),
-        k = _ref120[0],
-        ab = _ref120[1];
+      var _ref124 = _slicedToArray(_ref123, 2),
+        k = _ref124[0],
+        ab = _ref124[1];
       var score = (_ab3 = (c.scores || {})[ab]) !== null && _ab3 !== void 0 ? _ab3 : 10,
         sv = (_ab4 = (c.saves || {})[ab]) !== null && _ab4 !== void 0 ? _ab4 : mod(score),
         prof = (sh.saveProfs || []).includes(ab) || sv > mod(score);
@@ -17716,11 +17947,11 @@ function App() {
     }, /*#__PURE__*/React.createElement("strong", null, signed(effectiveInitBonus(c))), /*#__PURE__*/React.createElement("span", null, "Init"), whyBox('init')), /*#__PURE__*/React.createElement("div", {
       className: "pp-card pp-passive",
       "data-testid": "pp-passive"
-    }, [['Perception', 'Passive Perception'], ['Investigation', 'Passive Investigation'], ['Insight', 'Passive Insight']].map(function (_ref121) {
+    }, [['Perception', 'Passive Perception'], ['Investigation', 'Passive Investigation'], ['Insight', 'Passive Insight']].map(function (_ref125) {
       var _SKILL_ABILITY$sk3;
-      var _ref122 = _slicedToArray(_ref121, 2),
-        sk = _ref122[0],
-        t = _ref122[1];
+      var _ref126 = _slicedToArray(_ref125, 2),
+        sk = _ref126[0],
+        t = _ref126[1];
       var v = (sh.skills || {})[sk];
       var n = sk === 'Perception' && sh.pp != null ? sh.pp : 10 + (Number.isFinite(+v) ? +v : mod((_SKILL_ABILITY$sk3 = (c.scores || {})[SKILL_ABILITY[sk]]) !== null && _SKILL_ABILITY$sk3 !== void 0 ? _SKILL_ABILITY$sk3 : 10));
       return /*#__PURE__*/React.createElement("div", {
@@ -17732,10 +17963,10 @@ function App() {
       return d.length ? /*#__PURE__*/React.createElement("div", {
         className: "pp-line",
         "data-testid": "pp-defenses"
-      }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Defenses"), " ", d.map(function (_ref123, i) {
-        var _ref124 = _slicedToArray(_ref123, 2),
-          k = _ref124[0],
-          v = _ref124[1];
+      }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Defenses"), " ", d.map(function (_ref127, i) {
+        var _ref128 = _slicedToArray(_ref127, 2),
+          k = _ref128[0],
+          v = _ref128[1];
         return /*#__PURE__*/React.createElement("span", {
           key: k,
           className: "def-chip def-".concat(k),
@@ -17877,13 +18108,13 @@ function App() {
         "data-testid": "econ-row"
       }, [['a', 'action', 'Action', '⚔', 'econ-action'], ['b', 'bonus', 'Bonus Action', '◆', 'econ-bonus']].concat(_toConsumableArray(effs(c).some(function (e) {
         return e.extraAction;
-      }) ? [['x', 'extra', 'Extra Action', '⚡', 'econ-extra']] : []), [['r', 'reaction', 'Reaction', '↩', 'econ-reaction']]).map(function (_ref125) {
-        var _ref126 = _slicedToArray(_ref125, 5),
-          k = _ref126[0],
-          kind = _ref126[1],
-          lbl = _ref126[2],
-          ico = _ref126[3],
-          tid = _ref126[4];
+      }) ? [['x', 'extra', 'Extra Action', '⚡', 'econ-extra']] : []), [['r', 'reaction', 'Reaction', '↩', 'econ-reaction']]).map(function (_ref129) {
+        var _ref130 = _slicedToArray(_ref129, 5),
+          k = _ref130[0],
+          kind = _ref130[1],
+          lbl = _ref130[2],
+          ico = _ref130[3],
+          tid = _ref130[4];
         return /*#__PURE__*/React.createElement("span", {
           key: k,
           role: "button",
@@ -17955,15 +18186,15 @@ function App() {
         "data-testid": "undo-btn",
         onClick: undoLast
       }, "Take back ", undoRef.current.name));
-    }(), Object.entries(sh.pools || {}).filter(function (_ref127) {
-      var _ref128 = _slicedToArray(_ref127, 2),
-        pn = _ref128[0],
-        q = _ref128[1];
+    }(), Object.entries(sh.pools || {}).filter(function (_ref131) {
+      var _ref132 = _slicedToArray(_ref131, 2),
+        pn = _ref132[0],
+        q = _ref132[1];
       return !q.item;
-    }).map(function (_ref129) {
-      var _ref130 = _slicedToArray(_ref129, 2),
-        pn = _ref130[0],
-        q = _ref130[1];
+    }).map(function (_ref133) {
+      var _ref134 = _slicedToArray(_ref133, 2),
+        pn = _ref134[0],
+        q = _ref134[1];
       var spend = actions.filter(function (a) {
         return a.pool === pn && !a.pointCosts;
       });
@@ -18364,9 +18595,9 @@ function App() {
           e: e
         };
       });
-    }).map(function (_ref131) {
-      var x = _ref131.x,
-        e = _ref131.e;
+    }).map(function (_ref135) {
+      var x = _ref135.x,
+        e = _ref135.e;
       return /*#__PURE__*/React.createElement("div", {
         key: e.id,
         className: "pp-arow ".concat(isMovable(e) ? 'hot' : ''),
@@ -18411,9 +18642,9 @@ function App() {
           k: k
         };
       });
-    }).map(function (_ref132) {
-      var x = _ref132.x,
-        k = _ref132.k;
+    }).map(function (_ref136) {
+      var x = _ref136.x,
+        k = _ref136.k;
       return /*#__PURE__*/React.createElement("div", {
         key: x.id + k,
         className: "pp-arow"
@@ -18573,10 +18804,10 @@ function App() {
       "data-testid": "act-filter"
     }, /*#__PURE__*/React.createElement("span", {
       className: "pp-muted"
-    }, "Show:"), [['action', 'Action'], ['bonus', 'Bonus Action'], ['reaction', 'Reaction'], ['other', 'Other']].map(function (_ref133) {
-      var _ref134 = _slicedToArray(_ref133, 2),
-        k = _ref134[0],
-        t = _ref134[1];
+    }, "Show:"), [['action', 'Action'], ['bonus', 'Bonus Action'], ['reaction', 'Reaction'], ['other', 'Other']].map(function (_ref137) {
+      var _ref138 = _slicedToArray(_ref137, 2),
+        k = _ref138[0],
+        t = _ref138[1];
       return /*#__PURE__*/React.createElement("button", {
         key: k,
         "data-testid": "filter-".concat(k),
@@ -18626,10 +18857,10 @@ function App() {
       }, ACT_SHORT[a.activation] || '–'));
     }), Object.keys(sh.pools || {}).length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "pp-note"
-    }, Object.entries(sh.pools).map(function (_ref135) {
-      var _ref136 = _slicedToArray(_ref135, 2),
-        n = _ref136[0],
-        q = _ref136[1];
+    }, Object.entries(sh.pools).map(function (_ref139) {
+      var _ref140 = _slicedToArray(_ref139, 2),
+        n = _ref140[0],
+        q = _ref140[1];
       return "".concat(n, " ").concat(poolLeft(c, n), "/").concat(q.max);
     }).join(' · ')), cantrips.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       className: "pp-h2"
@@ -19021,6 +19252,7 @@ function App() {
           lit = hi && hi.test(it.name);
         return /*#__PURE__*/React.createElement("div", {
           key: it.name + i,
+          className: "inv-wrap",
           "data-testid": "inv-item",
           style: lit ? {
             outline: '3px solid var(--gold)',
@@ -19052,10 +19284,10 @@ function App() {
       "data-testid": "paper-journal"
     }, [['Alignment', jr.alignment], ['Faith', jr.deity], ['Personality Traits', jr.traits], ['Ideals', jr.ideals], ['Bonds', jr.bonds], ['Flaws', jr.flaws], ['Appearance', jr.appearance], ['Backstory', jr.backstory], ['Allies & Organizations', jr.allies], ['Enemies & Rivals', jr.enemies], ['Quests & Goals', jr.quests], ['Languages', (sh.languages || []).join(', ')], ['Tool Proficiencies', (sh.tools || []).join(', ')]].filter(function (x) {
       return x[1];
-    }).map(function (_ref137) {
-      var _ref138 = _slicedToArray(_ref137, 2),
-        hd = _ref138[0],
-        t = _ref138[1];
+    }).map(function (_ref141) {
+      var _ref142 = _slicedToArray(_ref141, 2),
+        hd = _ref142[0],
+        t = _ref142[1];
       return /*#__PURE__*/React.createElement("div", {
         key: hd,
         className: "pp-entry"
@@ -19130,9 +19362,9 @@ function App() {
         }
       }, "Dismiss"))), m ? /*#__PURE__*/React.createElement("div", {
         className: "pp-etext"
-      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, m.t), " \xB7 CR ", m.cr, " \xB7 AC ", m.ac, " \xB7 ", m.hp, " HP", m.sp ? " \xB7 Speed ".concat(m.sp) : ''), /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref139, i) {
-        var _ref140 = _slicedToArray(_ref139, 1),
-          k = _ref140[0];
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, m.t), " \xB7 CR ", m.cr, " \xB7 AC ", m.ac, " \xB7 ", m.hp, " HP", m.sp ? " \xB7 Speed ".concat(m.sp) : ''), /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref143, i) {
+        var _ref144 = _slicedToArray(_ref143, 1),
+          k = _ref144[0];
         return "".concat(k.toUpperCase(), " ").concat(m.s[i], " (").concat(modStr(m.s[i]), ")");
       }).join(' · ')), (m.tr || []).map(function (t, i) {
         return /*#__PURE__*/React.createElement("div", {
@@ -19800,14 +20032,14 @@ function App() {
     return x.c;
   });
   // What is waiting on this person: Reactions they can take, and rolls they are asked to make. These pop up in the middle of the screen.
-  var myAskIds = [].concat(_toConsumableArray(flowPrompts.filter(function (_ref141) {
-    var q = _ref141.q,
-      c = _ref141.c;
+  var myAskIds = [].concat(_toConsumableArray(flowPrompts.filter(function (_ref145) {
+    var q = _ref145.q,
+      c = _ref145.c;
     return canControl(c) && (q.kind === 'incoming' && q.react && !q.answer || q.kind === 'confirm' && !q.answer || q.kind === 'offer' && reactionsFor(c, q.ev).length > 0);
   }).map(function (x) {
     return x.q.id;
-  })), _toConsumableArray(openPrompts.filter(function (_ref142) {
-    var c = _ref142.c;
+  })), _toConsumableArray(openPrompts.filter(function (_ref146) {
+    var c = _ref146.c;
     return canControl(c);
   }).map(function (x) {
     return x.q.id;
@@ -19824,9 +20056,9 @@ function App() {
   }).filter(function (x) {
     return x.c;
   });
-  sidePrompts.forEach(function (_ref143) {
-    var q = _ref143.q,
-      c = _ref143.c;
+  sidePrompts.forEach(function (_ref147) {
+    var q = _ref147.q,
+      c = _ref147.c;
     if ((q.kind === 'askdm' || q.kind === 'time') && isDM || (q.kind === 'form' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn') && canControl(c)) myAskIds.push(q.id);
   });
   var askKey = myAskIds.join(','),
@@ -20082,10 +20314,10 @@ function App() {
     className: "modal-header"
   }, "Clear the table"), /*#__PURE__*/React.createElement("div", {
     className: "modal-body"
-  }, [['log', 'The Combat Log'], ['monsters', 'Monsters and the turn order (ends combat)'], ['players', 'Player characters (their sheets leave the session; players keep their files)'], ['world', 'The World Tracker (time, weather, trackers, timers)'], ['notes', 'My notes']].map(function (_ref144) {
-    var _ref145 = _slicedToArray(_ref144, 2),
-      k = _ref145[0],
-      t = _ref145[1];
+  }, [['log', 'The Combat Log'], ['monsters', 'Monsters and the turn order (ends combat)'], ['players', 'Player characters (their sheets leave the session; players keep their files)'], ['world', 'The World Tracker (time, weather, trackers, timers)'], ['notes', 'My notes']].map(function (_ref148) {
+    var _ref149 = _slicedToArray(_ref148, 2),
+      k = _ref149[0],
+      t = _ref149[1];
     return /*#__PURE__*/React.createElement("label", {
       key: k,
       className: "rule-label",
@@ -20728,10 +20960,10 @@ function App() {
     className: "modal-body"
   }, explained.lines.filter(function (l) {
     return l && l[1] !== '' && l[1] != null;
-  }).map(function (_ref146, i) {
-    var _ref147 = _slicedToArray(_ref146, 2),
-      n = _ref147[0],
-      v = _ref147[1];
+  }).map(function (_ref150, i) {
+    var _ref151 = _slicedToArray(_ref150, 2),
+      n = _ref151[0],
+      v = _ref151[1];
     return /*#__PURE__*/React.createElement("div", {
       key: i,
       className: "explain-line"
@@ -21102,10 +21334,10 @@ function App() {
           });
         }
       }, "No swap"));
-    }), dropped.map(function (_ref148) {
-      var x = _ref148.x,
-        e = _ref148.e,
-        caster = _ref148.caster;
+    }), dropped.map(function (_ref152) {
+      var x = _ref152.x,
+        e = _ref152.e,
+        caster = _ref152.caster;
       return /*#__PURE__*/React.createElement("span", {
         key: e.id,
         className: "p-btns",
@@ -21200,9 +21432,9 @@ function App() {
     "data-testid": "prompt-bar"
   }, askPop && /*#__PURE__*/React.createElement("div", {
     className: "pop-title"
-  }, /*#__PURE__*/React.createElement("span", null, myAskIds.length > 1 ? 'These need you' : 'This needs you')), flowPrompts.map(function (_ref149) {
-    var q = _ref149.q,
-      c = _ref149.c;
+  }, /*#__PURE__*/React.createElement("span", null, myAskIds.length > 1 ? 'These need you' : 'This needs you')), flowPrompts.map(function (_ref153) {
+    var q = _ref153.q,
+      c = _ref153.c;
     var mine = canControl(c),
       reactions = mine ? reactionsFor(c, q.kind === 'incoming' ? 'targeted' : q.kind === 'offer' ? q.ev : q.hit ? 'hit' : 'miss') : [];
     var react = reactions.length > 0 && /*#__PURE__*/React.createElement("span", {
@@ -21265,9 +21497,9 @@ function App() {
     }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, q.actorName), "'s ", q.what, " ", /*#__PURE__*/React.createElement("strong", null, q.hit ? q.crit ? 'is a Critical Hit on' : 'hits' : 'misses'), " ", /*#__PURE__*/React.createElement("strong", null, c.name), q.total != null ? " (".concat(q.total, " to hit)") : '', ". ", mine ? "You have a Reaction: about ".concat(secs, " seconds to use it before this is resolved.") : "".concat(c.name, " has a moment to use a Reaction before this is resolved.")), /*#__PURE__*/React.createElement("span", {
       className: "p-btns"
     }, react, noR));
-  }), sidePrompts.map(function (_ref150) {
-    var q = _ref150.q,
-      c = _ref150.c;
+  }), sidePrompts.map(function (_ref154) {
+    var q = _ref154.q,
+      c = _ref154.c;
     return q.kind === 'tell' ? canControl(c) ? /*#__PURE__*/React.createElement("div", {
       key: q.id,
       className: "prompt-item yours",
@@ -21499,11 +21731,11 @@ function App() {
     }, "Choose the form")) : /*#__PURE__*/React.createElement("span", {
       className: "prompt-wait"
     }, "Waiting for ", c.name));
-  }), openPrompts.map(function (_ref151) {
-    var q = _ref151.q,
-      c = _ref151.c,
-      text = _ref151.text,
-      dc = _ref151.dc;
+  }), openPrompts.map(function (_ref155) {
+    var q = _ref155.q,
+      c = _ref155.c,
+      text = _ref155.text,
+      dc = _ref155.dc;
     return /*#__PURE__*/React.createElement("div", {
       key: q.id,
       className: "prompt-item ".concat(canControl(c) ? 'yours' : '')
@@ -21581,10 +21813,10 @@ function App() {
   }, "Later"))), /*#__PURE__*/React.createElement("div", {
     className: "pane-tabs",
     role: "tablist"
-  }, [['order', 'Order'], ['sheet', 'Sheet'], ['log', 'Log']].map(function (_ref152) {
-    var _ref153 = _slicedToArray(_ref152, 2),
-      k = _ref153[0],
-      l = _ref153[1];
+  }, [['order', 'Order'], ['sheet', 'Sheet'], ['log', 'Log']].map(function (_ref156) {
+    var _ref157 = _slicedToArray(_ref156, 2),
+      k = _ref157[0],
+      l = _ref157[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       role: "tab",
@@ -22279,9 +22511,9 @@ function App() {
         b: b
       };
     });
-  }).map(function (_ref154) {
-    var c = _ref154.c,
-      b = _ref154.b;
+  }).map(function (_ref158) {
+    var c = _ref158.c,
+      b = _ref158.b;
     return /*#__PURE__*/React.createElement("div", {
       key: b.id,
       className: "buff-note",
@@ -22363,10 +22595,10 @@ function App() {
         skill: ''
       }));
     }
-  }, ABILITY_KEYS.map(function (_ref155) {
-    var _ref156 = _slicedToArray(_ref155, 2),
-      k = _ref156[0],
-      full = _ref156[1];
+  }, ABILITY_KEYS.map(function (_ref159) {
+    var _ref160 = _slicedToArray(_ref159, 2),
+      k = _ref160[0],
+      full = _ref160[1];
     return /*#__PURE__*/React.createElement("option", {
       key: full,
       value: full
@@ -22805,11 +23037,11 @@ function App() {
     }, ch.lbl, ch.src ? ' ✦' : ''));
   })), /*#__PURE__*/React.createElement("div", {
     className: "abil-row"
-  }, ABILITY_KEYS.map(function (_ref157) {
+  }, ABILITY_KEYS.map(function (_ref161) {
     var _ab5, _ab6;
-    var _ref158 = _slicedToArray(_ref157, 2),
-      k = _ref158[0],
-      ab = _ref158[1];
+    var _ref162 = _slicedToArray(_ref161, 2),
+      k = _ref162[0],
+      ab = _ref162[1];
     var score = (_ab5 = (viewed.scores || {})[ab]) !== null && _ab5 !== void 0 ? _ab5 : 10;
     return /*#__PURE__*/React.createElement("div", {
       className: "abil",
@@ -22966,9 +23198,9 @@ function App() {
       className: "pp-chip ".concat(cur && cur.length === SEE_KEYS.length ? 'on' : ''),
       "data-testid": "see-all",
       onClick: function onClick() {
-        return set(SEE_KEYS.map(function (_ref159) {
-          var _ref160 = _slicedToArray(_ref159, 1),
-            k = _ref160[0];
+        return set(SEE_KEYS.map(function (_ref163) {
+          var _ref164 = _slicedToArray(_ref163, 1),
+            k = _ref164[0];
           return k;
         }));
       }
@@ -22980,10 +23212,10 @@ function App() {
       onClick: function onClick() {
         return set(['none']);
       }
-    }, "Nothing"), SEE_KEYS.map(function (_ref161) {
-      var _ref162 = _slicedToArray(_ref161, 2),
-        k = _ref162[0],
-        label = _ref162[1];
+    }, "Nothing"), SEE_KEYS.map(function (_ref165) {
+      var _ref166 = _slicedToArray(_ref165, 2),
+        k = _ref166[0],
+        label = _ref166[1];
       var on = cur ? cur.includes(k) : seeOfTable(k);
       return /*#__PURE__*/React.createElement("label", {
         key: k,
@@ -22996,9 +23228,9 @@ function App() {
         "data-testid": "see-".concat(k),
         checked: on,
         onChange: function onChange() {
-          var base = (cur || SEE_KEYS.map(function (_ref163) {
-              var _ref164 = _slicedToArray(_ref163, 1),
-                x = _ref164[0];
+          var base = (cur || SEE_KEYS.map(function (_ref167) {
+              var _ref168 = _slicedToArray(_ref167, 1),
+                x = _ref168[0];
               return x;
             }).filter(seeOfTable)).filter(function (x) {
               return x !== 'none';
@@ -23678,10 +23910,10 @@ function App() {
     "data-testid": "pool-row"
   }, /*#__PURE__*/React.createElement("span", {
     className: "opt-label"
-  }, "Resources"), Object.entries(viewed.sheet.pools).map(function (_ref165) {
-    var _ref166 = _slicedToArray(_ref165, 2),
-      n = _ref166[0],
-      q = _ref166[1];
+  }, "Resources"), Object.entries(viewed.sheet.pools).map(function (_ref169) {
+    var _ref170 = _slicedToArray(_ref169, 2),
+      n = _ref170[0],
+      q = _ref170[1];
     return /*#__PURE__*/React.createElement("span", {
       key: n,
       className: "slot-chip ".concat(poolLeft(viewed, n) ? '' : 'spent')
@@ -24147,10 +24379,10 @@ function App() {
     "data-testid": "cond-panel"
   }, activeConditions.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "cond-empty"
-  }, "No active effects"), activeConditions.map(function (_ref167) {
-    var c = _ref167.c,
-      cond = _ref167.cond,
-      info = _ref167.info;
+  }, "No active effects"), activeConditions.map(function (_ref171) {
+    var c = _ref171.c,
+      cond = _ref171.cond,
+      info = _ref171.info;
     return /*#__PURE__*/React.createElement("div", {
       key: c.id + cond,
       className: "cond-item",
@@ -24486,10 +24718,10 @@ function App() {
     }, /*#__PURE__*/React.createElement("div", {
       className: "end-tabs",
       role: "tablist"
-    }, [].concat(_toConsumableArray(isDM ? [['xp', 'Experience']] : []), [['do', 'What you can do'], ['summary', 'Summary'], ['starred', "Starred log (".concat(stars.length, ")")]]).map(function (_ref168) {
-      var _ref169 = _slicedToArray(_ref168, 2),
-        k = _ref169[0],
-        l = _ref169[1];
+    }, [].concat(_toConsumableArray(isDM ? [['xp', 'Experience']] : []), [['do', 'What you can do'], ['summary', 'Summary'], ['starred', "Starred log (".concat(stars.length, ")")]]).map(function (_ref172) {
+      var _ref173 = _slicedToArray(_ref172, 2),
+        k = _ref173[0],
+        l = _ref173[1];
       return /*#__PURE__*/React.createElement("button", {
         key: k,
         role: "tab",
@@ -24898,19 +25130,19 @@ function App() {
         // a summoned creature joins the order, straight after its summoner
         var scores = {},
           saves = {};
-        ABILITY_KEYS.forEach(function (_ref170, i) {
-          var _ref171 = _slicedToArray(_ref170, 2),
-            k = _ref171[0],
-            full = _ref171[1];
+        ABILITY_KEYS.forEach(function (_ref174, i) {
+          var _ref175 = _slicedToArray(_ref174, 2),
+            k = _ref175[0],
+            full = _ref175[1];
           scores[full] = m ? m.s[i] : 10;
           saves[full] = m ? m.sv && m.sv[full] != null ? m.sv[full] : mod(m.s[i]) : 0;
         });
         var g = !m && blockPick.gen && blockPick.gen.name === n ? genBlock(blockPick.gen) : null;
         var hp = m ? m.hp : g ? g.hp : Math.max(1, parseInt(blockPick.hp, 10) || 10);
-        if (g) ABILITY_KEYS.forEach(function (_ref172, i) {
-          var _ref173 = _slicedToArray(_ref172, 2),
-            k = _ref173[0],
-            full = _ref173[1];
+        if (g) ABILITY_KEYS.forEach(function (_ref176, i) {
+          var _ref177 = _slicedToArray(_ref176, 2),
+            k = _ref177[0],
+            full = _ref177[1];
           scores[full] = g.s[i];
           saves[full] = mod(g.s[i]);
         });
@@ -25388,9 +25620,9 @@ function App() {
       }
     }, "Add")), rosterOpen === m.n && /*#__PURE__*/React.createElement("div", {
       className: "roster-detail"
-    }, /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref174, i) {
-      var _ref175 = _slicedToArray(_ref174, 1),
-        k = _ref175[0];
+    }, /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref178, i) {
+      var _ref179 = _slicedToArray(_ref178, 1),
+        k = _ref179[0];
       return "".concat(k.toUpperCase(), " ").concat(m.s[i], " (").concat(modStr(m.s[i]), ")");
     }).join(' · ')), m.sp && /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Speed."), " ", m.sp), (m.tr || []).map(function (t, i) {
       return /*#__PURE__*/React.createElement("p", {
@@ -25671,9 +25903,9 @@ function App() {
       gridTemplateColumns: 'repeat(6,1fr)',
       gap: 6
     }
-  }, ABILITY_KEYS.map(function (_ref176) {
-    var _ref177 = _slicedToArray(_ref176, 1),
-      k = _ref177[0];
+  }, ABILITY_KEYS.map(function (_ref180) {
+    var _ref181 = _slicedToArray(_ref180, 1),
+      k = _ref181[0];
     return /*#__PURE__*/React.createElement("div", {
       className: "form-group",
       key: k
