@@ -87,7 +87,8 @@ FILE SHAPE
   "feats": { },
   "spells": [ ],
   "items": [ ],
-  "abilities": [ ]
+  "abilities": [ ],
+  "monsters": [ ]
 }
 
 Leave out any section you have nothing for. Names are the keys. A pack entry with the same name as a built-in option replaces it.
@@ -378,6 +379,27 @@ ITEM SLOTS. Attunement is one kind of item slot. When the source has another kin
   name: the slot kind, as the source names it, singular. max: how many every character has (0 when only some features give them). verb: the word on the button that puts an item in the slot. on: the word shown while it is in one.
   { "name": "Ember Ward Tattoo", "rarity": "Uncommon", "type": "Wondrous Item", "slot": "Tattoo", "description": "Full item text." }
 The builder shows each kind of slot next to Attunement, with its own count, and the Combat Resolver shows them on the sheet. A feature that gives more slots of any kind (Attunement included) uses the statics key "itemSlots". To change how many Attunement slots everyone has, define { "name": "Attunement", "max": 4 } in "slotTypes".
+
+---------------------------------------------------------------------
+MONSTERS AND NPCS
+---------------------------------------------------------------------
+
+Every stat block in the source (monsters, NPCs, summoned creatures with a fixed stat block) goes in "monsters". The DM finds them in the Combat Resolver's Monster Roster, under this pack's name as their source, and adds them to a fight like the built-in ones.
+{ "name": "Cinder Hound", "size": "Medium", "type": "Fiend", "cr": "2", "ac": 14, "hp": 39, "hitDice": "6d8+12", "speed": "40 ft.",
+  "scores": [16, 14, 15, 6, 12, 7], "proficiencyBonus": 2,
+  "saves": { "Dexterity": 4 }, "skills": { "Perception": 3, "Stealth": 4 },
+  "senses": ["Darkvision 60 ft."], "passivePerception": 13,
+  "resistances": ["Fire"], "immunities": ["Poison"], "vulnerabilities": ["Cold"], "conditionImmunities": ["Poisoned"],
+  "traits": [ { "name": "Ash Trail", "text": "Its rules text, word for word." } ],
+  "actions": [
+    { "name": "Bite", "text": "Melee Attack Roll: +5, reach 5 ft. Hit: 8 (1d10 + 3) Piercing damage plus 3 (1d6) Fire damage.", "attack": { "bonus": 5 }, "damage": [ { "dice": "1d10+3", "type": "Piercing" }, { "dice": "1d6", "type": "Fire" } ] },
+    { "name": "Ember Breath", "text": "Dexterity Saving Throw: DC 12, each creature in a 15-foot Cone. Failure: 14 (4d6) Fire damage. Success: Half damage.", "save": { "ability": "Dexterity", "dc": 12, "half": true }, "damage": [ { "dice": "4d6", "type": "Fire" } ] }
+  ],
+  "bonusActions": [ { "name": "...", "text": "..." } ], "reactions": [ ], "legendaryActions": [ ] }
+  size: Tiny, Small, Medium, Large, Huge or Gargantuan. type: the creature type as written. cr: "0" to "30", "1/8", "1/4" or "1/2".
+  scores: the six ability scores, Strength first. saves and skills: the total bonus as the stat block prints it, only the ones it lists.
+  actions: an attack gets "attack": { "bonus": 5 } (add "ranged": true for a ranged attack) and its "damage"; an action with a saving throw gets "save" and its "damage" if any. Anything else is its name and text only: the DM resolves it from the text.
+  Every "text" is the stat block's own words, unchanged. Multiattack is an action with its text only.
 
 ---------------------------------------------------------------------
 ABILITIES: EVERYTHING A CHARACTER ACTIVATES
@@ -1548,16 +1570,16 @@ const spellLabel = (s) => (s.level ? `${s.name} (Level ${s.level}${s.school ? " 
 // Reads a pack file, keeps what is usable and says what was wrong with the rest.
 // A pack larger than one part can hold is cut into parts by type: the classes with their subclasses, species, backgrounds and slot kinds stay in the first part;
 // feats, spells, items and abilities fill each part up to its limits (and about 2 MB of text), smaller kinds sharing a part. Each part is its own pack, named "Name (1 of 3)".
-const PACK_LIMITS = { feats: 300, spells: 600, items: 600, abilities: 800 };
+const PACK_LIMITS = { feats: 300, spells: 600, items: 600, abilities: 800, monsters: 400 };
 function splitPack(raw) {
   if (!raw || typeof raw !== "object" || raw.format !== "homebrew-academy-content") return [raw];
   const size = (x) => JSON.stringify(x).length, BYTES = 2000000;
-  const featKeys = Object.keys(pObj(raw.feats)), lists = { feats: featKeys.map((k) => [k, raw.feats[k]]), spells: pArr(raw.spells), items: pArr(raw.items), abilities: pArr(raw.abilities) };
+  const featKeys = Object.keys(pObj(raw.feats)), lists = { feats: featKeys.map((k) => [k, raw.feats[k]]), spells: pArr(raw.spells), items: pArr(raw.items), abilities: pArr(raw.abilities), monsters: pArr(raw.monsters) };
   const fits = Object.keys(lists).every((k) => lists[k].length <= PACK_LIMITS[k]) && size(raw) <= BYTES;
   if (fits) return [raw];
-  const { feats, spells, items, abilities, ...core } = raw;
-  const parts = [{ ...core, feats: {}, spells: [], items: [], abilities: [] }];
-  const sizes = [size(parts[0])], blank = () => ({ format: raw.format, version: raw.version, name: raw.name, author: raw.author, feats: {}, spells: [], items: [], abilities: [] });
+  const { feats, spells, items, abilities, monsters, ...core } = raw;
+  const parts = [{ ...core, feats: {}, spells: [], items: [], abilities: [], monsters: [] }];
+  const sizes = [size(parts[0])], blank = () => ({ format: raw.format, version: raw.version, name: raw.name, author: raw.author, feats: {}, spells: [], items: [], abilities: [], monsters: [] });
   Object.keys(lists).forEach((k) => lists[k].forEach((x) => { // each kind goes in the first part that still has room for it, so kinds share parts
     const add = size(x) + 2, count = (p) => k === "feats" ? Object.keys(p.feats).length : p[k].length;
     let i = parts.findIndex((p, j) => count(p) < PACK_LIMITS[k] && sizes[j] + add <= BYTES);
@@ -1700,8 +1722,31 @@ function checkPack(raw) {
     catch (e) { errors.push(`${label}: ${e.message}. It was skipped.`); return; }
     pack.abilities.push(ab);
   });
+  // Monsters and NPCs: written in readable words, kept in the same compact stat block the built-in monsters use, so the Combat Resolver runs them the same way
+  const ABS = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"];
+  pArr(raw.monsters).slice(0, 400).forEach((m0, i) => {
+    const m = pObj(m0), name = pStr(m.name, 60).trim(), label = `Monster ${name || "#" + (i + 1)}`; if (!name) { errors.push(`${label}: it has no name. It was skipped.`); return; }
+    const sc = pArr(m.scores).map((x) => parseInt(x, 10)); if (sc.length !== 6 || sc.some((x) => !(x >= 1 && x <= 30))) { errors.push(`${label}: "scores" must be the six ability scores, 1 to 30, Strength first. It was skipped.`); return; }
+    const ac = parseInt(m.ac, 10), hp = parseInt(m.hp, 10); if (!(ac >= 1 && ac <= 40) || !(hp >= 1 && hp <= 2000)) { errors.push(`${label}: "ac" and "hp" must be numbers. It was skipped.`); return; }
+    const size = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"].includes(m.size) ? m.size : "Medium"; if (m.size && size !== m.size) warnings.push(`${label}: size "${m.size}" is not a size; it was set to Medium.`);
+    const cr = pStr(m.cr != null ? String(m.cr) : "0", 6).trim(); if (!/^(\d{1,2}|1\/2|1\/4|1\/8)$/.test(cr)) warnings.push(`${label}: cr "${cr}" should be 0 to 30, 1/2, 1/4 or 1/8.`);
+    const named = (list) => pArr(list).map((t) => { const o = pObj(t); return [pStr(o.name, 60), pStr(o.text, 2000)]; }).filter((x) => x[0]);
+    const dmgOf = (d) => pArr(d).map((x) => [pStr(pObj(x).dice, 30).replace(/\s/g, ""), pStr(pObj(x).type, 20)]).filter((x) => /^\d+(d\d+)?([+-]\d+(d\d+)?)*$/i.test(x[0]));
+    const acts = pArr(m.actions).map((a0) => { const a = pObj(a0), n = pStr(a.name, 60).trim(); if (!n) return null; const o = { n, d: pStr(a.text, 2000) };
+      const at = pObj(a.attack), sv = pObj(a.save), dm = dmgOf(a.damage);
+      if (a.attack) { o.ab = parseInt(at.bonus, 10) || 0; o.dm = dm.length ? dm : [["1", "Bludgeoning"]]; if (at.ranged && !/^Ranged Attack Roll/.test(o.d)) o.d = "Ranged Attack Roll: " + o.d; }
+      else if (a.save) { if (!ABS.includes(sv.ability)) { warnings.push(`${label}, ${n}: save.ability must be a full ability name.`); return o; } o.dc = [sv.ability, parseInt(sv.dc, 10) || 10, sv.half ? 1 : 0]; if (dm.length) o.dm = dm; }
+      return o; }).filter(Boolean);
+    const out = { n: name, t: `${size} ${pStr(m.type, 40) || "Creature"}`, cr, ac, hp, hd: pStr(m.hitDice, 20), sp: pStr(m.speed, 80) || "30 ft.", s: sc, pb: parseInt(m.proficiencyBonus, 10) || 2, a: acts };
+    const sv = {}; Object.keys(pObj(m.saves)).forEach((k) => { if (ABS.includes(k)) sv[k] = parseInt(m.saves[k], 10) || 0; }); if (Object.keys(sv).length) out.sv = sv;
+    const sk = {}; Object.keys(pObj(m.skills)).forEach((k) => { if (ALL_SKILLS.includes(k)) sk[k] = parseInt(m.skills[k], 10) || 0; else warnings.push(`${label}: "${k}" is not a skill.`); }); if (Object.keys(sk).length) out.sk = sk;
+    const se = pArr(m.senses).map((x) => pStr(x, 40)).filter(Boolean); if (se.length) out.se = se; if (m.passivePerception != null) out.pp = parseInt(m.passivePerception, 10) || 10;
+    [["resistances", "res"], ["immunities", "imm"], ["vulnerabilities", "vul"], ["conditionImmunities", "ci"]].forEach(([k, j]) => { const v = pArr(m[k]).map((x) => pStr(x, 30)).filter(Boolean).join(", ") || pStr(typeof m[k] === "string" ? m[k] : "", 200); if (v) out[j] = v; });
+    [["traits", "tr"], ["bonusActions", "ba"], ["reactions", "re"], ["legendaryActions", "la"]].forEach(([k, j]) => { const v = named(m[k]); if (v.length) out[j] = v; });
+    (pack.monsters = pack.monsters || []).push(out);
+  });
   const counts = { classes: Object.keys(pack.classes).length, subclasses: Object.values(pack.subclasses).reduce((t, o) => t + Object.keys(o).length, 0) + Object.values(pack.classes).reduce((t, c) => t + Object.keys(c.subclasses).length, 0),
-    species: Object.keys(pack.species).length, backgrounds: Object.keys(pack.backgrounds).length, feats: Object.keys(pack.feats).length, spells: pack.spells.length, items: pack.items.length, abilities: pack.abilities.length, "slot kinds": (pack.slotTypes || []).length };
+    species: Object.keys(pack.species).length, backgrounds: Object.keys(pack.backgrounds).length, feats: Object.keys(pack.feats).length, spells: pack.spells.length, items: pack.items.length, abilities: pack.abilities.length, monsters: (pack.monsters || []).length, "slot kinds": (pack.slotTypes || []).length };
   if (!Object.values(counts).some(Boolean)) errors.push("Nothing usable was found in this file.");
   return { pack, errors, warnings, counts };
 }
@@ -3942,11 +3987,12 @@ function FeatChoices({ name, choices, onChange, colors }) {
 }
 
 // A dropdown of feats. allowed: names the rules allow in this slot. With Further Customization on, the rest are listed too.
-function FeatPicker({ value, onPick, cats, taken, custom, colors, label, hide }) { // hide: categories the rules allow here but that are only listed with Further Customization on
+function FeatPicker({ value, onPick, cats, taken, custom, colors, label, hide, className }) { // hide: categories the rules allow here but that are only listed with Further Customization on
   const names = Object.keys(FEATS).filter(n => n !== "Ability Score Improvement");
   const free = (n) => FEATS[n].repeatable || n === value || !taken.includes(n);
   const show = cats.filter(c => custom || !(hide || []).includes(c));
-  const legal = names.filter(n => (FEATS[n].category === "Any" || show.includes(FEATS[n].category) || n === value) && free(n));
+  const forClass = (n) => { const k = (FEATS[n].needs || {}).className; return !k || !className || [].concat(k).some(c => sameName(c, className)); }; // Blessed Warrior: Paladins only
+  const legal = names.filter(n => (FEATS[n].category === "Any" || show.includes(FEATS[n].category) || n === value) && free(n) && (forClass(n) || n === value));
   const others = custom ? names.filter(n => !legal.includes(n)) : [];
   const unknown = value && !FEATS[value];
   return (
@@ -4014,7 +4060,7 @@ function FeaturesTab({ masteries, setMasteries, masteryCount, className, glowOf,
               <div style={head}>{slot.label}</div>
               {slot.fixed != null
                 ? <div style={{ fontSize: 15 }}><strong>{slot.fixed || "None"}</strong> <span style={{ fontSize: 12, opacity: 0.7 }}>(change it with Customize Origin on the Identity tab)</span></div>
-                : <FeatPicker label={`Feat for ${slot.label}`} value={name} cats={slot.cats} taken={taken} custom={custom} colors={colors} onPick={n => setFeatPick(slot.id, { name: n, choices: {} })} />}
+                : <FeatPicker className={typeof className === "undefined" ? "" : className} label={`Feat for ${slot.label}`} value={name} cats={slot.cats} taken={taken} custom={custom} colors={colors} onPick={n => setFeatPick(slot.id, { name: n, choices: {} })} />}
               {name && <FeatChoices name={name} choices={pick.choices} onChange={ch => setFeatPick(slot.id, { name: slot.fixed != null ? "" : name, choices: ch })} colors={colors} />}
               {warn(p)}
             </div>
@@ -4026,7 +4072,7 @@ function FeaturesTab({ masteries, setMasteries, masteryCount, className, glowOf,
               <span>Extra feat (custom)</span>
               <button onClick={() => setExtraFeats(prev => prev.filter((_, k) => k !== i))} style={{ background: "transparent", border: `1px solid ${CUSTOM_RED}`, color: CUSTOM_RED, borderRadius: 6, padding: "2px 10px", fontSize: 12, cursor: "pointer" }}>Remove</button>
             </div>
-            <FeatPicker label={`Extra feat ${i + 1}`} value={f.name} cats={FEAT_CATEGORIES} taken={taken} custom={true} colors={colors} onPick={n => setExtraFeats(prev => prev.map((x, k) => k === i ? { name: n, choices: {} } : x))} />
+            <FeatPicker className={typeof className === "undefined" ? "" : className} label={`Extra feat ${i + 1}`} value={f.name} cats={FEAT_CATEGORIES} taken={taken} custom={true} colors={colors} onPick={n => setExtraFeats(prev => prev.map((x, k) => k === i ? { name: n, choices: {} } : x))} />
             {f.name && <FeatChoices name={f.name} choices={f.choices} onChange={ch => setExtraFeats(prev => prev.map((x, k) => k === i ? { ...x, choices: ch } : x))} colors={colors} />}
           </div>
         ))}
@@ -4055,7 +4101,7 @@ function FeaturesTab({ masteries, setMasteries, masteryCount, className, glowOf,
                   ))}
                 </div>
               ) : (<>
-                <FeatPicker label={`Feat for level ${lvl}`} value={choice.name || ""} cats={["General", "Origin"].concat(lvl >= 19 ? ["Epic Boon"] : [])} hide={["Origin"]} taken={taken} custom={custom} colors={colors} onPick={n => setFeatName(lvl, n)} />
+                <FeatPicker className={typeof className === "undefined" ? "" : className} label={`Feat for level ${lvl}`} value={choice.name || ""} cats={["General", "Origin"].concat(lvl >= 19 ? ["Epic Boon"] : [])} hide={["Origin"]} taken={taken} custom={custom} colors={colors} onPick={n => setFeatName(lvl, n)} />
                 {choice.name && <FeatChoices name={choice.name} choices={choice.choices} onChange={ch => setAsiFeatChoices(lvl, ch)} colors={colors} />}
                 {warn(p)}
               </>)}
