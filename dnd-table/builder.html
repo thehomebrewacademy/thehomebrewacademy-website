@@ -905,6 +905,55 @@ function currentPlayerCode() {
   }
   return c;
 }
+// Every character this player has, each kept under its own key; the open one is also kept under the player code for the Combat Resolver
+var rosterKey = function rosterKey(code) {
+    return "hba-chars-" + code;
+  },
+  oneKey = function oneKey(code, id) {
+    return "hba-c-" + code + "-" + id;
+  };
+function readRoster(code) {
+  try {
+    var a = JSON.parse(lsGet(rosterKey(code)) || "[]");
+    return Array.isArray(a) ? a.filter(function (x) {
+      return typeof x === "string";
+    }) : [];
+  } catch (e) {
+    return [];
+  }
+}
+function readOne(code, id) {
+  try {
+    var d = JSON.parse(lsGet(oneKey(code, id)) || "null");
+    return d && d.format === "homebrew-academy-character" ? d : null;
+  } catch (e) {
+    return null;
+  }
+}
+function newCharId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+// A picture made smaller, as a JPEG
+function shrinkPic(src, max, q) {
+  return new Promise(function (res) {
+    var img = new Image();
+    img.onload = function () {
+      var k = Math.min(1, max / Math.max(img.width, img.height)),
+        cv = document.createElement("canvas");
+      cv.width = Math.max(1, Math.round(img.width * k));
+      cv.height = Math.max(1, Math.round(img.height * k));
+      cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      res(cv.toDataURL("image/jpeg", q));
+    };
+    img.onerror = function () {
+      return res("");
+    };
+    img.src = src;
+  });
+}
+var isPic = function isPic(v) {
+  return typeof v === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(v) && v.length < 400000;
+};
 function readStoredCharacter(code) {
   try {
     var d = JSON.parse(lsGet(charKey(code)) || "null");
@@ -6271,37 +6320,60 @@ function CharacterSheet() {
     _useState14 = _slicedToArray(_useState13, 2),
     charName = _useState14[0],
     setCharName = _useState14[1];
-  var _useState15 = useState(""),
+  var _useState15 = useState(function () {
+      return newCharId();
+    }),
     _useState16 = _slicedToArray(_useState15, 2),
-    playerName = _useState16[0],
-    setPlayerName = _useState16[1];
-  var _useState17 = useState("Fighter"),
+    charId = _useState16[0],
+    setCharId = _useState16[1];
+  var _useState17 = useState(""),
     _useState18 = _slicedToArray(_useState17, 2),
-    className = _useState18[0],
-    setClassName = _useState18[1];
+    portrait = _useState18[0],
+    setPortrait = _useState18[1]; // the character's picture
   var _useState19 = useState(""),
     _useState20 = _slicedToArray(_useState19, 2),
-    subclassName = _useState20[0],
-    setSubclassName = _useState20[1];
-  var _useState21 = useState(1),
+    portraitThumb = _useState20[0],
+    setPortraitThumb = _useState20[1]; // a small copy for the menu and the Initiative tracker
+  var _useState21 = useState(false),
     _useState22 = _slicedToArray(_useState21, 2),
-    level = _useState22[0],
-    setLevel = _useState22[1];
-  var _useState23 = useState("Human"),
+    showRoster = _useState22[0],
+    setShowRoster = _useState22[1];
+  var _useState23 = useState(0),
     _useState24 = _slicedToArray(_useState23, 2),
-    species = _useState24[0],
-    setSpecies = _useState24[1];
-  var _useState25 = useState("Soldier"),
+    rosterTick = _useState24[0],
+    setRosterTick = _useState24[1];
+  var picInputRef = useRef(null);
+  var _useState25 = useState(""),
     _useState26 = _slicedToArray(_useState25, 2),
-    background = _useState26[0],
-    setBackground = _useState26[1];
-  var _useState27 = useState(""),
+    playerName = _useState26[0],
+    setPlayerName = _useState26[1];
+  var _useState27 = useState("Fighter"),
     _useState28 = _slicedToArray(_useState27, 2),
-    alignment = _useState28[0],
-    setAlignment = _useState28[1];
+    className = _useState28[0],
+    setClassName = _useState28[1];
+  var _useState29 = useState(""),
+    _useState30 = _slicedToArray(_useState29, 2),
+    subclassName = _useState30[0],
+    setSubclassName = _useState30[1];
+  var _useState31 = useState(1),
+    _useState32 = _slicedToArray(_useState31, 2),
+    level = _useState32[0],
+    setLevel = _useState32[1];
+  var _useState33 = useState("Human"),
+    _useState34 = _slicedToArray(_useState33, 2),
+    species = _useState34[0],
+    setSpecies = _useState34[1];
+  var _useState35 = useState("Soldier"),
+    _useState36 = _slicedToArray(_useState35, 2),
+    background = _useState36[0],
+    setBackground = _useState36[1];
+  var _useState37 = useState(""),
+    _useState38 = _slicedToArray(_useState37, 2),
+    alignment = _useState38[0],
+    setAlignment = _useState38[1];
 
   // Point buy: base scores before racial/background bonuses
-  var _useState29 = useState({
+  var _useState39 = useState({
       Strength: 8,
       Dexterity: 8,
       Constitution: 8,
@@ -6309,51 +6381,51 @@ function CharacterSheet() {
       Wisdom: 8,
       Charisma: 8
     }),
-    _useState30 = _slicedToArray(_useState29, 2),
-    pointBuy = _useState30[0],
-    setPointBuy = _useState30[1];
-  // Manual ability score increase allocation from background (2 picks: +2/+1 or +1/+1/+1)
-  var _useState31 = useState("2-1"),
-    _useState32 = _slicedToArray(_useState31, 2),
-    bgBonusMode = _useState32[0],
-    setBgBonusMode = _useState32[1]; // "2-1" or "1-1-1"
-  var _useState33 = useState([]),
-    _useState34 = _slicedToArray(_useState33, 2),
-    bgBonusChoices = _useState34[0],
-    setBgBonusChoices = _useState34[1]; // array of ability names
-
-  // Skills
-  var _useState35 = useState([]),
-    _useState36 = _slicedToArray(_useState35, 2),
-    skillProfs = _useState36[0],
-    setSkillProfs = _useState36[1];
-  var _useState37 = useState([]),
-    _useState38 = _slicedToArray(_useState37, 2),
-    skillExpertise = _useState38[0],
-    setSkillExpertise = _useState38[1];
-
-  // Further Customization: going past what the rules allow. Everything changed this way is marked in red.
-  var _useState39 = useState(false),
     _useState40 = _slicedToArray(_useState39, 2),
-    custom = _useState40[0],
-    setCustom = _useState40[1];
-  var _useState41 = useState([]),
+    pointBuy = _useState40[0],
+    setPointBuy = _useState40[1];
+  // Manual ability score increase allocation from background (2 picks: +2/+1 or +1/+1/+1)
+  var _useState41 = useState("2-1"),
     _useState42 = _slicedToArray(_useState41, 2),
-    skillRemove = _useState42[0],
-    setSkillRemove = _useState42[1]; // granted skills taken away
+    bgBonusMode = _useState42[0],
+    setBgBonusMode = _useState42[1]; // "2-1" or "1-1-1"
   var _useState43 = useState([]),
     _useState44 = _slicedToArray(_useState43, 2),
-    saveAdd = _useState44[0],
-    setSaveAdd = _useState44[1]; // save proficiencies nothing grants
+    bgBonusChoices = _useState44[0],
+    setBgBonusChoices = _useState44[1]; // array of ability names
+
+  // Skills
   var _useState45 = useState([]),
     _useState46 = _slicedToArray(_useState45, 2),
-    saveRemove = _useState46[0],
-    setSaveRemove = _useState46[1]; // class save proficiencies taken away
-  var _useState47 = useState("pointbuy"),
+    skillProfs = _useState46[0],
+    setSkillProfs = _useState46[1];
+  var _useState47 = useState([]),
     _useState48 = _slicedToArray(_useState47, 2),
-    abilityMode = _useState48[0],
-    setAbilityMode = _useState48[1]; // "pointbuy" or "custom"
-  var _useState49 = useState({
+    skillExpertise = _useState48[0],
+    setSkillExpertise = _useState48[1];
+
+  // Further Customization: going past what the rules allow. Everything changed this way is marked in red.
+  var _useState49 = useState(false),
+    _useState50 = _slicedToArray(_useState49, 2),
+    custom = _useState50[0],
+    setCustom = _useState50[1];
+  var _useState51 = useState([]),
+    _useState52 = _slicedToArray(_useState51, 2),
+    skillRemove = _useState52[0],
+    setSkillRemove = _useState52[1]; // granted skills taken away
+  var _useState53 = useState([]),
+    _useState54 = _slicedToArray(_useState53, 2),
+    saveAdd = _useState54[0],
+    setSaveAdd = _useState54[1]; // save proficiencies nothing grants
+  var _useState55 = useState([]),
+    _useState56 = _slicedToArray(_useState55, 2),
+    saveRemove = _useState56[0],
+    setSaveRemove = _useState56[1]; // class save proficiencies taken away
+  var _useState57 = useState("pointbuy"),
+    _useState58 = _slicedToArray(_useState57, 2),
+    abilityMode = _useState58[0],
+    setAbilityMode = _useState58[1]; // "pointbuy" or "custom"
+  var _useState59 = useState({
       Strength: 8,
       Dexterity: 8,
       Constitution: 8,
@@ -6361,178 +6433,178 @@ function CharacterSheet() {
       Wisdom: 8,
       Charisma: 8
     }),
-    _useState50 = _slicedToArray(_useState49, 2),
-    customScores = _useState50[0],
-    setCustomScores = _useState50[1];
-  var _useState51 = useState({}),
-    _useState52 = _slicedToArray(_useState51, 2),
-    abilityAdj = _useState52[0],
-    setAbilityAdj = _useState52[1]; // additional modifier to each score
-  var _useState53 = useState(false),
-    _useState54 = _slicedToArray(_useState53, 2),
-    showCustomList = _useState54[0],
-    setShowCustomList = _useState54[1];
-  var _useState55 = useState(""),
-    _useState56 = _slicedToArray(_useState55, 2),
-    lineage = _useState56[0],
-    setLineage = _useState56[1]; // species lineage, ancestry or legacy
-  var _useState57 = useState(""),
-    _useState58 = _slicedToArray(_useState57, 2),
-    armor = _useState58[0],
-    setArmor = _useState58[1]; // armor worn
-  var _useState59 = useState(false),
     _useState60 = _slicedToArray(_useState59, 2),
-    shield = _useState60[0],
-    setShield = _useState60[1];
-  var setWeapons = function setWeapons() {}; // weapons are whatever the inventory holds (see below)
-  var _useState61 = useState([]),
+    customScores = _useState60[0],
+    setCustomScores = _useState60[1];
+  var _useState61 = useState({}),
     _useState62 = _slicedToArray(_useState61, 2),
-    masteries = _useState62[0],
-    setMasteries = _useState62[1]; // weapons whose mastery property is in use (Weapon Mastery)
-  var _useState63 = useState(0),
+    abilityAdj = _useState62[0],
+    setAbilityAdj = _useState62[1]; // additional modifier to each score
+  var _useState63 = useState(false),
     _useState64 = _slicedToArray(_useState63, 2),
-    hpDelta = _useState64[0],
-    setHpDelta = _useState64[1]; // Hit Points above or below the average, when the player sets their own total
-  var _useState65 = useState({}),
+    showCustomList = _useState64[0],
+    setShowCustomList = _useState64[1];
+  var _useState65 = useState(""),
     _useState66 = _slicedToArray(_useState65, 2),
-    statAdj = _useState66[0],
-    setStatAdj = _useState66[1]; // Further Customization: additional modifier to ac, initiative, speed, hp
-  var _useState67 = useState(null),
+    lineage = _useState66[0],
+    setLineage = _useState66[1]; // species lineage, ancestry or legacy
+  var _useState67 = useState(""),
     _useState68 = _slicedToArray(_useState67, 2),
-    rest = _useState68[0],
-    setRest = _useState68[1]; // a rest just taken: {kind, phase: "summary" or "changes", snap, summary}
-  var _useState69 = useState({}),
+    armor = _useState68[0],
+    setArmor = _useState68[1]; // armor worn
+  var _useState69 = useState(false),
     _useState70 = _slicedToArray(_useState69, 2),
-    featureChoices = _useState70[0],
-    setFeatureChoices = _useState70[1]; // options chosen inside features (Divine Order, Hunter's Prey...)
-  var _useState71 = useState({}),
+    shield = _useState70[0],
+    setShield = _useState70[1];
+  var setWeapons = function setWeapons() {}; // weapons are whatever the inventory holds (see below)
+  var _useState71 = useState([]),
     _useState72 = _slicedToArray(_useState71, 2),
-    featPicks = _useState72[0],
-    setFeatPicks = _useState72[1]; // feats chosen in each slot, and the choices each one asks for
-  var _useState73 = useState([]),
+    masteries = _useState72[0],
+    setMasteries = _useState72[1]; // weapons whose mastery property is in use (Weapon Mastery)
+  var _useState73 = useState(0),
     _useState74 = _slicedToArray(_useState73, 2),
-    extraFeats = _useState74[0],
-    setExtraFeats = _useState74[1]; // feats added past the rules
-  // Customize Origin: your own ability scores, skills, Origin Feat and tool in place of the background's.
-  var _useState75 = useState(null),
+    hpDelta = _useState74[0],
+    setHpDelta = _useState74[1]; // Hit Points above or below the average, when the player sets their own total
+  var _useState75 = useState({}),
     _useState76 = _slicedToArray(_useState75, 2),
-    originCustom = _useState76[0],
-    setOriginCustom = _useState76[1];
+    statAdj = _useState76[0],
+    setStatAdj = _useState76[1]; // Further Customization: additional modifier to ac, initiative, speed, hp
+  var _useState77 = useState(null),
+    _useState78 = _slicedToArray(_useState77, 2),
+    rest = _useState78[0],
+    setRest = _useState78[1]; // a rest just taken: {kind, phase: "summary" or "changes", snap, summary}
+  var _useState79 = useState({}),
+    _useState80 = _slicedToArray(_useState79, 2),
+    featureChoices = _useState80[0],
+    setFeatureChoices = _useState80[1]; // options chosen inside features (Divine Order, Hunter's Prey...)
+  var _useState81 = useState({}),
+    _useState82 = _slicedToArray(_useState81, 2),
+    featPicks = _useState82[0],
+    setFeatPicks = _useState82[1]; // feats chosen in each slot, and the choices each one asks for
+  var _useState83 = useState([]),
+    _useState84 = _slicedToArray(_useState83, 2),
+    extraFeats = _useState84[0],
+    setExtraFeats = _useState84[1]; // feats added past the rules
+  // Customize Origin: your own ability scores, skills, Origin Feat and tool in place of the background's.
+  var _useState85 = useState(null),
+    _useState86 = _slicedToArray(_useState85, 2),
+    originCustom = _useState86[0],
+    setOriginCustom = _useState86[1];
   var bgEff = originCustom || BACKGROUNDS[background] || BACKGROUNDS.Soldier;
 
   // ASI / Feat choices made at ASI levels: { level: {type:"asi", abilities:[a,b]} or {type:"feat", name:""} }
-  var _useState77 = useState({}),
-    _useState78 = _slicedToArray(_useState77, 2),
-    asiChoices = _useState78[0],
-    setAsiChoices = _useState78[1];
+  var _useState87 = useState({}),
+    _useState88 = _slicedToArray(_useState87, 2),
+    asiChoices = _useState88[0],
+    setAsiChoices = _useState88[1];
 
   // Combat
-  var _useState79 = useState(null),
-    _useState80 = _slicedToArray(_useState79, 2),
-    currentHp = _useState80[0],
-    setCurrentHp = _useState80[1];
-  var _useState81 = useState(0),
-    _useState82 = _slicedToArray(_useState81, 2),
-    tempHp = _useState82[0],
-    setTempHp = _useState82[1];
-  var _useState83 = useState(0),
-    _useState84 = _slicedToArray(_useState83, 2),
-    hitDiceUsed = _useState84[0],
-    setHitDiceUsed = _useState84[1];
-  var _useState85 = useState(0),
-    _useState86 = _slicedToArray(_useState85, 2),
-    xp = _useState86[0],
-    setXp = _useState86[1];
-  var _useState87 = useState(0),
-    _useState88 = _slicedToArray(_useState87, 2),
-    gold = _useState88[0],
-    setGold = _useState88[1]; // gold pieces: spells with a costly Material component spend it in the Combat Resolver // Experience Points; the Combat Resolver adds to this when the DM gives them out
+  var _useState89 = useState(null),
+    _useState90 = _slicedToArray(_useState89, 2),
+    currentHp = _useState90[0],
+    setCurrentHp = _useState90[1];
+  var _useState91 = useState(0),
+    _useState92 = _slicedToArray(_useState91, 2),
+    tempHp = _useState92[0],
+    setTempHp = _useState92[1];
+  var _useState93 = useState(0),
+    _useState94 = _slicedToArray(_useState93, 2),
+    hitDiceUsed = _useState94[0],
+    setHitDiceUsed = _useState94[1];
+  var _useState95 = useState(0),
+    _useState96 = _slicedToArray(_useState95, 2),
+    xp = _useState96[0],
+    setXp = _useState96[1];
+  var _useState97 = useState(0),
+    _useState98 = _slicedToArray(_useState97, 2),
+    gold = _useState98[0],
+    setGold = _useState98[1]; // gold pieces: spells with a costly Material component spend it in the Combat Resolver // Experience Points; the Combat Resolver adds to this when the DM gives them out
 
   // Equipment / notes
-  var _useState89 = useState(""),
-    _useState90 = _slicedToArray(_useState89, 2),
-    equipment = _useState90[0],
-    setEquipment = _useState90[1];
-  var _useState91 = useState(""),
-    _useState92 = _slicedToArray(_useState91, 2),
-    notes = _useState92[0],
-    setNotes = _useState92[1];
-  var _useState93 = useState(function () {
+  var _useState99 = useState(""),
+    _useState100 = _slicedToArray(_useState99, 2),
+    equipment = _useState100[0],
+    setEquipment = _useState100[1];
+  var _useState101 = useState(""),
+    _useState102 = _slicedToArray(_useState101, 2),
+    notes = _useState102[0],
+    setNotes = _useState102[1];
+  var _useState103 = useState(function () {
       return newJournal();
     }),
-    _useState94 = _slicedToArray(_useState93, 2),
-    journal = _useState94[0],
-    setJournal = _useState94[1];
-  var _useState95 = useState([]),
-    _useState96 = _slicedToArray(_useState95, 2),
-    components = _useState96[0],
-    setComponents = _useState96[1]; // spells whose costly Material component the character has
+    _useState104 = _slicedToArray(_useState103, 2),
+    journal = _useState104[0],
+    setJournal = _useState104[1];
+  var _useState105 = useState([]),
+    _useState106 = _slicedToArray(_useState105, 2),
+    components = _useState106[0],
+    setComponents = _useState106[1]; // spells whose costly Material component the character has
 
   // Magic Items tab state
-  var _useState97 = useState(""),
-    _useState98 = _slicedToArray(_useState97, 2),
-    itemSearch = _useState98[0],
-    setItemSearch = _useState98[1];
-  var _useState99 = useState("All"),
-    _useState100 = _slicedToArray(_useState99, 2),
-    itemRarityFilter = _useState100[0],
-    setItemRarityFilter = _useState100[1];
-  var _useState101 = useState("All"),
-    _useState102 = _slicedToArray(_useState101, 2),
-    itemTypeFilter = _useState102[0],
-    setItemTypeFilter = _useState102[1];
-  var _useState103 = useState("All"),
-    _useState104 = _slicedToArray(_useState103, 2),
-    itemAttunementFilter = _useState104[0],
-    setItemAttunementFilter = _useState104[1];
-  var _useState105 = useState(null),
-    _useState106 = _slicedToArray(_useState105, 2),
-    selectedItem = _useState106[0],
-    setSelectedItem = _useState106[1];
-  var _useState107 = useState([]),
+  var _useState107 = useState(""),
     _useState108 = _slicedToArray(_useState107, 2),
-    characterItems = _useState108[0],
-    setCharacterItems = _useState108[1];
-
-  // Mundane Items tab state
-  var _useState109 = useState(""),
+    itemSearch = _useState108[0],
+    setItemSearch = _useState108[1];
+  var _useState109 = useState("All"),
     _useState110 = _slicedToArray(_useState109, 2),
-    mundaneSearch = _useState110[0],
-    setMundaneSearch = _useState110[1];
+    itemRarityFilter = _useState110[0],
+    setItemRarityFilter = _useState110[1];
   var _useState111 = useState("All"),
     _useState112 = _slicedToArray(_useState111, 2),
-    mundaneTypeFilter = _useState112[0],
-    setMundaneTypeFilter = _useState112[1];
-  var _useState113 = useState(null),
+    itemTypeFilter = _useState112[0],
+    setItemTypeFilter = _useState112[1];
+  var _useState113 = useState("All"),
     _useState114 = _slicedToArray(_useState113, 2),
-    selectedMundane = _useState114[0],
-    setSelectedMundane = _useState114[1];
+    itemAttunementFilter = _useState114[0],
+    setItemAttunementFilter = _useState114[1];
+  var _useState115 = useState(null),
+    _useState116 = _slicedToArray(_useState115, 2),
+    selectedItem = _useState116[0],
+    setSelectedItem = _useState116[1];
+  var _useState117 = useState([]),
+    _useState118 = _slicedToArray(_useState117, 2),
+    characterItems = _useState118[0],
+    setCharacterItems = _useState118[1];
+
+  // Mundane Items tab state
+  var _useState119 = useState(""),
+    _useState120 = _slicedToArray(_useState119, 2),
+    mundaneSearch = _useState120[0],
+    setMundaneSearch = _useState120[1];
+  var _useState121 = useState("All"),
+    _useState122 = _slicedToArray(_useState121, 2),
+    mundaneTypeFilter = _useState122[0],
+    setMundaneTypeFilter = _useState122[1];
+  var _useState123 = useState(null),
+    _useState124 = _slicedToArray(_useState123, 2),
+    selectedMundane = _useState124[0],
+    setSelectedMundane = _useState124[1];
 
   // Pinned important items shown on identity/front page (both magic + mundane)
-  var _useState115 = useState([]),
-    _useState116 = _slicedToArray(_useState115, 2),
-    pinnedItems = _useState116[0],
-    setPinnedItems = _useState116[1];
+  var _useState125 = useState([]),
+    _useState126 = _slicedToArray(_useState125, 2),
+    pinnedItems = _useState126[0],
+    setPinnedItems = _useState126[1];
 
   // Spell list (kept here so it is saved with the character)
-  var _useState117 = useState([""]),
-    _useState118 = _slicedToArray(_useState117, 2),
-    spells = _useState118[0],
-    setSpells = _useState118[1];
+  var _useState127 = useState([""]),
+    _useState128 = _slicedToArray(_useState127, 2),
+    spells = _useState128[0],
+    setSpells = _useState128[1];
 
   // Player code + saving on this computer
-  var _useState119 = useState(currentPlayerCode),
-    _useState120 = _slicedToArray(_useState119, 2),
-    playerCode = _useState120[0],
-    setPlayerCode = _useState120[1];
-  var _useState121 = useState(""),
-    _useState122 = _slicedToArray(_useState121, 2),
-    codeInput = _useState122[0],
-    setCodeInput = _useState122[1];
-  var _useState123 = useState(false),
-    _useState124 = _slicedToArray(_useState123, 2),
-    ready = _useState124[0],
-    setReady = _useState124[1];
+  var _useState129 = useState(currentPlayerCode),
+    _useState130 = _slicedToArray(_useState129, 2),
+    playerCode = _useState130[0],
+    setPlayerCode = _useState130[1];
+  var _useState131 = useState(""),
+    _useState132 = _slicedToArray(_useState131, 2),
+    codeInput = _useState132[0],
+    setCodeInput = _useState132[1];
+  var _useState133 = useState(false),
+    _useState134 = _slicedToArray(_useState133, 2),
+    ready = _useState134[0],
+    setReady = _useState134[1];
   // Starred Combat Log entries saved from the Combat Resolver arrive here as a Session Notes entry.
   useEffect(function () {
     var onNote = function onNote(e) {
@@ -7759,9 +7831,14 @@ function CharacterSheet() {
   var fileInputRef = useRef(null);
   var inSuite = window.parent !== window;
   function buildCharacterFile() {
-    return _objectSpread(_objectSpread({
+    return _objectSpread(_objectSpread(_objectSpread({
       format: "homebrew-academy-character",
       version: 3,
+      charId: charId
+    }, portrait ? {
+      portrait: portrait,
+      portraitThumb: portraitThumb
+    } : {}), {}, {
       name: charName,
       player: playerName,
       className: className,
@@ -8013,20 +8090,21 @@ function CharacterSheet() {
       }
     });
   }
-  function saveCharacterFile() {
+  function saveCharacterFile(_x) {
     return _saveCharacterFile.apply(this, arguments);
   }
   function _saveCharacterFile() {
-    _saveCharacterFile = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
-      var json, base, touch, tries, _i2, _tries, _tries$_i, name, type, file, blob, a, _t;
-      return _regenerator().w(function (_context) {
-        while (1) switch (_context.p = _context.n) {
+    _saveCharacterFile = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2(given) {
+      var data, json, base, touch, tries, _i2, _tries, _tries$_i, name, type, file, blob, a, _t;
+      return _regenerator().w(function (_context2) {
+        while (1) switch (_context2.p = _context2.n) {
           case 0:
-            json = JSON.stringify(buildCharacterFile(), null, 2);
-            base = (charName || "character").trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || "character";
+            data = given && given.format ? given : buildCharacterFile();
+            json = JSON.stringify(data, null, 2);
+            base = (data.name || "character").trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || "character";
             touch = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent);
             if (!(touch && navigator.canShare && navigator.share)) {
-              _context.n = 7;
+              _context2.n = 7;
               break;
             }
             // On a phone or tablet the share sheet saves the file without leaving this page.
@@ -8034,40 +8112,40 @@ function CharacterSheet() {
             _i2 = 0, _tries = tries;
           case 1:
             if (!(_i2 < _tries.length)) {
-              _context.n = 7;
+              _context2.n = 7;
               break;
             }
             _tries$_i = _slicedToArray(_tries[_i2], 2), name = _tries$_i[0], type = _tries$_i[1];
-            _context.p = 2;
+            _context2.p = 2;
             file = new File([json], name, {
               type: type
             });
             if (navigator.canShare({
               files: [file]
             })) {
-              _context.n = 3;
+              _context2.n = 3;
               break;
             }
-            return _context.a(3, 6);
+            return _context2.a(3, 6);
           case 3:
-            _context.n = 4;
+            _context2.n = 4;
             return navigator.share({
               files: [file],
-              title: charName || "Character"
+              title: data.name || "Character"
             });
           case 4:
-            return _context.a(2);
+            return _context2.a(2);
           case 5:
-            _context.p = 5;
-            _t = _context.v;
+            _context2.p = 5;
+            _t = _context2.v;
             if (!(_t && _t.name === "AbortError")) {
-              _context.n = 6;
+              _context2.n = 6;
               break;
             }
-            return _context.a(2);
+            return _context2.a(2);
           case 6:
             _i2++;
-            _context.n = 1;
+            _context2.n = 1;
             break;
           case 7:
             blob = new Blob([json], {
@@ -8087,9 +8165,9 @@ function CharacterSheet() {
               return URL.revokeObjectURL(a.href);
             }, 60000);
           case 8:
-            return _context.a(2);
+            return _context2.a(2);
         }
-      }, _callee, null, [[2, 5]]);
+      }, _callee2, null, [[2, 5]]);
     }));
     return _saveCharacterFile.apply(this, arguments);
   }
@@ -8102,6 +8180,9 @@ function CharacterSheet() {
     var arr = function arr(v) {
       return Array.isArray(v) ? v : [];
     };
+    setCharId(typeof data.charId === "string" && /^[a-z0-9]{4,20}$/.test(data.charId) ? data.charId : newCharId());
+    setPortrait(isPic(data.portrait) ? data.portrait : "");
+    setPortraitThumb(isPic(data.portraitThumb) ? data.portraitThumb : "");
     setCharName(String(data.name || ""));
     setPlayerName(String(data.player || ""));
     setClassName(CLASSES[data.className] ? data.className : "Fighter");
@@ -8217,10 +8298,83 @@ function CharacterSheet() {
     e.target.value = "";
     if (!file) return;
     file.text().then(function (t) {
-      return applyCharacterFile(JSON.parse(t));
+      var d = JSON.parse(t);
+      if (!d || d.format !== "homebrew-academy-character") {
+        applyCharacterFile(d);
+        return;
+      }
+      var here = d.charId && readRoster(playerCode).includes(d.charId) && d.charId !== charId; // another of my characters already has this id: keep both
+      applyCharacterFile(here ? _objectSpread(_objectSpread({}, d), {}, {
+        charId: newCharId()
+      }) : d.charId ? d : _objectSpread(_objectSpread({}, d), {}, {
+        charId: newCharId()
+      }));
+      setShowRoster(false);
     })["catch"](function () {
       return alert("Could not read that character file.");
     });
+  }
+
+  // The character menu
+  function openCharacter(id) {
+    var d = readOne(playerCode, id);
+    if (d) {
+      applyCharacterFile(d);
+      setShowRoster(false);
+    }
+  }
+  function newCharacter() {
+    applyCharacterFile({
+      format: "homebrew-academy-character",
+      charId: newCharId()
+    });
+    setShowRoster(false);
+  }
+  function deleteCharacter(id) {
+    var d = readOne(playerCode, id);
+    if (!window.confirm("Delete ".concat(d && d.name || "this character", " from this computer? Save it to a file first if you may want it back."))) return;
+    try {
+      window.localStorage.removeItem(oneKey(playerCode, id));
+    } catch (e) {}
+    var r = readRoster(playerCode).filter(function (x) {
+      return x !== id;
+    });
+    lsSet(rosterKey(playerCode), JSON.stringify(r));
+    if (id === charId) {
+      if (r.length) openCharacter(r[0]);else newCharacter();
+    }
+    setRosterTick(function (t) {
+      return t + 1;
+    });
+  }
+  function pickPortrait(e) {
+    var file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    var r = new FileReader();
+    r.onload = /*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee() {
+      var big, small;
+      return _regenerator().w(function (_context) {
+        while (1) switch (_context.n) {
+          case 0:
+            _context.n = 1;
+            return shrinkPic(r.result, 400, 0.82);
+          case 1:
+            big = _context.v;
+            _context.n = 2;
+            return shrinkPic(r.result, 96, 0.8);
+          case 2:
+            small = _context.v;
+            if (big) {
+              setPortrait(big);
+              setPortraitThumb(small);
+            }
+          case 3:
+            return _context.a(2);
+        }
+      }, _callee);
+    }));
+    r.readAsDataURL(file);
   }
   function sendToResolver() {
     window.parent.postMessage({
@@ -8251,7 +8405,11 @@ function CharacterSheet() {
   // Every change is saved on this computer under the player code.
   useEffect(function () {
     if (!ready) return;
-    lsSet(charKey(playerCode), JSON.stringify(buildCharacterFile()));
+    var file = JSON.stringify(buildCharacterFile());
+    lsSet(charKey(playerCode), file);
+    lsSet(oneKey(playerCode, charId), file);
+    var r = readRoster(playerCode);
+    if (!r.includes(charId)) lsSet(rosterKey(playerCode), JSON.stringify([].concat(_toConsumableArray(r), [charId])));
   });
 
   // The Combat Resolver on this computer reports HP changes back, and can switch the player code.
@@ -8294,7 +8452,205 @@ function CharacterSheet() {
       color: colors.parchment,
       padding: "0"
     }
-  }, /*#__PURE__*/React.createElement("style", null, "\n        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&display=swap');\n        * { box-sizing: border-box; }\n        ::selection { background: ".concat(colors.brass, "; color: ").concat(colors.ink, "; }\n        input, select, textarea {\n          font-family: ").concat(fontBody, ";\n        }\n        input:focus, select:focus, textarea:focus {\n          outline: 2px solid ").concat(colors.brass, ";\n          outline-offset: 1px;\n        }\n        .tab-btn:focus-visible, button:focus-visible {\n          outline: 2px solid ").concat(colors.brassLight, ";\n          outline-offset: 2px;\n        }\n        input[type=number]::-webkit-inner-spin-button { opacity: 1; }\n        .name-field::placeholder { color: ").concat(colors.ink, "; opacity: 0.5; }\n        @media (max-width: 900px) { .tab-strip { justify-content: flex-start !important; } }\n        @media (max-width: 640px) {\n          .header-stats { flex-wrap: wrap !important; }\n          .two-col { grid-template-columns: 1fr !important; }\n        }\n      ")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("style", null, "\n        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&display=swap');\n        * { box-sizing: border-box; }\n        ::selection { background: ".concat(colors.brass, "; color: ").concat(colors.ink, "; }\n        input, select, textarea {\n          font-family: ").concat(fontBody, ";\n        }\n        input:focus, select:focus, textarea:focus {\n          outline: 2px solid ").concat(colors.brass, ";\n          outline-offset: 1px;\n        }\n        .tab-btn:focus-visible, button:focus-visible {\n          outline: 2px solid ").concat(colors.brassLight, ";\n          outline-offset: 2px;\n        }\n        input[type=number]::-webkit-inner-spin-button { opacity: 1; }\n        .name-field::placeholder { color: ").concat(colors.ink, "; opacity: 0.5; }\n        @media (max-width: 900px) { .tab-strip { justify-content: flex-start !important; } }\n        @media (max-width: 640px) {\n          .header-stats { flex-wrap: wrap !important; }\n          .two-col { grid-template-columns: 1fr !important; }\n        }\n      ")), showRoster && function () {
+    var ids = readRoster(playerCode);
+    void rosterTick;
+    return /*#__PURE__*/React.createElement("div", {
+      "data-testid": "roster",
+      onClick: function onClick() {
+        return setShowRoster(false);
+      },
+      style: {
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,.6)",
+        zIndex: 100,
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "center",
+        padding: "40px 12px",
+        overflowY: "auto"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      onClick: function onClick(e) {
+        return e.stopPropagation();
+      },
+      style: {
+        background: colors.parchment,
+        color: colors.ink,
+        border: "2px solid ".concat(colors.brass),
+        borderRadius: 12,
+        padding: 16,
+        width: "min(640px, 100%)"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("strong", {
+      style: {
+        fontFamily: fontDisplay,
+        fontSize: 20
+      }
+    }, "My Characters"), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        return setShowRoster(false);
+      },
+      style: {
+        background: "transparent",
+        border: "1px solid ".concat(colors.ink),
+        borderRadius: 6,
+        padding: "3px 10px",
+        cursor: "pointer",
+        color: colors.ink
+      }
+    }, "Close")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontStyle: "italic",
+        marginBottom: 10
+      }
+    }, "Kept on this computer under player code ", playerCode, ". Save one to a file to keep a copy or move it to another device."), ids.map(function (id) {
+      var d = id === charId ? buildCharacterFile() : readOne(playerCode, id);
+      if (!d) return null;
+      var pic = isPic(d.portraitThumb) ? d.portraitThumb : isPic(d.portrait) ? d.portrait : "";
+      return /*#__PURE__*/React.createElement("div", {
+        key: id,
+        "data-testid": "roster-char",
+        style: {
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          padding: 8,
+          borderRadius: 8,
+          marginBottom: 6,
+          background: id === charId ? "".concat(colors.brass, "33") : "rgba(0,0,0,.05)",
+          border: "1px solid ".concat(colors.ink, "33")
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          width: 56,
+          height: 56,
+          borderRadius: 8,
+          flexShrink: 0,
+          border: "1px solid ".concat(colors.ink, "66"),
+          background: pic ? "center / cover no-repeat url(".concat(pic, ")") : "".concat(colors.ink, "22"),
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: fontDisplay,
+          fontSize: 22
+        }
+      }, pic ? "" : (d.name || "?").slice(0, 1).toUpperCase()), /*#__PURE__*/React.createElement("div", {
+        style: {
+          flex: 1,
+          minWidth: 0
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontFamily: fontDisplay,
+          fontWeight: 700,
+          fontSize: 16
+        }
+      }, d.name || "Unnamed character", id === charId ? " (open)" : ""), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 14
+        }
+      }, "Level ", d.level || 1, " ", d.species || "", " ", d.className || "", d.subclassName ? " (".concat(d.subclassName, ")") : "", d.background ? " \xB7 ".concat(d.background) : ""), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 13,
+          opacity: 0.8
+        }
+      }, [d.maxHP ? "".concat(d.maxHP, " HP") : "", d.ac ? "AC ".concat(d.ac) : "", d.player ? "Player: ".concat(d.player) : ""].filter(Boolean).join(" · "))), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          flexDirection: "column",
+          gap: 4
+        }
+      }, id !== charId && /*#__PURE__*/React.createElement("button", {
+        "data-testid": "roster-open",
+        onClick: function onClick() {
+          return openCharacter(id);
+        },
+        style: {
+          background: colors.ink,
+          color: colors.parchment,
+          border: "none",
+          borderRadius: 6,
+          padding: "4px 10px",
+          cursor: "pointer",
+          fontFamily: fontDisplay,
+          fontSize: 12
+        }
+      }, "Open"), /*#__PURE__*/React.createElement("button", {
+        "data-testid": "roster-save",
+        onClick: function onClick() {
+          return saveCharacterFile(d);
+        },
+        style: {
+          background: "transparent",
+          color: colors.ink,
+          border: "1px solid ".concat(colors.ink),
+          borderRadius: 6,
+          padding: "3px 10px",
+          cursor: "pointer",
+          fontSize: 12
+        }
+      }, "Save to file"), /*#__PURE__*/React.createElement("button", {
+        "data-testid": "roster-delete",
+        onClick: function onClick() {
+          return deleteCharacter(id);
+        },
+        style: {
+          background: "transparent",
+          color: "#8b1a1a",
+          border: "1px solid #8b1a1a",
+          borderRadius: 6,
+          padding: "3px 10px",
+          cursor: "pointer",
+          fontSize: 12
+        }
+      }, "Delete")));
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 8,
+        marginTop: 10,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      "data-testid": "roster-new",
+      onClick: newCharacter,
+      style: {
+        background: colors.ink,
+        color: colors.parchment,
+        border: "none",
+        borderRadius: 6,
+        padding: "6px 12px",
+        cursor: "pointer",
+        fontFamily: fontDisplay,
+        fontSize: 12
+      }
+    }, "+ New Character"), /*#__PURE__*/React.createElement("button", {
+      "data-testid": "roster-load",
+      onClick: function onClick() {
+        return fileInputRef.current && fileInputRef.current.click();
+      },
+      style: {
+        background: "transparent",
+        color: colors.ink,
+        border: "1px solid ".concat(colors.ink),
+        borderRadius: 6,
+        padding: "6px 12px",
+        cursor: "pointer",
+        fontFamily: fontDisplay,
+        fontSize: 12
+      }
+    }, "Load from a File"))));
+  }(), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "linear-gradient(180deg, ".concat(colors.brass, " 0%, #8B6508 100%)"),
       borderBottom: "3px solid ".concat(colors.ink),
@@ -8309,11 +8665,59 @@ function CharacterSheet() {
     style: {
       display: "flex",
       justifyContent: "space-between",
-      alignItems: "baseline",
+      alignItems: "center",
       flexWrap: "wrap",
       gap: 8
     }
-  }, /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 2
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    "data-testid": "portrait",
+    title: portrait ? "Change the picture" : "Add a picture",
+    onClick: function onClick() {
+      return picInputRef.current && picInputRef.current.click();
+    },
+    style: {
+      width: 72,
+      height: 72,
+      borderRadius: 10,
+      border: "2px solid ".concat(colors.ink),
+      background: portrait ? "center / cover no-repeat url(".concat(portrait, ")") : colors.parchment,
+      color: colors.ink,
+      fontFamily: fontDisplay,
+      fontSize: 11,
+      cursor: "pointer",
+      padding: 4
+    }
+  }, portrait ? "" : "Add a picture"), portrait && /*#__PURE__*/React.createElement("button", {
+    "data-testid": "portrait-clear",
+    onClick: function onClick() {
+      setPortrait("");
+      setPortraitThumb("");
+    },
+    style: {
+      background: "transparent",
+      border: "none",
+      color: colors.ink,
+      fontSize: 11,
+      cursor: "pointer",
+      textDecoration: "underline"
+    }
+  }, "Remove"), /*#__PURE__*/React.createElement("input", {
+    ref: picInputRef,
+    type: "file",
+    accept: "image/*",
+    "data-testid": "portrait-file",
+    onChange: pickPortrait,
+    style: {
+      display: "none"
+    }
+  })), /*#__PURE__*/React.createElement("input", {
     value: charName,
     onChange: function onChange(e) {
       return setCharName(e.target.value);
@@ -8370,7 +8774,14 @@ function CharacterSheet() {
       marginTop: 10,
       alignItems: "center"
     }
-  }, [["Save Character File", saveCharacterFile, true], ["Load Character File", function () {
+  }, [["My Characters", function () {
+    setShowRoster(true);
+    setRosterTick(function (t) {
+      return t + 1;
+    });
+  }, true], ["Save Character File", function () {
+    return saveCharacterFile();
+  }, true], ["Load Character File", function () {
     return fileInputRef.current && fileInputRef.current.click();
   }, true], ["Send to Combat Resolver", sendToResolver, inSuite], ["Take Short Rest", function () {
     return startRest("short");
@@ -8378,10 +8789,10 @@ function CharacterSheet() {
     return startRest("long");
   }, true]].filter(function (x) {
     return x[2];
-  }).map(function (_ref36) {
-    var _ref37 = _slicedToArray(_ref36, 2),
-      label = _ref37[0],
-      fn = _ref37[1];
+  }).map(function (_ref37) {
+    var _ref38 = _slicedToArray(_ref37, 2),
+      label = _ref38[0],
+      fn = _ref38[1];
     return /*#__PURE__*/React.createElement("button", {
       key: label,
       onClick: fn,
@@ -8444,11 +8855,11 @@ function CharacterSheet() {
     return openPlayerCode(codeInput);
   }, !codeInput], ["New Player Code", function () {
     return openPlayerCode(makeCode());
-  }, false]].map(function (_ref38) {
-    var _ref39 = _slicedToArray(_ref38, 3),
-      label = _ref39[0],
-      fn = _ref39[1],
-      off = _ref39[2];
+  }, false]].map(function (_ref39) {
+    var _ref40 = _slicedToArray(_ref39, 3),
+      label = _ref40[0],
+      fn = _ref40[1],
+      off = _ref40[2];
     return /*#__PURE__*/React.createElement("button", {
       key: label,
       onClick: fn,
@@ -8482,10 +8893,10 @@ function CharacterSheet() {
       background: colors.ink,
       borderBottom: "1px solid ".concat(colors.brass, "55")
     }
-  }, [["AC", armorClass], ["Initiative", fmt(initiative)], ["Speed", "".concat(speed, " ft")], ["HP", effectiveMaxHp], ["Prof Bonus", fmt(profBonus)], ["Passive Perception", passivePerception]].map(function (_ref40) {
-    var _ref41 = _slicedToArray(_ref40, 2),
-      label = _ref41[0],
-      val = _ref41[1];
+  }, [["AC", armorClass], ["Initiative", fmt(initiative)], ["Speed", "".concat(speed, " ft")], ["HP", effectiveMaxHp], ["Prof Bonus", fmt(profBonus)], ["Passive Perception", passivePerception]].map(function (_ref41) {
+    var _ref42 = _slicedToArray(_ref41, 2),
+      label = _ref42[0],
+      val = _ref42[1];
     return /*#__PURE__*/React.createElement("div", {
       key: label,
       style: {
@@ -8522,10 +8933,10 @@ function CharacterSheet() {
       borderBottom: "2px solid ".concat(colors.brass),
       overflowX: "auto"
     }
-  }, [["identity", "Identity"], ["abilities", "Abilities"], ["skills", "Skills & Saves"], ["combat", "Combat"], ["features", "Features"], ["spells", "Spellcasting"], ["inventory", "Inventory"], ["journal", "Journal"], ["packs", "Content Packs"]].map(function (_ref42) {
-    var _ref43 = _slicedToArray(_ref42, 2),
-      key = _ref43[0],
-      label = _ref43[1];
+  }, [["identity", "Identity"], ["abilities", "Abilities"], ["skills", "Skills & Saves"], ["combat", "Combat"], ["features", "Features"], ["spells", "Spellcasting"], ["inventory", "Inventory"], ["journal", "Journal"], ["packs", "Content Packs"]].map(function (_ref43) {
+    var _ref44 = _slicedToArray(_ref43, 2),
+      key = _ref44[0],
+      label = _ref44[1];
     return /*#__PURE__*/React.createElement("button", {
       key: key,
       className: "tab-btn",
@@ -9025,11 +9436,11 @@ function CharacterSheet() {
 
 /* ============ TAB COMPONENTS ============ */
 
-function Section(_ref44) {
-  var title = _ref44.title,
-    colors = _ref44.colors,
-    fontDisplay = _ref44.fontDisplay,
-    children = _ref44.children;
+function Section(_ref45) {
+  var title = _ref45.title,
+    colors = _ref45.colors,
+    fontDisplay = _ref45.fontDisplay,
+    children = _ref45.children;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 24
@@ -9048,12 +9459,12 @@ function Section(_ref44) {
   }, title), children);
 }
 var FOLDED = {};
-function FoldSection(_ref45) {
-  var id = _ref45.id,
-    title = _ref45.title,
-    colors = _ref45.colors,
-    fontDisplay = _ref45.fontDisplay,
-    children = _ref45.children;
+function FoldSection(_ref46) {
+  var id = _ref46.id,
+    title = _ref46.title,
+    colors = _ref46.colors,
+    fontDisplay = _ref46.fontDisplay,
+    children = _ref46.children;
   var _React$useState = React.useState(!!FOLDED[id]),
     _React$useState2 = _slicedToArray(_React$useState, 2),
     shut = _React$useState2[0],
@@ -9094,43 +9505,43 @@ function fieldStyle(colors) {
   };
 }
 var XP_LEVELS = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000]; // Experience Points needed for each level
-function IdentityTab(_ref46) {
-  var gold = _ref46.gold,
-    setGold = _ref46.setGold,
-    xp = _ref46.xp,
-    setXp = _ref46.setXp,
-    className = _ref46.className,
-    setClassName = _ref46.setClassName,
-    subclassName = _ref46.subclassName,
-    setSubclassName = _ref46.setSubclassName,
-    level = _ref46.level,
-    setLevel = _ref46.setLevel,
-    species = _ref46.species,
-    setSpecies = _ref46.setSpecies,
-    background = _ref46.background,
-    setBackground = _ref46.setBackground,
-    alignment = _ref46.alignment,
-    setAlignment = _ref46.setAlignment,
-    cls = _ref46.cls,
-    colors = _ref46.colors,
-    fontDisplay = _ref46.fontDisplay,
-    bgBonusMode = _ref46.bgBonusMode,
-    setBgBonusMode = _ref46.setBgBonusMode,
-    bgBonusChoices = _ref46.bgBonusChoices,
-    setBgBonusChoices = _ref46.setBgBonusChoices,
-    pinnedItems = _ref46.pinnedItems,
-    setPinnedItems = _ref46.setPinnedItems,
-    inv = _ref46.inv,
-    bgEff = _ref46.bgEff,
-    originCustom = _ref46.originCustom,
-    setOriginCustom = _ref46.setOriginCustom,
-    lineage = _ref46.lineage,
-    setLineage = _ref46.setLineage;
+function IdentityTab(_ref47) {
+  var gold = _ref47.gold,
+    setGold = _ref47.setGold,
+    xp = _ref47.xp,
+    setXp = _ref47.setXp,
+    className = _ref47.className,
+    setClassName = _ref47.setClassName,
+    subclassName = _ref47.subclassName,
+    setSubclassName = _ref47.setSubclassName,
+    level = _ref47.level,
+    setLevel = _ref47.setLevel,
+    species = _ref47.species,
+    setSpecies = _ref47.setSpecies,
+    background = _ref47.background,
+    setBackground = _ref47.setBackground,
+    alignment = _ref47.alignment,
+    setAlignment = _ref47.setAlignment,
+    cls = _ref47.cls,
+    colors = _ref47.colors,
+    fontDisplay = _ref47.fontDisplay,
+    bgBonusMode = _ref47.bgBonusMode,
+    setBgBonusMode = _ref47.setBgBonusMode,
+    bgBonusChoices = _ref47.bgBonusChoices,
+    setBgBonusChoices = _ref47.setBgBonusChoices,
+    pinnedItems = _ref47.pinnedItems,
+    setPinnedItems = _ref47.setPinnedItems,
+    inv = _ref47.inv,
+    bgEff = _ref47.bgEff,
+    originCustom = _ref47.originCustom,
+    setOriginCustom = _ref47.setOriginCustom,
+    lineage = _ref47.lineage,
+    setLineage = _ref47.setLineage;
   var bg = bgEff;
-  var _useState125 = useState(false),
-    _useState126 = _slicedToArray(_useState125, 2),
-    originOpen = _useState126[0],
-    setOriginOpen = _useState126[1];
+  var _useState135 = useState(false),
+    _useState136 = _slicedToArray(_useState135, 2),
+    originOpen = _useState136[0],
+    setOriginOpen = _useState136[1];
   var baseBg = BACKGROUNDS[background] || bgEff;
   var startOrigin = function startOrigin() {
     if (!originCustom) setOriginCustom({
@@ -9583,12 +9994,12 @@ function IdentityTab(_ref46) {
     }
   }, /*#__PURE__*/React.createElement("strong", null, "Origin Feat:"), " ", bg.feat, /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("strong", null, "Skill Proficiencies:"), " ", bg.skills.join(", "), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("strong", null, "Tool Proficiency:"), " ", bg.tool))));
 }
-function PinnedItemRow(_ref47) {
-  var item = _ref47.item,
-    isMagic = _ref47.isMagic,
-    dotColor = _ref47.dotColor,
-    onRemove = _ref47.onRemove,
-    colors = _ref47.colors;
+function PinnedItemRow(_ref48) {
+  var item = _ref48.item,
+    isMagic = _ref48.isMagic,
+    dotColor = _ref48.dotColor,
+    onRemove = _ref48.onRemove,
+    colors = _ref48.colors;
   var _React$useState3 = React.useState(false),
     _React$useState4 = _slicedToArray(_React$useState3, 2),
     hovered = _React$useState4[0],
@@ -9668,10 +10079,10 @@ function PinnedItemRow(_ref47) {
 var REST_PURPLE = "#B388FF"; // something a rest lets you change, until you change it
 var CUSTOM_RED = "#E5484D"; // anything changed beyond the rules: red outline when added, red letters when removed
 
-function SourceTag(_ref48) {
-  var text = _ref48.text,
-    custom = _ref48.custom,
-    colors = _ref48.colors;
+function SourceTag(_ref49) {
+  var text = _ref49.text,
+    custom = _ref49.custom,
+    colors = _ref49.colors;
   return /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
@@ -9685,32 +10096,32 @@ function SourceTag(_ref48) {
     }
   }, text);
 }
-function AbilitiesTab(_ref49) {
-  var featBonuses = _ref49.featBonuses,
-    pointBuy = _ref49.pointBuy,
-    updatePointBuy = _ref49.updatePointBuy,
-    pointBuyRemaining = _ref49.pointBuyRemaining,
-    finalScores = _ref49.finalScores,
-    finalMods = _ref49.finalMods,
-    bgBonuses = _ref49.bgBonuses,
-    asiBonuses = _ref49.asiBonuses,
-    colors = _ref49.colors,
-    fontDisplay = _ref49.fontDisplay,
-    custom = _ref49.custom,
-    abilityMode = _ref49.abilityMode,
-    setAbilityMode = _ref49.setAbilityMode,
-    customScores = _ref49.customScores,
-    setCustomScores = _ref49.setCustomScores,
-    abilityAdj = _ref49.abilityAdj,
-    setAbilityAdj = _ref49.setAbilityAdj;
-  var _useState127 = useState(false),
-    _useState128 = _slicedToArray(_useState127, 2),
-    editing = _useState128[0],
-    setEditing = _useState128[1]; // custom scores are being set
-  var _useState129 = useState(null),
-    _useState130 = _slicedToArray(_useState129, 2),
-    adjOpen = _useState130[0],
-    setAdjOpen = _useState130[1]; // which ability's additional modifier is open
+function AbilitiesTab(_ref50) {
+  var featBonuses = _ref50.featBonuses,
+    pointBuy = _ref50.pointBuy,
+    updatePointBuy = _ref50.updatePointBuy,
+    pointBuyRemaining = _ref50.pointBuyRemaining,
+    finalScores = _ref50.finalScores,
+    finalMods = _ref50.finalMods,
+    bgBonuses = _ref50.bgBonuses,
+    asiBonuses = _ref50.asiBonuses,
+    colors = _ref50.colors,
+    fontDisplay = _ref50.fontDisplay,
+    custom = _ref50.custom,
+    abilityMode = _ref50.abilityMode,
+    setAbilityMode = _ref50.setAbilityMode,
+    customScores = _ref50.customScores,
+    setCustomScores = _ref50.setCustomScores,
+    abilityAdj = _ref50.abilityAdj,
+    setAbilityAdj = _ref50.setAbilityAdj;
+  var _useState137 = useState(false),
+    _useState138 = _slicedToArray(_useState137, 2),
+    editing = _useState138[0],
+    setEditing = _useState138[1]; // custom scores are being set
+  var _useState139 = useState(null),
+    _useState140 = _slicedToArray(_useState139, 2),
+    adjOpen = _useState140[0],
+    setAdjOpen = _useState140[1]; // which ability's additional modifier is open
   var isCustom = abilityMode === "custom";
   var base = function base(a) {
     return isCustom ? customScores[a] : pointBuy[a];
@@ -9981,24 +10392,24 @@ function AbilitiesTab(_ref49) {
     }
   }, isCustom ? "Custom scores have no point limit: set each score from 1 to 30, then press Accept. Background increases, Ability Score Improvements and additional modifiers are added on top." : "Standard point buy: scores range 8 to 15 before bonuses. Cost: 9=1pt, 10=2, 11=3, 12=4, 13=5, 14=7, 15=9. Background increases and Ability Score Improvements are added automatically above.", !custom && " Turn on Further Customization to set scores freely or add modifiers.")));
 }
-function SkillsTab(_ref50) {
-  var expertiseMax = _ref50.expertiseMax,
-    expertiseList = _ref50.expertiseList,
-    expertiseCustom = _ref50.expertiseCustom,
-    cls = _ref50.cls,
-    skillInfo = _ref50.skillInfo,
-    toggleSkill = _ref50.toggleSkill,
-    addSkill = _ref50.addSkill,
-    removeSkill = _ref50.removeSkill,
-    skillExpertise = _ref50.skillExpertise,
-    toggleExpertise = _ref50.toggleExpertise,
-    skillMods = _ref50.skillMods,
-    savingThrows = _ref50.savingThrows,
-    saveInfo = _ref50.saveInfo,
-    toggleSave = _ref50.toggleSave,
-    custom = _ref50.custom,
-    colors = _ref50.colors,
-    fontDisplay = _ref50.fontDisplay;
+function SkillsTab(_ref51) {
+  var expertiseMax = _ref51.expertiseMax,
+    expertiseList = _ref51.expertiseList,
+    expertiseCustom = _ref51.expertiseCustom,
+    cls = _ref51.cls,
+    skillInfo = _ref51.skillInfo,
+    toggleSkill = _ref51.toggleSkill,
+    addSkill = _ref51.addSkill,
+    removeSkill = _ref51.removeSkill,
+    skillExpertise = _ref51.skillExpertise,
+    toggleExpertise = _ref51.toggleExpertise,
+    skillMods = _ref51.skillMods,
+    savingThrows = _ref51.savingThrows,
+    saveInfo = _ref51.saveInfo,
+    toggleSave = _ref51.toggleSave,
+    custom = _ref51.custom,
+    colors = _ref51.colors,
+    fontDisplay = _ref51.fontDisplay;
   var pick = _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
     width: "auto",
     cursor: "pointer"
@@ -10079,10 +10490,10 @@ function SkillsTab(_ref50) {
       lineHeight: 1.6
     },
     "data-testid": "skill-choices"
-  }, Object.entries(skillInfo.grantedBy).map(function (_ref51) {
-    var _ref52 = _slicedToArray(_ref51, 2),
-      src = _ref52[0],
-      list = _ref52[1];
+  }, Object.entries(skillInfo.grantedBy).map(function (_ref52) {
+    var _ref53 = _slicedToArray(_ref52, 2),
+      src = _ref53[0],
+      list = _ref53[1];
     return /*#__PURE__*/React.createElement("div", {
       key: src
     }, /*#__PURE__*/React.createElement("strong", null, src), " grants ", list.join(" and "), ".");
@@ -10200,42 +10611,42 @@ function SkillsTab(_ref50) {
     }, fmt(skillMods[skill])));
   }))));
 }
-function CombatTab(_ref53) {
-  var possibleMaxHp = _ref53.possibleMaxHp,
-    averageHp = _ref53.averageHp,
-    setHpTotal = _ref53.setHpTotal,
-    statAdj = _ref53.statAdj,
-    setStatAdj = _ref53.setStatAdj,
-    inventory = _ref53.inventory,
-    masteries = _ref53.masteries,
-    setMasteries = _ref53.setMasteries,
-    custom = _ref53.custom,
-    masteryGlow = _ref53.masteryGlow,
-    armor = _ref53.armor,
-    setArmor = _ref53.setArmor,
-    shield = _ref53.shield,
-    setShield = _ref53.setShield,
-    weapons = _ref53.weapons,
-    setWeapons = _ref53.setWeapons,
-    ac = _ref53.ac,
-    sheetActions = _ref53.sheetActions,
-    pools = _ref53.pools,
-    derived = _ref53.derived,
-    cls = _ref53.cls,
-    level = _ref53.level,
-    effectiveMaxHp = _ref53.effectiveMaxHp,
-    currentHp = _ref53.currentHp,
-    setCurrentHp = _ref53.setCurrentHp,
-    tempHp = _ref53.tempHp,
-    setTempHp = _ref53.setTempHp,
-    hitDiceUsed = _ref53.hitDiceUsed,
-    setHitDiceUsed = _ref53.setHitDiceUsed,
-    finalMods = _ref53.finalMods,
-    armorClass = _ref53.armorClass,
-    initiative = _ref53.initiative,
-    speed = _ref53.speed,
-    colors = _ref53.colors,
-    fontDisplay = _ref53.fontDisplay;
+function CombatTab(_ref54) {
+  var possibleMaxHp = _ref54.possibleMaxHp,
+    averageHp = _ref54.averageHp,
+    setHpTotal = _ref54.setHpTotal,
+    statAdj = _ref54.statAdj,
+    setStatAdj = _ref54.setStatAdj,
+    inventory = _ref54.inventory,
+    masteries = _ref54.masteries,
+    setMasteries = _ref54.setMasteries,
+    custom = _ref54.custom,
+    masteryGlow = _ref54.masteryGlow,
+    armor = _ref54.armor,
+    setArmor = _ref54.setArmor,
+    shield = _ref54.shield,
+    setShield = _ref54.setShield,
+    weapons = _ref54.weapons,
+    setWeapons = _ref54.setWeapons,
+    ac = _ref54.ac,
+    sheetActions = _ref54.sheetActions,
+    pools = _ref54.pools,
+    derived = _ref54.derived,
+    cls = _ref54.cls,
+    level = _ref54.level,
+    effectiveMaxHp = _ref54.effectiveMaxHp,
+    currentHp = _ref54.currentHp,
+    setCurrentHp = _ref54.setCurrentHp,
+    tempHp = _ref54.tempHp,
+    setTempHp = _ref54.setTempHp,
+    hitDiceUsed = _ref54.hitDiceUsed,
+    setHitDiceUsed = _ref54.setHitDiceUsed,
+    finalMods = _ref54.finalMods,
+    armorClass = _ref54.armorClass,
+    initiative = _ref54.initiative,
+    speed = _ref54.speed,
+    colors = _ref54.colors,
+    fontDisplay = _ref54.fontDisplay;
   var displayHp = currentHp === null ? effectiveMaxHp : currentHp;
   // Further Customization: an additional modifier on a stat, shown in red
   var adjust = function adjust(k, step) {
@@ -10421,13 +10832,13 @@ function CombatTab(_ref53) {
       gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
       gap: 12
     }
-  }, [["Armor Class", armorClass, ac.how, "ac", 1], ["Initiative", fmt(initiative), "", "initiative", 1], ["Speed", "".concat(speed, " ft"), "", "speed", 5]].map(function (_ref54) {
-    var _ref55 = _slicedToArray(_ref54, 5),
-      label = _ref55[0],
-      val = _ref55[1],
-      note = _ref55[2],
-      k = _ref55[3],
-      step = _ref55[4];
+  }, [["Armor Class", armorClass, ac.how, "ac", 1], ["Initiative", fmt(initiative), "", "initiative", 1], ["Speed", "".concat(speed, " ft"), "", "speed", 5]].map(function (_ref55) {
+    var _ref56 = _slicedToArray(_ref55, 5),
+      label = _ref56[0],
+      val = _ref56[1],
+      note = _ref56[2],
+      k = _ref56[3],
+      step = _ref56[4];
     return /*#__PURE__*/React.createElement("div", {
       key: label,
       style: {
@@ -10499,10 +10910,10 @@ function CombatTab(_ref53) {
       marginBottom: 10
     },
     "data-testid": "pools"
-  }, /*#__PURE__*/React.createElement("strong", null, "Resources:"), " ", Object.entries(pools).map(function (_ref56) {
-    var _ref57 = _slicedToArray(_ref56, 2),
-      n = _ref57[0],
-      p = _ref57[1];
+  }, /*#__PURE__*/React.createElement("strong", null, "Resources:"), " ", Object.entries(pools).map(function (_ref57) {
+    var _ref58 = _slicedToArray(_ref57, 2),
+      n = _ref58[0],
+      p = _ref58[1];
     return "".concat(n, " ").concat(p.max, " (").concat(p.recharge === "short" ? "Short Rest" : p.shortRegain ? "Long Rest, 1 back on a Short Rest" : "Long Rest", ")");
   }).join(" · ")), sheetActions.map(function (a, i) {
     return /*#__PURE__*/React.createElement("div", {
@@ -10748,10 +11159,10 @@ var EXPERTISE_SLOTS = {
 };
 function expertiseSlots(className, level) {
   var n = 0;
-  Object.entries(EXPERTISE_SLOTS[className] || {}).forEach(function (_ref58) {
-    var _ref59 = _slicedToArray(_ref58, 2),
-      l = _ref59[0],
-      total = _ref59[1];
+  Object.entries(EXPERTISE_SLOTS[className] || {}).forEach(function (_ref59) {
+    var _ref60 = _slicedToArray(_ref59, 2),
+      l = _ref60[0],
+      total = _ref60[1];
     if (level >= +l) n = Math.max(n, total);
   });
   return n;
@@ -10802,11 +11213,11 @@ function featProblem(name, cats, ch) {
 }
 
 // The choices a feat asks for, shown right where the feat is picked.
-function FeatChoices(_ref60) {
-  var name = _ref60.name,
-    choices = _ref60.choices,
-    onChange = _ref60.onChange,
-    colors = _ref60.colors;
+function FeatChoices(_ref61) {
+  var name = _ref61.name,
+    choices = _ref61.choices,
+    onChange = _ref61.onChange,
+    colors = _ref61.colors;
   var def = featDef(name);
   if (!def) return null;
   var g = def.grants || {};
@@ -10958,11 +11369,11 @@ function FeatChoices(_ref60) {
       gap: 8,
       flexWrap: "wrap"
     }
-  }, [["cantrip1", "Cantrip...", 0], ["cantrip2", "Cantrip...", 0], ["spell", "Level 1 spell...", 1]].map(function (_ref61) {
-    var _ref62 = _slicedToArray(_ref61, 3),
-      k = _ref62[0],
-      ph = _ref62[1],
-      lvl = _ref62[2];
+  }, [["cantrip1", "Cantrip...", 0], ["cantrip2", "Cantrip...", 0], ["spell", "Level 1 spell...", 1]].map(function (_ref62) {
+    var _ref63 = _slicedToArray(_ref62, 3),
+      k = _ref63[0],
+      ph = _ref63[1],
+      lvl = _ref63[2];
     var list = c.list || featPreset(name);
     var other = k === "cantrip1" ? c.cantrip2 : k === "cantrip2" ? c.cantrip1 : "";
     return /*#__PURE__*/React.createElement("select", {
@@ -11040,16 +11451,16 @@ function FeatChoices(_ref60) {
 }
 
 // A dropdown of feats. allowed: names the rules allow in this slot. With Further Customization on, the rest are listed too.
-function FeatPicker(_ref63) {
-  var value = _ref63.value,
-    onPick = _ref63.onPick,
-    cats = _ref63.cats,
-    taken = _ref63.taken,
-    custom = _ref63.custom,
-    colors = _ref63.colors,
-    label = _ref63.label,
-    hide = _ref63.hide,
-    className = _ref63.className;
+function FeatPicker(_ref64) {
+  var value = _ref64.value,
+    onPick = _ref64.onPick,
+    cats = _ref64.cats,
+    taken = _ref64.taken,
+    custom = _ref64.custom,
+    colors = _ref64.colors,
+    label = _ref64.label,
+    hide = _ref64.hide,
+    className = _ref64.className;
   // hide: categories the rules allow here but that are only listed with Further Customization on
   var names = Object.keys(FEATS).filter(function (n) {
     return n !== "Ability Score Improvement";
@@ -11108,31 +11519,31 @@ function FeatPicker(_ref63) {
     }, n, " (", FEATS[n].category, ")");
   })));
 }
-function FeaturesTab(_ref64) {
-  var masteries = _ref64.masteries,
-    setMasteries = _ref64.setMasteries,
-    masteryCount = _ref64.masteryCount,
-    className = _ref64.className,
-    glowOf = _ref64.glowOf,
-    optionSlots = _ref64.optionSlots,
-    featureChoices = _ref64.featureChoices,
-    setFeatureChoices = _ref64.setFeatureChoices,
-    featureLedger = _ref64.featureLedger,
-    reachedAsiLevels = _ref64.reachedAsiLevels,
-    asiChoices = _ref64.asiChoices,
-    setAsiAbilities = _ref64.setAsiAbilities,
-    setAsiType = _ref64.setAsiType,
-    setFeatName = _ref64.setFeatName,
-    setAsiFeatChoices = _ref64.setAsiFeatChoices,
-    colors = _ref64.colors,
-    fontDisplay = _ref64.fontDisplay,
-    slots = _ref64.slots,
-    featPicks = _ref64.featPicks,
-    setFeatPick = _ref64.setFeatPick,
-    extraFeats = _ref64.extraFeats,
-    setExtraFeats = _ref64.setExtraFeats,
-    takenFeats = _ref64.takenFeats,
-    custom = _ref64.custom;
+function FeaturesTab(_ref65) {
+  var masteries = _ref65.masteries,
+    setMasteries = _ref65.setMasteries,
+    masteryCount = _ref65.masteryCount,
+    className = _ref65.className,
+    glowOf = _ref65.glowOf,
+    optionSlots = _ref65.optionSlots,
+    featureChoices = _ref65.featureChoices,
+    setFeatureChoices = _ref65.setFeatureChoices,
+    featureLedger = _ref65.featureLedger,
+    reachedAsiLevels = _ref65.reachedAsiLevels,
+    asiChoices = _ref65.asiChoices,
+    setAsiAbilities = _ref65.setAsiAbilities,
+    setAsiType = _ref65.setAsiType,
+    setFeatName = _ref65.setFeatName,
+    setAsiFeatChoices = _ref65.setAsiFeatChoices,
+    colors = _ref65.colors,
+    fontDisplay = _ref65.fontDisplay,
+    slots = _ref65.slots,
+    featPicks = _ref65.featPicks,
+    setFeatPick = _ref65.setFeatPick,
+    extraFeats = _ref65.extraFeats,
+    setExtraFeats = _ref65.setExtraFeats,
+    takenFeats = _ref65.takenFeats,
+    custom = _ref65.custom;
   var taken = takenFeats.map(function (f) {
     return f.base;
   });
@@ -11214,10 +11625,10 @@ function FeaturesTab(_ref64) {
         })
       }, /*#__PURE__*/React.createElement("option", {
         value: ""
-      }, "Choose a weapon..."), WEAPON_GROUPS.map(function (_ref65) {
-        var _ref66 = _slicedToArray(_ref65, 2),
-          cat = _ref66[0],
-          fits = _ref66[1];
+      }, "Choose a weapon..."), WEAPON_GROUPS.map(function (_ref66) {
+        var _ref67 = _slicedToArray(_ref66, 2),
+          cat = _ref67[0],
+          fits = _ref67[1];
         var list = WEAPONS.filter(function (w) {
           return fits(w) && (custom || masteryEligible(className, w) || w.name === masteries[i]) && (!masteries.includes(w.name) || masteries[i] === w.name);
         });
@@ -12343,23 +12754,23 @@ function fullSpellAction(sp, ctx, opts) {
         cost: x.cost
       }
     }), ctx, opts);
-    return a ? function (_ref67) {
-      var name = _ref67.name,
-        spell = _ref67.spell,
-        slot = _ref67.slot,
-        desc = _ref67.desc,
-        comp = _ref67.comp,
-        mat = _ref67.mat,
-        matCost = _ref67.matCost,
-        matConsumed = _ref67.matConsumed,
-        conc = _ref67.conc,
-        concSecs = _ref67.concSecs,
-        range = _ref67.range,
-        hand = _ref67.hand,
-        ritual = _ref67.ritual,
-        gp = _ref67.gp,
-        gpConsumed = _ref67.gpConsumed,
-        keep = _objectWithoutProperties(_ref67, _excluded7);
+    return a ? function (_ref68) {
+      var name = _ref68.name,
+        spell = _ref68.spell,
+        slot = _ref68.slot,
+        desc = _ref68.desc,
+        comp = _ref68.comp,
+        mat = _ref68.mat,
+        matCost = _ref68.matCost,
+        matConsumed = _ref68.matConsumed,
+        conc = _ref68.conc,
+        concSecs = _ref68.concSecs,
+        range = _ref68.range,
+        hand = _ref68.hand,
+        ritual = _ref68.ritual,
+        gp = _ref68.gp,
+        gpConsumed = _ref68.gpConsumed,
+        keep = _objectWithoutProperties(_ref68, _excluded7);
       return keep;
     }(a) : null;
   };
@@ -12402,16 +12813,16 @@ function fullSpellAction(sp, ctx, opts) {
   } // a class that spends points, not slots
   return out;
 }
-function SpellRow(_ref68) {
-  var entry = _ref68.entry,
-    onRemove = _ref68.onRemove,
-    colors = _ref68.colors,
-    fontDisplay = _ref68.fontDisplay,
-    summary = _ref68.summary;
-  var _useState131 = useState(false),
-    _useState132 = _slicedToArray(_useState131, 2),
-    open = _useState132[0],
-    setOpen = _useState132[1];
+function SpellRow(_ref69) {
+  var entry = _ref69.entry,
+    onRemove = _ref69.onRemove,
+    colors = _ref69.colors,
+    fontDisplay = _ref69.fontDisplay,
+    summary = _ref69.summary;
+  var _useState141 = useState(false),
+    _useState142 = _slicedToArray(_useState141, 2),
+    open = _useState142[0],
+    setOpen = _useState142[1];
   var sp = entry.sp,
     red = !!entry.problem;
   return /*#__PURE__*/React.createElement("div", {
@@ -12497,50 +12908,50 @@ function SpellRow(_ref68) {
     }
   }, /*#__PURE__*/React.createElement("strong", null, "Using a Higher-Level Spell Slot."), " ", sp.h) : null));
 }
-function SpellsTab(_ref69) {
-  var bookInfo = _ref69.bookInfo,
-    spellbook = _ref69.spellbook,
-    picks = _ref69.picks,
-    featureChoices = _ref69.featureChoices,
-    setFeatureChoices = _ref69.setFeatureChoices,
-    glow = _ref69.glow,
-    grantedSpells = _ref69.grantedSpells,
-    cls = _ref69.cls,
-    className = _ref69.className,
-    level = _ref69.level,
-    finalMods = _ref69.finalMods,
-    profBonus = _ref69.profBonus,
-    colors = _ref69.colors,
-    fontDisplay = _ref69.fontDisplay,
-    spells = _ref69.spells,
-    setSpells = _ref69.setSpells,
-    spellInfo = _ref69.spellInfo,
-    custom = _ref69.custom,
-    spellSummary = _ref69.spellSummary;
-  var _useState133 = useState([]),
-    _useState134 = _slicedToArray(_useState133, 2),
-    levelsOff = _useState134[0],
-    setLevelsOff = _useState134[1]; // spell levels switched off in the Add Spells list (none: every level shows)
-  var _useState135 = useState("level"),
-    _useState136 = _slicedToArray(_useState135, 2),
-    sortBy = _useState136[0],
-    setSortBy = _useState136[1]; // "level" (alphabetical inside each level) or "name"
-  var _useState137 = useState(""),
-    _useState138 = _slicedToArray(_useState137, 2),
-    search = _useState138[0],
-    setSearch = _useState138[1];
-  var _useState139 = useState(false),
-    _useState140 = _slicedToArray(_useState139, 2),
-    anyList = _useState140[0],
-    setAnyList = _useState140[1]; // customization: spells from every class list
-  var _useState141 = useState(false),
-    _useState142 = _slicedToArray(_useState141, 2),
-    allLevels = _useState142[0],
-    setAllLevels = _useState142[1]; // customization: spells above the level you can cast
-  var _useState143 = useState(""),
+function SpellsTab(_ref70) {
+  var bookInfo = _ref70.bookInfo,
+    spellbook = _ref70.spellbook,
+    picks = _ref70.picks,
+    featureChoices = _ref70.featureChoices,
+    setFeatureChoices = _ref70.setFeatureChoices,
+    glow = _ref70.glow,
+    grantedSpells = _ref70.grantedSpells,
+    cls = _ref70.cls,
+    className = _ref70.className,
+    level = _ref70.level,
+    finalMods = _ref70.finalMods,
+    profBonus = _ref70.profBonus,
+    colors = _ref70.colors,
+    fontDisplay = _ref70.fontDisplay,
+    spells = _ref70.spells,
+    setSpells = _ref70.setSpells,
+    spellInfo = _ref70.spellInfo,
+    custom = _ref70.custom,
+    spellSummary = _ref70.spellSummary;
+  var _useState143 = useState([]),
     _useState144 = _slicedToArray(_useState143, 2),
-    typed = _useState144[0],
-    setTyped = _useState144[1];
+    levelsOff = _useState144[0],
+    setLevelsOff = _useState144[1]; // spell levels switched off in the Add Spells list (none: every level shows)
+  var _useState145 = useState("level"),
+    _useState146 = _slicedToArray(_useState145, 2),
+    sortBy = _useState146[0],
+    setSortBy = _useState146[1]; // "level" (alphabetical inside each level) or "name"
+  var _useState147 = useState(""),
+    _useState148 = _slicedToArray(_useState147, 2),
+    search = _useState148[0],
+    setSearch = _useState148[1];
+  var _useState149 = useState(false),
+    _useState150 = _slicedToArray(_useState149, 2),
+    anyList = _useState150[0],
+    setAnyList = _useState150[1]; // customization: spells from every class list
+  var _useState151 = useState(false),
+    _useState152 = _slicedToArray(_useState151, 2),
+    allLevels = _useState152[0],
+    setAllLevels = _useState152[1]; // customization: spells above the level you can cast
+  var _useState153 = useState(""),
+    _useState154 = _slicedToArray(_useState153, 2),
+    typed = _useState154[0],
+    setTyped = _useState154[1];
   var caster = spellInfo.caster,
     maxLevel = spellInfo.maxLevel,
     cantripMax = spellInfo.cantripMax,
@@ -13027,12 +13438,12 @@ function SpellsTab(_ref69) {
     return [l, levelName(l), !levelsOff.includes(l), function () {
       return toggleLevel(l);
     }];
-  })).map(function (_ref70) {
-    var _ref71 = _slicedToArray(_ref70, 4),
-      k = _ref71[0],
-      text = _ref71[1],
-      on = _ref71[2],
-      click = _ref71[3];
+  })).map(function (_ref71) {
+    var _ref72 = _slicedToArray(_ref71, 4),
+      k = _ref72[0],
+      text = _ref72[1],
+      on = _ref72[2],
+      click = _ref72[3];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       "data-testid": "level-chip-".concat(k),
@@ -13316,14 +13727,14 @@ function cleanJournal(raw, oldNotes, oldEquipment) {
   }
   return j;
 }
-function JournalTab(_ref72) {
-  var journal = _ref72.journal,
-    setJournal = _ref72.setJournal,
-    alignment = _ref72.alignment,
-    setAlignment = _ref72.setAlignment,
-    knownTools = _ref72.knownTools,
-    colors = _ref72.colors,
-    fontDisplay = _ref72.fontDisplay;
+function JournalTab(_ref73) {
+  var journal = _ref73.journal,
+    setJournal = _ref73.setJournal,
+    alignment = _ref73.alignment,
+    setAlignment = _ref73.setAlignment,
+    knownTools = _ref73.knownTools,
+    colors = _ref73.colors,
+    fontDisplay = _ref73.fontDisplay;
   var _React$useState5 = React.useState(0),
     _React$useState6 = _slicedToArray(_React$useState5, 2),
     page = _React$useState6[0],
@@ -13382,9 +13793,9 @@ function JournalTab(_ref72) {
       i = o.indexOf(key),
       k = i + by;
     if (k < 0 || k >= o.length) return;
-    var _ref73 = [o[k], o[i]];
-    o[i] = _ref73[0];
-    o[k] = _ref73[1];
+    var _ref74 = [o[k], o[i]];
+    o[i] = _ref74[0];
+    o[k] = _ref74[1];
     set({
       order: o
     });
@@ -13537,10 +13948,10 @@ function JournalTab(_ref72) {
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 12
         }
-      }, [["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(function (_ref74) {
-        var _ref75 = _slicedToArray(_ref74, 2),
-          k = _ref75[0],
-          t = _ref75[1];
+      }, [["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(function (_ref75) {
+        var _ref76 = _slicedToArray(_ref75, 2),
+          k = _ref76[0],
+          t = _ref76[1];
         return /*#__PURE__*/React.createElement("div", {
           key: k
         }, /*#__PURE__*/React.createElement("div", {
@@ -14084,16 +14495,16 @@ function inventoryGroup(item) {
 }
 var inventoryFolded = false,
   inventoryOnlyProf = false; // stay as you left them while the page is open
-function InventoryTab(_ref76) {
-  var inv = _ref76.inv,
-    prof = _ref76.prof,
-    magic = _ref76.magic,
-    mundane = _ref76.mundane,
-    components = _ref76.components,
-    setComponents = _ref76.setComponents,
-    spellMats = _ref76.spellMats,
-    colors = _ref76.colors,
-    fontDisplay = _ref76.fontDisplay;
+function InventoryTab(_ref77) {
+  var inv = _ref77.inv,
+    prof = _ref77.prof,
+    magic = _ref77.magic,
+    mundane = _ref77.mundane,
+    components = _ref77.components,
+    setComponents = _ref77.setComponents,
+    spellMats = _ref77.spellMats,
+    colors = _ref77.colors,
+    fontDisplay = _ref77.fontDisplay;
   var isCaster = function isCaster(item) {
     return /component pouch|arcane focus|druidic focus|holy symbol/i.test(item.name);
   };
@@ -14243,10 +14654,10 @@ function InventoryTab(_ref76) {
     }));
   }), /*#__PURE__*/React.createElement("div", {
     "data-testid": "inventory-list"
-  }, groups.map(function (_ref77) {
-    var _ref78 = _slicedToArray(_ref77, 2),
-      g = _ref78[0],
-      items = _ref78[1];
+  }, groups.map(function (_ref78) {
+    var _ref79 = _slicedToArray(_ref78, 2),
+      g = _ref79[0],
+      items = _ref79[1];
     return /*#__PURE__*/React.createElement("div", {
       key: g,
       "data-testid": "inv-group-".concat(g),
@@ -14665,8 +15076,8 @@ var WEAPON_GROUPS = [["Simple Melee weapons", function (w) {
 }], ["Martial Ranged weapons", function (w) {
   return w.cat === "Martial" && w.ranged;
 }]];
-function KindOptions(_ref79) {
-  var item = _ref79.item;
+function KindOptions(_ref80) {
+  var item = _ref80.item;
   var kinds = magicGearKinds(item),
     info = magicGearInfo(item) || {};
   if (info.kind === "armor") return ["Light", "Medium", "Heavy"].map(function (cat) {
@@ -14683,10 +15094,10 @@ function KindOptions(_ref79) {
       }, a.name, " (AC ", a.base, a.dex ? a.max != null ? " + Dex, max ".concat(a.max) : " + Dex" : "", ")");
     })) : null;
   });
-  return WEAPON_GROUPS.map(function (_ref80) {
-    var _ref81 = _slicedToArray(_ref80, 2),
-      cat = _ref81[0],
-      fits = _ref81[1];
+  return WEAPON_GROUPS.map(function (_ref81) {
+    var _ref82 = _slicedToArray(_ref81, 2),
+      cat = _ref82[0],
+      fits = _ref82[1];
     var list = WEAPONS.filter(function (w) {
       return fits(w) && kinds.includes(w.name);
     });
@@ -14702,12 +15113,12 @@ function KindOptions(_ref79) {
   });
 }
 // The controls for one item: add it to the inventory, mark it important, or remove it.
-function ItemControls(_ref82) {
-  var item = _ref82.item,
-    inv = _ref82.inv,
-    colors = _ref82.colors,
-    small = _ref82.small,
-    onChoose = _ref82.onChoose;
+function ItemControls(_ref83) {
+  var item = _ref83.item,
+    inv = _ref83.inv,
+    colors = _ref83.colors,
+    small = _ref83.small,
+    onChoose = _ref83.onChoose;
   var b = function b(bg, fg) {
     return {
       minWidth: 22,
@@ -14757,10 +15168,10 @@ function ItemControls(_ref82) {
   }, "\xD7");
 }
 // A list of carried items with their controls (Notes tab and the side panels).
-function InventoryList(_ref83) {
-  var items = _ref83.items,
-    inv = _ref83.inv,
-    colors = _ref83.colors;
+function InventoryList(_ref84) {
+  var items = _ref84.items,
+    inv = _ref84.inv,
+    colors = _ref84.colors;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -14825,14 +15236,14 @@ function InventoryList(_ref83) {
     }));
   }));
 }
-function ItemRowHover(_ref84) {
-  var item = _ref84.item,
-    inv = _ref84.inv,
-    onSelect = _ref84.onSelect,
-    isSelected = _ref84.isSelected,
-    accentColor = _ref84.accentColor,
-    colors = _ref84.colors,
-    extraBadge = _ref84.extraBadge;
+function ItemRowHover(_ref85) {
+  var item = _ref85.item,
+    inv = _ref85.inv,
+    onSelect = _ref85.onSelect,
+    isSelected = _ref85.isSelected,
+    accentColor = _ref85.accentColor,
+    colors = _ref85.colors,
+    extraBadge = _ref85.extraBadge;
   var _React$useState25 = React.useState(false),
     _React$useState26 = _slicedToArray(_React$useState25, 2),
     hovered = _React$useState26[0],
@@ -14902,21 +15313,21 @@ function ItemRowHover(_ref84) {
     }
   }, "\u2713"));
 }
-function MagicItemsTab(_ref85) {
-  var itemSearch = _ref85.itemSearch,
-    setItemSearch = _ref85.setItemSearch,
-    itemRarityFilter = _ref85.itemRarityFilter,
-    setItemRarityFilter = _ref85.setItemRarityFilter,
-    itemTypeFilter = _ref85.itemTypeFilter,
-    setItemTypeFilter = _ref85.setItemTypeFilter,
-    itemAttunementFilter = _ref85.itemAttunementFilter,
-    setItemAttunementFilter = _ref85.setItemAttunementFilter,
-    selectedItem = _ref85.selectedItem,
-    setSelectedItem = _ref85.setSelectedItem,
-    inv = _ref85.inv,
-    keep = _ref85.keep,
-    colors = _ref85.colors,
-    fontDisplay = _ref85.fontDisplay;
+function MagicItemsTab(_ref86) {
+  var itemSearch = _ref86.itemSearch,
+    setItemSearch = _ref86.setItemSearch,
+    itemRarityFilter = _ref86.itemRarityFilter,
+    setItemRarityFilter = _ref86.setItemRarityFilter,
+    itemTypeFilter = _ref86.itemTypeFilter,
+    setItemTypeFilter = _ref86.setItemTypeFilter,
+    itemAttunementFilter = _ref86.itemAttunementFilter,
+    setItemAttunementFilter = _ref86.setItemAttunementFilter,
+    selectedItem = _ref86.selectedItem,
+    setSelectedItem = _ref86.setSelectedItem,
+    inv = _ref86.inv,
+    keep = _ref86.keep,
+    colors = _ref86.colors,
+    fontDisplay = _ref86.fontDisplay;
   var _React$useState27 = React.useState(false),
     _React$useState28 = _slicedToArray(_React$useState27, 2),
     expanded = _React$useState28[0],
@@ -15028,12 +15439,12 @@ function MagicItemsTab(_ref85) {
         return x !== r;
       }) : [].concat(_toConsumableArray(raritiesOff), [r]));
     }, RARITY_COLORS[r]];
-  })).map(function (_ref86) {
-    var _ref87 = _slicedToArray(_ref86, 4),
-      r = _ref87[0],
-      on = _ref87[1],
-      click = _ref87[2],
-      col = _ref87[3];
+  })).map(function (_ref87) {
+    var _ref88 = _slicedToArray(_ref87, 4),
+      r = _ref88[0],
+      on = _ref88[1],
+      click = _ref88[2],
+      col = _ref88[3];
     return /*#__PURE__*/React.createElement("button", {
       key: r,
       "data-testid": "rarity-chip-".concat(r),
@@ -15301,17 +15712,17 @@ function MagicItemsTab(_ref85) {
     }
   }, "Select an item to view details"))));
 }
-function MundaneItemsTab(_ref88) {
-  var mundaneSearch = _ref88.mundaneSearch,
-    setMundaneSearch = _ref88.setMundaneSearch,
-    mundaneTypeFilter = _ref88.mundaneTypeFilter,
-    setMundaneTypeFilter = _ref88.setMundaneTypeFilter,
-    selectedMundane = _ref88.selectedMundane,
-    setSelectedMundane = _ref88.setSelectedMundane,
-    inv = _ref88.inv,
-    keep = _ref88.keep,
-    colors = _ref88.colors,
-    fontDisplay = _ref88.fontDisplay;
+function MundaneItemsTab(_ref89) {
+  var mundaneSearch = _ref89.mundaneSearch,
+    setMundaneSearch = _ref89.setMundaneSearch,
+    mundaneTypeFilter = _ref89.mundaneTypeFilter,
+    setMundaneTypeFilter = _ref89.setMundaneTypeFilter,
+    selectedMundane = _ref89.selectedMundane,
+    setSelectedMundane = _ref89.setSelectedMundane,
+    inv = _ref89.inv,
+    keep = _ref89.keep,
+    colors = _ref89.colors,
+    fontDisplay = _ref89.fontDisplay;
   var allCategories = React.useMemo(function () {
     var cats = new Set(MUNDANE_ITEMS.map(function (i) {
       return i.category;
