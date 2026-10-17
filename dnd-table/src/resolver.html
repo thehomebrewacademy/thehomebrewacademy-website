@@ -79,6 +79,19 @@
     .combatant-card.active .init-badge { background: var(--gold); }
     .combatant-card.targeted .init-badge { background: var(--blood-light); color: white; }
 
+    .board-line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    .mon-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; align-items: start; }
+    .mon-card { border: 1px solid var(--brass); border-radius: 8px; background: #1a2535; padding: 8px 10px; font-size: 14px; }
+    .mon-card.active { border-color: var(--gold); box-shadow: 0 0 8px rgba(201,168,76,0.35); }
+    .mon-card.down { opacity: .55; }
+    .mon-head { display: flex; gap: 8px; align-items: center; cursor: grab; font-family: 'Cinzel', serif; }
+    .mon-head .pp-muted { font-size: 12px; font-family: 'Crimson Text', serif; }
+    .mon-stats { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0; color: var(--parchment); }
+    .mon-abil { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; text-align: center; margin: 6px 0; }
+    .mon-abil em { display: block; font-style: normal; font-size: 11px; color: var(--text-muted); }
+    .mon-sec { margin: 6px 0; } .mon-sec > div { margin: 2px 0; line-height: 1.35; }
+    .mon-h { font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 1px; color: var(--gold); border-bottom: 1px solid #2c3e50; margin-bottom: 3px; }
+    .app-ver { font-size: 0.55em; opacity: .6; letter-spacing: 1px; vertical-align: middle; }
     .card-pic.hidden-pic { opacity: .45; outline: 1px dashed var(--brass); }
     .banner-pic { float: right; width: 72px; height: 72px; border-radius: 8px; object-fit: cover; border: 2px solid var(--brass); cursor: zoom-in; margin-left: 10px; }
     .pic-tools { clear: right; float: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 12px; margin-left: 10px; }
@@ -1345,6 +1358,7 @@ function cleanEffect(e) {
   if (e.extraAction) out.extraAction = String(e.extraAction).slice(0, 160);
   if (e.extraBonus) out.extraBonus = String(e.extraBonus === true ? 'an extra Bonus Action' : e.extraBonus).slice(0, 160);
   if (e.extraReaction) out.extraReaction = String(e.extraReaction === true ? 'an extra Reaction' : e.extraReaction).slice(0, 160);
+  ['extraActionOnly', 'extraBonusOnly', 'extraReactionOnly'].forEach(k => { if (Array.isArray(e[k])) { const l = e[k].filter(x => typeof x === 'string' && x.trim()).slice(0, 20).map(x => x.trim().slice(0, 60)); if (l.length) out[k] = l; } }); // what the extra one may be used for, by name
   if (e.wpn && typeof e.wpn === 'object' && /^[A-Za-z |]{0,60}$/.test(String(e.wpn.re || '')) && (DMG_RE.test(String(e.wpn.die || '')) || +e.wpn.bonus)) out.wpn = {re: String(e.wpn.re || ''), die: DMG_RE.test(String(e.wpn.die || '')) ? String(e.wpn.die) : '', mod: Math.max(-5, Math.min(15, Math.round(+e.wpn.mod || 0))), type: String(e.wpn.type || '').slice(0, 20), ...(+e.wpn.bonus ? {bonus: Math.max(-5, Math.min(5, Math.round(+e.wpn.bonus)))} : {}), ...(e.wpn.useMod === false ? {keepMod: true} : {})};
   ['noOA','noStand','noAttack','endsAt0','seeInvisible','noSlow','actOrBonus','noInvisibleVs','unlessSight','shakeOff','endsOnSpell','untilLongRest','oneAtATime','lifeBond','deathAdv','endsOnAttack','endsWhenAttacked','noCast','noAct','saveOnDamage','away','noBonus','atkDisVs','maxHeal','noHpMaxDown','healAt0','breakConc','turnOfCaster'].forEach(k => { if (e[k]) out[k] = true; });
   if (e.endsOnDamageBy === 'caster') out.endsOnDamageBy = 'caster';
@@ -2007,6 +2021,7 @@ function sheetToFields(data) {
     name: str(data.name, 60) || 'Unnamed Hero', type: 'player',
     pic: typeof data.portraitThumb === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(data.portraitThumb) && data.portraitThumb.length < 40000 ? data.portraitThumb : '', // the character's picture, small
     charClass: str(data.className, 40).trim() || 'Fighter', // any class name, so homebrew classes keep theirs
+    classLine: str(data.classLine, 120), // multiclassing: "Ranger 3 / Warlock 2"
     level, maxHP, gold: Math.max(0, num(data.gold, 0)), size: SIZES.includes(data.size) ? data.size : 'Medium', xp: Math.max(0, num(data.xp, 0)), currentHP: Math.max(0, Math.min(maxHP, num(data.currentHP, maxHP))), hitDiceUsed: Math.max(0, Math.min(level, num(data.hitDiceUsed, 0))), hitDie: [6, 8, 10, 12].includes(+data.hitDie) ? +data.hitDie : 8,
     tempHP: Math.max(0, num(data.tempHP, 0)), ac: num(data.ac, 10), speed: num(data.speed, 30), ...(list(data.moves, 6, 40).length ? {speedExtra: list(data.moves, 6, 40).join(', ')} : {}), initBonus: num(data.initiativeBonus, mod(scores.Dexterity)),
     senses: list(data.senses, 10, 40), scores, saves, pb: num(data.profBonus, profBonus(level)), sheet, info,
@@ -2680,8 +2695,14 @@ function App() {
   const [sheetTheme, setSheetTheme] = useState(() => { try { return normLook(JSON.parse(window.localStorage.getItem('hba-sheet-theme') || 'null')); } catch (e) { return normLook(null); } });
   const [lookMine, setLookMine] = useState(() => { try { return window.localStorage.getItem('hba-look-mine') === 'on'; } catch (e) { return false; } }); // show every sheet in this computer's own look
   const [sharedLooks, setSharedLooks] = useState({});
+  const [rosterInit, setRosterInitRaw] = useState(() => { try { const v = JSON.parse(window.localStorage.getItem('hba-roster-init') || 'null'); return v && ['roll', 'avg', 'type'].includes(v.mode) ? {mode: v.mode, val: ''} : {mode: 'roll', val: ''}; } catch (e) { return {mode: 'roll', val: ''}; } }); // the Initiative a monster added from the roster gets
+  const setRosterInit = v => { setRosterInitRaw(v); try { window.localStorage.setItem('hba-roster-init', JSON.stringify({mode: v.mode})); } catch (e) {} };
   const [pics, setPics] = useState({}); // pictures of creatures in this session: {creature id: {big, thumb, show, at}}
-  const [bigPic, setBigPic] = useState(''); // a picture opened full size // looks players chose to share on their characters' sheets: {creature id: look}
+  const [bigPic, setBigPic] = useState(''); // a picture opened full size
+  const [board, setBoard] = useState(false); // the DM's board of every monster's stat block
+  const [boardOrder, setBoardOrder] = useState([]);
+  const [boardFold, setBoardFold] = useState([]);
+  const dragRef = useRef(''); // looks players chose to share on their characters' sheets: {creature id: look}
   const [sheetBg, setSheetBg] = useState(() => { try { return window.localStorage.getItem('hba-sheet-bg') || ''; } catch (e) { return ''; } }); // an uploaded background image, on this computer
 
   useEffect(() => { logEndRef.current?.scrollIntoView({behavior:'smooth'}); }, [log]);
@@ -2816,7 +2837,13 @@ function App() {
       if (asPlayer) newC.owner = myId;
     }
     if (asPlayer && approval) newC.pending = true;
-    setCombatants(prev => placeByInitiative(prev, newC));
+    // The character's companions from the Character Builder come along, right after it in the order
+    const pals = form.sheetData && Array.isArray(form.sheetData.companions) ? form.sheetData.companions.filter(p => p && typeof p === 'object' && String(p.name || '').trim()).slice(0, 6) : [];
+    const palCs = pals.map(p => { const m = MONSTERS.find(x => x.n === p.base);
+      const pc = m ? monsterToCombatant(m) : {id: newId(), type: 'companion', level: 1, maxHP: Math.max(1, +p.hp || 1), currentHP: Math.max(1, +p.hp || 1), ac: +p.ac || 10, speed: Math.max(0, +p.speed || 30), initBonus: 0,
+        scores: {Strength: 10, Dexterity: 10, Constitution: 10, Intelligence: 10, Wisdom: 10, Charisma: 10}, saves: {Strength: 0, Dexterity: 0, Constitution: 0, Intelligence: 0, Wisdom: 0, Charisma: 0}, conditions: [], effects: [], pb: 2, size: 'Small'};
+      return {...pc, name: String(p.name).trim().slice(0, 60), type: 'companion', rel: 'ally', owner: newC.owner || myId, initiative: newC.initiative, after: newC.id, ...(p.kind ? {sub: `${String(p.kind).slice(0, 30)}${m ? ` · ${m.n}` : ''}`} : {}), ...(newC.pending ? {pending: true} : {})}; });
+    setCombatants(prev => palCs.reduce((l, x) => placeByInitiative(l, x), placeByInitiative(prev, newC)));
     setViewId(v => v || (newC.owner === myId ? newC.id : v));
     setForm(emptyForm);
     setShowAddModal(false);
@@ -2830,19 +2857,24 @@ function App() {
     setCombatants(prev => prev.map(c => c.id !== id ? c : {...c, ...f, currentHP: Math.min(f.maxHP, c.currentHP)}));
   };
 
-  const addMonster = (m) => {
+  // A creature from a stat block (the roster, or a character's companion)
+  const monsterToCombatant = (m) => {
     const scores = {}; const saves = {};
     ABILITY_KEYS.forEach(([k, full], i) => { scores[full] = m.s[i]; saves[full] = (m.sv && m.sv[full] != null) ? m.sv[full] : mod(m.s[i]); });
-    const n = combatants.filter(c => c.base === m.n).length;
-    const init = rollD(20) + mod(m.s[1]);
     const c = {
-      id: newId(), name: n ? `${m.n} ${n + 1}` : m.n, base: m.n, type:'monster', sub:`${m.t}, CR ${m.cr}`, size: SIZES.find(z => new RegExp('^' + z + '\\b', 'i').test(m.t || '')) || 'Medium',
-      level: 1, maxHP: m.hp, currentHP: m.hp, ac: m.ac, initiative: init, initBonus: mod(m.s[1]), scores, saves,
+      id: newId(), name: m.n, base: m.n, type:'monster', sub:`${m.t}, CR ${m.cr}`, size: SIZES.find(z => new RegExp('^' + z + '\\b', 'i').test(m.t || '')) || 'Medium',
+      level: 1, maxHP: m.hp, currentHP: m.hp, ac: m.ac, initiative: 0, initBonus: mod(m.s[1]), scores, saves,
       speed: parseInt(m.sp, 10) || 0, speedExtra: String(m.sp || '').split(', ').slice(1).join(', '), senses: m.se || [],
       conditions: [], effects: [], pb: m.pb, actions: monsterActions(m), info: monsterInfo(m),
     };
     if (m.pp != null || m.sk) c.sheet = {...(m.pp != null ? {pp: m.pp} : {}), ...(m.sk ? {skills: {...m.sk}, skillProfs: Object.keys(m.sk)} : {})}; // its skill proficiencies roll on their own
     ['res','imm','vul','ci'].forEach(k => { if (m[k]) c[k] = m[k]; });
+    return c;
+  };
+  const addMonster = (m) => {
+    const n = combatants.filter(c => c.base === m.n).length;
+    const init = rosterInit.mode === 'avg' ? 10 + mod(m.s[1]) : rosterInit.mode === 'type' && String(rosterInit.val).trim() !== '' && Number.isFinite(+rosterInit.val) ? Math.round(+rosterInit.val) : rollD(20) + mod(m.s[1]); // rolled, its average, or what the DM typed
+    const c = {...monsterToCombatant(m), name: n ? `${m.n} ${n + 1}` : m.n, initiative: init};
     setCombatants(prev => placeByInitiative(prev, c));
   };
 
@@ -3355,6 +3387,9 @@ function App() {
   };
   // ── ACTION, BONUS ACTION, REACTION: what a creature has used this turn ──
   const ECON = {action: ['a', 'its Action'], bonus: ['b', 'its Bonus Action'], reaction: ['r', 'its Reaction']};
+  // An extra Action, Bonus Action or Reaction, and what it may be spent on: a list of names, or for Haste's extra action its own short list
+  const extraOf = (c, k) => { const e = effs(c).find(x => x[k]); if (!e) return null; const only = e[k + 'Only'] || null; return {text: e[k], only}; };
+  const extraFits = (c, k, a) => { const x = extraOf(c, k); if (!x || !a) return false; if (x.only) return x.only.some(n => String(a.name || '').toLowerCase().startsWith(n.toLowerCase())); return k !== 'extraAction' || (a.type === 'attack' && a.weapon) || /^(Dash|Disengage|Hide|Utilize|Attack)\b/.test(a.name || ''); };
   const spendEconomy = (c, action, quiet) => { // false when the player decides not to go over
     if (c && ['action', 'bonus', 'reaction'].includes(action.activation)) endByFlag(c, 'endsOnAnyAct', 'It took an action, a Bonus Action or a Reaction.');
     if (!combatStarted || !c) return true;
@@ -3362,7 +3397,7 @@ function App() {
     const turn = c.turn || {}, isAttack = !!(action.weapon || action.unarmed);
     const allowed = isAttack ? Math.max(1, +((c.passives || {}).attacks) || 1, action.pact ? +((c.passives || {}).pactAttacks) || 1 : 1) : 1;
     const over = isAttack && e[0] === 'a' ? (+turn.atk || 0) >= allowed : !!turn[e[0]];
-    const spare = over && (e[0] === 'b' || e[0] === 'r') && !turn['x' + e[0]] && effs(c).some(x => e[0] === 'b' ? x.extraBonus : x.extraReaction) ? 'x' + e[0] : ''; // an extra Bonus Action or Reaction is spent before going over
+    const spare = over && (e[0] === 'b' || e[0] === 'r') && !turn['x' + e[0]] && extraFits(c, e[0] === 'b' ? 'extraBonus' : 'extraReaction', action) ? 'x' + e[0] : ''; // an extra Bonus Action or Reaction is spent before going over
     if (spare) { setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, turn: {...(x.turn || {}), [spare]: true}})); return true; }
     if (over) {
       if (!quiet && !window.confirm(`${c.name} has already used ${e[1]} this turn. Use ${action.name} anyway? The DM is told.`)) return false;
@@ -4753,11 +4788,11 @@ function App() {
   // The outline of a card: yours, an ally, hostile, neutral, or defeated. The DM says what each of their creatures is to the party.
   const relOf = c => c.currentHP <= 0 ? 'dead' : (c.owner && c.owner === myId) ? 'own' : c.type !== 'monster' ? 'ally' : (c.rel || 'hostile');
   const myOwn = combatants.filter(c => c.owner && c.owner === myId && !c.summonOf && c.type !== 'monster');
-  const typeLine = c => c.type === 'player' ? `${c.charClass || 'Character'} ${c.level}` : c.type === 'companion' ? 'Companion' : (c.sub || 'Monster/NPC');
+  const typeLine = c => c.type === 'player' ? (c.classLine || `${c.charClass || 'Character'} ${c.level}`) : c.type === 'companion' ? 'Companion' : (c.sub || 'Monster/NPC');
   const sheetLine = c => {
     const sh = c.sheet || {};
     if (c.type !== 'player' || !sh.species) return typeLine(c);
-    return `Level ${c.level} ${sh.species} ${c.charClass}${sh.subclass ? ` (${sh.subclass})` : ''}${sh.background ? ` · ${sh.background}` : ''}`;
+    return `Level ${c.level} ${sh.species} ${c.classLine || c.charClass}${sh.subclass && !c.classLine ? ` (${sh.subclass})` : ''}${sh.background ? ` · ${sh.background}` : ''}`;
   };
   // ── THE CHARACTER SHEET: tabs for Main, Spells, Character, Features & Traits. Everything on it can be clicked. ──
   const SKILL_SHORT = {'Animal Handling':'A. Handling', Intimidation:'Intimidate', Investigation:'Investigate', Performance:'Perform', Persuasion:'Persuade', 'Sleight of Hand':'Slight Hand'};
@@ -5144,8 +5179,8 @@ function App() {
         <button className="pp-chip" onClick={() => setStatWhy('')}>Close</button></div>; };
     const leftText = (a) => a.pool ? ` (${poolLeft(c, a.pool)} ${a.pool} left)` : a.usesMax ? ` (${usesLeft(c, a)}/${a.usesMax} left)` : '';
     const kindOf = (a) => ['action', 'bonus', 'reaction'].includes(a.activation) ? a.activation : 'other';
-    const extraOk = (a) => (a.type === 'attack' && a.weapon) || /^(Dash|Disengage|Hide|Utilize|Attack)\b/.test(a.name);
-    const shown = (a) => actFilter[kindOf(a)] !== false && (!actOnly || (actOnly === 'extra' ? extraOk(a) : kindOf(a) === actOnly));
+    const extraOk = (a) => extraFits(c, 'extraAction', a);
+    const shown = (a) => actFilter[kindOf(a)] !== false && (!actOnly || (actOnly === 'extra' ? extraOk(a) : actOnly === 'xbonus' ? kindOf(a) === 'bonus' && extraFits(c, 'extraBonus', a) : actOnly === 'xreaction' ? kindOf(a) === 'reaction' && extraFits(c, 'extraReaction', a) : kindOf(a) === actOnly));
     const attacks = actions.filter(a => a.weapon || a.unarmed);
     const spellActs = actions.filter(a => a.spell);
     const list = sh.spellList || [];
@@ -5206,12 +5241,12 @@ function App() {
             </div>
           </div>); })()}
         <div className="pp-banner">
-          <div className="pp-title">{c.name} <span className="pp-the">the</span> {[sh.species, c.charClass].filter(Boolean).join(' ')}</div>
+          <div className="pp-title">{c.name} <span className="pp-the">the</span> {[sh.species, c.classLine ? c.classLine.replace(/ \d+/g, '') : c.charClass].filter(Boolean).join(' ')}</div>
           <div className="pp-level"><span>Level</span><strong>{c.level}</strong></div>
         </div>
         <div className="pp-sticky" data-testid="pp-sticky"><div className="pp-mini">{c.name} the {[sh.species, c.charClass].filter(Boolean).join(' ')} · Level {c.level}</div>
         <div className="pp-tabs">
-          {tabBtn('main', 'Main')}{(list.length > 0 || sh.spell) && tabBtn('spells', 'Spells')}{tabBtn('inventory', 'Inventory')}{tabBtn('character', 'Character')}{tabBtn('features', 'Features & Traits')}{tabBtn('blocks', `Stat Blocks${(c.blocks || []).length ? ` (${c.blocks.length})` : ''}`)}
+          {tabBtn('main', 'Main')}{(list.length > 0 || sh.spell) && tabBtn('spells', 'Spells')}{tabBtn('inventory', 'Inventory')}{tabBtn('character', 'Character')}{tabBtn('features', 'Features & Traits')}{tabBtn('trackers', `Trackers${(c.trackers || []).length ? ` (${c.trackers.length})` : ''}`)}{tabBtn('blocks', `Stat Blocks${(c.blocks || []).length ? ` (${c.blocks.length})` : ''}`)}
           <button className="pp-tab pp-colors" data-testid="sheet-colors" onClick={() => setShowTheme(v => !v)} title="Choose the colors of your sheet">Colors {showTheme ? '▲' : '▼'}</button>
         </div>
         </div>
@@ -5238,6 +5273,7 @@ function App() {
               <button className="pp-tab" data-testid="scheme-reset" onClick={() => { saveTheme({scheme: 'Default'}); setBgLocal(''); }}>Back to default</button>
             </div>
             </>}
+            {!LK.own && <div className="pp-share-note pp-muted" data-testid="look-other-note">This character belongs to a different player, so its colors are theirs to choose.</div>}
             <label className="rule-label" style={{margin: '8px 0 0'}}><input type="checkbox" data-testid="look-mine" checked={lookMine} onChange={e => { setLookMine(e.target.checked); try { window.localStorage.setItem('hba-look-mine', e.target.checked ? 'on' : 'off'); } catch (x) {} }}/> Show every sheet in my look (instead of each player's own)</label>
           </div>
         )}
@@ -5360,26 +5396,12 @@ function App() {
                       {targetOverlay && isMovable(e) && <button className="pp-chip on" data-testid="active-move" title="Move it to another creature without casting again" onClick={() => startMove(c, x, e)}>Move to another target</button>}
                       <button className="pp-chip on" onClick={() => removeEffect(x.id, e.id)}>End</button></span>}</div>))}
                 {inPlay.filter(x => x.id !== c.id).flatMap(x => (x.conditions || []).filter(k => (condInfoOf(x, k) || {}).concBy === c.id).map(k => ({x, k}))).map(({x, k}) => <div key={x.id + k} className="pp-arow"><span><strong>{k}</strong> <span className="pp-muted">on {x.name}, held by your Concentration</span></span></div>)}
-                {inPlay.filter(x => x.type === 'companion' && x.owner && x.owner === c.owner).map(x => <div key={x.id} className="pp-arow"><span><strong>{x.name}</strong> <span className="pp-muted">companion · {x.currentHP}/{totalHP(x)} HP</span></span>{ctl && <button className="pp-chip on" onClick={() => { setViewId(x.id); setSelectedAction(null); }}>Open</button>}</div>)}
                 {res.length > 0 && <div className="pp-arow"><span className="pp-muted">{res.join(' · ')}</span></div>}
-                {!c.conc && !(c.conditions || []).length && !(c.effects || []).length && <div className="pp-muted" style={{fontSize: 13.5}}>Nothing active. What you are concentrating on, effects on you, effects you have on others, conditions and companions show here.</div>}
+                {!c.conc && !(c.conditions || []).length && !(c.effects || []).length && <div className="pp-muted" style={{fontSize: 13.5}}>Nothing active. What you are concentrating on, effects on you, effects you have on others and conditions show here.</div>}
                 {ctl && isDM && <div className="pp-arow" style={{borderBottom: 'none', paddingTop: 6}}>
                   <span style={{display: 'inline-flex', gap: 6, flexWrap: 'wrap'}}>
                     {giveControls(c)}
                   </span></div>}
-              </div>
-              <div className="pp-card pp-trackers" data-testid="pp-trackers">
-                <div className="pp-ename">Trackers</div>
-                {(c.trackers || []).map(t => (
-                  <div key={t.id} className="pp-arow" data-testid="tracker"><span><strong>{t.name}</strong> <span className="pp-muted">{t.val}</span></span>
-                    {ctl && <span style={{display: 'inline-flex', gap: 6}}>
-                      <button className="pp-chip on" aria-label={`Lower ${t.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.map(y => y.id === t.id ? {...y, val: y.val - 1} : y)}))}>−</button>
-                      <button className="pp-chip on" aria-label={`Raise ${t.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.map(y => y.id === t.id ? {...y, val: y.val + 1} : y)}))}>+</button>
-                      <button className="pp-chip" aria-label={`Remove ${t.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.filter(y => y.id !== t.id)}))}>×</button></span>}</div>))}
-                {!(c.trackers || []).length && <div className="pp-muted" style={{fontSize: 13.5}}>Count anything here: a stack, a charge, arrows, rounds.</div>}
-                {ctl && <div className="pp-arow" style={{borderBottom: 'none', paddingTop: 6}}><span style={{display: 'inline-flex', gap: 6, flexWrap: 'wrap'}}>
-                  <input aria-label="New tracker name" data-testid="tracker-input" className="pp-input" placeholder="Name a tracker" value={newTracker} onChange={e => setNewTracker(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addTracker(c); }}/>
-                  <button className="pp-chip on" data-testid="add-tracker" onClick={() => addTracker(c)}>Add tracker</button></span></div>}
               </div>
 
               {attacks.some(shown) && <><div className="pp-h2">Attacks</div>
@@ -5399,9 +5421,9 @@ function App() {
                 <span className="pp-muted">Show:</span>
                 {[['action', 'Action'], ['bonus', 'Bonus Action'], ['reaction', 'Reaction'], ['other', 'Other']].map(([k, t]) => <button key={k} data-testid={`filter-${k}`} aria-pressed={actFilter[k] !== false} className={`pp-chip ${actFilter[k] !== false ? 'on' : ''}`} onClick={() => setActFilter({...actFilter, [k]: actFilter[k] === false})}><span aria-hidden="true">{ACT_ICON[k]}</span> {t}</button>)}
               </div>
-              {actFilter.action !== false && (!actOnly || actOnly === 'action' || actOnly === 'extra') && (
+              {actFilter.action !== false && (!actOnly || actOnly === 'action' || (actOnly === 'extra' && STD_ACTIONS.some(s => extraOk({name: s.n})))) && (
                 <div className="pp-std" data-testid="std-actions">
-                  {STD_ACTIONS.filter(s => actOnly !== 'extra' || /^(Dash|Disengage|Hide|Utilize|Attack)$/.test(s.n)).map(s => <button key={s.n} className="pp-stdbtn" disabled={!ctl} title={s.d} data-testid={`std-${s.n}`} onClick={() => setStdAct({name: s.n})}><strong>{s.n}</strong><span className="pp-type" title="Action">{ACT_ICON.action}</span></button>)}
+                  {STD_ACTIONS.filter(s => actOnly !== 'extra' || extraOk({name: s.n})).map(s => <button key={s.n} className="pp-stdbtn" disabled={!ctl} title={s.d} data-testid={`std-${s.n}`} onClick={() => setStdAct({name: s.n})}><strong>{s.n}</strong><span className="pp-type" title="Action">{ACT_ICON.action}</span></button>)}
                 </div>)}
               {others.filter(shown).map(a => (
                 <div key={a.id} data-ex={`action:${a.id}`} className={rowCls(a, 'pp-action')} style={dim(a)} title={limited(a) ? 'Right-click to give back a use' : undefined} onClick={() => ctl && sel(a)} onContextMenu={back(a)}>
@@ -5486,6 +5508,23 @@ function App() {
               </div>}
             </div>); })}</div>
         </div>); })()}
+        {sheetTab === 'trackers' && (
+          <div data-testid="paper-trackers">
+            <div className="pp-card pp-trackers" data-testid="pp-trackers">
+              <div className="pp-ename">Trackers</div>
+              <div className="pp-muted" style={{fontSize: 13.5, marginBottom: 4}}>Your own bookkeeping: count anything, a stack, a charge, arrows, rounds, uses of something.</div>
+              {(c.trackers || []).map(t => (
+                <div key={t.id} className="pp-arow" data-testid="tracker"><span><strong>{t.name}</strong> <span className="pp-muted">{t.val}</span></span>
+                  {ctl && <span style={{display: 'inline-flex', gap: 6}}>
+                    <button className="pp-chip on" aria-label={`Lower ${t.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.map(y => y.id === t.id ? {...y, val: y.val - 1} : y)}))}>−</button>
+                    <button className="pp-chip on" aria-label={`Raise ${t.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.map(y => y.id === t.id ? {...y, val: y.val + 1} : y)}))}>+</button>
+                    <button className="pp-chip" aria-label={`Remove ${t.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.filter(y => y.id !== t.id)}))}>×</button></span>}</div>))}
+              {ctl && <div className="pp-arow" style={{borderBottom: 'none', paddingTop: 6}}><span style={{display: 'inline-flex', gap: 6, flexWrap: 'wrap'}}>
+                <input aria-label="New tracker name" data-testid="tracker-input" className="pp-input" placeholder="Name a tracker" value={newTracker} onChange={e => setNewTracker(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addTracker(c); }}/>
+                <button className="pp-chip on" data-testid="add-tracker" onClick={() => addTracker(c)}>Add tracker</button></span></div>}
+            </div>
+          </div>)}
+
         {sheetTab === 'character' && (
         <div data-testid="paper-journal">
           {[['Alignment', jr.alignment], ['Faith', jr.deity], ['Personality Traits', jr.traits], ['Ideals', jr.ideals], ['Bonds', jr.bonds], ['Flaws', jr.flaws], ['Appearance', jr.appearance], ['Backstory', jr.backstory],
@@ -5743,7 +5782,7 @@ function App() {
     <div className={explainOn ? 'explaining' : ''} style={{display: 'contents'}} onClickCapture={onExplainClick}>
       {/* HEADER */}
       <div className="header">
-        <h1>⚔ Combat Resolver</h1>
+        <h1>⚔ Combat Resolver <span className="app-ver" data-testid="app-version">v4.1</span></h1>
         <button className={`btn btn-sm ${explainOn ? 'btn-primary' : 'btn-ghost'}`} data-testid="explain-toggle" title="Explain: click anything to see where it comes from, instead of using it" onClick={() => { setExplainOn(!explainOn); setExplained(null); }}>❔ Explain{explainOn ? ': on' : ''}</button>
         <button className="btn btn-ghost btn-sm" data-testid="notes-open" title="Your notes" onClick={() => setShowNotes(true)}>📝 Notes</button>
         {isDM && <button className="btn btn-ghost btn-sm" data-testid="glossary-open" title="Rules Index: rules, spells and items (SRD 5.2.1). Send any of them to players." onClick={() => setShowGlossary(true)}>📖 Rules Index</button>}
@@ -6209,7 +6248,7 @@ function App() {
               </div>
             );})}
             <button className="btn btn-ghost btn-full" style={{marginTop:8}} onClick={addMyCharacter}>Add My Character Sheet</button>
-            <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={openAdd}>{isDM ? '+ Add Combatant' : '+ Add Companion'}</button>
+            {isDM && <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={openAdd}>+ Add Combatant</button>}
             {isDM && <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>setShowRoster(true)}>Monster Roster</button>}
             </>}
             {isDM && leftTab === 'dm' && (
@@ -6327,7 +6366,32 @@ function App() {
         {/* ── CENTER: CHARACTER VIEW + ACTIONS ── */}
         <div className="center-panel">
           <div className="action-area">
-            {!showSheet ? (
+            {isDM && inPlay.some(c => c.type === 'monster') && (
+              <div className="board-line" data-testid="board-line">
+                <button className={`btn btn-sm ${board ? 'btn-primary' : 'btn-ghost'}`} data-testid="board-toggle" onClick={() => setBoard(!board)}>{board ? 'Back to one creature' : `Show all monsters (${inPlay.filter(c => c.type === 'monster').length})`}</button>
+                {board && <><button className="btn btn-ghost btn-sm" onClick={() => setBoardFold(inPlay.filter(c => c.type === 'monster').map(c => c.id))}>Fold all</button><button className="btn btn-ghost btn-sm" onClick={() => setBoardFold([])}>Open all</button>
+                  <span className="pp-muted" style={{fontSize: 13}}>Drag a stat block by its name to move it.</span></>}
+              </div>)}
+            {isDM && board ? (() => { const mons = inPlay.filter(c => c.type === 'monster'), order = [...boardOrder.filter(id => mons.some(c => c.id === id)), ...mons.filter(c => !boardOrder.includes(c.id)).map(c => c.id)];
+              const drop = (to) => { const from = dragRef.current; dragRef.current = ''; if (!from || from === to) return; const o = order.filter(x => x !== from), i = o.indexOf(to); o.splice(i < 0 ? o.length : i, 0, from); setBoardOrder(o); };
+              return (
+              <div className="mon-board" data-testid="mon-board">
+                {order.map(id => { const c = mons.find(x => x.id === id); if (!c) return null; const shut = boardFold.includes(id), pc = picOf(c); return (
+                  <div key={id} className={`mon-card ${c.id === activeId ? 'active' : ''} ${c.currentHP <= 0 ? 'down' : ''}`} data-testid="mon-card" onDragOver={e => e.preventDefault()} onDrop={() => drop(id)}>
+                    <div className="mon-head" draggable onDragStart={() => { dragRef.current = id; }} title="Drag to move">
+                      {pc && <img className="card-pic" src={pc.thumb} alt="" onClick={() => setBigPic(pc.big)}/>}
+                      <strong>{c.name}</strong><span className="pp-muted">{c.sub || ''}</span>
+                      <button className="card-fold" style={{position: 'static', marginLeft: 'auto'}} data-testid="mon-fold" aria-expanded={!shut} onClick={() => setBoardFold(shut ? boardFold.filter(x => x !== id) : [...boardFold, id])}>{shut ? '▸' : '▾'}</button>
+                    </div>
+                    <div className="mon-stats"><span>AC {effectiveAC(c)}</span><span>{c.currentHP}/{totalHP(c)} HP</span><span>{effectiveSpeed(c)} ft.{c.speedExtra ? `, ${c.speedExtra}` : ''}</span><span>Init {effectiveInit(c)}</span></div>
+                    {!shut && <>
+                      <div className="mon-abil">{ABILITY_KEYS.map(([k, ab]) => <span key={ab}><em>{k.toUpperCase()}</em>{modStr((c.scores || {})[ab] ?? 10)}</span>)}</div>
+                      {(c.info || []).map((sec, i) => <div key={i} className="mon-sec"><div className="mon-h">{sec.h}</div>{(sec.items || []).map(([n, t], j) => <div key={j}><strong>{n}.</strong> {Array.isArray(t) ? t.join(', ') : t}</div>)}</div>)}
+                      {(c.actions || []).length > 0 && <div className="mon-sec"><div className="mon-h">Actions</div>{c.actions.map(a => <div key={a.id}><strong>{a.name}.</strong> {a.detail || ''}</div>)}</div>}
+                      <button className="btn btn-primary btn-sm" data-testid="mon-open" onClick={() => { setViewId(c.id); setSelectedAction(null); setBoard(false); }}>Open to act</button>
+                    </>}
+                  </div>); })}
+              </div>); })() : !showSheet ? (
               <div className="setup-screen">
                 <div className="big-icon">⚔️</div>
                 <h2>Combat Resolver</h2>
@@ -6726,8 +6790,9 @@ function App() {
             const move = (by) => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, turn: {...(x.turn || {}), moved: Math.max(0, Math.min(sp, (+((x.turn || {}).moved) || 0) + by))}}));
             const ex = k => (effs(c).find(e => e[k]) || {})[k];
             const tiles = [['a', 'action', 'Action', 'econ-action'], ['b', 'bonus', 'Bonus Action', 'econ-bonus'], ...(ex('extraAction') ? [['x', 'extra', 'Extra Action', 'econ-extra', ex('extraAction')]] : []), ...(ex('extraBonus') ? [['xb', 'xbonus', 'Extra Bonus Action', 'econ-xbonus', ex('extraBonus')]] : [])];
+            const onlyOf = {extra: 'extraAction', xbonus: 'extraBonus', xreaction: 'extraReaction'};
             const reacts = [['r', 'reaction', 'Reaction', 'econ-reaction'], ...(ex('extraReaction') ? [['xr', 'xreaction', 'Extra Reaction', 'econ-xreaction', ex('extraReaction')]] : [])];
-            const filt = {xbonus: 'bonus', xreaction: 'reaction'};
+            const filt = {};
             const tile = ([k, kind, lbl, tid, why]) => (
               <span key={k} role="button" tabIndex={0} className={`turn-tile ${turn[k] ? 'used' : ''} ${actOnly === (filt[kind] || kind) ? 'sel' : ''}`} data-testid={tid} title={`List only what your ${lbl} can do${why ? ': ' + why : ''}`} onClick={() => { const f = filt[kind] || kind; setActOnly(actOnly === f ? null : f); if (!viewed || viewed.id !== c.id) setViewId(c.id); }}>
                 <span className="ico" aria-hidden="true">{ACT_ICON[kind]}</span><span className="lbl">{lbl}</span>
@@ -6748,7 +6813,7 @@ function App() {
                   <select aria-label="Move" data-testid="move-pick" value="" disabled={left <= 0} onChange={e => +e.target.value && move(+e.target.value)}><option value="">Move…</option>{steps(left).map(n => <option key={n} value={n}>{n} ft.</option>)}</select>
                   {moved > 0 && <select aria-label="Take back movement" data-testid="move-back" value="" onChange={e => +e.target.value && move(-e.target.value)}><option value="">Take back…</option>{steps(moved).map(n => <option key={n} value={n}>{n} ft.</option>)}</select>}
                 </div>
-                {actOnly && <button className="btn btn-ghost btn-sm" data-testid="econ-all" onClick={() => setActOnly(null)}>Showing only {actOnly === 'extra' ? 'what the extra action allows' : ACTIVATIONS[actOnly] || actOnly}: show all</button>}
+                {actOnly && <button className="btn btn-ghost btn-sm" data-testid="econ-all" onClick={() => setActOnly(null)}>Showing only {onlyOf[actOnly] ? `what the ${actOnly === 'extra' ? 'extra Action' : actOnly === 'xbonus' ? 'extra Bonus Action' : 'extra Reaction'} allows${(extraOf(c, onlyOf[actOnly]) || {}).only ? ': ' + extraOf(c, onlyOf[actOnly]).only.join(', ') : ''}` : ACTIVATIONS[actOnly] || actOnly}: show all</button>}
                 {canUndo() && undoRef.current.actorId === c.id && <button className="btn btn-ghost btn-sm" data-testid="undo-btn" onClick={undoLast}>Take back {undoRef.current.name}</button>}
                 <label className="rule-label" style={{margin: '4px 0 0'}}><input type="checkbox" data-testid="turn-auto" checked={turnAuto} onChange={e => { setTurnAuto(e.target.checked); try { window.localStorage.setItem('hba-turn-auto', e.target.checked ? 'on' : 'off'); } catch (x) {} }}/> Open this on my turn</label>
               </div>}
@@ -6997,6 +7062,11 @@ function App() {
             <div className="modal-body" style={{paddingBottom:8}}>
               <input className="search" autoFocus placeholder={`Search ${MONSTERS.length} stat blocks by name or type`} value={rosterSearch} onChange={e=>setRosterSearch(e.target.value)}
                 style={{width:'100%',background:'#0F1923',border:'1px solid #3d5166',color:'var(--parchment)',padding:'7px 10px',borderRadius:4,fontFamily:"'Crimson Text', serif",fontSize:'0.95rem'}}/>
+              <div className="roster-filters" data-testid="roster-init">
+                <span>Initiative for each one added:</span>
+                {[['roll', 'Roll it'], ['avg', 'Use the average (10 + Dex)'], ['type', 'Type it']].map(([k, t]) => <label key={k} className="rule-label" style={{margin: 0}}><input type="radio" name="roster-init" data-testid={`roster-init-${k}`} checked={rosterInit.mode === k} onChange={() => setRosterInit({...rosterInit, mode: k})}/> {t}</label>)}
+                {rosterInit.mode === 'type' && <input type="number" aria-label="Initiative to give" data-testid="roster-init-val" style={{width: 70}} value={rosterInit.val} onChange={e => setRosterInitRaw({...rosterInit, val: e.target.value})}/>}
+              </div>
               <div className="roster-filters" data-testid="roster-filters">
                 <select aria-label="Creature type" data-testid="roster-type" value={rosterF.type} onChange={e => setRosterF({...rosterF, type: e.target.value})}><option value="">Any type</option>{rosterTypes.map(t => <option key={t} value={t}>{t}</option>)}</select>
                 <label>CR <select aria-label="Lowest CR" data-testid="roster-crmin" value={rosterF.crMin} onChange={e => setRosterF({...rosterF, crMin: e.target.value})}><option value="">any</option>{CR_STEPS.map(x => <option key={x} value={x}>{x}</option>)}</select>
