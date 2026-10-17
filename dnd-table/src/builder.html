@@ -45,6 +45,7 @@ HOW TO IDENTIFY A FEATURE. Do not go by a feature's name or by what class it bel
   T4 A WORD CHOSEN ON USE. Does the user name a damage type, ability, skill or condition each time it is used, with everything else the same? -> "choices" with "$1" / "$2".
   T5 ALWAYS ON. Does it change a number or a defense with no action and no limit (Armor Class, Speed, Hit Points, a save, a Resistance, a sense, a proficiency, a spell always prepared)? -> "statics". It is never an activated ability.
   T6 CHOSEN WHEN GAINED. Does the player pick one option once, when the feature is gained or on a rest (a style, a land, a type)? -> "options" with "choices", and "changeOn" if the text lets it be swapped.
+  T6b A COMPANION. Does the feature give a creature that travels with the character (a beast companion, a homunculus, a drake)? -> "companion": { "name", "kind", "base": the name of an existing stat block (or leave it out), "stats": { "ac": "13 + PROF", "hp": "5 + 5 * LEVEL", "speed": "40" } (formulas use LEVEL for the class level, PROF, STR, DEX...), "init": "after" (its own turn right after the character), "shared" (it acts on the character's turn) or "roll" (it rolls its own Initiative), as the text says }.
   T7 USED. Does the character take an action, Bonus Action or Reaction, or does it trigger on an event? -> an activated ability: activation, target, roll, results, uses. A Reaction always gets "trigger".
   T8 CREATURE. Does using it turn the character into a creature or bring one out? -> "statBlock".
   T9 MAKES A THING. Does it leave an object, light, ward, illusion or consumable behind? -> "creates" (with "item": true for something carried).
@@ -866,6 +867,54 @@ const isPic = (v) => typeof v === "string" && /^data:image\/(jpeg|png|webp);base
 function readStoredCharacter(code) {
   try { const d = JSON.parse(lsGet(charKey(code)) || "null"); return d && d.format === "homebrew-academy-character" ? d : null; }
   catch (e) { return null; }
+}
+
+/* ============ MONEY: tabs like a browser's, one for the coins and one for each purse or account you name ============ */
+const COIN_KINDS = [["cp", "Copper", 0.01], ["sp", "Silver", 0.1], ["ep", "Electrum", 0.5], ["gp", "Gold", 1], ["pp", "Platinum", 10]];
+function FundsBox({ money, setMoney, colors, fontDisplay }) {
+  const [tab, setTab] = useState("main"), [edit, setEdit] = useState(false), [adding, setAdding] = useState(false), [nm, setNm] = useState(""), [dn, setDn] = useState(""), [dv, setDv] = useState("");
+  const funds = money.funds || [], f = funds.find(x => x.id === tab), on = f ? f.id : "main";
+  const nid = () => Date.now().toString(36).slice(-6) + Math.random().toString(36).slice(2, 5);
+  const putFund = (id, patch) => setMoney({ ...money, funds: funds.map(x => x.id === id ? { ...x, ...patch } : x) });
+  const rows = on === "main"
+    ? [...COIN_KINDS.map(([k, n, r]) => ({ key: k, name: `${n} (${k.toUpperCase()})`, value: r, n: k === "gp" ? money.gold || 0 : (money.coins || {})[k] || 0, set: v => k === "gp" ? setMoney({ ...money, gold: v }) : setMoney({ ...money, coins: { ...(money.coins || {}), [k]: v } }) })),
+       ...(money.moneyX || []).map(d => ({ key: "c:" + d.id, name: d.name, value: +d.value || 0, n: (money.coins || {})["c:" + d.id] || 0, set: v => setMoney({ ...money, coins: { ...(money.coins || {}), ["c:" + d.id]: v } }), del: () => setMoney({ ...money, moneyX: (money.moneyX || []).filter(y => y.id !== d.id) }) }))]
+    : [...COIN_KINDS.map(([k, n, r]) => ({ key: k, name: `${n} (${k.toUpperCase()})`, value: r, n: (f.coins || {})[k] || 0, set: v => putFund(f.id, { coins: { ...(f.coins || {}), [k]: v } }) })),
+       ...(f.custom || []).map(d => ({ key: "c:" + d.id, name: d.name, value: +d.value || 0, n: +d.n || 0, set: v => putFund(f.id, { custom: f.custom.map(z => z.id === d.id ? { ...z, n: v } : z) }), del: () => putFund(f.id, { custom: f.custom.filter(z => z.id !== d.id) }) }))];
+  const total = Math.round(rows.reduce((t, r) => t + r.n * r.value, 0) * 100) / 100;
+  const tabStyle = (sel) => ({ background: sel ? colors.brass : "transparent", color: sel ? colors.ink : colors.parchment, border: `1px solid ${colors.brass}`, borderBottom: "none", borderRadius: "8px 8px 0 0", padding: "5px 12px", fontFamily: fontDisplay, fontSize: 12, fontWeight: 700, cursor: "pointer" });
+  const small = { background: "transparent", color: colors.parchment, border: `1px solid ${colors.brass}`, borderRadius: 6, padding: "1px 9px", cursor: "pointer" };
+  const field = { ...fieldStyle(colors), width: "auto", display: "inline-block" };
+  return (
+    <div data-testid="funds" style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 3, alignItems: "flex-end", borderBottom: `2px solid ${colors.brass}`, flexWrap: "wrap" }}>
+        <button style={tabStyle(on === "main")} data-testid="fund-tab-main" onClick={() => setTab("main")}>💰 Money</button>
+        {funds.map(x => <button key={x.id} style={tabStyle(on === x.id)} data-testid="fund-tab" onClick={() => setTab(x.id)}>{x.name}</button>)}
+        {adding ? <span style={{ display: "inline-flex", gap: 4, marginLeft: 4 }}><input autoFocus aria-label="New purse name" data-testid="fund-name" placeholder="Name it" value={nm} onChange={e => setNm(e.target.value)} style={{ ...field, width: 150, padding: "3px 6px" }} />
+          <button style={small} data-testid="fund-add" disabled={!nm.trim()} onClick={() => { const id = nid(); setMoney({ ...money, funds: [...funds, { id, name: nm.trim().slice(0, 30), coins: {}, custom: [] }].slice(0, 12) }); setNm(""); setAdding(false); setTab(id); }}>Add</button>
+          <button style={small} onClick={() => setAdding(false)}>Cancel</button></span>
+          : <button style={tabStyle(false)} data-testid="fund-new" title="Add a purse or account of its own" onClick={() => setAdding(true)}>+</button>}
+        <span style={{ marginLeft: "auto", fontSize: 13, opacity: 0.85 }}>Worth {total} GP</span>
+      </div>
+      <div style={{ padding: "8px 4px", display: "flex", flexDirection: "column", gap: 4 }}>
+        {edit && f && <div style={{ display: "flex", gap: 6 }}><input aria-label="Purse name" value={f.name} onChange={e => putFund(f.id, { name: e.target.value.slice(0, 30) })} style={{ ...field, width: 180 }} />
+          <button style={{ ...small, color: CUSTOM_RED, borderColor: CUSTOM_RED }} onClick={() => { if (window.confirm(`Remove ${f.name} and everything in it?`)) { setMoney({ ...money, funds: funds.filter(y => y.id !== f.id) }); setTab("main"); } }}>Remove this purse</button></div>}
+        {rows.map(r => <div key={r.key} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ minWidth: 170 }}>{r.name}{edit && r.del ? <em style={{ fontSize: 12, opacity: 0.75 }}> · {r.value} GP each</em> : null}</span>
+          <button style={small} aria-label={`One less ${r.name}`} onClick={() => r.set(Math.max(0, r.n - 1))}>−</button>
+          <input type="number" min={0} aria-label={`${r.name} pieces`} data-testid={r.key === "gp" && on === "main" ? "gold-field" : `fund-${r.key}`} value={r.n} onChange={e => r.set(Math.max(0, parseInt(e.target.value, 10) || 0))} style={{ ...field, width: 80, padding: "2px 6px" }} />
+          <button style={small} aria-label={`One more ${r.name}`} onClick={() => r.set(r.n + 1)}>+</button>
+          {edit && r.del && <button style={{ ...small, color: CUSTOM_RED, borderColor: CUSTOM_RED }} aria-label={`Remove ${r.name}`} onClick={r.del}>✕</button>}
+        </div>)}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+          <button style={small} data-testid="fund-edit" onClick={() => setEdit(!edit)}>{edit ? "Done" : "✎ Edit"}</button>
+          {edit && <><input aria-label="New kind of money" placeholder="A kind of money or resource" value={dn} onChange={e => setDn(e.target.value)} style={{ ...field, width: 190, padding: "3px 6px" }} />
+            <input type="number" min={0} step="0.01" aria-label="Worth in GP" placeholder="worth (GP)" value={dv} onChange={e => setDv(e.target.value)} style={{ ...field, width: 90, padding: "3px 6px" }} />
+            <button style={small} disabled={!dn.trim()} onClick={() => { const d = { id: nid(), name: dn.trim().slice(0, 30), value: Math.max(0, +dv || 0) }; if (on === "main") setMoney({ ...money, moneyX: [...(money.moneyX || []), d].slice(0, 12) }); else putFund(f.id, { custom: [...(f.custom || []), { ...d, n: 0 }].slice(0, 12) }); setDn(""); setDv(""); }}>Add</button></>}
+          <span style={{ fontSize: 12, opacity: 0.7 }}>Gold is what spells with a costly component spend.</span>
+        </div>
+      </div>
+    </div>);
 }
 
 /* ============ A PRINTABLE CHARACTER SHEET (shown on the Character Sheet tab and downloaded as one file) ============ */
@@ -2352,7 +2401,11 @@ function CharacterSheet() {
   const [portraitThumb, setPortraitThumb] = useState(""); // a small copy for the menu and the Initiative tracker
   const [showRoster, setShowRoster] = useState(false);
   const [spellClass, setSpellClass] = useState(""); // the class whose spells the Spellcasting tab shows, when multiclassing
-  const [companions, setCompanions] = useState([]); // familiars, beast companions, steeds: {id, name, base (a stat block), kind, ac, hp, speed}
+  const [money, setMoneyRaw] = useState({ coins: {}, moneyX: [], funds: [] }); // coins other than gold, your own kinds of money, purses and accounts
+  const setMoney = (m) => { if (m.gold != null && m.gold !== gold) setGold(m.gold); const { gold: g0, ...rest } = m; setMoneyRaw({ coins: rest.coins || {}, moneyX: rest.moneyX || [], funds: rest.funds || [] }); setMoneyAt(Date.now()); };
+  const [moneyAt, setMoneyAt] = useState(0);
+  const [companions, setCompanions] = useState([]);
+  const [palEdits, setPalEdits] = useState({}); // names and Initiative choices for companions a feature makes // familiars, beast companions, steeds: {id, name, base (a stat block), kind, ac, hp, speed}
   const [rosterTick, setRosterTick] = useState(0);
   const picInputRef = useRef(null);
   const [playerName, setPlayerName] = useState("");
@@ -2395,7 +2448,9 @@ function CharacterSheet() {
   const [shield, setShield] = useState(false);
   const setWeapons = () => {};                          // weapons are whatever the inventory holds (see below)
   const [masteries, setMasteries] = useState([]);      // weapons whose mastery property is in use (Weapon Mastery)
-  const [hpDelta, setHpDelta] = useState(0);            // Hit Points above or below the average, when the player sets their own total
+  const [hpDelta, setHpDelta] = useState(0);
+  const [hdUsedBy, setHdUsedBy] = useState({}); // Hit Point Dice spent from each class
+  const [hpClass, setHpClass] = useState({}); // Hit Points from each class's dice, above or below its average: {class name: n}            // Hit Points above or below the average, when the player sets their own total
   const [statAdj, setStatAdj] = useState({});           // Further Customization: additional modifier to ac, initiative, speed, hp
   const [rest, setRest] = useState(null);              // a rest just taken: {kind, phase: "summary" or "changes", snap, summary}
   const [featureChoices, setFeatureChoices] = useState({}); // options chosen inside features (Divine Order, Hunter's Prey...)
@@ -2731,8 +2786,16 @@ function CharacterSheet() {
   const passivePerception = 10 + skillMods.Perception;
   const speed = Math.max(derived.speedMin || 0, (derived.speedBase || (SPECIES[species] ? SPECIES[species].speed : 30)) + derived.speedBonus + (statAdj.speed || 0));
 
-  const effectiveMaxHp = Math.max(1, maxHp + hpDelta); // the Hit Point total: the average unless the player set their own
+  const hpClassSum = allClasses.reduce((t, x) => t + (+hpClass[x.name] || 0), 0);
+  const effectiveMaxHp = Math.max(1, maxHp + hpDelta + hpClassSum); // the Hit Point total: the average unless the player set their own
+  // Hit Points by class, like the dice each class gives: the first class has its whole die at level 1, the others half the die plus 1 at every level
+  const hpRows = allClasses.filter(x => CLASSES[x.name]).map((x, i) => { const d = CLASSES[x.name].hitDie, avg = i === 0 ? d + (x.level - 1) * (Math.floor(d / 2) + 1) : x.level * (Math.floor(d / 2) + 1);
+    return { name: x.name, level: x.level, die: d, avg, top: x.level * d, value: avg + (+hpClass[x.name] || 0), set: (n) => setHpClass(prev => ({ ...prev, [x.name]: Math.max(-avg + x.level, (custom ? n : Math.min(n, x.level * d))) - avg })) }; });
   const displayHp = currentHp === null ? effectiveMaxHp : Math.min(currentHp, effectiveMaxHp);
+  // When the Hit Point maximum goes up (a new level, a feat), the current Hit Points go up by as much; a character at full stays full
+  const lastMax = useRef(null), lastMaxChar = useRef("");
+  useEffect(() => { const was = lastMaxChar.current === charId ? lastMax.current : null; lastMax.current = effectiveMaxHp; lastMaxChar.current = charId; if (was == null || !ready || currentHp === null) return; // another character just opened: nothing to carry over
+    if (currentHp >= was) setCurrentHp(null); else if (effectiveMaxHp > was) setCurrentHp(Math.min(effectiveMaxHp, currentHp + (effectiveMaxHp - was))); }, [effectiveMaxHp]);
   // Typing a total: nothing above the highest possible unless Further Customization is on.
   const setHpTotal = (n) => { const v = Math.max(1, custom ? n : Math.min(n, Math.max(possibleMaxHp, maxHp))); setHpDelta(v - maxHp); };
 
@@ -2909,6 +2972,10 @@ function CharacterSheet() {
   const restValue = (key) => key === "mastery" ? masteries.join("|") : key === "spells" ? spells.filter(Boolean).join("|") : (featureChoices[key] || "");
   const restItems = rest ? restChanges[rest.kind].map(r => ({ ...r, changed: restValue(r.key) !== rest.snap[r.key] })) : [];
   // Choices still to be made, by tab: each shows a "!" on its tab and an orange outline on the field
+  // Companions a feature gives ("companion": { "name", "kind", "base": a stat block, "stats": { "ac": "13 + PROF", "hp": "5 + 5 * LEVEL" }, "init": "after" | "shared" | "roll" }): made by themselves, numbers worked out from this character's
+  const autoPals = mech.entries.filter(e => e.companion && typeof e.companion === "object").slice(0, 4).map((e, i) => { const cp = e.companion, id = "f:" + (e.pickKey || optionKey(e)), ed = palEdits[id] || {}, ctx = ctxOf(e);
+    const stats = {}; Object.entries(pObj(cp.stats)).slice(0, 8).forEach(([k, f]) => { const n = evalFormula(f, ctx); if (Number.isFinite(n)) stats[pStr(k, 12)] = Math.round(n); });
+    return { id, name: ed.name != null ? ed.name : pStr(cp.name || e.name, 60), kind: pStr(cp.kind, 30), base: pStr(cp.base, 80), from: e.name, stats, init: ed.init || (["after", "shared", "roll"].includes(cp.init) ? cp.init : "after"), ac: stats.ac || 0, hp: stats.hp || 0, speed: stats.speed || 0 }; });
   const pending = (() => {
     const keys = new Set(), count = { identity: 0, skills: 0, features: 0, spells: 0 };
     if (cls && cls.subclassLevel && level >= cls.subclassLevel && !subclassName && cls.subclasses && Object.keys(cls.subclasses).length) { keys.add("subclass"); count.identity++; }
@@ -2931,7 +2998,7 @@ function CharacterSheet() {
       if (displayHp < effectiveMaxHp) summary.push(`Hit Points: ${displayHp} to ${effectiveMaxHp}`);
       if (hitDiceUsed > 0) summary.push(`Hit Point Dice: ${totalLevel - hitDiceUsed} to ${totalLevel}`);
       if (tempHp > 0) summary.push(`Temporary Hit Points: ${tempHp} to 0`);
-      setCurrentHp(null); setTempHp(0); setHitDiceUsed(0);
+      setCurrentHp(null); setTempHp(0); setHitDiceUsed(0); setHdUsedBy({});
     }
     Object.entries(pools).forEach(([name, q]) => {
       if (long || q.recharge === "short") summary.push(`${name}: back to ${q.max}`);
@@ -2946,10 +3013,12 @@ function CharacterSheet() {
     lsSet("hba-rest", JSON.stringify({ code: playerCode, kind, at: Date.now() }));
     setRest({ kind, phase: "summary", snap, summary });
   }
-  function spendHitDie() { // Short Rest: roll a Hit Point Die and add the Constitution modifier
+  function spendHitDie(fromClass) { // Short Rest: roll a Hit Point Die (of the class chosen, when multiclassing) and add the Constitution modifier
     if (!cls || hitDiceUsed >= totalLevel) return;
-    const gain = Math.max(1, Math.floor(Math.random() * cls.hitDie) + 1 + finalMods.Constitution);
-    setHitDiceUsed(hitDiceUsed + 1);
+    const k = fromClass && CLASSES[fromClass] ? fromClass : className, die = CLASSES[k].hitDie, lv = (allClasses.find(x => x.name === k) || { level: level }).level;
+    if ((+hdUsedBy[k] || 0) >= lv) return;
+    const gain = Math.max(1, Math.floor(Math.random() * die) + 1 + finalMods.Constitution);
+    setHitDiceUsed(hitDiceUsed + 1); setHdUsedBy(prev => ({ ...prev, [k]: (+prev[k] || 0) + 1 }));
     setCurrentHp(Math.min(effectiveMaxHp, displayHp + gain));
   }
 
@@ -2996,7 +3065,7 @@ function CharacterSheet() {
       format: "homebrew-academy-character",
       version: 3,
       charId, ...(portrait ? { portrait, portraitThumb } : {}),
-      ...(companions.length ? { companions } : {}),
+      ...(companions.length || autoPals.length ? { companions: [...autoPals, ...companions] } : {}), ...(Object.keys(palEdits).length ? { palEdits } : {}),
       name: charName, player: playerName,
       className, subclassName, level: totalLevel, species, background, alignment,
       ...(mcList.length ? { classes: allClasses.map(x => ({ name: x.name, sub: x.sub || "", level: x.level })), classLine, mcSpells: Object.fromEntries(mcCasters.map(x => [x.name, (x.spells || []).filter(Boolean)])) } : {}),
@@ -3063,12 +3132,13 @@ function CharacterSheet() {
           dc: 8 + profBonus + finalMods[ab], attack: profBonus + finalMods[ab],
           slots: [slotList && slotList.length ? slotList.map((n, i) => `Level ${i + 1}: ${n}`).join(", ") : "", pact ? `${pact.slots} Pact Magic slots of Level ${pact.level}` : ""].filter(Boolean).join("; ")
         }; })(),
-      hitDie: cls ? cls.hitDie : null, hitDiceUsed, xp, gold,
+      ...(mcList.length ? { hitDice: allClasses.filter(x => CLASSES[x.name]).map(x => ({ name: x.name, die: CLASSES[x.name].hitDie, level: x.level, used: +hdUsedBy[x.name] || 0 })) } : {}),
+      hitDie: cls ? cls.hitDie : null, hitDiceUsed, xp, gold, coins: money.coins, moneyX: money.moneyX, funds: money.funds, ...(moneyAt ? { moneyAt } : {}),
       size: (((RULES && RULES.species || {})[species] || {}).size) || "Medium",
       equipment,
       items: Array.from(new Set(characterItems.map(i => i && i.name).filter(Boolean))),
       origin: originCustom ? { custom: true, ...originCustom } : null,
-      builder: { hpDelta, statAdj, lineage, armor, shield, weapons, masteries, featureChoices, featPicks, extraFeats, originCustom, custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
+      builder: { hpDelta, hpClass, hdUsedBy, statAdj, lineage, armor, shield, weapons, masteries, featureChoices, featPicks, extraFeats, originCustom, custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
         pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, journal, components, characterItems, pinnedItems, spells }
     };
   }
@@ -3110,7 +3180,8 @@ function CharacterSheet() {
     setCharId(typeof data.charId === "string" && /^[a-z0-9]{4,20}$/.test(data.charId) ? data.charId : newCharId());
     setPortrait(isPic(data.portrait) ? data.portrait : "");
     setPortraitThumb(isPic(data.portraitThumb) ? data.portraitThumb : "");
-    setCompanions(Array.isArray(data.companions) ? data.companions.filter(p => p && typeof p === "object" && String(p.name || "").trim()).slice(0, 6).map(p => ({ id: String(p.id || newCharId()), name: String(p.name).slice(0, 60), base: String(p.base || "").slice(0, 80), kind: String(p.kind || "").slice(0, 30), ac: parseInt(p.ac) || 0, hp: parseInt(p.hp) || 0, speed: parseInt(p.speed) || 0 })) : []);
+    setCompanions(Array.isArray(data.companions) ? data.companions.filter(p => p && typeof p === "object" && String(p.name || "").trim() && !/^f:/.test(String(p.id || ""))).slice(0, 6).map(p => ({ id: String(p.id || newCharId()), name: String(p.name).slice(0, 60), base: String(p.base || "").slice(0, 80), kind: String(p.kind || "").slice(0, 30), ac: parseInt(p.ac) || 0, hp: parseInt(p.hp) || 0, speed: parseInt(p.speed) || 0, init: ["after", "shared", "roll"].includes(p.init) ? p.init : "after" })) : []);
+    setPalEdits(data.palEdits && typeof data.palEdits === "object" ? data.palEdits : {});
     setCharName(String(data.name || ""));
     setPlayerName(String(data.player || ""));
     setClassName(CLASSES[data.className] ? data.className : "Fighter");
@@ -3129,6 +3200,7 @@ function CharacterSheet() {
     setSkillProfs(arr(s.skillProfs).filter(k => ALL_SKILLS.includes(k)));
     setSkillExpertise(arr(s.skillExpertise).filter(k => ALL_SKILLS.includes(k)));
     setHpDelta(Math.max(-2000, Math.min(2000, parseInt(s.hpDelta, 10) || 0)));
+    setHpClass(s.hpClass && typeof s.hpClass === "object" ? Object.fromEntries(Object.entries(s.hpClass).filter(([k, v]) => Number.isFinite(+v)).map(([k, v]) => [k, Math.max(-500, Math.min(500, Math.round(+v)))])) : {});
     const sa = {}; ["ac", "initiative", "speed", "attune"].forEach(k => { const n = parseInt((s.statAdj || {})[k]); if (n && n >= -200 && n <= 200) sa[k] = n; });
     setStatAdj(sa);
     setLineage(String(s.lineage || ""));
@@ -3156,9 +3228,10 @@ function CharacterSheet() {
     setAsiChoices(s.asiChoices && typeof s.asiChoices === "object" ? s.asiChoices : {});
     setCurrentHp(typeof s.currentHp === "number" ? s.currentHp : null);
     setTempHp(parseInt(s.tempHp) || 0);
-    setHitDiceUsed(parseInt(s.hitDiceUsed) || 0);
+    setHitDiceUsed(parseInt(s.hitDiceUsed) || 0); setHdUsedBy(s.hdUsedBy && typeof s.hdUsedBy === "object" ? s.hdUsedBy : {});
     setXp(Math.max(0, parseInt(data.xp) || 0));
     setGold(Math.max(0, parseFloat(data.gold) || 0));
+    setMoneyRaw({ coins: data.coins && typeof data.coins === "object" ? data.coins : {}, moneyX: Array.isArray(data.moneyX) ? data.moneyX : [], funds: Array.isArray(data.funds) ? data.funds : [] }); setMoneyAt(+data.moneyAt || 0);
     setEquipment(String(s.equipment || ""));
     setNotes(String(s.notes || ""));
     setJournal(cleanJournal(s.journal, s.notes, s.equipment));
@@ -3230,7 +3303,7 @@ function CharacterSheet() {
     const onStorage = (e) => {
       if (e.key === CODE_KEY && e.newValue && cleanCode(e.newValue) !== playerCode) openPlayerCode(e.newValue, false);
       if (e.key === charKey(playerCode) && e.newValue) {
-        try { const d = JSON.parse(e.newValue); if (d && d.builder && typeof d.builder.currentHp === "number") setCurrentHp(d.builder.currentHp); if (d && typeof d.xp === "number") setXp(Math.max(0, d.xp)); if (d && typeof d.gold === "number") setGold(Math.max(0, d.gold)); } catch (err) {}
+        try { const d = JSON.parse(e.newValue); if (d && d.builder && typeof d.builder.currentHp === "number") setCurrentHp(d.builder.currentHp); if (d && typeof d.xp === "number") setXp(Math.max(0, d.xp)); if (d && typeof d.gold === "number") setGold(Math.max(0, d.gold)); if (d && +d.moneyAt > 0) { setMoneyRaw({ coins: d.coins || {}, moneyX: d.moneyX || [], funds: d.funds || [] }); setMoneyAt(+d.moneyAt); } } catch (err) {}
       }
     };
     window.addEventListener("storage", onStorage);
@@ -3353,6 +3426,8 @@ function CharacterSheet() {
           </div>
           <div style={{ fontSize: 14, color: colors.ink, marginTop: 6, fontWeight: 600 }}>
             Level {totalLevel} {species} {classLine || className}{subclassName && !classLine ? ` (${subclassName})` : ""} · {background}
+            <span style={{ marginLeft: 14, fontWeight: 400 }}><label>XP <input type="text" inputMode="numeric" data-testid="xp-field" aria-label="Experience Points" value={xp} onChange={e => setXp(Math.max(0, parseInt(e.target.value) || 0))} style={{ width: 90, background: colors.parchment, border: `1px solid ${colors.ink}`, borderRadius: 4, color: colors.ink, padding: "1px 6px" }} /></label>
+              <span style={{ fontSize: 12, opacity: 0.85, marginLeft: 6 }}>{totalLevel >= 20 ? "Level 20 is the highest level." : `Level ${totalLevel + 1} at ${XP_LEVELS[totalLevel].toLocaleString("en-US")}.`}{totalLevel < 20 && xp >= XP_LEVELS[totalLevel] ? " Enough to level up." : ""}</span></span>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, alignItems: "center" }}>
             {[
@@ -3475,7 +3550,8 @@ function CharacterSheet() {
           {rest.kind === "short" && (
             <div style={{ fontSize: 13, marginBottom: 10 }}>
               Hit Point Dice left: {totalLevel - hitDiceUsed} of {totalLevel} ({mcList.length ? [`d${cls.hitDie}`, ...mcList.map(x => `d${CLASSES[x.name].hitDie}`)].join(", ") : `d${cls.hitDie}`}). Hit Points: {displayHp} / {effectiveMaxHp}.{" "}
-              <button onClick={spendHitDie} disabled={hitDiceUsed >= totalLevel || displayHp >= effectiveMaxHp} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "2px 10px", fontSize: 12, cursor: "pointer" }}>Spend one</button>
+              {mcList.length ? allClasses.map(x => { const left = x.level - (+hdUsedBy[x.name] || 0); return <button key={x.name} data-testid="spend-hd" onClick={() => spendHitDie(x.name)} disabled={left <= 0 || displayHp >= effectiveMaxHp} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "2px 10px", fontSize: 12, cursor: "pointer", marginRight: 4 }}>Spend a d{CLASSES[x.name].hitDie} ({x.name}, {left} left)</button>; }) :
+              <button onClick={() => spendHitDie()} disabled={hitDiceUsed >= totalLevel || displayHp >= effectiveMaxHp} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "2px 10px", fontSize: 12, cursor: "pointer" }}>Spend one</button>}
             </div>
           )}
           <button data-testid="rest-done" onClick={() => setRest(null)} style={{ width: "100%", background: colors.brass, color: colors.ink, border: "none", borderRadius: 6, padding: "8px 12px", fontFamily: fontDisplay, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Done</button>
@@ -3505,25 +3581,35 @@ function CharacterSheet() {
 
       {/* CONTENT */}
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px 16px 60px" }}>
-        {tab === "companions" && (() => { const mons = Array.isArray(window.HBA_MONSTERS) ? window.HBA_MONSTERS : [];
+        {tab === "companions" && (() => { const mons = Array.isArray(window.HBA_MONSTERS) ? window.HBA_MONSTERS : [], mine = readRoster(playerCode).filter(id => id !== charId).map(id => ({ id, d: readOne(playerCode, id) })).filter(x => x.d);
           const set = (id, patch) => setCompanions(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p));
+          const setAuto = (id, patch) => setPalEdits(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...patch } }));
           const field = { ...fieldStyle(colors), width: "auto" };
+          const INIT = [["after", "Its own turn, right after you"], ["shared", "Acts on your turn (no turn of its own)"], ["roll", "Rolls its own Initiative"]];
+          const card = (p, auto) => { const isSheet = /^sheet:/.test(p.base || ""), m = !isSheet && mons.find(x => x.n === p.base), what = isSheet ? "sheet" : p.base ? "block" : "own", upd = auto ? (patch) => setAuto(p.id, patch) : (patch) => set(p.id, patch);
+            return (
+            <div key={p.id} data-testid={auto ? "companion-auto" : "companion"} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: 10, marginBottom: 8, border: `1px solid ${colors.brass}66`, borderRadius: 8 }}>
+              <input aria-label="Companion name" value={p.name} onChange={e => upd({ name: e.target.value.slice(0, 60) })} style={{ ...field, width: 170 }} />
+              {auto ? <span style={{ fontSize: 13, opacity: 0.85 }}>from {p.from}{p.kind ? ` · ${p.kind}` : ""}</span> :
+                <select aria-label="Companion kind" value={p.kind} onChange={e => upd({ kind: e.target.value })} style={field}>{["", "Familiar", "Beast Companion", "Steed", "Sidekick", "Pet", "Hireling", "Other"].map(k => <option key={k} value={k}>{k || "Kind..."}</option>)}</select>}
+              {!auto && <select aria-label="What it is" data-testid="companion-what" value={what} onChange={e => upd({ base: e.target.value === "own" ? "" : e.target.value === "sheet" ? (mine[0] ? "sheet:" + mine[0].id : "") : (mons.find(x => /^Owl$/.test(x.n)) || mons[0] || {}).n || "" })} style={field}>
+                <option value="block">A stat block</option><option value="sheet" disabled={!mine.length}>One of my characters (its own sheet)</option><option value="own">Its own numbers</option></select>}
+              {!auto && what === "block" && <select aria-label="Companion stat block" data-testid="companion-base" value={p.base} onChange={e => upd({ base: e.target.value })} style={{ ...field, width: 220 }}>
+                {mons.slice().sort((a, b) => a.n.localeCompare(b.n)).map(x => <option key={x.n + (x.src || "")} value={x.n}>{x.n} (CR {x.cr})</option>)}</select>}
+              {!auto && what === "sheet" && <select aria-label="Which character" data-testid="companion-sheet" value={p.base} onChange={e => upd({ base: e.target.value })} style={{ ...field, width: 220 }}>
+                {mine.map(x => <option key={x.id} value={"sheet:" + x.id}>{x.d.name || "Unnamed"} (Level {x.d.level || 1} {x.d.className || ""})</option>)}</select>}
+              {m ? <span style={{ fontSize: 13, opacity: 0.85 }}>{m.t} · AC {(p.stats && p.stats.ac) || m.ac} · {(p.stats && p.stats.hp) || m.hp} HP · {m.sp}</span>
+                : what === "own" && !auto ? [["ac", "AC"], ["hp", "HP"], ["speed", "Speed"]].map(([k, l]) => <label key={k} style={{ fontSize: 13 }}>{l} <input type="number" aria-label={`Companion ${l}`} value={p[k] || ""} onChange={e => upd({ [k]: parseInt(e.target.value) || 0 })} style={{ ...field, width: 64 }} /></label>)
+                : auto && p.stats ? <span style={{ fontSize: 13, opacity: 0.85 }}>{Object.entries(p.stats).map(([k, v]) => `${k.toUpperCase()} ${v}`).join(" · ")} (grows with your level)</span> : null}
+              <label style={{ fontSize: 13 }}>Initiative <select aria-label="Companion Initiative" data-testid="companion-init" value={p.init || "after"} onChange={e => upd({ init: e.target.value })} style={field}>{INIT.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
+              {!auto && <button onClick={() => setCompanions(prev => prev.filter(x => x.id !== p.id))} style={{ background: "transparent", color: CUSTOM_RED, border: `1px solid ${CUSTOM_RED}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Remove</button>}
+            </div>); };
           return (
           <Section title="Companions" colors={colors} fontDisplay={fontDisplay}>
-            <div style={{ fontSize: 13.5, marginBottom: 10, opacity: 0.9 }}>Creatures that travel with this character: a familiar, a beast companion, a steed. They join the Initiative tracker with the character, right after it. A spell that summons one (Find Familiar, Find Steed) asks what kind when it is cast in the Combat Resolver, so it does not need to be listed here.</div>
-            {companions.map(p => { const m = mons.find(x => x.n === p.base); return (
-              <div key={p.id} data-testid="companion" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: 8, marginBottom: 6, border: `1px solid ${colors.brass}66`, borderRadius: 8 }}>
-                <input aria-label="Companion name" value={p.name} onChange={e => set(p.id, { name: e.target.value.slice(0, 60) })} style={{ ...field, width: 170 }} />
-                <select aria-label="Companion kind" value={p.kind} onChange={e => set(p.id, { kind: e.target.value })} style={field}>{["", "Familiar", "Beast Companion", "Steed", "Pet", "Hireling", "Other"].map(k => <option key={k} value={k}>{k || "Kind..."}</option>)}</select>
-                <select aria-label="Companion stat block" data-testid="companion-base" value={p.base} onChange={e => set(p.id, { base: e.target.value })} style={{ ...field, width: 220 }}>
-                  <option value="">Its own numbers (no stat block)</option>
-                  {mons.slice().sort((a, b) => a.n.localeCompare(b.n)).map(x => <option key={x.n + (x.src || "")} value={x.n}>{x.n} (CR {x.cr})</option>)}
-                </select>
-                {m ? <span style={{ fontSize: 13, opacity: 0.85 }}>{m.t} · AC {m.ac} · {m.hp} HP · {m.sp}</span> : <>
-                  {[["ac", "AC"], ["hp", "HP"], ["speed", "Speed"]].map(([k, l]) => <label key={k} style={{ fontSize: 13 }}>{l} <input type="number" aria-label={`Companion ${l}`} value={p[k] || ""} onChange={e => set(p.id, { [k]: parseInt(e.target.value) || 0 })} style={{ ...field, width: 64 }} /></label>)}</>}
-                <button onClick={() => setCompanions(prev => prev.filter(x => x.id !== p.id))} style={{ background: "transparent", color: CUSTOM_RED, border: `1px solid ${CUSTOM_RED}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Remove</button>
-              </div>); })}
-            {companions.length < 6 && <button data-testid="companion-add" onClick={() => setCompanions(prev => [...prev, { id: newCharId(), name: "", base: "", kind: "", ac: 0, hp: 0, speed: 0 }])}
+            <div style={{ fontSize: 13.5, marginBottom: 10, opacity: 0.9 }}>Creatures that travel with this character. They join the Initiative tracker with it. A companion a feature gives you is made here by itself, and its numbers grow with your level. A spell that summons one (Find Familiar, Find Steed) asks which creature when it is cast in the Combat Resolver.</div>
+            {autoPals.map(p => card(p, true))}
+            {companions.map(p => card(p, false))}
+            {companions.length < 6 && <button data-testid="companion-add" onClick={() => setCompanions(prev => [...prev, { id: newCharId(), name: "", base: (mons.find(x => /^Owl$/.test(x.n)) || mons[0] || {}).n || "", kind: "", ac: 0, hp: 0, speed: 0, init: "after" }])}
               style={{ background: colors.brass, color: colors.ink, border: "none", borderRadius: 6, padding: "6px 12px", fontFamily: fontDisplay, fontWeight: 700, cursor: "pointer" }}>+ Add a Companion</button>}
           </Section>); })()}
         {tab === "sheet" && (() => { const d = buildCharacterFile(), html = sheetHtml(d); return (
@@ -3538,7 +3624,7 @@ function CharacterSheet() {
             <iframe title="Character sheet" data-testid="sheet-frame" srcDoc={html} style={{ width: "100%", height: "80vh", border: `1px solid ${colors.brass}`, borderRadius: 8, background: "#e9dfc9" }} />
           </div>); })()}
         {tab === "identity" && (
-          <IdentityTab {...{ extraClasses, setExtraClasses, totalLevel, mcScores: finalScores, mcChoices: featureChoices, setMcChoices: setFeatureChoices, attnEdge, gold, setGold, xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
+          <IdentityTab {...{ mcCustom: custom, extraClasses, setExtraClasses, totalLevel, mcScores: finalScores, mcChoices: featureChoices, setMcChoices: setFeatureChoices, attnEdge, gold, setGold, xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
         )}
         {tab === "abilities" && (
           <AbilitiesTab {...{ featBonuses, pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay, custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }} />
@@ -3547,7 +3633,7 @@ function CharacterSheet() {
           <SkillsTab {...{ expertiseMax, expertiseList, expertiseCustom, cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }} />
         )}
         {tab === "combat" && (
-          <CombatTab {...{ totalLevel, hitDiceText: mcList.length ? [`${level}d${cls.hitDie}`, ...mcList.map(x => `${x.level}d${CLASSES[x.name].hitDie}`)].join(" + ") : `${level}d${cls.hitDie}`, possibleMaxHp, averageHp: maxHp, setHpTotal, statAdj, setStatAdj, inventory: Object.assign(characterItems.map(i => i && i.name).filter(Boolean), { typed: "", prof, items: characterItems, shieldBonus: gear.shieldBonus, shieldName: gear.shieldName }), masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
+          <CombatTab {...{ hpRows, conPerLevel: finalMods.Constitution, totalLevel, hitDiceText: mcList.length ? [`${level}d${cls.hitDie}`, ...mcList.map(x => `${x.level}d${CLASSES[x.name].hitDie}`)].join(" + ") : `${level}d${cls.hitDie}`, possibleMaxHp, averageHp: maxHp, setHpTotal, statAdj, setStatAdj, inventory: Object.assign(characterItems.map(i => i && i.name).filter(Boolean), { typed: "", prof, items: characterItems, shieldBonus: gear.shieldBonus, shieldName: gear.shieldName }), masteries, setMasteries, custom, masteryGlow: glowOf("mastery"), armor, setArmor, shield, setShield, weapons, setWeapons, ac: { value: armorClass, how: ac.how }, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }} />
         )}
         {tab === "features" && (
           <FeaturesTab {...{ asiLabel: (k) => (asiOf(k) || { label: `Level ${k}` }).label, attnEdge, masteries, setMasteries, masteryCount: derived.masteryCount, className, glowOf, optionSlots: mech.optionSlots, featureChoices, setFeatureChoices, featureLedger, reachedAsiLevels, asiChoices, setAsiAbilities, setAsiType, setFeatName, setAsiFeatChoices, colors, fontDisplay, slots, featPicks, setFeatPick, extraFeats, setExtraFeats, takenFeats, custom }} />
@@ -3566,6 +3652,7 @@ function CharacterSheet() {
         {tab === "journal" && (
           <JournalTab {...{ journal, setJournal, alignment, setAlignment, knownTools, colors, fontDisplay }} />
         )}
+        {tab === "inventory" && <FundsBox money={{ ...money, gold }} setMoney={setMoney} colors={colors} fontDisplay={fontDisplay} />}
         {tab === "inventory" && (
           <InventoryTab {...{ inv, prof, colors, fontDisplay, components, setComponents, spellMats: spellActions.filter(a => a.spell && (a.comp || "").includes("M")),
             magic: { itemSearch, setItemSearch, itemRarityFilter, setItemRarityFilter, itemTypeFilter, setItemTypeFilter, itemAttunementFilter, setItemAttunementFilter, selectedItem, setSelectedItem },
@@ -3614,7 +3701,7 @@ function fieldStyle(colors) {
 }
 
 const XP_LEVELS = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000]; // Experience Points needed for each level
-function IdentityTab({ extraClasses = [], setExtraClasses = () => {}, totalLevel = 1, mcScores = {}, mcChoices = {}, setMcChoices = () => {}, attnEdge = () => ({}), gold, setGold, xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }) {
+function IdentityTab({ mcCustom = false, extraClasses = [], setExtraClasses = () => {}, totalLevel = 1, mcScores = {}, mcChoices = {}, setMcChoices = () => {}, attnEdge = () => ({}), gold, setGold, xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }) {
   const bg = bgEff;
   const [originOpen, setOriginOpen] = useState(false);
   const baseBg = BACKGROUNDS[background] || bgEff;
@@ -3679,7 +3766,7 @@ function IdentityTab({ extraClasses = [], setExtraClasses = () => {}, totalLevel
               <div key={i} data-testid="mc-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", padding: "8px 0", borderTop: `1px dashed ${colors.brass}55` }}>
                 <div><label style={{ fontSize: 12, opacity: 0.8 }}>Another class</label>
                   <select aria-label={`Class ${i + 2}`} value={x.name} onChange={e => set({ name: e.target.value, sub: "", spells: [] })} style={{ ...fieldStyle(colors), width: 160 }}>
-                    {Object.keys(CLASSES).filter(c => c === x.name || (c !== className && !extraClasses.some(y => y.name === c))).map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                    {Object.keys(CLASSES).filter(c => c === x.name || (c !== className && !extraClasses.some(y => y.name === c))).map(c => { const no = c !== x.name && !mcCustom && !!multiclassProblem(c, mcScores); return <option key={c} value={c} disabled={no}>{c}{no ? " (scores too low)" : ""}</option>; })}</select></div>
                 <div><label style={{ fontSize: 12, opacity: 0.8 }}>{xc.subclassName || "Subclass"}{x.level < (xc.subclassLevel || 3) ? ` (at level ${xc.subclassLevel || 3})` : ""}</label>
                   <select aria-label={`Subclass ${i + 2}`} value={x.sub || ""} disabled={x.level < (xc.subclassLevel || 3)} onChange={e => set({ sub: e.target.value })} style={{ ...fieldStyle(colors), width: 200, opacity: x.level < (xc.subclassLevel || 3) ? 0.5 : 1, ...attnEdge("subclass:" + x.name) }}>
                     <option value="">— none yet —</option>{Object.keys(xc.subclasses || {}).map(s2 => <option key={s2} value={s2}>{s2}</option>)}</select></div>
@@ -3693,19 +3780,12 @@ function IdentityTab({ extraClasses = [], setExtraClasses = () => {}, totalLevel
                   Gains as another class: {[(mc.armor || []).length ? `${mc.armor.map(a => a === "Shield" ? "Shields" : `${a} armor`).join(", ")}` : "", (mc.weapons || []).length ? "Martial weapons" : "", mc.skills ? `${mc.skills} skill` : "", mc.tool || ""].filter(Boolean).join(", ") || "no proficiencies"}. No saving throws or starting equipment.
                   {prob && <span style={{ color: ATTN, marginLeft: 6 }}>{prob}.</span>}</div>
               </div>); })}
-            {totalLevel < 20 && <button data-testid="mc-add" onClick={() => { const next = Object.keys(CLASSES).find(c => c !== className && !extraClasses.some(y => y.name === c)); if (next) setExtraClasses([...extraClasses, { name: next, sub: "", level: 1, spells: [] }]); }}
-              style={{ background: "transparent", color: colors.parchment, border: `1px dashed ${colors.brass}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontFamily: fontDisplay, fontSize: 12, marginTop: 6 }}>+ Add a class (multiclass)</button>}
+            {totalLevel < 20 && (() => { const can = Object.keys(CLASSES).filter(c => c !== className && !extraClasses.some(y => y.name === c)), ok = can.filter(c => mcCustom || !multiclassProblem(c, mcScores)), blocked = !mcCustom && !!multiclassProblem(className, mcScores);
+              return <div style={{ marginTop: 8 }}><button data-testid="mc-add" disabled={!ok.length || blocked} title={blocked ? multiclassProblem(className, mcScores) : !ok.length ? "Your scores are too low for any other class (Further Customization allows it)" : "Add levels in another class"}
+                onClick={() => setExtraClasses([...extraClasses, { name: ok[0], sub: "", level: 1, spells: [] }])}
+                style={{ background: colors.brass, color: colors.ink, border: "none", borderRadius: 6, padding: "7px 16px", cursor: !ok.length || blocked ? "not-allowed" : "pointer", fontFamily: fontDisplay, fontSize: 13, fontWeight: 700, opacity: !ok.length || blocked ? 0.5 : 1 }}>+ Add a class (multiclass)</button>
+                {blocked && <span style={{ fontSize: 12, color: ATTN, marginLeft: 8 }}>{multiclassProblem(className, mcScores)}. Further Customization allows it anyway.</span>}</div>; })()}
             {extraClasses.length > 0 && <span style={{ marginLeft: 10, fontSize: 13 }}>Character level {totalLevel}</span>}
-          </div>
-          <div>
-            <label style={{ fontSize: 12, opacity: 0.8 }}>Gold (GP)</label>
-            <input type="number" min={0} data-testid="gold-field" value={gold} onChange={e => setGold(Math.max(0, parseFloat(e.target.value) || 0))} style={fieldStyle(colors)} />
-            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>Spent when you cast a spell whose Material component has a cost.</div>
-          </div>
-          <div>
-            <label style={{ fontSize: 12, opacity: 0.8 }}>Experience Points</label>
-            <input type="number" min={0} data-testid="xp-field" value={xp} onChange={e => setXp(Math.max(0, parseInt(e.target.value) || 0))} style={fieldStyle(colors)} />
-            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{level >= 20 ? "Level 20 is the highest level." : `Level ${level + 1} at ${XP_LEVELS[level].toLocaleString("en-US")}.`}{level < 20 && xp >= XP_LEVELS[level] ? " Enough to level up: change the level when your DM says so." : ""}</div>
           </div>
         </div>
         <div style={{ marginTop: 12, fontSize: 13, opacity: 0.85, lineHeight: 1.6 }}>
@@ -4013,7 +4093,7 @@ function SkillsTab({ expertiseMax, expertiseList, expertiseCustom, cls, skillInf
   );
 }
 
-function CombatTab({ totalLevel, hitDiceText, possibleMaxHp, averageHp, setHpTotal, statAdj, setStatAdj, inventory, masteries, setMasteries, custom, masteryGlow, armor, setArmor, shield, setShield, weapons, setWeapons, ac, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }) {
+function CombatTab({ hpRows = [], conPerLevel = 0, totalLevel, hitDiceText, possibleMaxHp, averageHp, setHpTotal, statAdj, setStatAdj, inventory, masteries, setMasteries, custom, masteryGlow, armor, setArmor, shield, setShield, weapons, setWeapons, ac, sheetActions, pools, derived, cls, level, effectiveMaxHp, currentHp, setCurrentHp, tempHp, setTempHp, hitDiceUsed, setHitDiceUsed, finalMods, armorClass, initiative, speed, colors, fontDisplay }) {
   const displayHp = currentHp === null ? effectiveMaxHp : currentHp;
   // Further Customization: an additional modifier on a stat, shown in red
   const adjust = (k, step) => (custom || statAdj[k]) ? (
@@ -4040,6 +4120,16 @@ function CombatTab({ totalLevel, hitDiceText, possibleMaxHp, averageHp, setHpTot
             <div style={{ fontSize: 10, opacity: 0.6 }}>What your character has. It starts at the average ({averageHp}): the whole die at level 1, then half the die plus 1, plus your Constitution modifier each level. {custom ? "Further Customization is on, so it can go above Max HP." : "It can go up to Max HP."}</div>
             {effectiveMaxHp !== averageHp && <button aria-label="Use the average" onClick={() => setHpTotal(averageHp)} style={{ marginTop: 6, background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "2px 10px", fontSize: 11, cursor: "pointer" }}>Use the average ({averageHp})</button>}
           </div>
+        </div>
+        <div data-testid="hp-by-class" style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 12, textTransform: "uppercase", opacity: 0.8, marginBottom: 4 }}>Hit Points by class</div>
+          {hpRows.map(r => <div key={r.name} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 4, fontSize: 14 }}>
+            <span style={{ minWidth: 150 }}>{r.name} {r.level} ({r.level}d{r.die})</span>
+            <input type="number" min={r.level} aria-label={`Hit Points from ${r.name}`} value={r.value} onChange={e => r.set(parseInt(e.target.value) || r.level)} style={{ ...fieldStyle(colors), width: 80, display: "inline-block" }} />
+            <span style={{ fontSize: 12, opacity: 0.75 }}>average {r.avg}, highest {r.top}</span>
+            {r.value !== r.avg && <button onClick={() => r.set(r.avg)} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "1px 8px", cursor: "pointer", fontSize: 12 }}>Average</button>}
+          </div>)}
+          <div style={{ fontSize: 12, opacity: 0.75 }}>Plus your Constitution modifier ({conPerLevel >= 0 ? "+" : ""}{conPerLevel}) for each of your {totalLevel} levels, and Hit Points from features.</div>
         </div>
         <div style={{ marginTop: 14, fontSize: 13 }}>
           <strong>Hit Dice:</strong> {hitDiceText} total &nbsp;|&nbsp; Used:
