@@ -11,6 +11,7 @@
   <script src="mechanics.js"></script>
   <script src="items.js"></script>
   <script src="equipment.js"></script>
+  <script src="monsters.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -272,6 +273,7 @@ Effect keys (for "effs" and "selfEffs"). Use only these keys; anything else goes
 - "extraAction": short text of an additional action it gains each turn (Haste).
 - "extraBonus": short text of an additional Bonus Action it gains each turn.
 - "extraReaction": short text of an additional Reaction it gains each round.
+- "extraActionOnly", "extraBonusOnly", "extraReactionOnly": when the extra one may only be used for certain things, the names of those actions, spells or features, e.g. "extraReactionOnly": ["Opportunity Attack"]. Leave it out when the extra one can be used for anything.
 - "turnRoll": {"when": "end" or "start", "dice": "1d6", "text": "what the result means"}: a die rolled every turn of the creature (Blink).
 - A condition given with no save (Invisibility: Invisible) goes in "onUse" under "conds".
 - In any text value inside an effect, a damage type or a condition name you may write "$1" or "$2" to stand for the caster's first or second choice (see "choices" below).
@@ -1007,7 +1009,7 @@ function sheetHtml(d) {
   var box = function box(title, body) {
     return "<section><h2>".concat(e(title), "</h2>").concat(body, "</section>");
   };
-  return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>".concat(e(d.name || "Character"), " - Character Sheet</title>\n<style>\n  body { margin: 0; background: #e9dfc9; color: #1b2430; font-family: Georgia, 'Times New Roman', serif; }\n  .pg { max-width: 900px; margin: 0 auto; padding: 22px; }\n  header { display: flex; gap: 16px; align-items: center; border: 3px double #6b4423; border-radius: 10px; padding: 12px 16px; background: #f4ecda; }\n  header img { width: 110px; height: 110px; object-fit: cover; border-radius: 8px; border: 2px solid #6b4423; }\n  h1 { margin: 0; font-size: 30px; letter-spacing: 1px; } .sub { font-size: 16px; margin-top: 4px; } .tiny { font-size: 13px; opacity: .8; }\n  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 12px 0; }\n  .stat { border: 2px solid #6b4423; border-radius: 8px; text-align: center; padding: 6px 4px; background: #f4ecda; } .stat b { display: block; font-size: 22px; } .stat span { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }\n  .abil { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }\n  .ab { border: 2px solid #6b4423; border-radius: 10px; text-align: center; padding: 6px 2px; background: #f4ecda; } .ab .m { font-size: 24px; font-weight: bold; } .ab .s { font-size: 13px; }\n  .cols { display: grid; grid-template-columns: 1fr 1.6fr; gap: 14px; }\n  section { border: 1px solid #6b4423; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; background: #f7f0e1; break-inside: avoid; }\n  h2 { font-size: 14px; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 6px; color: #6b4423; border-bottom: 1px solid #6b4423; padding-bottom: 3px; }\n  .row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; font-size: 14px; } .row:nth-child(even) { background: #efe5cf; }\n  .dot { display: inline-block; width: 9px; height: 9px; border: 1.5px solid #6b4423; border-radius: 50%; margin-right: 6px; } .dot.on { background: #6b4423; }\n  .feat { font-size: 14px; margin-bottom: 6px; } .feat b { font-size: 14.5px; }\n  table { width: 100%; border-collapse: collapse; font-size: 14px; } td, th { text-align: left; padding: 3px 4px; border-bottom: 1px solid #d6c7a6; }\n  @media (max-width: 640px) { .stats, .abil { grid-template-columns: repeat(3, 1fr); } .cols { grid-template-columns: 1fr; } }\n  @media print { body { background: #fff; } .pg { padding: 0; } section, header, .stat, .ab { background: #fff; } }\n</style></head><body><div class=\"pg\">\n<header>").concat(pic ? "<img src=\"".concat(pic, "\" alt=\"\">") : "", "<div><h1>").concat(e(d.name || "Unnamed character"), "</h1>\n<div class=\"sub\">Level ").concat(e(d.level || 1), " ").concat(e(d.species || ""), " ").concat(e(d.className || "")).concat(d.subclassName ? " (".concat(e(d.subclassName), ")") : "", "</div>\n<div class=\"tiny\">").concat([d.background && "Background: ".concat(e(d.background)), d.alignment && "Alignment: ".concat(e(d.alignment)), d.player && "Player: ".concat(e(d.player)), d.xp != null && "XP: ".concat(e(d.xp))].filter(Boolean).join(" · "), "</div></div></header>\n<div class=\"stats\">").concat([["Armor Class", d.ac], ["Initiative", sg(+d.initiativeBonus || 0)], ["Speed", "".concat(e(d.speed), " ft.")], ["Hit Points", "".concat(e((_d$currentHP = d.currentHP) !== null && _d$currentHP !== void 0 ? _d$currentHP : d.maxHP), "/").concat(e(d.maxHP))], ["Proficiency", sg(+d.profBonus || 2)], ["Passive Perception", d.passivePerception]].map(function (_ref) {
+  return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>".concat(e(d.name || "Character"), " - Character Sheet</title>\n<style>\n  body { margin: 0; background: #e9dfc9; color: #1b2430; font-family: Georgia, 'Times New Roman', serif; }\n  .pg { max-width: 900px; margin: 0 auto; padding: 22px; }\n  header { display: flex; gap: 16px; align-items: center; border: 3px double #6b4423; border-radius: 10px; padding: 12px 16px; background: #f4ecda; }\n  header img { width: 110px; height: 110px; object-fit: cover; border-radius: 8px; border: 2px solid #6b4423; }\n  h1 { margin: 0; font-size: 30px; letter-spacing: 1px; } .sub { font-size: 16px; margin-top: 4px; } .tiny { font-size: 13px; opacity: .8; }\n  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 12px 0; }\n  .stat { border: 2px solid #6b4423; border-radius: 8px; text-align: center; padding: 6px 4px; background: #f4ecda; } .stat b { display: block; font-size: 22px; } .stat span { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }\n  .abil { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }\n  .ab { border: 2px solid #6b4423; border-radius: 10px; text-align: center; padding: 6px 2px; background: #f4ecda; } .ab .m { font-size: 24px; font-weight: bold; } .ab .s { font-size: 13px; }\n  .cols { display: grid; grid-template-columns: 1fr 1.6fr; gap: 14px; }\n  section { border: 1px solid #6b4423; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; background: #f7f0e1; break-inside: avoid; }\n  h2 { font-size: 14px; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 6px; color: #6b4423; border-bottom: 1px solid #6b4423; padding-bottom: 3px; }\n  .row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; font-size: 14px; } .row:nth-child(even) { background: #efe5cf; }\n  .dot { display: inline-block; width: 9px; height: 9px; border: 1.5px solid #6b4423; border-radius: 50%; margin-right: 6px; } .dot.on { background: #6b4423; }\n  .feat { font-size: 14px; margin-bottom: 6px; } .feat b { font-size: 14.5px; }\n  table { width: 100%; border-collapse: collapse; font-size: 14px; } td, th { text-align: left; padding: 3px 4px; border-bottom: 1px solid #d6c7a6; }\n  @media (max-width: 640px) { .stats, .abil { grid-template-columns: repeat(3, 1fr); } .cols { grid-template-columns: 1fr; } }\n  @media print { body { background: #fff; } .pg { padding: 0; } section, header, .stat, .ab { background: #fff; } }\n</style></head><body><div class=\"pg\">\n<header>").concat(pic ? "<img src=\"".concat(pic, "\" alt=\"\">") : "", "<div><h1>").concat(e(d.name || "Unnamed character"), "</h1>\n<div class=\"sub\">Level ").concat(e(d.level || 1), " ").concat(e(d.species || ""), " ").concat(e(d.classLine || d.className || "")).concat(d.subclassName && !d.classLine ? " (".concat(e(d.subclassName), ")") : "", "</div>\n<div class=\"tiny\">").concat([d.background && "Background: ".concat(e(d.background)), d.alignment && "Alignment: ".concat(e(d.alignment)), d.player && "Player: ".concat(e(d.player)), d.xp != null && "XP: ".concat(e(d.xp))].filter(Boolean).join(" · "), "</div></div></header>\n<div class=\"stats\">").concat([["Armor Class", d.ac], ["Initiative", sg(+d.initiativeBonus || 0)], ["Speed", "".concat(e(d.speed), " ft.")], ["Hit Points", "".concat(e((_d$currentHP = d.currentHP) !== null && _d$currentHP !== void 0 ? _d$currentHP : d.maxHP), "/").concat(e(d.maxHP))], ["Proficiency", sg(+d.profBonus || 2)], ["Passive Perception", d.passivePerception]].map(function (_ref) {
     var _ref2 = _slicedToArray(_ref, 2),
       k = _ref2[0],
       v = _ref2[1];
@@ -1026,12 +1028,76 @@ function sheetHtml(d) {
     }).join(" + ") || a.dmg || ""), "</td></tr>");
   }).join(""), "</table>")) : "", "\n").concat(box("Features and Traits", feats.map(function (f) {
     return "<div class=\"feat\"><b>".concat(e(f.n), "</b>").concat(f.src ? " <span class=\"tiny\">(".concat(e(f.src)).concat(f.lv ? ", level ".concat(e(f.lv)) : "", ")</span>") : "").concat(f.d ? ". ".concat(e(f.d)) : "", "</div>");
-  }).join("") || "None"), "\n").concat(arr(d.feats).length ? box("Feats", "<div class=\"feat\">".concat(e(d.feats.join(", ")), "</div>")) : "", "\n").concat(arr(d.spellList || d.spells).length ? box("Spells", "".concat(slots ? "<div class=\"feat\"><b>Spell slots:</b> ".concat(e(slots), "</div>") : "", "<div class=\"feat\">").concat(e(arr(d.spellList || d.spells).join(", ")), "</div>")) : "", "\n</div></div>\n<div class=\"tiny\" style=\"text-align:center;margin-top:8px\">Made with The Homebrew Academy Character Builder</div>\n</div></body></html>");
+  }).join("") || "None"), "\n").concat(arr(d.companions).length ? box("Companions", d.companions.map(function (p) {
+    return "<div class=\"feat\"><b>".concat(e(p.name), "</b>").concat(p.kind ? " (".concat(e(p.kind), ")") : "").concat(p.base ? ": ".concat(e(p.base)) : p.hp ? ": AC ".concat(e(p.ac), ", ").concat(e(p.hp), " HP, Speed ").concat(e(p.speed), " ft.") : "", "</div>");
+  }).join("")) : "", "\n").concat(arr(d.feats).length ? box("Feats", "<div class=\"feat\">".concat(e(d.feats.join(", ")), "</div>")) : "", "\n").concat(arr(d.spellList || d.spells).length ? box("Spells", "".concat(slots ? "<div class=\"feat\"><b>Spell slots:</b> ".concat(e(slots), "</div>") : "", "<div class=\"feat\">").concat(e(arr(d.spellList || d.spells).join(", ")), "</div>")) : "", "\n</div></div>\n<div class=\"tiny\" style=\"text-align:center;margin-top:8px\">Made with The Homebrew Academy Character Builder</div>\n</div></body></html>");
 }
 
 /* ============ 2024 PHB DATA ============ */
 
 var PROF_BONUS = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6];
+// Multiclassing (2024 rules): what a class gives when it is not your first class. A Content Pack class can carry its own "multiclass": { armor, weapons, skills, skillAny, tool }.
+var MULTICLASS = {
+  Barbarian: {
+    armor: ["Shield"],
+    weapons: ["Martial"]
+  },
+  Bard: {
+    armor: ["Light"],
+    skills: 1,
+    skillAny: true,
+    tool: "one Musical Instrument of your choice"
+  },
+  Cleric: {
+    armor: ["Light", "Medium", "Shield"]
+  },
+  Druid: {
+    armor: ["Light", "Shield"]
+  },
+  Fighter: {
+    armor: ["Light", "Medium", "Shield"],
+    weapons: ["Martial"]
+  },
+  Monk: {},
+  Paladin: {
+    armor: ["Light", "Medium", "Shield"],
+    weapons: ["Martial"]
+  },
+  Ranger: {
+    armor: ["Light", "Medium", "Shield"],
+    weapons: ["Martial"],
+    skills: 1
+  },
+  Rogue: {
+    armor: ["Light"],
+    skills: 1,
+    tool: "Thieves' Tools"
+  },
+  Sorcerer: {},
+  Warlock: {
+    armor: ["Light"]
+  },
+  Wizard: {}
+};
+var mcOf = function mcOf(name) {
+  return CLASSES[name] && CLASSES[name].multiclass || MULTICLASS[name] || {};
+};
+// The ability scores a class needs to multiclass: 13 in its primary ability ("Strength or Dexterity": either; "Dexterity & Wisdom": both)
+function multiclassProblem(name, scores) {
+  var c = CLASSES[name];
+  if (!c || !c.primaryAbility) return "";
+  var p = String(c.primaryAbility),
+    list = p.split(/ or | & |, /).map(function (x) {
+      return x.trim();
+    }).filter(Boolean),
+    any = / or /.test(p);
+  var ok = any ? list.some(function (a) {
+    return (scores[a] || 0) >= 13;
+  }) : list.every(function (a) {
+    return (scores[a] || 0) >= 13;
+  });
+  return ok ? "" : "".concat(name, " needs ").concat(list.join(any ? " or " : " and "), " of 13 or more to multiclass");
+}
 var CLASSES = {
   Barbarian: {
     hitDie: 12,
@@ -4044,14 +4110,41 @@ function actionSummary(a) {
   if (a.usesMax) bits.push("".concat(a.usesMax, " ").concat(a.recharge === "short" ? "per Short Rest" : a.recharge === "dawn" ? "per dawn" : a.recharge === "none" ? "in all" : a.recharge === "after" ? "at a time" : "per Long Rest"));
   return bits.join(" · ");
 }
+// A character's level in a class, and in the class a subclass belongs to (0 if it has neither). ch.classes lists every class when multiclassing.
+function classLevelOf(ch, name) {
+  var l = Array.isArray(ch.classes) && ch.classes.length ? ch.classes : [{
+    name: ch.className,
+    level: ch.level
+  }];
+  var c = l.find(function (x) {
+    return sameName(x.name, name);
+  });
+  return c ? c.level : 0;
+}
+function subLevelOf(ch, name) {
+  var l = Array.isArray(ch.classes) && ch.classes.length ? ch.classes : [{
+    name: ch.className,
+    sub: ch.subclassName,
+    level: ch.level
+  }];
+  var c = l.find(function (x) {
+    return x.sub && sameName(x.sub, name);
+  });
+  return c ? c.level : 0;
+}
+// The level an entry grows with: its class's level for a class or subclass feature, the character's level for anything else
+function levelFor(raw, ch) {
+  var g = pObj(raw.grantedBy);
+  return g.type === "class" ? classLevelOf(ch, g.name) || ch.level : g.type === "subclass" ? subLevelOf(ch, g.name) || ch.level : ch.level;
+}
 function abilityGranted(ab, ch) {
   var g = pObj(ab.grantedBy);
   var lvl = parseInt(g.level, 10) || 1;
   switch (g.type) {
     case "class":
-      return sameName(g.name, ch.className) && ch.level >= lvl;
+      return classLevelOf(ch, g.name) >= lvl;
     case "subclass":
-      return sameName(g.name, ch.subclassName) && ch.level >= lvl;
+      return subLevelOf(ch, g.name) >= lvl;
     case "species":
       return sameName(g.name, ch.species) && ch.level >= lvl;
     case "lineage":
@@ -5604,7 +5697,8 @@ function activeMechanics(ch) {
     optionSlots = [];
   [].concat(_toConsumableArray(BUILTIN_MECHANICS), PACK_ABILITIES).forEach(function (raw) {
     if (!abilityGranted(raw, ch)) return;
-    var e = resolveLevels(atLevelOf(raw, ch.level), ch.level);
+    var L = levelFor(raw, ch),
+      e = resolveLevels(atLevelOf(raw, L), L);
     if (e.options && Array.isArray(e.options.choices)) {
       var base = optionKey(raw),
         n = Math.max(1, Math.min(20, parseInt(e.options.count, 10) || 1)); // "count": how many picks (a list of 20 for a number that grows)
@@ -5618,7 +5712,7 @@ function activeMechanics(ch) {
         });
       var meets = function meets(c) {
         var q = pObj(c.prereq);
-        if (q.level && ch.level < (parseInt(q.level, 10) || 0)) return false;
+        if (q.level && L < (parseInt(q.level, 10) || 0)) return false;
         if (pArr(q.has).some(function (h) {
           return !pickedAll.includes(h);
         })) return false;
@@ -5645,18 +5739,23 @@ function activeMechanics(ch) {
         var c = e.options.choices.find(function (x) {
           return x.name === picked;
         });
-        if (c && meets(c)) entries.push(_objectSpread(_objectSpread({}, resolveLevels(atLevelOf(c, ch.level), ch.level)), {}, {
+        if (c && meets(c)) entries.push(_objectSpread(_objectSpread({}, resolveLevels(atLevelOf(c, L), L)), {}, {
           feature: e.name,
           grantedBy: raw.grantedBy,
-          pickKey: key
+          pickKey: key,
+          classLevel: L
         }));
       });
       var options = e.options,
         rest = _objectWithoutProperties(e, _excluded6);
-      if (rest.statics || rest.resource || isActivated(rest)) entries.push(rest);
+      if (rest.statics || rest.resource || isActivated(rest)) entries.push(_objectSpread(_objectSpread({}, rest), {}, {
+        classLevel: L
+      }));
       return;
     }
-    entries.push(e);
+    entries.push(_objectSpread(_objectSpread({}, e), {}, {
+      classLevel: L
+    })); // formulas in a class feature count that class's level
   });
   return {
     entries: entries,
@@ -5726,6 +5825,13 @@ function gatherStatics(entries, ctx, gear, level) {
     var _d$saveProf;
     var s = e.statics;
     if (!s) return;
+    var g0 = pObj(e.grantedBy),
+      num = function num(f) {
+        var n = evalFormula(f, (g0.type === "class" || g0.type === "subclass") && e.classLevel ? _objectSpread(_objectSpread({}, ctx), {}, {
+          LEVEL: e.classLevel
+        }) : ctx);
+        return Number.isFinite(n) ? n : 0;
+      };
     if (s.acBase) pArr(Array.isArray(s.acBase) ? s.acBase : [s.acBase]).forEach(function (b) {
       return d.acBases.push({
         value: num(b.formula),
@@ -5790,7 +5896,7 @@ function gatherStatics(entries, ctx, gear, level) {
       d.anyPicks += parseInt(pObj(s.skillPicks).any, 10) || 0;
     }
     if (s.spells) Object.keys(pObj(s.spells)).forEach(function (l) {
-      if (+l <= level) pArr(s.spells[l]).forEach(function (n) {
+      if (+l <= (e.classLevel || level)) pArr(s.spells[l]).forEach(function (n) {
         return d.spells.push({
           name: pStr(n, 60),
           source: e.feature || e.name
@@ -5854,7 +5960,7 @@ function gatherStatics(entries, ctx, gear, level) {
     if (s.spellbook) {
       var o = pObj(s.spellbook);
       d.spellbook = {
-        free: Math.max(0, num(o.start != null ? o.start : 6) + num(o.perLevel != null ? o.perLevel : 2) * (level - 1)),
+        free: Math.max(0, num(o.start != null ? o.start : 6) + num(o.perLevel != null ? o.perLevel : 2) * ((e.classLevel || level) - 1)),
         lists: pArr(o.lists).map(function (x) {
           return pStr(x, 30);
         }).filter(Boolean)
@@ -6404,42 +6510,83 @@ function CharacterSheet() {
     _useState22 = _slicedToArray(_useState21, 2),
     showRoster = _useState22[0],
     setShowRoster = _useState22[1];
-  var _useState23 = useState(0),
+  var _useState23 = useState(""),
     _useState24 = _slicedToArray(_useState23, 2),
-    rosterTick = _useState24[0],
-    setRosterTick = _useState24[1];
-  var picInputRef = useRef(null);
-  var _useState25 = useState(""),
+    spellClass = _useState24[0],
+    setSpellClass = _useState24[1]; // the class whose spells the Spellcasting tab shows, when multiclassing
+  var _useState25 = useState([]),
     _useState26 = _slicedToArray(_useState25, 2),
-    playerName = _useState26[0],
-    setPlayerName = _useState26[1];
-  var _useState27 = useState("Fighter"),
+    companions = _useState26[0],
+    setCompanions = _useState26[1]; // familiars, beast companions, steeds: {id, name, base (a stat block), kind, ac, hp, speed}
+  var _useState27 = useState(0),
     _useState28 = _slicedToArray(_useState27, 2),
-    className = _useState28[0],
-    setClassName = _useState28[1];
+    rosterTick = _useState28[0],
+    setRosterTick = _useState28[1];
+  var picInputRef = useRef(null);
   var _useState29 = useState(""),
     _useState30 = _slicedToArray(_useState29, 2),
-    subclassName = _useState30[0],
-    setSubclassName = _useState30[1];
-  var _useState31 = useState(1),
+    playerName = _useState30[0],
+    setPlayerName = _useState30[1];
+  var _useState31 = useState("Fighter"),
     _useState32 = _slicedToArray(_useState31, 2),
-    level = _useState32[0],
-    setLevel = _useState32[1];
-  var _useState33 = useState("Human"),
+    className = _useState32[0],
+    setClassName = _useState32[1];
+  var _useState33 = useState(""),
     _useState34 = _slicedToArray(_useState33, 2),
-    species = _useState34[0],
-    setSpecies = _useState34[1];
-  var _useState35 = useState("Soldier"),
+    subclassName = _useState34[0],
+    setSubclassName = _useState34[1];
+  var _useState35 = useState(1),
     _useState36 = _slicedToArray(_useState35, 2),
-    background = _useState36[0],
-    setBackground = _useState36[1];
-  var _useState37 = useState(""),
+    level = _useState36[0],
+    setLevel = _useState36[1]; // the level in the first class
+  var _useState37 = useState([]),
     _useState38 = _slicedToArray(_useState37, 2),
-    alignment = _useState38[0],
-    setAlignment = _useState38[1];
+    extraClasses = _useState38[0],
+    setExtraClasses = _useState38[1]; // multiclassing: [{ name, sub, level, spells: [] }]
+  var mcList = extraClasses.filter(function (x) {
+    return CLASSES[x.name] && x.level > 0;
+  });
+  var totalLevel = Math.min(20, level + mcList.reduce(function (n, x) {
+    return n + x.level;
+  }, 0)); // the character's level
+  var allClasses = [{
+    name: className,
+    sub: subclassName,
+    level: level
+  }].concat(_toConsumableArray(mcList.map(function (x) {
+    return {
+      name: x.name,
+      sub: x.sub || "",
+      level: x.level
+    };
+  })));
+  var classesKey = JSON.stringify(allClasses);
+  var mcSpellNames = mcList.filter(function (x) {
+    return CLASSES[x.name].casterType;
+  }).flatMap(function (x) {
+    return (x.spells || []).filter(Boolean);
+  }); // another class's spells
+  var pactLevel = (allClasses.find(function (x) {
+    return CLASSES[x.name] && CLASSES[x.name].casterType === "pact";
+  }) || {}).level || 0; // Warlock levels, for Pact Magic
+  var classLine = mcList.length ? ["".concat(className, " ").concat(level)].concat(_toConsumableArray(mcList.map(function (x) {
+    return "".concat(x.name, " ").concat(x.level);
+  }))).join(" / ") : "";
+  var _useState39 = useState("Human"),
+    _useState40 = _slicedToArray(_useState39, 2),
+    species = _useState40[0],
+    setSpecies = _useState40[1];
+  var _useState41 = useState("Soldier"),
+    _useState42 = _slicedToArray(_useState41, 2),
+    background = _useState42[0],
+    setBackground = _useState42[1];
+  var _useState43 = useState(""),
+    _useState44 = _slicedToArray(_useState43, 2),
+    alignment = _useState44[0],
+    setAlignment = _useState44[1];
 
   // Point buy: base scores before racial/background bonuses
-  var _useState39 = useState({
+  var _useState45 = useState({
       Strength: 8,
       Dexterity: 8,
       Constitution: 8,
@@ -6447,51 +6594,51 @@ function CharacterSheet() {
       Wisdom: 8,
       Charisma: 8
     }),
-    _useState40 = _slicedToArray(_useState39, 2),
-    pointBuy = _useState40[0],
-    setPointBuy = _useState40[1];
+    _useState46 = _slicedToArray(_useState45, 2),
+    pointBuy = _useState46[0],
+    setPointBuy = _useState46[1];
   // Manual ability score increase allocation from background (2 picks: +2/+1 or +1/+1/+1)
-  var _useState41 = useState("2-1"),
-    _useState42 = _slicedToArray(_useState41, 2),
-    bgBonusMode = _useState42[0],
-    setBgBonusMode = _useState42[1]; // "2-1" or "1-1-1"
-  var _useState43 = useState([]),
-    _useState44 = _slicedToArray(_useState43, 2),
-    bgBonusChoices = _useState44[0],
-    setBgBonusChoices = _useState44[1]; // array of ability names
+  var _useState47 = useState("2-1"),
+    _useState48 = _slicedToArray(_useState47, 2),
+    bgBonusMode = _useState48[0],
+    setBgBonusMode = _useState48[1]; // "2-1" or "1-1-1"
+  var _useState49 = useState([]),
+    _useState50 = _slicedToArray(_useState49, 2),
+    bgBonusChoices = _useState50[0],
+    setBgBonusChoices = _useState50[1]; // array of ability names
 
   // Skills
-  var _useState45 = useState([]),
-    _useState46 = _slicedToArray(_useState45, 2),
-    skillProfs = _useState46[0],
-    setSkillProfs = _useState46[1];
-  var _useState47 = useState([]),
-    _useState48 = _slicedToArray(_useState47, 2),
-    skillExpertise = _useState48[0],
-    setSkillExpertise = _useState48[1];
-
-  // Further Customization: going past what the rules allow. Everything changed this way is marked in red.
-  var _useState49 = useState(false),
-    _useState50 = _slicedToArray(_useState49, 2),
-    custom = _useState50[0],
-    setCustom = _useState50[1];
   var _useState51 = useState([]),
     _useState52 = _slicedToArray(_useState51, 2),
-    skillRemove = _useState52[0],
-    setSkillRemove = _useState52[1]; // granted skills taken away
+    skillProfs = _useState52[0],
+    setSkillProfs = _useState52[1];
   var _useState53 = useState([]),
     _useState54 = _slicedToArray(_useState53, 2),
-    saveAdd = _useState54[0],
-    setSaveAdd = _useState54[1]; // save proficiencies nothing grants
-  var _useState55 = useState([]),
+    skillExpertise = _useState54[0],
+    setSkillExpertise = _useState54[1];
+
+  // Further Customization: going past what the rules allow. Everything changed this way is marked in red.
+  var _useState55 = useState(false),
     _useState56 = _slicedToArray(_useState55, 2),
-    saveRemove = _useState56[0],
-    setSaveRemove = _useState56[1]; // class save proficiencies taken away
-  var _useState57 = useState("pointbuy"),
+    custom = _useState56[0],
+    setCustom = _useState56[1];
+  var _useState57 = useState([]),
     _useState58 = _slicedToArray(_useState57, 2),
-    abilityMode = _useState58[0],
-    setAbilityMode = _useState58[1]; // "pointbuy" or "custom"
-  var _useState59 = useState({
+    skillRemove = _useState58[0],
+    setSkillRemove = _useState58[1]; // granted skills taken away
+  var _useState59 = useState([]),
+    _useState60 = _slicedToArray(_useState59, 2),
+    saveAdd = _useState60[0],
+    setSaveAdd = _useState60[1]; // save proficiencies nothing grants
+  var _useState61 = useState([]),
+    _useState62 = _slicedToArray(_useState61, 2),
+    saveRemove = _useState62[0],
+    setSaveRemove = _useState62[1]; // class save proficiencies taken away
+  var _useState63 = useState("pointbuy"),
+    _useState64 = _slicedToArray(_useState63, 2),
+    abilityMode = _useState64[0],
+    setAbilityMode = _useState64[1]; // "pointbuy" or "custom"
+  var _useState65 = useState({
       Strength: 8,
       Dexterity: 8,
       Constitution: 8,
@@ -6499,178 +6646,178 @@ function CharacterSheet() {
       Wisdom: 8,
       Charisma: 8
     }),
-    _useState60 = _slicedToArray(_useState59, 2),
-    customScores = _useState60[0],
-    setCustomScores = _useState60[1];
-  var _useState61 = useState({}),
-    _useState62 = _slicedToArray(_useState61, 2),
-    abilityAdj = _useState62[0],
-    setAbilityAdj = _useState62[1]; // additional modifier to each score
-  var _useState63 = useState(false),
-    _useState64 = _slicedToArray(_useState63, 2),
-    showCustomList = _useState64[0],
-    setShowCustomList = _useState64[1];
-  var _useState65 = useState(""),
     _useState66 = _slicedToArray(_useState65, 2),
-    lineage = _useState66[0],
-    setLineage = _useState66[1]; // species lineage, ancestry or legacy
-  var _useState67 = useState(""),
+    customScores = _useState66[0],
+    setCustomScores = _useState66[1];
+  var _useState67 = useState({}),
     _useState68 = _slicedToArray(_useState67, 2),
-    armor = _useState68[0],
-    setArmor = _useState68[1]; // armor worn
+    abilityAdj = _useState68[0],
+    setAbilityAdj = _useState68[1]; // additional modifier to each score
   var _useState69 = useState(false),
     _useState70 = _slicedToArray(_useState69, 2),
-    shield = _useState70[0],
-    setShield = _useState70[1];
-  var setWeapons = function setWeapons() {}; // weapons are whatever the inventory holds (see below)
-  var _useState71 = useState([]),
+    showCustomList = _useState70[0],
+    setShowCustomList = _useState70[1];
+  var _useState71 = useState(""),
     _useState72 = _slicedToArray(_useState71, 2),
-    masteries = _useState72[0],
-    setMasteries = _useState72[1]; // weapons whose mastery property is in use (Weapon Mastery)
-  var _useState73 = useState(0),
+    lineage = _useState72[0],
+    setLineage = _useState72[1]; // species lineage, ancestry or legacy
+  var _useState73 = useState(""),
     _useState74 = _slicedToArray(_useState73, 2),
-    hpDelta = _useState74[0],
-    setHpDelta = _useState74[1]; // Hit Points above or below the average, when the player sets their own total
-  var _useState75 = useState({}),
+    armor = _useState74[0],
+    setArmor = _useState74[1]; // armor worn
+  var _useState75 = useState(false),
     _useState76 = _slicedToArray(_useState75, 2),
-    statAdj = _useState76[0],
-    setStatAdj = _useState76[1]; // Further Customization: additional modifier to ac, initiative, speed, hp
-  var _useState77 = useState(null),
+    shield = _useState76[0],
+    setShield = _useState76[1];
+  var setWeapons = function setWeapons() {}; // weapons are whatever the inventory holds (see below)
+  var _useState77 = useState([]),
     _useState78 = _slicedToArray(_useState77, 2),
-    rest = _useState78[0],
-    setRest = _useState78[1]; // a rest just taken: {kind, phase: "summary" or "changes", snap, summary}
-  var _useState79 = useState({}),
+    masteries = _useState78[0],
+    setMasteries = _useState78[1]; // weapons whose mastery property is in use (Weapon Mastery)
+  var _useState79 = useState(0),
     _useState80 = _slicedToArray(_useState79, 2),
-    featureChoices = _useState80[0],
-    setFeatureChoices = _useState80[1]; // options chosen inside features (Divine Order, Hunter's Prey...)
+    hpDelta = _useState80[0],
+    setHpDelta = _useState80[1]; // Hit Points above or below the average, when the player sets their own total
   var _useState81 = useState({}),
     _useState82 = _slicedToArray(_useState81, 2),
-    featPicks = _useState82[0],
-    setFeatPicks = _useState82[1]; // feats chosen in each slot, and the choices each one asks for
-  var _useState83 = useState([]),
+    statAdj = _useState82[0],
+    setStatAdj = _useState82[1]; // Further Customization: additional modifier to ac, initiative, speed, hp
+  var _useState83 = useState(null),
     _useState84 = _slicedToArray(_useState83, 2),
-    extraFeats = _useState84[0],
-    setExtraFeats = _useState84[1]; // feats added past the rules
-  // Customize Origin: your own ability scores, skills, Origin Feat and tool in place of the background's.
-  var _useState85 = useState(null),
+    rest = _useState84[0],
+    setRest = _useState84[1]; // a rest just taken: {kind, phase: "summary" or "changes", snap, summary}
+  var _useState85 = useState({}),
     _useState86 = _slicedToArray(_useState85, 2),
-    originCustom = _useState86[0],
-    setOriginCustom = _useState86[1];
+    featureChoices = _useState86[0],
+    setFeatureChoices = _useState86[1]; // options chosen inside features (Divine Order, Hunter's Prey...)
+  var _useState87 = useState({}),
+    _useState88 = _slicedToArray(_useState87, 2),
+    featPicks = _useState88[0],
+    setFeatPicks = _useState88[1]; // feats chosen in each slot, and the choices each one asks for
+  var _useState89 = useState([]),
+    _useState90 = _slicedToArray(_useState89, 2),
+    extraFeats = _useState90[0],
+    setExtraFeats = _useState90[1]; // feats added past the rules
+  // Customize Origin: your own ability scores, skills, Origin Feat and tool in place of the background's.
+  var _useState91 = useState(null),
+    _useState92 = _slicedToArray(_useState91, 2),
+    originCustom = _useState92[0],
+    setOriginCustom = _useState92[1];
   var bgEff = originCustom || BACKGROUNDS[background] || BACKGROUNDS.Soldier;
 
   // ASI / Feat choices made at ASI levels: { level: {type:"asi", abilities:[a,b]} or {type:"feat", name:""} }
-  var _useState87 = useState({}),
-    _useState88 = _slicedToArray(_useState87, 2),
-    asiChoices = _useState88[0],
-    setAsiChoices = _useState88[1];
+  var _useState93 = useState({}),
+    _useState94 = _slicedToArray(_useState93, 2),
+    asiChoices = _useState94[0],
+    setAsiChoices = _useState94[1];
 
   // Combat
-  var _useState89 = useState(null),
-    _useState90 = _slicedToArray(_useState89, 2),
-    currentHp = _useState90[0],
-    setCurrentHp = _useState90[1];
-  var _useState91 = useState(0),
-    _useState92 = _slicedToArray(_useState91, 2),
-    tempHp = _useState92[0],
-    setTempHp = _useState92[1];
-  var _useState93 = useState(0),
-    _useState94 = _slicedToArray(_useState93, 2),
-    hitDiceUsed = _useState94[0],
-    setHitDiceUsed = _useState94[1];
-  var _useState95 = useState(0),
+  var _useState95 = useState(null),
     _useState96 = _slicedToArray(_useState95, 2),
-    xp = _useState96[0],
-    setXp = _useState96[1];
+    currentHp = _useState96[0],
+    setCurrentHp = _useState96[1];
   var _useState97 = useState(0),
     _useState98 = _slicedToArray(_useState97, 2),
-    gold = _useState98[0],
-    setGold = _useState98[1]; // gold pieces: spells with a costly Material component spend it in the Combat Resolver // Experience Points; the Combat Resolver adds to this when the DM gives them out
+    tempHp = _useState98[0],
+    setTempHp = _useState98[1];
+  var _useState99 = useState(0),
+    _useState100 = _slicedToArray(_useState99, 2),
+    hitDiceUsed = _useState100[0],
+    setHitDiceUsed = _useState100[1];
+  var _useState101 = useState(0),
+    _useState102 = _slicedToArray(_useState101, 2),
+    xp = _useState102[0],
+    setXp = _useState102[1];
+  var _useState103 = useState(0),
+    _useState104 = _slicedToArray(_useState103, 2),
+    gold = _useState104[0],
+    setGold = _useState104[1]; // gold pieces: spells with a costly Material component spend it in the Combat Resolver // Experience Points; the Combat Resolver adds to this when the DM gives them out
 
   // Equipment / notes
-  var _useState99 = useState(""),
-    _useState100 = _slicedToArray(_useState99, 2),
-    equipment = _useState100[0],
-    setEquipment = _useState100[1];
-  var _useState101 = useState(""),
-    _useState102 = _slicedToArray(_useState101, 2),
-    notes = _useState102[0],
-    setNotes = _useState102[1];
-  var _useState103 = useState(function () {
-      return newJournal();
-    }),
-    _useState104 = _slicedToArray(_useState103, 2),
-    journal = _useState104[0],
-    setJournal = _useState104[1];
-  var _useState105 = useState([]),
+  var _useState105 = useState(""),
     _useState106 = _slicedToArray(_useState105, 2),
-    components = _useState106[0],
-    setComponents = _useState106[1]; // spells whose costly Material component the character has
-
-  // Magic Items tab state
+    equipment = _useState106[0],
+    setEquipment = _useState106[1];
   var _useState107 = useState(""),
     _useState108 = _slicedToArray(_useState107, 2),
-    itemSearch = _useState108[0],
-    setItemSearch = _useState108[1];
-  var _useState109 = useState("All"),
+    notes = _useState108[0],
+    setNotes = _useState108[1];
+  var _useState109 = useState(function () {
+      return newJournal();
+    }),
     _useState110 = _slicedToArray(_useState109, 2),
-    itemRarityFilter = _useState110[0],
-    setItemRarityFilter = _useState110[1];
-  var _useState111 = useState("All"),
+    journal = _useState110[0],
+    setJournal = _useState110[1];
+  var _useState111 = useState([]),
     _useState112 = _slicedToArray(_useState111, 2),
-    itemTypeFilter = _useState112[0],
-    setItemTypeFilter = _useState112[1];
-  var _useState113 = useState("All"),
+    components = _useState112[0],
+    setComponents = _useState112[1]; // spells whose costly Material component the character has
+
+  // Magic Items tab state
+  var _useState113 = useState(""),
     _useState114 = _slicedToArray(_useState113, 2),
-    itemAttunementFilter = _useState114[0],
-    setItemAttunementFilter = _useState114[1];
-  var _useState115 = useState(null),
+    itemSearch = _useState114[0],
+    setItemSearch = _useState114[1];
+  var _useState115 = useState("All"),
     _useState116 = _slicedToArray(_useState115, 2),
-    selectedItem = _useState116[0],
-    setSelectedItem = _useState116[1];
-  var _useState117 = useState([]),
+    itemRarityFilter = _useState116[0],
+    setItemRarityFilter = _useState116[1];
+  var _useState117 = useState("All"),
     _useState118 = _slicedToArray(_useState117, 2),
-    characterItems = _useState118[0],
-    setCharacterItems = _useState118[1];
+    itemTypeFilter = _useState118[0],
+    setItemTypeFilter = _useState118[1];
+  var _useState119 = useState("All"),
+    _useState120 = _slicedToArray(_useState119, 2),
+    itemAttunementFilter = _useState120[0],
+    setItemAttunementFilter = _useState120[1];
+  var _useState121 = useState(null),
+    _useState122 = _slicedToArray(_useState121, 2),
+    selectedItem = _useState122[0],
+    setSelectedItem = _useState122[1];
+  var _useState123 = useState([]),
+    _useState124 = _slicedToArray(_useState123, 2),
+    characterItems = _useState124[0],
+    setCharacterItems = _useState124[1];
 
   // Mundane Items tab state
-  var _useState119 = useState(""),
-    _useState120 = _slicedToArray(_useState119, 2),
-    mundaneSearch = _useState120[0],
-    setMundaneSearch = _useState120[1];
-  var _useState121 = useState("All"),
-    _useState122 = _slicedToArray(_useState121, 2),
-    mundaneTypeFilter = _useState122[0],
-    setMundaneTypeFilter = _useState122[1];
-  var _useState123 = useState(null),
-    _useState124 = _slicedToArray(_useState123, 2),
-    selectedMundane = _useState124[0],
-    setSelectedMundane = _useState124[1];
+  var _useState125 = useState(""),
+    _useState126 = _slicedToArray(_useState125, 2),
+    mundaneSearch = _useState126[0],
+    setMundaneSearch = _useState126[1];
+  var _useState127 = useState("All"),
+    _useState128 = _slicedToArray(_useState127, 2),
+    mundaneTypeFilter = _useState128[0],
+    setMundaneTypeFilter = _useState128[1];
+  var _useState129 = useState(null),
+    _useState130 = _slicedToArray(_useState129, 2),
+    selectedMundane = _useState130[0],
+    setSelectedMundane = _useState130[1];
 
   // Pinned important items shown on identity/front page (both magic + mundane)
-  var _useState125 = useState([]),
-    _useState126 = _slicedToArray(_useState125, 2),
-    pinnedItems = _useState126[0],
-    setPinnedItems = _useState126[1];
+  var _useState131 = useState([]),
+    _useState132 = _slicedToArray(_useState131, 2),
+    pinnedItems = _useState132[0],
+    setPinnedItems = _useState132[1];
 
   // Spell list (kept here so it is saved with the character)
-  var _useState127 = useState([""]),
-    _useState128 = _slicedToArray(_useState127, 2),
-    spells = _useState128[0],
-    setSpells = _useState128[1];
+  var _useState133 = useState([""]),
+    _useState134 = _slicedToArray(_useState133, 2),
+    spells = _useState134[0],
+    setSpells = _useState134[1];
 
   // Player code + saving on this computer
-  var _useState129 = useState(currentPlayerCode),
-    _useState130 = _slicedToArray(_useState129, 2),
-    playerCode = _useState130[0],
-    setPlayerCode = _useState130[1];
-  var _useState131 = useState(""),
-    _useState132 = _slicedToArray(_useState131, 2),
-    codeInput = _useState132[0],
-    setCodeInput = _useState132[1];
-  var _useState133 = useState(false),
-    _useState134 = _slicedToArray(_useState133, 2),
-    ready = _useState134[0],
-    setReady = _useState134[1];
+  var _useState135 = useState(currentPlayerCode),
+    _useState136 = _slicedToArray(_useState135, 2),
+    playerCode = _useState136[0],
+    setPlayerCode = _useState136[1];
+  var _useState137 = useState(""),
+    _useState138 = _slicedToArray(_useState137, 2),
+    codeInput = _useState138[0],
+    setCodeInput = _useState138[1];
+  var _useState139 = useState(false),
+    _useState140 = _slicedToArray(_useState139, 2),
+    ready = _useState140[0],
+    setReady = _useState140[1];
   // Starred Combat Log entries saved from the Combat Resolver arrive here as a Session Notes entry.
   useEffect(function () {
     var onNote = function onNote(e) {
@@ -6700,7 +6847,7 @@ function CharacterSheet() {
     };
   }, [playerCode]);
   var cls = CLASSES[className];
-  var profBonus = PROF_BONUS[level - 1];
+  var profBonus = PROF_BONUS[totalLevel - 1];
   var pointBuyTotal = Object.values(pointBuy).reduce(function (sum, v) {
     return sum + (POINT_BUY_COSTS[v] || 0);
   }, 0);
@@ -6721,9 +6868,49 @@ function CharacterSheet() {
   }, [bgBonusMode, bgBonusChoices]);
 
   // ASI bonuses from leveling
+
+  var availableAsiLevels = useMemo(function () {
+    return abilityScoreImprovementLevels(className);
+  }, [className]);
+  // Every Ability Score Improvement reached: the first class's by level, each other class's as "Class-level"
+  var asiSlots = useMemo(function () {
+    return [].concat(_toConsumableArray(availableAsiLevels.filter(function (l) {
+      return l <= level;
+    }).map(function (l) {
+      return {
+        key: l,
+        label: mcList.length ? "".concat(className, " ").concat(l) : "Level ".concat(l),
+        lvl: l
+      };
+    })), _toConsumableArray(mcList.flatMap(function (x) {
+      return abilityScoreImprovementLevels(x.name).filter(function (l) {
+        return l <= x.level;
+      }).map(function (l) {
+        return {
+          key: "".concat(x.name, "-").concat(l),
+          label: "".concat(x.name, " ").concat(l),
+          lvl: l
+        };
+      });
+    })));
+  }, [availableAsiLevels, level, className, JSON.stringify(mcList.map(function (x) {
+    return [x.name, x.level];
+  }))]);
+  var reachedAsiLevels = asiSlots.map(function (a) {
+    return a.key;
+  });
+  var asiOf = function asiOf(k) {
+    return asiSlots.find(function (a) {
+      return String(a.key) === String(k);
+    });
+  };
   var asiBonuses = useMemo(function () {
     var out = {};
-    Object.values(asiChoices).forEach(function (choice) {
+    Object.entries(asiChoices).forEach(function (_ref32) {
+      var _ref33 = _slicedToArray(_ref32, 2),
+        k = _ref33[0],
+        choice = _ref33[1];
+      if (!asiOf(k)) return; // not reached (a lower level, or a class no longer taken)
       if (choice && choice.type === "asi" && choice.abilities) {
         choice.abilities.forEach(function (a) {
           if (a) out[a] = (out[a] || 0) + 1;
@@ -6731,13 +6918,7 @@ function CharacterSheet() {
       }
     });
     return out;
-  }, [asiChoices]);
-  var availableAsiLevels = useMemo(function () {
-    return abilityScoreImprovementLevels(className);
-  }, [className]);
-  var reachedAsiLevels = availableAsiLevels.filter(function (l) {
-    return l <= level;
-  });
+  }, [asiChoices, asiSlots]);
 
   // Scores before feats add to them. Feat prerequisites are checked against these.
   var baseScores = useMemo(function () {
@@ -6751,10 +6932,21 @@ function CharacterSheet() {
   // Every feat this character has, where it came from, what was chosen for it, and whether it goes past the rules.
   var slots = useMemo(function () {
     var out = featSlots(className, subclassName, level, species, bgEff.feat);
+    mcList.forEach(function (x) {
+      return featSlots(x.name, x.sub || "", x.level, "", "").filter(function (sl) {
+        return sl.id !== "origin";
+      }).forEach(function (sl) {
+        return out.push(_objectSpread(_objectSpread({}, sl), {}, {
+          id: "".concat(x.name, "-").concat(sl.id),
+          label: sl.label.replace(/^Level /, "".concat(x.name, " "))
+        }));
+      });
+    });
     var ch0 = {
       className: className,
       subclassName: subclassName,
-      level: level,
+      level: totalLevel,
+      classes: allClasses,
       species: species,
       lineage: lineage,
       background: background,
@@ -6782,7 +6974,7 @@ function CharacterSheet() {
       });
     });
     return out;
-  }, [className, subclassName, level, species, lineage, background, bgEff, featureChoices]);
+  }, [className, subclassName, level, classesKey, species, lineage, background, bgEff, featureChoices]);
   var takenFeats = useMemo(function () {
     var ch = {
       level: level,
@@ -6808,18 +7000,19 @@ function CharacterSheet() {
       var pk = featPicks[sl.id] || {};
       add(sl.id, sl.label, sl.fixed != null ? sl.fixed : pk.name, pk.choices, sl.cats, false);
     });
-    Object.entries(asiChoices).forEach(function (_ref32) {
-      var _ref33 = _slicedToArray(_ref32, 2),
-        lvl = _ref33[0],
-        c = _ref33[1];
-      if (parseInt(lvl) > level || !c || c.type !== "feat" || !availableAsiLevels.includes(parseInt(lvl))) return;
-      add("asi" + lvl, "Level ".concat(lvl), c.name, c.choices, ["General", "Origin"].concat(parseInt(lvl) >= 19 ? ["Epic Boon"] : []), false);
+    Object.entries(asiChoices).forEach(function (_ref34) {
+      var _ref35 = _slicedToArray(_ref34, 2),
+        lvl = _ref35[0],
+        c = _ref35[1];
+      var a = asiOf(lvl);
+      if (!a || !c || c.type !== "feat") return;
+      add("asi" + lvl, a.label, c.name, c.choices, ["General", "Origin"].concat(a.lvl >= 19 ? ["Epic Boon"] : []), false);
     });
     extraFeats.forEach(function (f, i) {
       return add("extra" + i, "Extra feat", f.name, f.choices, FEAT_CATEGORIES, true);
     });
     return out;
-  }, [slots, featPicks, asiChoices, extraFeats, level, baseScores, cls, availableAsiLevels]);
+  }, [slots, featPicks, asiChoices, extraFeats, level, baseScores, cls, asiSlots]);
   var featBonuses = useMemo(function () {
     var out = {};
     takenFeats.forEach(function (f) {
@@ -6868,12 +7061,13 @@ function CharacterSheet() {
     return activeMechanics({
       className: className,
       subclassName: subclassName,
-      level: level,
+      level: totalLevel,
+      classes: allClasses,
       species: species,
       lineage: lineage,
       background: background,
       featureChoices: featureChoices,
-      spells: [].concat(_toConsumableArray(spells.filter(Boolean)), _toConsumableArray(featSpells)),
+      spells: [].concat(_toConsumableArray(spells.filter(Boolean)), _toConsumableArray(featSpells), _toConsumableArray(mcSpellNames)),
       feats: Array.from(new Set(takenFeats.flatMap(function (f) {
         return [f.name, f.base];
       }))),
@@ -6885,7 +7079,7 @@ function CharacterSheet() {
     });
   },
   // an item that needs Attunement (or another slot) works only while in it
-  [className, subclassName, level, species, lineage, background, featureChoices, spells, featSpells, takenFeats, pinnedItems, characterItems]);
+  [className, subclassName, level, classesKey, JSON.stringify(mcSpellNames), species, lineage, background, featureChoices, spells, featSpells, takenFeats, pinnedItems, characterItems]);
   var featureScores = useMemo(function () {
     var out = {};
     mech.entries.forEach(function (e) {
@@ -6940,13 +7134,13 @@ function CharacterSheet() {
       WIS: finalMods.Wisdom,
       CHA: finalMods.Charisma,
       PROF: profBonus,
-      LEVEL: level,
-      PACTLEVEL: cls && cls.casterType === "pact" && PACT_SLOTS[level] ? PACT_SLOTS[level].level : 0,
+      LEVEL: totalLevel,
+      PACTLEVEL: pactLevel && PACT_SLOTS[pactLevel] ? PACT_SLOTS[pactLevel].level : 0,
       SPELLMOD: spellMod,
       SPELLDC: 8 + profBonus + spellMod + dcB,
       SPELLATK: profBonus + spellMod + atkB
     };
-  }, [cls, finalMods, profBonus, level, takenFeats, mech]);
+  }, [cls, finalMods, profBonus, level, totalLevel, pactLevel, takenFeats, mech]);
   // Every weapon in the inventory is a weapon the character can attack with. A magic weapon counts once its kind is chosen.
   var weapons = useMemo(function () {
     var out = [];
@@ -6989,7 +7183,7 @@ function CharacterSheet() {
   }, [armor, shield, bestShield]);
   // What the character's features change on the sheet: Armor Class, Speed, Hit Points, saves, senses and so on.
   var derived = useMemo(function () {
-    var d = gatherStatics(mech.entries, spellCtx, gear, level);
+    var d = gatherStatics(mech.entries, spellCtx, gear, totalLevel);
     ((SPECIES[species] || {}).traits || []).forEach(function (t) {
       var m = /^(Darkvision|Blindsight|Tremorsense|Truesight) \((\d+) ft\.\)/.exec(t);
       if (m) d.senses.push("".concat(m[1], " ").concat(m[2], " ft."));
@@ -7010,12 +7204,18 @@ function CharacterSheet() {
     for (var l = 2; l <= level; l++) {
       hp += Math.floor(cls.hitDie / 2) + 1 + conMod; // average roll for subsequent levels
     }
-    return Math.max(hp, level) + derived.hp; // minimum 1 per level, plus features such as Dwarven Toughness
-  }, [cls, level, finalMods.Constitution, derived]);
+    mcList.forEach(function (x) {
+      var d = CLASSES[x.name].hitDie || 8;
+      hp += x.level * (Math.floor(d / 2) + 1 + conMod);
+    }); // another class: its average at each of its levels
+    return Math.max(hp, totalLevel) + derived.hp; // minimum 1 per level, plus features such as Dwarven Toughness
+  }, [cls, level, classesKey, finalMods.Constitution, derived]);
   // The most this character could have: the highest number on the die at every level, plus Constitution and features.
   var possibleMaxHp = useMemo(function () {
-    return cls ? Math.max(level * (cls.hitDie + finalMods.Constitution), level) + derived.hp : 0;
-  }, [cls, level, finalMods.Constitution, derived]);
+    return cls ? Math.max(level * (cls.hitDie + finalMods.Constitution) + mcList.reduce(function (n, x) {
+      return n + x.level * ((CLASSES[x.name].hitDie || 8) + finalMods.Constitution);
+    }, 0), totalLevel) + derived.hp : 0;
+  }, [cls, level, classesKey, finalMods.Constitution, derived]);
   var featureLedger = useMemo(function () {
     var entries = [];
     // Species traits
@@ -7048,26 +7248,40 @@ function CharacterSheet() {
       source: "Background"
     });
     // Class + subclass features
-    entries.push.apply(entries, _toConsumableArray(getFeaturesUpToLevel(className, subclassName, level)));
+    entries.push.apply(entries, _toConsumableArray(getFeaturesUpToLevel(className, subclassName, level).map(function (f) {
+      return mcList.length ? _objectSpread(_objectSpread({}, f), {}, {
+        source: f.source === "Subclass" ? subclassName || "Subclass" : className
+      }) : f;
+    })));
+    mcList.forEach(function (x) {
+      return getFeaturesUpToLevel(x.name, x.sub || "", x.level).forEach(function (f) {
+        return entries.push(_objectSpread(_objectSpread({}, f), {}, {
+          source: f.source === "Subclass" ? x.sub || "".concat(x.name, " subclass") : x.name,
+          text: f.text,
+          mc: x.name
+        }));
+      });
+    }); // another class's features, marked with where they came from
     // Ability Score Improvements
-    Object.entries(asiChoices).forEach(function (_ref34) {
-      var _ref35 = _slicedToArray(_ref34, 2),
-        lvl = _ref35[0],
-        choice = _ref35[1];
-      if (parseInt(lvl) > level || !choice) return;
+    Object.entries(asiChoices).forEach(function (_ref36) {
+      var _ref37 = _slicedToArray(_ref36, 2),
+        lvl = _ref37[0],
+        choice = _ref37[1];
+      var a = asiOf(lvl);
+      if (!a || !choice) return;
       if (choice.type === "asi" && choice.abilities && choice.abilities.filter(Boolean).length) {
         entries.push({
-          level: parseInt(lvl),
+          level: a.lvl,
           text: "Ability Score Improvement: ".concat(choice.abilities.filter(Boolean).map(function (a) {
             return ABBR[a];
           }).join(", ")),
-          source: "ASI"
+          source: mcList.length ? "ASI (".concat(a.label, ")") : "ASI"
         });
       }
     });
     // Feats, with what was chosen for each
     takenFeats.forEach(function (f) {
-      var lvl = /^asi(\d+)$/.exec(f.key) ? parseInt(f.key.slice(3)) : /(\d+)/.exec(f.key) ? parseInt(/(\d+)/.exec(f.key)[1]) : 1;
+      var lvl = /^asi/.test(f.key) && asiOf(f.key.slice(3)) ? asiOf(f.key.slice(3)).lvl : /(\d+)/.exec(f.key) ? parseInt(/(\d+)/.exec(f.key)[1]) : 1;
       var c = f.choices,
         picked = [];
       if (c.ability) picked.push("+1 ".concat(c.ability));
@@ -7092,7 +7306,7 @@ function CharacterSheet() {
     return entries.sort(function (a, b) {
       return a.level - b.level;
     });
-  }, [species, lineage, bgEff, className, subclassName, level, asiChoices, takenFeats, featSkills]);
+  }, [species, lineage, bgEff, className, subclassName, level, classesKey, asiSlots, asiChoices, takenFeats, featSkills]);
 
   // Each save: "class" (granted), "added" (custom), "removed" (granted but taken away) or "".
   var saveInfo = useMemo(function () {
@@ -7111,19 +7325,31 @@ function CharacterSheet() {
     });
     return out;
   }, [saveInfo, finalMods, profBonus, derived]);
+
+  // The skill a class gives when it is taken as another class (Bard, Ranger, Rogue), picked in its row on the Identity tab
+  var mcSkills = mcList.filter(function (x) {
+    return mcOf(x.name).skills && ALL_SKILLS.includes(featureChoices["mc-skill:" + x.name]);
+  }).map(function (x) {
+    return {
+      skill: featureChoices["mc-skill:" + x.name],
+      source: "".concat(x.name, " (multiclass)")
+    };
+  });
   var skillInfo = useMemo(function () {
     return sortSkills(cls, species, [].concat(_toConsumableArray((bgEff && bgEff.skills || []).map(function (k) {
       return {
         skill: k,
         source: "Background"
       };
-    })), _toConsumableArray(featSkills.skills)), skillProfs, skillRemove, {
+    })), _toConsumableArray(featSkills.skills), _toConsumableArray(mcSkills)), skillProfs, skillRemove, {
       classPicks: derived.classPicks,
       anyPicks: derived.anyPicks
     });
-  }, [cls, species, bgEff, featSkills, skillProfs, skillRemove, derived]);
+  }, [cls, species, bgEff, featSkills, JSON.stringify(mcSkills), skillProfs, skillRemove, derived]);
   // Expertise: the class says how many. Any past that is a customization.
-  var expertiseMax = expertiseSlots(className, level);
+  var expertiseMax = expertiseSlots(className, level) + mcList.reduce(function (n, x) {
+    return n + expertiseSlots(x.name, x.level);
+  }, 0);
   var expertiseList = skillExpertise.filter(function (k) {
     return allSkillProfsOf(skillInfo).includes(k);
   });
@@ -7155,6 +7381,35 @@ function CharacterSheet() {
   var spellInfo = useMemo(function () {
     return sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists, spellbook);
   }, [cls, className, level, spells, derived, featureChoices]);
+  // Multiclassing: each other class that casts spells keeps its own list, with its own ability; slots are shared (2024 rules)
+  var mcCasters = mcList.filter(function (x) {
+    return CLASSES[x.name].casterType;
+  });
+  var mcSpellInfo = mcCasters.map(function (x) {
+    return {
+      x: x,
+      info: sortSpells(CLASSES[x.name], x.name, x.level, x.spells && x.spells.length ? x.spells : [""], 0, [], null)
+    };
+  });
+  var sharedSlots = function () {
+    var cs = allClasses.filter(function (x) {
+      return CLASSES[x.name] && ["full", "half"].includes(CLASSES[x.name].casterType);
+    });
+    if (cs.length < 2) return null;
+    var n = cs.reduce(function (t, x) {
+      return t + (CLASSES[x.name].casterType === "full" ? x.level : Math.ceil(x.level / 2));
+    }, 0);
+    return FULL_CASTER_SLOTS[Math.min(20, n)] || [];
+  }();
+  var setMcSpells = function setMcSpells(name, list) {
+    return setExtraClasses(function (prev) {
+      return prev.map(function (x) {
+        return x.name === name ? _objectSpread(_objectSpread({}, x), {}, {
+          spells: list
+        }) : x;
+      });
+    });
+  };
   // Everything on this sheet that goes past the rules, in words.
   var customizations = useMemo(function () {
     var out = [];
@@ -7184,10 +7439,10 @@ function CharacterSheet() {
       if (e.sp && e.problem) out.push("Spell ".concat(e.sp.n, ": ").concat(e.problem));
     });
     if (maxHp + hpDelta > possibleMaxHp) out.push("Hit Points: ".concat(maxHp + hpDelta, ", above the highest possible ").concat(possibleMaxHp));
-    [["ac", "Armor Class"], ["initiative", "Initiative"], ["speed", "Speed"]].forEach(function (_ref36) {
-      var _ref37 = _slicedToArray(_ref36, 2),
-        k = _ref37[0],
-        l = _ref37[1];
+    [["ac", "Armor Class"], ["initiative", "Initiative"], ["speed", "Speed"]].forEach(function (_ref38) {
+      var _ref39 = _slicedToArray(_ref38, 2),
+        k = _ref39[0],
+        l = _ref39[1];
       if (statAdj[k]) out.push("".concat(l, ": additional modifier ").concat(fmt(statAdj[k])));
     });
     masteries.slice(derived.masteryCount).forEach(function (n) {
@@ -7413,6 +7668,25 @@ function CharacterSheet() {
     spellInfo.list.forEach(function (e) {
       return push(e.sp, tune);
     });
+    mcSpellInfo.forEach(function (_ref40) {
+      var x = _ref40.x,
+        info = _ref40.info;
+      var ab = CLASSES[x.name].spellAbility,
+        m = ab ? finalMods[ab] : 0,
+        dcB = spellCtx.SPELLDC - 8 - profBonus - spellCtx.SPELLMOD,
+        atB = spellCtx.SPELLATK - profBonus - spellCtx.SPELLMOD;
+      var ctx = _objectSpread(_objectSpread({}, spellCtx), {}, {
+        SPELLMOD: m,
+        SPELLDC: 8 + profBonus + m + dcB,
+        SPELLATK: profBonus + m + atB
+      });
+      info.list.forEach(function (e) {
+        return push(e.sp, _objectSpread(_objectSpread({}, tune), {}, {
+          ctx: ctx,
+          points: null
+        }));
+      });
+    }); // another class's spells use that class's ability
     derived.spells.forEach(function (g) {
       return push(spellOf(g.name), _objectSpread(_objectSpread({}, tune), {}, {
         once: !(cls && cls.casterType)
@@ -7518,12 +7792,29 @@ function CharacterSheet() {
     Druid: ["Herbalism Kit"]
   }[className] || [];
   var prof = useMemo(function () {
-    return proficiencyOf(cls, derived, [].concat(_toConsumableArray(classTools), [bgEff && bgEff.tool], _toConsumableArray(featSkills.tools.map(function (t) {
+    return proficiencyOf(cls, _objectSpread(_objectSpread({}, derived), {}, {
+      profArmor: [].concat(_toConsumableArray(derived.profArmor || []), _toConsumableArray(mcList.flatMap(function (x) {
+        return mcOf(x.name).armor || [];
+      }))),
+      profWeapons: [].concat(_toConsumableArray(derived.profWeapons || []), _toConsumableArray(mcList.flatMap(function (x) {
+        return mcOf(x.name).weapons || [];
+      })))
+    }), [].concat(_toConsumableArray(classTools), _toConsumableArray(mcList.map(function (x) {
+      return mcOf(x.name).tool;
+    }).filter(function (t) {
+      return t && !/^one /.test(t);
+    })), [bgEff && bgEff.tool], _toConsumableArray(featSkills.tools.map(function (t) {
       return t.tool;
     })), _toConsumableArray(journal.tools)));
-  }, [cls, derived, className, bgEff, featSkills, journal.tools]);
+  }, [cls, derived, className, classesKey, bgEff, featSkills, journal.tools]);
   // Activated features from Content Packs, worked out from this character's numbers as they stand now.
   // Everything this character can activate, worked out from its numbers as they stand now.
+  var ctxOf = function ctxOf(e) {
+    var g = pObj(e && e.grantedBy);
+    return (g.type === "class" || g.type === "subclass") && e.classLevel ? _objectSpread(_objectSpread({}, spellCtx), {}, {
+      LEVEL: e.classLevel
+    }) : spellCtx;
+  }; // a class feature counts its class's level
   var sheetActions = useMemo(function () {
     var out = weaponActions(weapons, spellCtx, derived, takenFeats.map(function (f) {
       return f.base;
@@ -7535,7 +7826,7 @@ function CharacterSheet() {
             sp = spellOf(cs.spell);
           if (!sp) return;
           var lvl = Math.max(0, Math.min(9, parseInt(cs.level, 10) || sp.l)),
-            ctx2 = _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, spellCtx), +cs.dc > 0 ? {
+            ctx2 = _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, ctxOf(e)), +cs.dc > 0 ? {
               SPELLDC: +cs.dc
             } : {}), cs.attack != null && cs.attack !== "" ? {
               SPELLATK: +cs.attack
@@ -7564,7 +7855,7 @@ function CharacterSheet() {
               a.maxLvl = maxLvl;
             }
           } else if (u.max != null) {
-            var n = evalFormula(u.max, spellCtx);
+            var n = evalFormula(u.max, ctxOf(e));
             if (n > 0) {
               a.usesMax = n;
               a.recharge = ["short", "dawn", "none"].includes(u.recharge) ? u.recharge : u.recharge === "after" && durationSeconds(u.after) > 0 ? "after" : "long";
@@ -7577,7 +7868,7 @@ function CharacterSheet() {
       }
       if (!isActivated(e)) return;
       try {
-        var _a = compileAbility(e, spellCtx);
+        var _a = compileAbility(e, ctxOf(e));
         if (pObj(e.grantedBy).type === "item") _a.item = pStr(e.grantedBy.name, 80); // used from the Inventory tab too
         if (pObj(e.grantedBy).type === "spell") {
           // a pack spell brings its components along
@@ -7619,7 +7910,7 @@ function CharacterSheet() {
     mech.entries.forEach(function (e) {
       var r = e.resource;
       if (!r || !r.name) return;
-      var max = evalFormula(r.max, spellCtx);
+      var max = evalFormula(r.max, ctxOf(e));
       if (Number.isFinite(max) && max > 0) {
         out[pStr(r.name, 40)] = {
           max: Math.min(999, max),
@@ -7628,7 +7919,7 @@ function CharacterSheet() {
         if (r.recharge === "after" && durationSeconds(r.after) > 0) out[pStr(r.name, 40)].wait = durationSeconds(r.after);
         if (+r.shortRegain > 0) out[pStr(r.name, 40)].shortRegain = +r.shortRegain;
         if (r.recharge === "dawn" && r.regain) {
-          var d = evalDice(r.regain, spellCtx);
+          var d = evalDice(r.regain, ctxOf(e));
           if (d) out[pStr(r.name, 40)].regain = d;
         }
         if (pObj(e.grantedBy).type === "item") out[pStr(r.name, 40)].item = pStr(e.grantedBy.name, 80);
@@ -7709,6 +8000,17 @@ function CharacterSheet() {
       keys.add("lineage");
       count.identity++;
     }
+    mcList.forEach(function (x) {
+      var xc = CLASSES[x.name];
+      if (xc.subclassLevel && x.level >= xc.subclassLevel && !x.sub && Object.keys(xc.subclasses || {}).length) {
+        keys.add("subclass:" + x.name);
+        count.identity++;
+      }
+      if (mcOf(x.name).skills && !featureChoices["mc-skill:" + x.name]) {
+        keys.add("mc-skill:" + x.name);
+        count.identity++;
+      }
+    });
     var sk = (skillInfo.classLeft || 0) + (skillInfo.speciesLeft || 0) + (skillInfo.anyLeft || 0);
     if (sk > 0) {
       keys.add("skills");
@@ -7769,16 +8071,16 @@ function CharacterSheet() {
       summary = [];
     if (_long) {
       if (displayHp < effectiveMaxHp) summary.push("Hit Points: ".concat(displayHp, " to ").concat(effectiveMaxHp));
-      if (hitDiceUsed > 0) summary.push("Hit Point Dice: ".concat(level - hitDiceUsed, " to ").concat(level));
+      if (hitDiceUsed > 0) summary.push("Hit Point Dice: ".concat(totalLevel - hitDiceUsed, " to ").concat(totalLevel));
       if (tempHp > 0) summary.push("Temporary Hit Points: ".concat(tempHp, " to 0"));
       setCurrentHp(null);
       setTempHp(0);
       setHitDiceUsed(0);
     }
-    Object.entries(pools).forEach(function (_ref38) {
-      var _ref39 = _slicedToArray(_ref38, 2),
-        name = _ref39[0],
-        q = _ref39[1];
+    Object.entries(pools).forEach(function (_ref41) {
+      var _ref42 = _slicedToArray(_ref41, 2),
+        name = _ref42[0],
+        q = _ref42[1];
       if (_long || q.recharge === "short") summary.push("".concat(name, ": back to ").concat(q.max));else if (q.shortRegain) summary.push("".concat(name, ": ").concat(q.shortRegain, " use back"));
     });
     var all = [].concat(_toConsumableArray(sheetActions), _toConsumableArray(spellActions));
@@ -7805,7 +8107,7 @@ function CharacterSheet() {
   }
   function spendHitDie() {
     // Short Rest: roll a Hit Point Die and add the Constitution modifier
-    if (!cls || hitDiceUsed >= level) return;
+    if (!cls || hitDiceUsed >= totalLevel) return;
     var gain = Math.max(1, Math.floor(Math.random() * cls.hitDie) + 1 + finalMods.Constitution);
     setHitDiceUsed(hitDiceUsed + 1);
     setCurrentHp(Math.min(effectiveMaxHp, displayHp + gain));
@@ -7960,22 +8262,37 @@ function CharacterSheet() {
   var fileInputRef = useRef(null);
   var inSuite = window.parent !== window;
   function buildCharacterFile() {
-    return _objectSpread(_objectSpread(_objectSpread({
+    return _objectSpread(_objectSpread(_objectSpread(_objectSpread(_objectSpread({
       format: "homebrew-academy-character",
       version: 3,
       charId: charId
     }, portrait ? {
       portrait: portrait,
       portraitThumb: portraitThumb
+    } : {}), companions.length ? {
+      companions: companions
     } : {}), {}, {
       name: charName,
       player: playerName,
       className: className,
       subclassName: subclassName,
-      level: level,
+      level: totalLevel,
       species: species,
       background: background,
-      alignment: alignment,
+      alignment: alignment
+    }, mcList.length ? {
+      classes: allClasses.map(function (x) {
+        return {
+          name: x.name,
+          sub: x.sub || "",
+          level: x.level
+        };
+      }),
+      classLine: classLine,
+      mcSpells: Object.fromEntries(mcCasters.map(function (x) {
+        return [x.name, (x.spells || []).filter(Boolean)];
+      }))
+    } : {}), {}, {
       scores: finalScores,
       saves: savingThrows,
       profBonus: profBonus,
@@ -7988,7 +8305,7 @@ function CharacterSheet() {
       features: featureLedger.map(function (f) {
         return f.detail ? "".concat(f.text, ". ").concat(f.detail) : f.text;
       }),
-      spells: Array.from(new Set([].concat(_toConsumableArray(spells.filter(Boolean)), _toConsumableArray(featSpells), _toConsumableArray(derived.spells.map(function (g) {
+      spells: Array.from(new Set([].concat(_toConsumableArray(spells.filter(Boolean)), _toConsumableArray(mcSpellNames), _toConsumableArray(featSpells), _toConsumableArray(derived.spells.map(function (g) {
         return g.name;
       })), _toConsumableArray(derived.spellPicks.filter(function (q) {
         return q.cast !== "book";
@@ -8033,7 +8350,7 @@ function CharacterSheet() {
           var g2 = _objectSpread(_objectSpread({}, gear), {}, {
               armor: a
             }),
-            v = armorClassOf(gatherStatics(mech.entries, spellCtx, g2, level), g2, finalMods.Dexterity).value + (statAdj.ac || 0); // what features give depends on the armor (Defense)
+            v = armorClassOf(gatherStatics(mech.entries, spellCtx, g2, totalLevel), g2, finalMods.Dexterity).value + (statAdj.ac || 0); // what features give depends on the armor (Defense)
           return {
             name: n,
             ac: v,
@@ -8132,7 +8449,7 @@ function CharacterSheet() {
       saveProfs: ABILITIES.filter(function (a) {
         return saveInfo[a] === "class" || saveInfo[a] === "added";
       }),
-      spellList: Array.from(new Set([].concat(_toConsumableArray(spells.filter(Boolean)), _toConsumableArray(featSpells), _toConsumableArray(derived.spells.map(function (g) {
+      spellList: Array.from(new Set([].concat(_toConsumableArray(spells.filter(Boolean)), _toConsumableArray(mcSpellNames), _toConsumableArray(featSpells), _toConsumableArray(derived.spells.map(function (g) {
         return g.name;
       })), _toConsumableArray(derived.spellPicks.filter(function (q) {
         return q.cast !== "book";
@@ -8155,20 +8472,49 @@ function CharacterSheet() {
       importantItems: pinnedItems.map(function (i) {
         return i && i.name;
       }).filter(Boolean),
-      spellcasting: cls && cls.casterType ? {
-        ability: cls.spellAbility,
-        slotList: cls.casterType === "pact" || cls.spellPoints ? null : getSpellSlots(className, level) || [],
-        points: cls.spellPoints || null,
-        pact: cls.casterType === "pact" ? {
-          slots: PACT_SLOTS[level].slots,
-          level: PACT_SLOTS[level].level
-        } : null,
-        dc: 8 + profBonus + finalMods[cls.spellAbility],
-        attack: profBonus + finalMods[cls.spellAbility],
-        slots: cls.casterType === "pact" ? "".concat(PACT_SLOTS[level].slots, " Pact Magic slots of Level ").concat(PACT_SLOTS[level].level) : (getSpellSlots(className, level) || []).map(function (n, i) {
-          return "Level ".concat(i + 1, ": ").concat(n);
-        }).join(", ")
-      } : null,
+      spellcasting: function () {
+        var cs = allClasses.filter(function (x) {
+          return CLASSES[x.name] && CLASSES[x.name].casterType;
+        });
+        if (!cs.length) return null;
+        var first = CLASSES[cs[0].name],
+          ab = first.spellAbility,
+          slotList = sharedSlots || (cs.find(function (x) {
+            return CLASSES[x.name].casterType !== "pact";
+          }) && !CLASSES[cs.find(function (x) {
+            return CLASSES[x.name].casterType !== "pact";
+          }).name].spellPoints ? getSpellSlots(cs.find(function (x) {
+            return CLASSES[x.name].casterType !== "pact";
+          }).name, cs.find(function (x) {
+            return CLASSES[x.name].casterType !== "pact";
+          }).level) || [] : null);
+        var pact = pactLevel && PACT_SLOTS[pactLevel] ? {
+          slots: PACT_SLOTS[pactLevel].slots,
+          level: PACT_SLOTS[pactLevel].level
+        } : null;
+        return _objectSpread(_objectSpread({
+          ability: ab
+        }, cs.length > 1 ? {
+          byClass: cs.map(function (x) {
+            var a = CLASSES[x.name].spellAbility;
+            return {
+              "class": x.name,
+              ability: a,
+              dc: 8 + profBonus + finalMods[a],
+              attack: profBonus + finalMods[a]
+            };
+          })
+        } : {}), {}, {
+          slotList: slotList,
+          points: first.spellPoints || null,
+          pact: pact,
+          dc: 8 + profBonus + finalMods[ab],
+          attack: profBonus + finalMods[ab],
+          slots: [slotList && slotList.length ? slotList.map(function (n, i) {
+            return "Level ".concat(i + 1, ": ").concat(n);
+          }).join(", ") : "", pact ? "".concat(pact.slots, " Pact Magic slots of Level ").concat(pact.level) : ""].filter(Boolean).join("; ")
+        });
+      }(),
       hitDie: cls ? cls.hitDie : null,
       hitDiceUsed: hitDiceUsed,
       xp: xp,
@@ -8312,11 +8658,38 @@ function CharacterSheet() {
     setCharId(typeof data.charId === "string" && /^[a-z0-9]{4,20}$/.test(data.charId) ? data.charId : newCharId());
     setPortrait(isPic(data.portrait) ? data.portrait : "");
     setPortraitThumb(isPic(data.portraitThumb) ? data.portraitThumb : "");
+    setCompanions(Array.isArray(data.companions) ? data.companions.filter(function (p) {
+      return p && _typeof(p) === "object" && String(p.name || "").trim();
+    }).slice(0, 6).map(function (p) {
+      return {
+        id: String(p.id || newCharId()),
+        name: String(p.name).slice(0, 60),
+        base: String(p.base || "").slice(0, 80),
+        kind: String(p.kind || "").slice(0, 30),
+        ac: parseInt(p.ac) || 0,
+        hp: parseInt(p.hp) || 0,
+        speed: parseInt(p.speed) || 0
+      };
+    }) : []);
     setCharName(String(data.name || ""));
     setPlayerName(String(data.player || ""));
     setClassName(CLASSES[data.className] ? data.className : "Fighter");
     setSubclassName(String(data.subclassName || ""));
-    setLevel(Math.max(1, Math.min(20, parseInt(data.level) || 1)));
+    {
+      var cl = Array.isArray(data.classes) && data.classes.length > 1 ? data.classes : null,
+        ms = data.mcSpells && _typeof(data.mcSpells) === "object" ? data.mcSpells : {};
+      setLevel(Math.max(1, Math.min(20, parseInt(cl ? cl[0].level : data.level) || 1)));
+      setExtraClasses(cl ? cl.slice(1).filter(function (x) {
+        return x && CLASSES[x.name];
+      }).slice(0, 6).map(function (x) {
+        return {
+          name: x.name,
+          sub: String(x.sub || ""),
+          level: Math.max(1, Math.min(19, parseInt(x.level) || 1)),
+          spells: Array.isArray(ms[x.name]) ? ms[x.name].map(String) : []
+        };
+      }) : []);
+    }
     setSpecies(SPECIES[data.species] ? data.species : "Human");
     setBackground(BACKGROUNDS[data.background] ? data.background : "Soldier");
     setAlignment(String(data.alignment || ""));
@@ -8895,7 +9268,7 @@ function CharacterSheet() {
       marginTop: 6,
       fontWeight: 600
     }
-  }, "Level ", level, " ", species, " ", className, subclassName ? " (".concat(subclassName, ")") : "", " \xB7 ", background), /*#__PURE__*/React.createElement("div", {
+  }, "Level ", totalLevel, " ", species, " ", classLine || className, subclassName && !classLine ? " (".concat(subclassName, ")") : "", " \xB7 ", background), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -8918,10 +9291,10 @@ function CharacterSheet() {
     return startRest("long");
   }, true]].filter(function (x) {
     return x[2];
-  }).map(function (_ref41) {
-    var _ref42 = _slicedToArray(_ref41, 2),
-      label = _ref42[0],
-      fn = _ref42[1];
+  }).map(function (_ref44) {
+    var _ref45 = _slicedToArray(_ref44, 2),
+      label = _ref45[0],
+      fn = _ref45[1];
     return /*#__PURE__*/React.createElement("button", {
       key: label,
       onClick: fn,
@@ -8955,7 +9328,14 @@ function CharacterSheet() {
       fontSize: 13,
       color: colors.ink
     }
-  }, /*#__PURE__*/React.createElement("span", null, "Player code: ", /*#__PURE__*/React.createElement("strong", {
+  }, /*#__PURE__*/React.createElement("span", {
+    "data-testid": "app-version",
+    style: {
+      opacity: 0.75,
+      fontFamily: fontDisplay,
+      fontSize: 11
+    }
+  }, "Character Builder v4.1"), /*#__PURE__*/React.createElement("span", null, "Player code: ", /*#__PURE__*/React.createElement("strong", {
     "data-testid": "player-code",
     style: {
       fontFamily: fontDisplay,
@@ -8984,11 +9364,11 @@ function CharacterSheet() {
     return openPlayerCode(codeInput);
   }, !codeInput], ["New Player Code", function () {
     return openPlayerCode(makeCode());
-  }, false]].map(function (_ref43) {
-    var _ref44 = _slicedToArray(_ref43, 3),
-      label = _ref44[0],
-      fn = _ref44[1],
-      off = _ref44[2];
+  }, false]].map(function (_ref46) {
+    var _ref47 = _slicedToArray(_ref46, 3),
+      label = _ref47[0],
+      fn = _ref47[1],
+      off = _ref47[2];
     return /*#__PURE__*/React.createElement("button", {
       key: label,
       onClick: fn,
@@ -9022,10 +9402,10 @@ function CharacterSheet() {
       background: colors.ink,
       borderBottom: "1px solid ".concat(colors.brass, "55")
     }
-  }, [["AC", armorClass], ["Initiative", fmt(initiative)], ["Speed", "".concat(speed, " ft")], ["HP", effectiveMaxHp], ["Prof Bonus", fmt(profBonus)], ["Passive Perception", passivePerception]].map(function (_ref45) {
-    var _ref46 = _slicedToArray(_ref45, 2),
-      label = _ref46[0],
-      val = _ref46[1];
+  }, [["AC", armorClass], ["Initiative", fmt(initiative)], ["Speed", "".concat(speed, " ft")], ["HP", effectiveMaxHp], ["Prof Bonus", fmt(profBonus)], ["Passive Perception", passivePerception]].map(function (_ref48) {
+    var _ref49 = _slicedToArray(_ref48, 2),
+      label = _ref49[0],
+      val = _ref49[1];
     return /*#__PURE__*/React.createElement("div", {
       key: label,
       style: {
@@ -9062,10 +9442,10 @@ function CharacterSheet() {
       borderBottom: "2px solid ".concat(colors.brass),
       overflowX: "auto"
     }
-  }, [["identity", "Identity"], ["abilities", "Abilities"], ["skills", "Skills & Saves"], ["combat", "Combat"], ["features", "Features"], ["spells", "Spellcasting"], ["inventory", "Inventory"], ["journal", "Journal"], ["packs", "Content Packs"], ["sheet", "Character Sheet"]].map(function (_ref47) {
-    var _ref48 = _slicedToArray(_ref47, 2),
-      key = _ref48[0],
-      label = _ref48[1];
+  }, [["identity", "Identity"], ["abilities", "Abilities"], ["skills", "Skills & Saves"], ["combat", "Combat"], ["features", "Features"], ["spells", "Spellcasting"], ["inventory", "Inventory"], ["journal", "Journal"], ["companions", "Companions"], ["packs", "Content Packs"], ["sheet", "Character Sheet"]].map(function (_ref50) {
+    var _ref51 = _slicedToArray(_ref50, 2),
+      key = _ref51[0],
+      label = _ref51[1];
     return /*#__PURE__*/React.createElement("button", {
       key: key,
       className: "tab-btn",
@@ -9236,9 +9616,11 @@ function CharacterSheet() {
       fontSize: 13,
       marginBottom: 10
     }
-  }, "Hit Point Dice left: ", level - hitDiceUsed, " of ", level, " (d", cls.hitDie, "). Hit Points: ", displayHp, " / ", effectiveMaxHp, ".", " ", /*#__PURE__*/React.createElement("button", {
+  }, "Hit Point Dice left: ", totalLevel - hitDiceUsed, " of ", totalLevel, " (", mcList.length ? ["d".concat(cls.hitDie)].concat(_toConsumableArray(mcList.map(function (x) {
+    return "d".concat(CLASSES[x.name].hitDie);
+  }))).join(", ") : "d".concat(cls.hitDie), "). Hit Points: ", displayHp, " / ", effectiveMaxHp, ".", " ", /*#__PURE__*/React.createElement("button", {
     onClick: spendHitDie,
-    disabled: hitDiceUsed >= level || displayHp >= effectiveMaxHp,
+    disabled: hitDiceUsed >= totalLevel || displayHp >= effectiveMaxHp,
     style: {
       background: "transparent",
       border: "1px solid ".concat(colors.brass),
@@ -9342,7 +9724,160 @@ function CharacterSheet() {
       margin: "0 auto",
       padding: "24px 16px 60px"
     }
-  }, tab === "sheet" && function () {
+  }, tab === "companions" && function () {
+    var mons = Array.isArray(window.HBA_MONSTERS) ? window.HBA_MONSTERS : [];
+    var set = function set(id, patch) {
+      return setCompanions(function (prev) {
+        return prev.map(function (p) {
+          return p.id === id ? _objectSpread(_objectSpread({}, p), patch) : p;
+        });
+      });
+    };
+    var field = _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
+      width: "auto"
+    });
+    return /*#__PURE__*/React.createElement(Section, {
+      title: "Companions",
+      colors: colors,
+      fontDisplay: fontDisplay
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13.5,
+        marginBottom: 10,
+        opacity: 0.9
+      }
+    }, "Creatures that travel with this character: a familiar, a beast companion, a steed. They join the Initiative tracker with the character, right after it. A spell that summons one (Find Familiar, Find Steed) asks what kind when it is cast in the Combat Resolver, so it does not need to be listed here."), companions.map(function (p) {
+      var m = mons.find(function (x) {
+        return x.n === p.base;
+      });
+      return /*#__PURE__*/React.createElement("div", {
+        key: p.id,
+        "data-testid": "companion",
+        style: {
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          alignItems: "center",
+          padding: 8,
+          marginBottom: 6,
+          border: "1px solid ".concat(colors.brass, "66"),
+          borderRadius: 8
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        "aria-label": "Companion name",
+        value: p.name,
+        onChange: function onChange(e) {
+          return set(p.id, {
+            name: e.target.value.slice(0, 60)
+          });
+        },
+        style: _objectSpread(_objectSpread({}, field), {}, {
+          width: 170
+        })
+      }), /*#__PURE__*/React.createElement("select", {
+        "aria-label": "Companion kind",
+        value: p.kind,
+        onChange: function onChange(e) {
+          return set(p.id, {
+            kind: e.target.value
+          });
+        },
+        style: field
+      }, ["", "Familiar", "Beast Companion", "Steed", "Pet", "Hireling", "Other"].map(function (k) {
+        return /*#__PURE__*/React.createElement("option", {
+          key: k,
+          value: k
+        }, k || "Kind...");
+      })), /*#__PURE__*/React.createElement("select", {
+        "aria-label": "Companion stat block",
+        "data-testid": "companion-base",
+        value: p.base,
+        onChange: function onChange(e) {
+          return set(p.id, {
+            base: e.target.value
+          });
+        },
+        style: _objectSpread(_objectSpread({}, field), {}, {
+          width: 220
+        })
+      }, /*#__PURE__*/React.createElement("option", {
+        value: ""
+      }, "Its own numbers (no stat block)"), mons.slice().sort(function (a, b) {
+        return a.n.localeCompare(b.n);
+      }).map(function (x) {
+        return /*#__PURE__*/React.createElement("option", {
+          key: x.n + (x.src || ""),
+          value: x.n
+        }, x.n, " (CR ", x.cr, ")");
+      })), m ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 13,
+          opacity: 0.85
+        }
+      }, m.t, " \xB7 AC ", m.ac, " \xB7 ", m.hp, " HP \xB7 ", m.sp) : /*#__PURE__*/React.createElement(React.Fragment, null, [["ac", "AC"], ["hp", "HP"], ["speed", "Speed"]].map(function (_ref52) {
+        var _ref53 = _slicedToArray(_ref52, 2),
+          k = _ref53[0],
+          l = _ref53[1];
+        return /*#__PURE__*/React.createElement("label", {
+          key: k,
+          style: {
+            fontSize: 13
+          }
+        }, l, " ", /*#__PURE__*/React.createElement("input", {
+          type: "number",
+          "aria-label": "Companion ".concat(l),
+          value: p[k] || "",
+          onChange: function onChange(e) {
+            return set(p.id, _defineProperty({}, k, parseInt(e.target.value) || 0));
+          },
+          style: _objectSpread(_objectSpread({}, field), {}, {
+            width: 64
+          })
+        }));
+      })), /*#__PURE__*/React.createElement("button", {
+        onClick: function onClick() {
+          return setCompanions(function (prev) {
+            return prev.filter(function (x) {
+              return x.id !== p.id;
+            });
+          });
+        },
+        style: {
+          background: "transparent",
+          color: CUSTOM_RED,
+          border: "1px solid ".concat(CUSTOM_RED),
+          borderRadius: 6,
+          padding: "3px 10px",
+          cursor: "pointer"
+        }
+      }, "Remove"));
+    }), companions.length < 6 && /*#__PURE__*/React.createElement("button", {
+      "data-testid": "companion-add",
+      onClick: function onClick() {
+        return setCompanions(function (prev) {
+          return [].concat(_toConsumableArray(prev), [{
+            id: newCharId(),
+            name: "",
+            base: "",
+            kind: "",
+            ac: 0,
+            hp: 0,
+            speed: 0
+          }]);
+        });
+      },
+      style: {
+        background: colors.brass,
+        color: colors.ink,
+        border: "none",
+        borderRadius: 6,
+        padding: "6px 12px",
+        fontFamily: fontDisplay,
+        fontWeight: 700,
+        cursor: "pointer"
+      }
+    }, "+ Add a Companion"));
+  }(), tab === "sheet" && function () {
     var d = buildCharacterFile(),
       html = sheetHtml(d);
     return /*#__PURE__*/React.createElement("div", {
@@ -9413,6 +9948,12 @@ function CharacterSheet() {
       }
     }));
   }(), tab === "identity" && /*#__PURE__*/React.createElement(IdentityTab, {
+    extraClasses: extraClasses,
+    setExtraClasses: setExtraClasses,
+    totalLevel: totalLevel,
+    mcScores: finalScores,
+    mcChoices: featureChoices,
+    setMcChoices: setFeatureChoices,
     attnEdge: attnEdge,
     gold: gold,
     setGold: setGold,
@@ -9482,6 +10023,10 @@ function CharacterSheet() {
     colors: colors,
     fontDisplay: fontDisplay
   }), tab === "combat" && /*#__PURE__*/React.createElement(CombatTab, {
+    totalLevel: totalLevel,
+    hitDiceText: mcList.length ? ["".concat(level, "d").concat(cls.hitDie)].concat(_toConsumableArray(mcList.map(function (x) {
+      return "".concat(x.level, "d").concat(CLASSES[x.name].hitDie);
+    }))).join(" + ") : "".concat(level, "d").concat(cls.hitDie),
     possibleMaxHp: possibleMaxHp,
     averageHp: maxHp,
     setHpTotal: setHpTotal,
@@ -9529,6 +10074,11 @@ function CharacterSheet() {
     colors: colors,
     fontDisplay: fontDisplay
   }), tab === "features" && /*#__PURE__*/React.createElement(FeaturesTab, {
+    asiLabel: function asiLabel(k) {
+      return (asiOf(k) || {
+        label: "Level ".concat(k)
+      }).label;
+    },
     attnEdge: attnEdge,
     masteries: masteries,
     setMasteries: setMasteries,
@@ -9554,28 +10104,95 @@ function CharacterSheet() {
     setExtraFeats: setExtraFeats,
     takenFeats: takenFeats,
     custom: custom
-  }), tab === "spells" && /*#__PURE__*/React.createElement(SpellsTab, {
-    attnEdge: attnEdge,
-    bookInfo: derived.spellbook || null,
-    spellbook: spellbook,
-    picks: derived.spellPicks,
-    featureChoices: featureChoices,
-    setFeatureChoices: setFeatureChoices,
-    glow: glowOf("spells"),
-    grantedSpells: derived.spells,
-    cls: cls,
-    className: className,
-    level: level,
-    finalMods: finalMods,
-    profBonus: profBonus,
-    colors: colors,
-    fontDisplay: fontDisplay,
-    spells: spells,
-    setSpells: setSpells,
-    spellInfo: spellInfo,
-    custom: custom,
-    spellSummary: spellSummary
-  }), tab === "journal" && /*#__PURE__*/React.createElement(JournalTab, {
+  }), tab === "spells" && /*#__PURE__*/React.createElement(React.Fragment, null, mcSpellInfo.length > 0 && /*#__PURE__*/React.createElement("div", {
+    "data-testid": "spell-class-tabs",
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap",
+      marginBottom: 10
+    }
+  }, [].concat(_toConsumableArray(cls && cls.casterType ? [className] : []), _toConsumableArray(mcSpellInfo.map(function (m) {
+    return m.x.name;
+  }))).map(function (n) {
+    return /*#__PURE__*/React.createElement("button", {
+      key: n,
+      "data-testid": "spell-class-".concat(n),
+      onClick: function onClick() {
+        return setSpellClass(n);
+      },
+      style: {
+        background: (spellClass || (cls && cls.casterType ? className : mcSpellInfo[0].x.name)) === n ? colors.brass : "transparent",
+        color: (spellClass || (cls && cls.casterType ? className : mcSpellInfo[0].x.name)) === n ? colors.ink : colors.parchment,
+        border: "1px solid ".concat(colors.brass),
+        borderRadius: 14,
+        padding: "4px 14px",
+        fontFamily: fontDisplay,
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: "pointer"
+      }
+    }, n, " spells");
+  }), sharedSlots && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      opacity: 0.85,
+      alignSelf: "center"
+    }
+  }, "Spell slots are shared by your classes (multiclass spellcaster).")), function () {
+    var sel = spellClass && mcSpellInfo.find(function (m) {
+      return m.x.name === spellClass && spellClass !== className;
+    }) || !(cls && cls.casterType) && mcSpellInfo[0];
+    if (!sel) return /*#__PURE__*/React.createElement(SpellsTab, {
+      attnEdge: attnEdge,
+      bookInfo: derived.spellbook || null,
+      spellbook: spellbook,
+      picks: derived.spellPicks,
+      featureChoices: featureChoices,
+      setFeatureChoices: setFeatureChoices,
+      glow: glowOf("spells"),
+      grantedSpells: derived.spells,
+      cls: cls,
+      className: className,
+      level: level,
+      finalMods: finalMods,
+      profBonus: profBonus,
+      colors: colors,
+      fontDisplay: fontDisplay,
+      spells: spells,
+      setSpells: setSpells,
+      spellInfo: spellInfo,
+      custom: custom,
+      spellSummary: spellSummary,
+      sharedSlots: sharedSlots
+    });
+    return /*#__PURE__*/React.createElement(SpellsTab, {
+      key: sel.x.name,
+      attnEdge: attnEdge,
+      bookInfo: null,
+      spellbook: [],
+      picks: [],
+      featureChoices: featureChoices,
+      setFeatureChoices: setFeatureChoices,
+      glow: "",
+      grantedSpells: [],
+      cls: CLASSES[sel.x.name],
+      className: sel.x.name,
+      level: sel.x.level,
+      finalMods: finalMods,
+      profBonus: profBonus,
+      colors: colors,
+      fontDisplay: fontDisplay,
+      spells: sel.x.spells && sel.x.spells.length ? sel.x.spells : [""],
+      setSpells: function setSpells(l) {
+        return setMcSpells(sel.x.name, l);
+      },
+      spellInfo: sel.info,
+      custom: custom,
+      spellSummary: spellSummary,
+      sharedSlots: sharedSlots
+    });
+  }()), tab === "journal" && /*#__PURE__*/React.createElement(JournalTab, {
     journal: journal,
     setJournal: setJournal,
     alignment: alignment,
@@ -9638,11 +10255,11 @@ function CharacterSheet() {
 
 /* ============ TAB COMPONENTS ============ */
 
-function Section(_ref49) {
-  var title = _ref49.title,
-    colors = _ref49.colors,
-    fontDisplay = _ref49.fontDisplay,
-    children = _ref49.children;
+function Section(_ref54) {
+  var title = _ref54.title,
+    colors = _ref54.colors,
+    fontDisplay = _ref54.fontDisplay,
+    children = _ref54.children;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 24
@@ -9661,12 +10278,12 @@ function Section(_ref49) {
   }, title), children);
 }
 var FOLDED = {};
-function FoldSection(_ref50) {
-  var id = _ref50.id,
-    title = _ref50.title,
-    colors = _ref50.colors,
-    fontDisplay = _ref50.fontDisplay,
-    children = _ref50.children;
+function FoldSection(_ref55) {
+  var id = _ref55.id,
+    title = _ref55.title,
+    colors = _ref55.colors,
+    fontDisplay = _ref55.fontDisplay,
+    children = _ref55.children;
   var _React$useState = React.useState(!!FOLDED[id]),
     _React$useState2 = _slicedToArray(_React$useState, 2),
     shut = _React$useState2[0],
@@ -9707,47 +10324,59 @@ function fieldStyle(colors) {
   };
 }
 var XP_LEVELS = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000]; // Experience Points needed for each level
-function IdentityTab(_ref51) {
-  var _ref51$attnEdge = _ref51.attnEdge,
-    attnEdge = _ref51$attnEdge === void 0 ? function () {
+function IdentityTab(_ref56) {
+  var _ref56$extraClasses = _ref56.extraClasses,
+    extraClasses = _ref56$extraClasses === void 0 ? [] : _ref56$extraClasses,
+    _ref56$setExtraClasse = _ref56.setExtraClasses,
+    setExtraClasses = _ref56$setExtraClasse === void 0 ? function () {} : _ref56$setExtraClasse,
+    _ref56$totalLevel = _ref56.totalLevel,
+    totalLevel = _ref56$totalLevel === void 0 ? 1 : _ref56$totalLevel,
+    _ref56$mcScores = _ref56.mcScores,
+    mcScores = _ref56$mcScores === void 0 ? {} : _ref56$mcScores,
+    _ref56$mcChoices = _ref56.mcChoices,
+    mcChoices = _ref56$mcChoices === void 0 ? {} : _ref56$mcChoices,
+    _ref56$setMcChoices = _ref56.setMcChoices,
+    setMcChoices = _ref56$setMcChoices === void 0 ? function () {} : _ref56$setMcChoices,
+    _ref56$attnEdge = _ref56.attnEdge,
+    attnEdge = _ref56$attnEdge === void 0 ? function () {
       return {};
-    } : _ref51$attnEdge,
-    gold = _ref51.gold,
-    setGold = _ref51.setGold,
-    xp = _ref51.xp,
-    setXp = _ref51.setXp,
-    className = _ref51.className,
-    setClassName = _ref51.setClassName,
-    subclassName = _ref51.subclassName,
-    setSubclassName = _ref51.setSubclassName,
-    level = _ref51.level,
-    setLevel = _ref51.setLevel,
-    species = _ref51.species,
-    setSpecies = _ref51.setSpecies,
-    background = _ref51.background,
-    setBackground = _ref51.setBackground,
-    alignment = _ref51.alignment,
-    setAlignment = _ref51.setAlignment,
-    cls = _ref51.cls,
-    colors = _ref51.colors,
-    fontDisplay = _ref51.fontDisplay,
-    bgBonusMode = _ref51.bgBonusMode,
-    setBgBonusMode = _ref51.setBgBonusMode,
-    bgBonusChoices = _ref51.bgBonusChoices,
-    setBgBonusChoices = _ref51.setBgBonusChoices,
-    pinnedItems = _ref51.pinnedItems,
-    setPinnedItems = _ref51.setPinnedItems,
-    inv = _ref51.inv,
-    bgEff = _ref51.bgEff,
-    originCustom = _ref51.originCustom,
-    setOriginCustom = _ref51.setOriginCustom,
-    lineage = _ref51.lineage,
-    setLineage = _ref51.setLineage;
+    } : _ref56$attnEdge,
+    gold = _ref56.gold,
+    setGold = _ref56.setGold,
+    xp = _ref56.xp,
+    setXp = _ref56.setXp,
+    className = _ref56.className,
+    setClassName = _ref56.setClassName,
+    subclassName = _ref56.subclassName,
+    setSubclassName = _ref56.setSubclassName,
+    level = _ref56.level,
+    setLevel = _ref56.setLevel,
+    species = _ref56.species,
+    setSpecies = _ref56.setSpecies,
+    background = _ref56.background,
+    setBackground = _ref56.setBackground,
+    alignment = _ref56.alignment,
+    setAlignment = _ref56.setAlignment,
+    cls = _ref56.cls,
+    colors = _ref56.colors,
+    fontDisplay = _ref56.fontDisplay,
+    bgBonusMode = _ref56.bgBonusMode,
+    setBgBonusMode = _ref56.setBgBonusMode,
+    bgBonusChoices = _ref56.bgBonusChoices,
+    setBgBonusChoices = _ref56.setBgBonusChoices,
+    pinnedItems = _ref56.pinnedItems,
+    setPinnedItems = _ref56.setPinnedItems,
+    inv = _ref56.inv,
+    bgEff = _ref56.bgEff,
+    originCustom = _ref56.originCustom,
+    setOriginCustom = _ref56.setOriginCustom,
+    lineage = _ref56.lineage,
+    setLineage = _ref56.setLineage;
   var bg = bgEff;
-  var _useState135 = useState(false),
-    _useState136 = _slicedToArray(_useState135, 2),
-    originOpen = _useState136[0],
-    setOriginOpen = _useState136[1];
+  var _useState141 = useState(false),
+    _useState142 = _slicedToArray(_useState141, 2),
+    originOpen = _useState142[0],
+    setOriginOpen = _useState142[1];
   var baseBg = BACKGROUNDS[background] || bgEff;
   var startOrigin = function startOrigin() {
     if (!originCustom) setOriginCustom({
@@ -9860,16 +10489,201 @@ function IdentityTab(_ref51) {
       fontSize: 12,
       opacity: 0.8
     }
-  }, "Level"), /*#__PURE__*/React.createElement("input", {
+  }, extraClasses.length ? "".concat(className, " level") : "Level"), /*#__PURE__*/React.createElement("input", {
     type: "number",
     min: 1,
     max: 20,
+    "aria-label": "Level",
     value: level,
     onChange: function onChange(e) {
       return setLevel(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)));
     },
     style: fieldStyle(colors)
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      gridColumn: "1 / -1"
+    },
+    "data-testid": "multiclass"
+  }, extraClasses.map(function (x, i) {
+    var xc = CLASSES[x.name] || {},
+      set = function set(patch) {
+        return setExtraClasses(extraClasses.map(function (y, j) {
+          return j === i ? _objectSpread(_objectSpread({}, y), patch) : y;
+        }));
+      },
+      mc = mcOf(x.name);
+    var prob = [multiclassProblem(className, mcScores), multiclassProblem(x.name, mcScores)].filter(Boolean).join("; "),
+      skKey = "mc-skill:" + x.name;
+    var pool = mc.skillAny || (xc.skillList || []).some(function (k) {
+      return /^Any/i.test(k);
+    }) ? ALL_SKILLS : (xc.skillList || []).filter(function (k) {
+      return ALL_SKILLS.includes(k);
+    });
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      "data-testid": "mc-row",
+      style: {
+        display: "flex",
+        gap: 10,
+        flexWrap: "wrap",
+        alignItems: "flex-end",
+        padding: "8px 0",
+        borderTop: "1px dashed ".concat(colors.brass, "55")
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: 12,
+        opacity: 0.8
+      }
+    }, "Another class"), /*#__PURE__*/React.createElement("select", {
+      "aria-label": "Class ".concat(i + 2),
+      value: x.name,
+      onChange: function onChange(e) {
+        return set({
+          name: e.target.value,
+          sub: "",
+          spells: []
+        });
+      },
+      style: _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
+        width: 160
+      })
+    }, Object.keys(CLASSES).filter(function (c) {
+      return c === x.name || c !== className && !extraClasses.some(function (y) {
+        return y.name === c;
+      });
+    }).map(function (c) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: c,
+        value: c
+      }, c);
+    }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: 12,
+        opacity: 0.8
+      }
+    }, xc.subclassName || "Subclass", x.level < (xc.subclassLevel || 3) ? " (at level ".concat(xc.subclassLevel || 3, ")") : ""), /*#__PURE__*/React.createElement("select", {
+      "aria-label": "Subclass ".concat(i + 2),
+      value: x.sub || "",
+      disabled: x.level < (xc.subclassLevel || 3),
+      onChange: function onChange(e) {
+        return set({
+          sub: e.target.value
+        });
+      },
+      style: _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
+        width: 200,
+        opacity: x.level < (xc.subclassLevel || 3) ? 0.5 : 1
+      }, attnEdge("subclass:" + x.name))
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "\u2014 none yet \u2014"), Object.keys(xc.subclasses || {}).map(function (s2) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: s2,
+        value: s2
+      }, s2);
+    }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: 12,
+        opacity: 0.8
+      }
+    }, x.name, " level"), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      min: 1,
+      max: 19,
+      "aria-label": "Level in class ".concat(i + 2),
+      value: x.level,
+      onChange: function onChange(e) {
+        return set({
+          level: Math.max(1, Math.min(19, parseInt(e.target.value) || 1))
+        });
+      },
+      style: _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
+        width: 70
+      })
+    })), mc.skills > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: {
+        fontSize: 12,
+        opacity: 0.8
+      }
+    }, "Skill from ", x.name), /*#__PURE__*/React.createElement("select", {
+      "aria-label": "Multiclass skill from ".concat(x.name),
+      value: mcChoices[skKey] || "",
+      onChange: function onChange(e) {
+        return setMcChoices(function (prev) {
+          return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, skKey, e.target.value));
+        });
+      },
+      style: _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
+        width: 170
+      }, attnEdge(skKey))
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "Choose a skill..."), pool.map(function (k) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: k,
+        value: k
+      }, k);
+    }))), /*#__PURE__*/React.createElement("button", {
+      onClick: function onClick() {
+        return setExtraClasses(extraClasses.filter(function (_, j) {
+          return j !== i;
+        }));
+      },
+      style: {
+        background: "transparent",
+        color: CUSTOM_RED,
+        border: "1px solid ".concat(CUSTOM_RED),
+        borderRadius: 6,
+        padding: "6px 10px",
+        cursor: "pointer"
+      }
+    }, "Remove"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flexBasis: "100%",
+        fontSize: 12,
+        opacity: 0.85
+      }
+    }, "Gains as another class: ", [(mc.armor || []).length ? "".concat(mc.armor.map(function (a) {
+      return a === "Shield" ? "Shields" : "".concat(a, " armor");
+    }).join(", ")) : "", (mc.weapons || []).length ? "Martial weapons" : "", mc.skills ? "".concat(mc.skills, " skill") : "", mc.tool || ""].filter(Boolean).join(", ") || "no proficiencies", ". No saving throws or starting equipment.", prob && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: ATTN,
+        marginLeft: 6
+      }
+    }, prob, ".")));
+  }), totalLevel < 20 && /*#__PURE__*/React.createElement("button", {
+    "data-testid": "mc-add",
+    onClick: function onClick() {
+      var next = Object.keys(CLASSES).find(function (c) {
+        return c !== className && !extraClasses.some(function (y) {
+          return y.name === c;
+        });
+      });
+      if (next) setExtraClasses([].concat(_toConsumableArray(extraClasses), [{
+        name: next,
+        sub: "",
+        level: 1,
+        spells: []
+      }]));
+    },
+    style: {
+      background: "transparent",
+      color: colors.parchment,
+      border: "1px dashed ".concat(colors.brass),
+      borderRadius: 6,
+      padding: "5px 12px",
+      cursor: "pointer",
+      fontFamily: fontDisplay,
+      fontSize: 12,
+      marginTop: 6
+    }
+  }, "+ Add a class (multiclass)"), extraClasses.length > 0 && /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: 10,
+      fontSize: 13
+    }
+  }, "Character level ", totalLevel)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     style: {
       fontSize: 12,
       opacity: 0.8
@@ -10201,12 +11015,12 @@ function IdentityTab(_ref51) {
     }
   }, /*#__PURE__*/React.createElement("strong", null, "Origin Feat:"), " ", bg.feat, /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("strong", null, "Skill Proficiencies:"), " ", bg.skills.join(", "), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("strong", null, "Tool Proficiency:"), " ", bg.tool))));
 }
-function PinnedItemRow(_ref52) {
-  var item = _ref52.item,
-    isMagic = _ref52.isMagic,
-    dotColor = _ref52.dotColor,
-    onRemove = _ref52.onRemove,
-    colors = _ref52.colors;
+function PinnedItemRow(_ref57) {
+  var item = _ref57.item,
+    isMagic = _ref57.isMagic,
+    dotColor = _ref57.dotColor,
+    onRemove = _ref57.onRemove,
+    colors = _ref57.colors;
   var _React$useState3 = React.useState(false),
     _React$useState4 = _slicedToArray(_React$useState3, 2),
     hovered = _React$useState4[0],
@@ -10310,10 +11124,10 @@ var attnBadge = function attnBadge(n, title) {
 };
 var CUSTOM_RED = "#E5484D"; // anything changed beyond the rules: red outline when added, red letters when removed
 
-function SourceTag(_ref53) {
-  var text = _ref53.text,
-    custom = _ref53.custom,
-    colors = _ref53.colors;
+function SourceTag(_ref58) {
+  var text = _ref58.text,
+    custom = _ref58.custom,
+    colors = _ref58.colors;
   return /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
@@ -10327,32 +11141,32 @@ function SourceTag(_ref53) {
     }
   }, text);
 }
-function AbilitiesTab(_ref54) {
-  var featBonuses = _ref54.featBonuses,
-    pointBuy = _ref54.pointBuy,
-    updatePointBuy = _ref54.updatePointBuy,
-    pointBuyRemaining = _ref54.pointBuyRemaining,
-    finalScores = _ref54.finalScores,
-    finalMods = _ref54.finalMods,
-    bgBonuses = _ref54.bgBonuses,
-    asiBonuses = _ref54.asiBonuses,
-    colors = _ref54.colors,
-    fontDisplay = _ref54.fontDisplay,
-    custom = _ref54.custom,
-    abilityMode = _ref54.abilityMode,
-    setAbilityMode = _ref54.setAbilityMode,
-    customScores = _ref54.customScores,
-    setCustomScores = _ref54.setCustomScores,
-    abilityAdj = _ref54.abilityAdj,
-    setAbilityAdj = _ref54.setAbilityAdj;
-  var _useState137 = useState(false),
-    _useState138 = _slicedToArray(_useState137, 2),
-    editing = _useState138[0],
-    setEditing = _useState138[1]; // custom scores are being set
-  var _useState139 = useState(null),
-    _useState140 = _slicedToArray(_useState139, 2),
-    adjOpen = _useState140[0],
-    setAdjOpen = _useState140[1]; // which ability's additional modifier is open
+function AbilitiesTab(_ref59) {
+  var featBonuses = _ref59.featBonuses,
+    pointBuy = _ref59.pointBuy,
+    updatePointBuy = _ref59.updatePointBuy,
+    pointBuyRemaining = _ref59.pointBuyRemaining,
+    finalScores = _ref59.finalScores,
+    finalMods = _ref59.finalMods,
+    bgBonuses = _ref59.bgBonuses,
+    asiBonuses = _ref59.asiBonuses,
+    colors = _ref59.colors,
+    fontDisplay = _ref59.fontDisplay,
+    custom = _ref59.custom,
+    abilityMode = _ref59.abilityMode,
+    setAbilityMode = _ref59.setAbilityMode,
+    customScores = _ref59.customScores,
+    setCustomScores = _ref59.setCustomScores,
+    abilityAdj = _ref59.abilityAdj,
+    setAbilityAdj = _ref59.setAbilityAdj;
+  var _useState143 = useState(false),
+    _useState144 = _slicedToArray(_useState143, 2),
+    editing = _useState144[0],
+    setEditing = _useState144[1]; // custom scores are being set
+  var _useState145 = useState(null),
+    _useState146 = _slicedToArray(_useState145, 2),
+    adjOpen = _useState146[0],
+    setAdjOpen = _useState146[1]; // which ability's additional modifier is open
   var isCustom = abilityMode === "custom";
   var base = function base(a) {
     return isCustom ? customScores[a] : pointBuy[a];
@@ -10623,24 +11437,24 @@ function AbilitiesTab(_ref54) {
     }
   }, isCustom ? "Custom scores have no point limit: set each score from 1 to 30, then press Accept. Background increases, Ability Score Improvements and additional modifiers are added on top." : "Standard point buy: scores range 8 to 15 before bonuses. Cost: 9=1pt, 10=2, 11=3, 12=4, 13=5, 14=7, 15=9. Background increases and Ability Score Improvements are added automatically above.", !custom && " Turn on Further Customization to set scores freely or add modifiers.")));
 }
-function SkillsTab(_ref55) {
-  var expertiseMax = _ref55.expertiseMax,
-    expertiseList = _ref55.expertiseList,
-    expertiseCustom = _ref55.expertiseCustom,
-    cls = _ref55.cls,
-    skillInfo = _ref55.skillInfo,
-    toggleSkill = _ref55.toggleSkill,
-    addSkill = _ref55.addSkill,
-    removeSkill = _ref55.removeSkill,
-    skillExpertise = _ref55.skillExpertise,
-    toggleExpertise = _ref55.toggleExpertise,
-    skillMods = _ref55.skillMods,
-    savingThrows = _ref55.savingThrows,
-    saveInfo = _ref55.saveInfo,
-    toggleSave = _ref55.toggleSave,
-    custom = _ref55.custom,
-    colors = _ref55.colors,
-    fontDisplay = _ref55.fontDisplay;
+function SkillsTab(_ref60) {
+  var expertiseMax = _ref60.expertiseMax,
+    expertiseList = _ref60.expertiseList,
+    expertiseCustom = _ref60.expertiseCustom,
+    cls = _ref60.cls,
+    skillInfo = _ref60.skillInfo,
+    toggleSkill = _ref60.toggleSkill,
+    addSkill = _ref60.addSkill,
+    removeSkill = _ref60.removeSkill,
+    skillExpertise = _ref60.skillExpertise,
+    toggleExpertise = _ref60.toggleExpertise,
+    skillMods = _ref60.skillMods,
+    savingThrows = _ref60.savingThrows,
+    saveInfo = _ref60.saveInfo,
+    toggleSave = _ref60.toggleSave,
+    custom = _ref60.custom,
+    colors = _ref60.colors,
+    fontDisplay = _ref60.fontDisplay;
   var pick = _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
     width: "auto",
     cursor: "pointer"
@@ -10721,10 +11535,10 @@ function SkillsTab(_ref55) {
       lineHeight: 1.6
     },
     "data-testid": "skill-choices"
-  }, Object.entries(skillInfo.grantedBy).map(function (_ref56) {
-    var _ref57 = _slicedToArray(_ref56, 2),
-      src = _ref57[0],
-      list = _ref57[1];
+  }, Object.entries(skillInfo.grantedBy).map(function (_ref61) {
+    var _ref62 = _slicedToArray(_ref61, 2),
+      src = _ref62[0],
+      list = _ref62[1];
     return /*#__PURE__*/React.createElement("div", {
       key: src
     }, /*#__PURE__*/React.createElement("strong", null, src), " grants ", list.join(" and "), ".");
@@ -10842,42 +11656,44 @@ function SkillsTab(_ref55) {
     }, fmt(skillMods[skill])));
   }))));
 }
-function CombatTab(_ref58) {
-  var possibleMaxHp = _ref58.possibleMaxHp,
-    averageHp = _ref58.averageHp,
-    setHpTotal = _ref58.setHpTotal,
-    statAdj = _ref58.statAdj,
-    setStatAdj = _ref58.setStatAdj,
-    inventory = _ref58.inventory,
-    masteries = _ref58.masteries,
-    setMasteries = _ref58.setMasteries,
-    custom = _ref58.custom,
-    masteryGlow = _ref58.masteryGlow,
-    armor = _ref58.armor,
-    setArmor = _ref58.setArmor,
-    shield = _ref58.shield,
-    setShield = _ref58.setShield,
-    weapons = _ref58.weapons,
-    setWeapons = _ref58.setWeapons,
-    ac = _ref58.ac,
-    sheetActions = _ref58.sheetActions,
-    pools = _ref58.pools,
-    derived = _ref58.derived,
-    cls = _ref58.cls,
-    level = _ref58.level,
-    effectiveMaxHp = _ref58.effectiveMaxHp,
-    currentHp = _ref58.currentHp,
-    setCurrentHp = _ref58.setCurrentHp,
-    tempHp = _ref58.tempHp,
-    setTempHp = _ref58.setTempHp,
-    hitDiceUsed = _ref58.hitDiceUsed,
-    setHitDiceUsed = _ref58.setHitDiceUsed,
-    finalMods = _ref58.finalMods,
-    armorClass = _ref58.armorClass,
-    initiative = _ref58.initiative,
-    speed = _ref58.speed,
-    colors = _ref58.colors,
-    fontDisplay = _ref58.fontDisplay;
+function CombatTab(_ref63) {
+  var totalLevel = _ref63.totalLevel,
+    hitDiceText = _ref63.hitDiceText,
+    possibleMaxHp = _ref63.possibleMaxHp,
+    averageHp = _ref63.averageHp,
+    setHpTotal = _ref63.setHpTotal,
+    statAdj = _ref63.statAdj,
+    setStatAdj = _ref63.setStatAdj,
+    inventory = _ref63.inventory,
+    masteries = _ref63.masteries,
+    setMasteries = _ref63.setMasteries,
+    custom = _ref63.custom,
+    masteryGlow = _ref63.masteryGlow,
+    armor = _ref63.armor,
+    setArmor = _ref63.setArmor,
+    shield = _ref63.shield,
+    setShield = _ref63.setShield,
+    weapons = _ref63.weapons,
+    setWeapons = _ref63.setWeapons,
+    ac = _ref63.ac,
+    sheetActions = _ref63.sheetActions,
+    pools = _ref63.pools,
+    derived = _ref63.derived,
+    cls = _ref63.cls,
+    level = _ref63.level,
+    effectiveMaxHp = _ref63.effectiveMaxHp,
+    currentHp = _ref63.currentHp,
+    setCurrentHp = _ref63.setCurrentHp,
+    tempHp = _ref63.tempHp,
+    setTempHp = _ref63.setTempHp,
+    hitDiceUsed = _ref63.hitDiceUsed,
+    setHitDiceUsed = _ref63.setHitDiceUsed,
+    finalMods = _ref63.finalMods,
+    armorClass = _ref63.armorClass,
+    initiative = _ref63.initiative,
+    speed = _ref63.speed,
+    colors = _ref63.colors,
+    fontDisplay = _ref63.fontDisplay;
   var displayHp = currentHp === null ? effectiveMaxHp : currentHp;
   // Further Customization: an additional modifier on a stat, shown in red
   var adjust = function adjust(k, step) {
@@ -11035,13 +11851,13 @@ function CombatTab(_ref58) {
       marginTop: 14,
       fontSize: 13
     }
-  }, /*#__PURE__*/React.createElement("strong", null, "Hit Dice:"), " ", level, "d", cls.hitDie, " total \xA0|\xA0 Used:", /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("strong", null, "Hit Dice:"), " ", hitDiceText, " total \xA0|\xA0 Used:", /*#__PURE__*/React.createElement("input", {
     type: "number",
     min: 0,
-    max: level,
+    max: totalLevel,
     value: hitDiceUsed,
     onChange: function onChange(e) {
-      return setHitDiceUsed(Math.max(0, Math.min(level, parseInt(e.target.value) || 0)));
+      return setHitDiceUsed(Math.max(0, Math.min(totalLevel, parseInt(e.target.value) || 0)));
     },
     style: _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
       display: "inline-block",
@@ -11053,7 +11869,7 @@ function CombatTab(_ref58) {
       marginLeft: 8,
       opacity: 0.7
     }
-  }, "(remaining: ", level - hitDiceUsed, ")"))), /*#__PURE__*/React.createElement(Section, {
+  }, "(remaining: ", totalLevel - hitDiceUsed, ")"))), /*#__PURE__*/React.createElement(Section, {
     title: "Defenses & Movement",
     colors: colors,
     fontDisplay: fontDisplay
@@ -11063,13 +11879,13 @@ function CombatTab(_ref58) {
       gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
       gap: 12
     }
-  }, [["Armor Class", armorClass, ac.how, "ac", 1], ["Initiative", fmt(initiative), "", "initiative", 1], ["Speed", "".concat(speed, " ft"), "", "speed", 5]].map(function (_ref59) {
-    var _ref60 = _slicedToArray(_ref59, 5),
-      label = _ref60[0],
-      val = _ref60[1],
-      note = _ref60[2],
-      k = _ref60[3],
-      step = _ref60[4];
+  }, [["Armor Class", armorClass, ac.how, "ac", 1], ["Initiative", fmt(initiative), "", "initiative", 1], ["Speed", "".concat(speed, " ft"), "", "speed", 5]].map(function (_ref64) {
+    var _ref65 = _slicedToArray(_ref64, 5),
+      label = _ref65[0],
+      val = _ref65[1],
+      note = _ref65[2],
+      k = _ref65[3],
+      step = _ref65[4];
     return /*#__PURE__*/React.createElement("div", {
       key: label,
       style: {
@@ -11141,10 +11957,10 @@ function CombatTab(_ref58) {
       marginBottom: 10
     },
     "data-testid": "pools"
-  }, /*#__PURE__*/React.createElement("strong", null, "Resources:"), " ", Object.entries(pools).map(function (_ref61) {
-    var _ref62 = _slicedToArray(_ref61, 2),
-      n = _ref62[0],
-      p = _ref62[1];
+  }, /*#__PURE__*/React.createElement("strong", null, "Resources:"), " ", Object.entries(pools).map(function (_ref66) {
+    var _ref67 = _slicedToArray(_ref66, 2),
+      n = _ref67[0],
+      p = _ref67[1];
     return "".concat(n, " ").concat(p.max, " (").concat(p.recharge === "short" ? "Short Rest" : p.shortRegain ? "Long Rest, 1 back on a Short Rest" : "Long Rest", ")");
   }).join(" · ")), sheetActions.map(function (a, i) {
     return /*#__PURE__*/React.createElement("div", {
@@ -11390,10 +12206,10 @@ var EXPERTISE_SLOTS = {
 };
 function expertiseSlots(className, level) {
   var n = 0;
-  Object.entries(EXPERTISE_SLOTS[className] || {}).forEach(function (_ref63) {
-    var _ref64 = _slicedToArray(_ref63, 2),
-      l = _ref64[0],
-      total = _ref64[1];
+  Object.entries(EXPERTISE_SLOTS[className] || {}).forEach(function (_ref68) {
+    var _ref69 = _slicedToArray(_ref68, 2),
+      l = _ref69[0],
+      total = _ref69[1];
     if (level >= +l) n = Math.max(n, total);
   });
   return n;
@@ -11444,11 +12260,11 @@ function featProblem(name, cats, ch) {
 }
 
 // The choices a feat asks for, shown right where the feat is picked.
-function FeatChoices(_ref65) {
-  var name = _ref65.name,
-    choices = _ref65.choices,
-    onChange = _ref65.onChange,
-    colors = _ref65.colors;
+function FeatChoices(_ref70) {
+  var name = _ref70.name,
+    choices = _ref70.choices,
+    onChange = _ref70.onChange,
+    colors = _ref70.colors;
   var def = featDef(name);
   if (!def) return null;
   var g = def.grants || {};
@@ -11600,11 +12416,11 @@ function FeatChoices(_ref65) {
       gap: 8,
       flexWrap: "wrap"
     }
-  }, [["cantrip1", "Cantrip...", 0], ["cantrip2", "Cantrip...", 0], ["spell", "Level 1 spell...", 1]].map(function (_ref66) {
-    var _ref67 = _slicedToArray(_ref66, 3),
-      k = _ref67[0],
-      ph = _ref67[1],
-      lvl = _ref67[2];
+  }, [["cantrip1", "Cantrip...", 0], ["cantrip2", "Cantrip...", 0], ["spell", "Level 1 spell...", 1]].map(function (_ref71) {
+    var _ref72 = _slicedToArray(_ref71, 3),
+      k = _ref72[0],
+      ph = _ref72[1],
+      lvl = _ref72[2];
     var list = c.list || featPreset(name);
     var other = k === "cantrip1" ? c.cantrip2 : k === "cantrip2" ? c.cantrip1 : "";
     return /*#__PURE__*/React.createElement("select", {
@@ -11682,16 +12498,16 @@ function FeatChoices(_ref65) {
 }
 
 // A dropdown of feats. allowed: names the rules allow in this slot. With Further Customization on, the rest are listed too.
-function FeatPicker(_ref68) {
-  var value = _ref68.value,
-    onPick = _ref68.onPick,
-    cats = _ref68.cats,
-    taken = _ref68.taken,
-    custom = _ref68.custom,
-    colors = _ref68.colors,
-    label = _ref68.label,
-    hide = _ref68.hide,
-    className = _ref68.className;
+function FeatPicker(_ref73) {
+  var value = _ref73.value,
+    onPick = _ref73.onPick,
+    cats = _ref73.cats,
+    taken = _ref73.taken,
+    custom = _ref73.custom,
+    colors = _ref73.colors,
+    label = _ref73.label,
+    hide = _ref73.hide,
+    className = _ref73.className;
   // hide: categories the rules allow here but that are only listed with Further Customization on
   var names = Object.keys(FEATS).filter(function (n) {
     return n !== "Ability Score Improvement";
@@ -11750,35 +12566,39 @@ function FeatPicker(_ref68) {
     }, n, " (", FEATS[n].category, ")");
   })));
 }
-function FeaturesTab(_ref69) {
-  var _ref69$attnEdge = _ref69.attnEdge,
-    attnEdge = _ref69$attnEdge === void 0 ? function () {
+function FeaturesTab(_ref74) {
+  var _ref74$asiLabel = _ref74.asiLabel,
+    asiLabel = _ref74$asiLabel === void 0 ? function (k) {
+      return "Level ".concat(k);
+    } : _ref74$asiLabel,
+    _ref74$attnEdge = _ref74.attnEdge,
+    attnEdge = _ref74$attnEdge === void 0 ? function () {
       return {};
-    } : _ref69$attnEdge,
-    masteries = _ref69.masteries,
-    setMasteries = _ref69.setMasteries,
-    masteryCount = _ref69.masteryCount,
-    className = _ref69.className,
-    glowOf = _ref69.glowOf,
-    optionSlots = _ref69.optionSlots,
-    featureChoices = _ref69.featureChoices,
-    setFeatureChoices = _ref69.setFeatureChoices,
-    featureLedger = _ref69.featureLedger,
-    reachedAsiLevels = _ref69.reachedAsiLevels,
-    asiChoices = _ref69.asiChoices,
-    setAsiAbilities = _ref69.setAsiAbilities,
-    setAsiType = _ref69.setAsiType,
-    setFeatName = _ref69.setFeatName,
-    setAsiFeatChoices = _ref69.setAsiFeatChoices,
-    colors = _ref69.colors,
-    fontDisplay = _ref69.fontDisplay,
-    slots = _ref69.slots,
-    featPicks = _ref69.featPicks,
-    setFeatPick = _ref69.setFeatPick,
-    extraFeats = _ref69.extraFeats,
-    setExtraFeats = _ref69.setExtraFeats,
-    takenFeats = _ref69.takenFeats,
-    custom = _ref69.custom;
+    } : _ref74$attnEdge,
+    masteries = _ref74.masteries,
+    setMasteries = _ref74.setMasteries,
+    masteryCount = _ref74.masteryCount,
+    className = _ref74.className,
+    glowOf = _ref74.glowOf,
+    optionSlots = _ref74.optionSlots,
+    featureChoices = _ref74.featureChoices,
+    setFeatureChoices = _ref74.setFeatureChoices,
+    featureLedger = _ref74.featureLedger,
+    reachedAsiLevels = _ref74.reachedAsiLevels,
+    asiChoices = _ref74.asiChoices,
+    setAsiAbilities = _ref74.setAsiAbilities,
+    setAsiType = _ref74.setAsiType,
+    setFeatName = _ref74.setFeatName,
+    setAsiFeatChoices = _ref74.setAsiFeatChoices,
+    colors = _ref74.colors,
+    fontDisplay = _ref74.fontDisplay,
+    slots = _ref74.slots,
+    featPicks = _ref74.featPicks,
+    setFeatPick = _ref74.setFeatPick,
+    extraFeats = _ref74.extraFeats,
+    setExtraFeats = _ref74.setExtraFeats,
+    takenFeats = _ref74.takenFeats,
+    custom = _ref74.custom;
   var taken = takenFeats.map(function (f) {
     return f.base;
   });
@@ -11860,10 +12680,10 @@ function FeaturesTab(_ref69) {
         }, masteries[i] ? {} : attnEdge("mastery"))
       }, /*#__PURE__*/React.createElement("option", {
         value: ""
-      }, "Choose a weapon..."), WEAPON_GROUPS.map(function (_ref70) {
-        var _ref71 = _slicedToArray(_ref70, 2),
-          cat = _ref71[0],
-          fits = _ref71[1];
+      }, "Choose a weapon..."), WEAPON_GROUPS.map(function (_ref75) {
+        var _ref76 = _slicedToArray(_ref75, 2),
+          cat = _ref76[0],
+          fits = _ref76[1];
         var list = WEAPONS.filter(function (w) {
           return fits(w) && (custom || masteryEligible(className, w) || w.name === masteries[i]) && (!masteries.includes(w.name) || masteries[i] === w.name);
         });
@@ -12081,7 +12901,7 @@ function FeaturesTab(_ref69) {
       style: box(!!p)
     }, /*#__PURE__*/React.createElement("div", {
       style: head
-    }, "Level ", lvl, attnEdge("asi" + lvl).border ? attnBadge(1, "Choose an Ability Score Improvement or a feat") : null), /*#__PURE__*/React.createElement("div", {
+    }, asiLabel(lvl), attnEdge("asi" + lvl).border ? attnBadge(1, "Choose an Ability Score Improvement or a feat") : null), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 14,
@@ -12126,9 +12946,9 @@ function FeaturesTab(_ref69) {
       }));
     })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(FeatPicker, {
       className: typeof className === "undefined" ? "" : className,
-      label: "Feat for level ".concat(lvl),
+      label: "Feat for ".concat(asiLabel(lvl).replace(/^Level/, "level")),
       value: choice.name || "",
-      cats: ["General", "Origin"].concat(lvl >= 19 ? ["Epic Boon"] : []),
+      cats: ["General", "Origin"].concat((parseInt(String(lvl).split("-").pop()) || 0) >= 19 ? ["Epic Boon"] : []),
       hide: ["Origin"],
       taken: taken,
       custom: custom,
@@ -12504,7 +13324,7 @@ function spellAction(sp, ctx, opts) {
 // ── Spells with a full record (spells.js "f") ──
 // Every effect, when it happens, who it can target (count, size, creature type), range and area are all carried
 // onto the sheet, so the Combat Resolver can apply them now and a map can use the distances later.
-var FULL_EFF_KEYS = ["ac", "acMin", "acBase", "speed", "speedMult", "speedZero", "init", "d20", "atk", "save", "saveAdv", "saveDis", "saveAbil", "saveAbilMod", "checkAdv", "checkDis", "atkDis", "advAgainst", "disAgainst", "noInvisible", "bonusDmg", "bonusType", "fromCaster", "resist", "resistType", "immuneDmg", "vuln", "immune", "condImmune", "tempEachTurn", "hpMax", "sizeStep", "noReact", "noHeal", "sense", "move", "weaponDmg", "weaponDmgType", "extraBonus", "extraReaction", "ward0", "sanctuary", "images", "endsOnAct", "endsOnAnyAct", "endsOnDamage", "saveEnds", "endsOnAttack", "endsWhenAttacked", "noCast", "noAct", "saveOnDamage", "away", "healEachTurn", "turnDmg", "noBonus", "atkDisVs", "maxHeal", "noHpMaxDown", "healAt0", "breakConc", "turnOfCaster", "endsOnDamageBy", "noAgain", "restShrink", "onEnd", "retaliate", "atkDmg", "failDmg", "noOA", "noStand", "noAttack", "endsAt0", "seeInvisible", "noSlow", "actOrBonus", "noInvisibleVs", "unlessSight", "shakeOff", "endsOnSpell", "untilLongRest", "oneAtATime", "lifeBond", "deathAdv", "atkDisAbil", "checkAdvSkill", "saveAdvVs", "minRoll", "immuneSpell", "bondTo", "castFail", "ppMod", "punish", "turnSave", "condImmuneFrom", "disAgainstTypes", "weaponAtk", "stable", "dashBonus", "protect", "extraAction", "turnRoll", "kill"];
+var FULL_EFF_KEYS = ["ac", "acMin", "acBase", "speed", "speedMult", "speedZero", "init", "d20", "atk", "save", "saveAdv", "saveDis", "saveAbil", "saveAbilMod", "checkAdv", "checkDis", "atkDis", "advAgainst", "disAgainst", "noInvisible", "bonusDmg", "bonusType", "fromCaster", "resist", "resistType", "immuneDmg", "vuln", "immune", "condImmune", "tempEachTurn", "hpMax", "sizeStep", "noReact", "noHeal", "sense", "move", "weaponDmg", "weaponDmgType", "extraBonus", "extraReaction", "extraActionOnly", "extraBonusOnly", "extraReactionOnly", "ward0", "sanctuary", "images", "endsOnAct", "endsOnAnyAct", "endsOnDamage", "saveEnds", "endsOnAttack", "endsWhenAttacked", "noCast", "noAct", "saveOnDamage", "away", "healEachTurn", "turnDmg", "noBonus", "atkDisVs", "maxHeal", "noHpMaxDown", "healAt0", "breakConc", "turnOfCaster", "endsOnDamageBy", "noAgain", "restShrink", "onEnd", "retaliate", "atkDmg", "failDmg", "noOA", "noStand", "noAttack", "endsAt0", "seeInvisible", "noSlow", "actOrBonus", "noInvisibleVs", "unlessSight", "shakeOff", "endsOnSpell", "untilLongRest", "oneAtATime", "lifeBond", "deathAdv", "atkDisAbil", "checkAdvSkill", "saveAdvVs", "minRoll", "immuneSpell", "bondTo", "castFail", "ppMod", "punish", "turnSave", "condImmuneFrom", "disAgainstTypes", "weaponAtk", "stable", "dashBonus", "protect", "extraAction", "turnRoll", "kill"];
 var FULL_ABILITIES = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"];
 var FULL_CONDS = ["Blinded", "Charmed", "Deafened", "Frightened", "Grappled", "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone", "Restrained", "Stunned", "Unconscious"];
 function fullEffect(e, sp, f) {
@@ -12989,23 +13809,23 @@ function fullSpellAction(sp, ctx, opts) {
         cost: x.cost
       }
     }), ctx, opts);
-    return a ? function (_ref72) {
-      var name = _ref72.name,
-        spell = _ref72.spell,
-        slot = _ref72.slot,
-        desc = _ref72.desc,
-        comp = _ref72.comp,
-        mat = _ref72.mat,
-        matCost = _ref72.matCost,
-        matConsumed = _ref72.matConsumed,
-        conc = _ref72.conc,
-        concSecs = _ref72.concSecs,
-        range = _ref72.range,
-        hand = _ref72.hand,
-        ritual = _ref72.ritual,
-        gp = _ref72.gp,
-        gpConsumed = _ref72.gpConsumed,
-        keep = _objectWithoutProperties(_ref72, _excluded7);
+    return a ? function (_ref77) {
+      var name = _ref77.name,
+        spell = _ref77.spell,
+        slot = _ref77.slot,
+        desc = _ref77.desc,
+        comp = _ref77.comp,
+        mat = _ref77.mat,
+        matCost = _ref77.matCost,
+        matConsumed = _ref77.matConsumed,
+        conc = _ref77.conc,
+        concSecs = _ref77.concSecs,
+        range = _ref77.range,
+        hand = _ref77.hand,
+        ritual = _ref77.ritual,
+        gp = _ref77.gp,
+        gpConsumed = _ref77.gpConsumed,
+        keep = _objectWithoutProperties(_ref77, _excluded7);
       return keep;
     }(a) : null;
   };
@@ -13048,16 +13868,16 @@ function fullSpellAction(sp, ctx, opts) {
   } // a class that spends points, not slots
   return out;
 }
-function SpellRow(_ref73) {
-  var entry = _ref73.entry,
-    onRemove = _ref73.onRemove,
-    colors = _ref73.colors,
-    fontDisplay = _ref73.fontDisplay,
-    summary = _ref73.summary;
-  var _useState141 = useState(false),
-    _useState142 = _slicedToArray(_useState141, 2),
-    open = _useState142[0],
-    setOpen = _useState142[1];
+function SpellRow(_ref78) {
+  var entry = _ref78.entry,
+    onRemove = _ref78.onRemove,
+    colors = _ref78.colors,
+    fontDisplay = _ref78.fontDisplay,
+    summary = _ref78.summary;
+  var _useState147 = useState(false),
+    _useState148 = _slicedToArray(_useState147, 2),
+    open = _useState148[0],
+    setOpen = _useState148[1];
   var sp = entry.sp,
     red = !!entry.problem;
   return /*#__PURE__*/React.createElement("div", {
@@ -13143,54 +13963,56 @@ function SpellRow(_ref73) {
     }
   }, /*#__PURE__*/React.createElement("strong", null, "Using a Higher-Level Spell Slot."), " ", sp.h) : null));
 }
-function SpellsTab(_ref74) {
-  var _ref74$attnEdge = _ref74.attnEdge,
-    attnEdge = _ref74$attnEdge === void 0 ? function () {
+function SpellsTab(_ref79) {
+  var _ref79$sharedSlots = _ref79.sharedSlots,
+    sharedSlots = _ref79$sharedSlots === void 0 ? null : _ref79$sharedSlots,
+    _ref79$attnEdge = _ref79.attnEdge,
+    attnEdge = _ref79$attnEdge === void 0 ? function () {
       return {};
-    } : _ref74$attnEdge,
-    bookInfo = _ref74.bookInfo,
-    spellbook = _ref74.spellbook,
-    picks = _ref74.picks,
-    featureChoices = _ref74.featureChoices,
-    setFeatureChoices = _ref74.setFeatureChoices,
-    glow = _ref74.glow,
-    grantedSpells = _ref74.grantedSpells,
-    cls = _ref74.cls,
-    className = _ref74.className,
-    level = _ref74.level,
-    finalMods = _ref74.finalMods,
-    profBonus = _ref74.profBonus,
-    colors = _ref74.colors,
-    fontDisplay = _ref74.fontDisplay,
-    spells = _ref74.spells,
-    setSpells = _ref74.setSpells,
-    spellInfo = _ref74.spellInfo,
-    custom = _ref74.custom,
-    spellSummary = _ref74.spellSummary;
-  var _useState143 = useState([]),
-    _useState144 = _slicedToArray(_useState143, 2),
-    levelsOff = _useState144[0],
-    setLevelsOff = _useState144[1]; // spell levels switched off in the Add Spells list (none: every level shows)
-  var _useState145 = useState("level"),
-    _useState146 = _slicedToArray(_useState145, 2),
-    sortBy = _useState146[0],
-    setSortBy = _useState146[1]; // "level" (alphabetical inside each level) or "name"
-  var _useState147 = useState(""),
-    _useState148 = _slicedToArray(_useState147, 2),
-    search = _useState148[0],
-    setSearch = _useState148[1];
-  var _useState149 = useState(false),
+    } : _ref79$attnEdge,
+    bookInfo = _ref79.bookInfo,
+    spellbook = _ref79.spellbook,
+    picks = _ref79.picks,
+    featureChoices = _ref79.featureChoices,
+    setFeatureChoices = _ref79.setFeatureChoices,
+    glow = _ref79.glow,
+    grantedSpells = _ref79.grantedSpells,
+    cls = _ref79.cls,
+    className = _ref79.className,
+    level = _ref79.level,
+    finalMods = _ref79.finalMods,
+    profBonus = _ref79.profBonus,
+    colors = _ref79.colors,
+    fontDisplay = _ref79.fontDisplay,
+    spells = _ref79.spells,
+    setSpells = _ref79.setSpells,
+    spellInfo = _ref79.spellInfo,
+    custom = _ref79.custom,
+    spellSummary = _ref79.spellSummary;
+  var _useState149 = useState([]),
     _useState150 = _slicedToArray(_useState149, 2),
-    anyList = _useState150[0],
-    setAnyList = _useState150[1]; // customization: spells from every class list
-  var _useState151 = useState(false),
+    levelsOff = _useState150[0],
+    setLevelsOff = _useState150[1]; // spell levels switched off in the Add Spells list (none: every level shows)
+  var _useState151 = useState("level"),
     _useState152 = _slicedToArray(_useState151, 2),
-    allLevels = _useState152[0],
-    setAllLevels = _useState152[1]; // customization: spells above the level you can cast
+    sortBy = _useState152[0],
+    setSortBy = _useState152[1]; // "level" (alphabetical inside each level) or "name"
   var _useState153 = useState(""),
     _useState154 = _slicedToArray(_useState153, 2),
-    typed = _useState154[0],
-    setTyped = _useState154[1];
+    search = _useState154[0],
+    setSearch = _useState154[1];
+  var _useState155 = useState(false),
+    _useState156 = _slicedToArray(_useState155, 2),
+    anyList = _useState156[0],
+    setAnyList = _useState156[1]; // customization: spells from every class list
+  var _useState157 = useState(false),
+    _useState158 = _slicedToArray(_useState157, 2),
+    allLevels = _useState158[0],
+    setAllLevels = _useState158[1]; // customization: spells above the level you can cast
+  var _useState159 = useState(""),
+    _useState160 = _slicedToArray(_useState159, 2),
+    typed = _useState160[0],
+    setTyped = _useState160[1];
   var caster = spellInfo.caster,
     maxLevel = spellInfo.maxLevel,
     cantripMax = spellInfo.cantripMax,
@@ -13307,7 +14129,7 @@ function SpellsTab(_ref74) {
       }
     }, pact.slots, " Pact Magic slots, all of level ", pact.level, ". (Slots recharge on a Short or Long Rest.)");
   } else if (caster) {
-    var slots = getSpellSlots(className, level) || [];
+    var slots = sharedSlots || getSpellSlots(className, level) || [];
     slotsDisplay = /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
@@ -13645,7 +14467,7 @@ function SpellsTab(_ref74) {
       }
     }, "In combat: ", spellSummary(sp)));
   })), (caster || custom) && /*#__PURE__*/React.createElement(Section, {
-    title: "Add Spells",
+    title: caster ? "Add Spells \xB7 Cantrips ".concat(spellInfo.cantrips, " of ").concat(cantripMax, " \xB7 Prepared ").concat(spellInfo.prepared, " of ").concat(prepMax == null ? "no limit" : prepMax) : "Add Spells",
     colors: colors,
     fontDisplay: fontDisplay
   }, /*#__PURE__*/React.createElement("div", {
@@ -13677,12 +14499,12 @@ function SpellsTab(_ref74) {
     return [l, levelName(l), !levelsOff.includes(l), function () {
       return toggleLevel(l);
     }];
-  })).map(function (_ref75) {
-    var _ref76 = _slicedToArray(_ref75, 4),
-      k = _ref76[0],
-      text = _ref76[1],
-      on = _ref76[2],
-      click = _ref76[3];
+  })).map(function (_ref80) {
+    var _ref81 = _slicedToArray(_ref80, 4),
+      k = _ref81[0],
+      text = _ref81[1],
+      on = _ref81[2],
+      click = _ref81[3];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       "data-testid": "level-chip-".concat(k),
@@ -13966,14 +14788,14 @@ function cleanJournal(raw, oldNotes, oldEquipment) {
   }
   return j;
 }
-function JournalTab(_ref77) {
-  var journal = _ref77.journal,
-    setJournal = _ref77.setJournal,
-    alignment = _ref77.alignment,
-    setAlignment = _ref77.setAlignment,
-    knownTools = _ref77.knownTools,
-    colors = _ref77.colors,
-    fontDisplay = _ref77.fontDisplay;
+function JournalTab(_ref82) {
+  var journal = _ref82.journal,
+    setJournal = _ref82.setJournal,
+    alignment = _ref82.alignment,
+    setAlignment = _ref82.setAlignment,
+    knownTools = _ref82.knownTools,
+    colors = _ref82.colors,
+    fontDisplay = _ref82.fontDisplay;
   var _React$useState5 = React.useState(0),
     _React$useState6 = _slicedToArray(_React$useState5, 2),
     page = _React$useState6[0],
@@ -14032,9 +14854,9 @@ function JournalTab(_ref77) {
       i = o.indexOf(key),
       k = i + by;
     if (k < 0 || k >= o.length) return;
-    var _ref78 = [o[k], o[i]];
-    o[i] = _ref78[0];
-    o[k] = _ref78[1];
+    var _ref83 = [o[k], o[i]];
+    o[i] = _ref83[0];
+    o[k] = _ref83[1];
     set({
       order: o
     });
@@ -14187,10 +15009,10 @@ function JournalTab(_ref77) {
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 12
         }
-      }, [["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(function (_ref79) {
-        var _ref80 = _slicedToArray(_ref79, 2),
-          k = _ref80[0],
-          t = _ref80[1];
+      }, [["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(function (_ref84) {
+        var _ref85 = _slicedToArray(_ref84, 2),
+          k = _ref85[0],
+          t = _ref85[1];
         return /*#__PURE__*/React.createElement("div", {
           key: k
         }, /*#__PURE__*/React.createElement("div", {
@@ -14734,16 +15556,16 @@ function inventoryGroup(item) {
 }
 var inventoryFolded = false,
   inventoryOnlyProf = false; // stay as you left them while the page is open
-function InventoryTab(_ref81) {
-  var inv = _ref81.inv,
-    prof = _ref81.prof,
-    magic = _ref81.magic,
-    mundane = _ref81.mundane,
-    components = _ref81.components,
-    setComponents = _ref81.setComponents,
-    spellMats = _ref81.spellMats,
-    colors = _ref81.colors,
-    fontDisplay = _ref81.fontDisplay;
+function InventoryTab(_ref86) {
+  var inv = _ref86.inv,
+    prof = _ref86.prof,
+    magic = _ref86.magic,
+    mundane = _ref86.mundane,
+    components = _ref86.components,
+    setComponents = _ref86.setComponents,
+    spellMats = _ref86.spellMats,
+    colors = _ref86.colors,
+    fontDisplay = _ref86.fontDisplay;
   var isCaster = function isCaster(item) {
     return /component pouch|arcane focus|druidic focus|holy symbol/i.test(item.name);
   };
@@ -14893,10 +15715,10 @@ function InventoryTab(_ref81) {
     }));
   }), /*#__PURE__*/React.createElement("div", {
     "data-testid": "inventory-list"
-  }, groups.map(function (_ref82) {
-    var _ref83 = _slicedToArray(_ref82, 2),
-      g = _ref83[0],
-      items = _ref83[1];
+  }, groups.map(function (_ref87) {
+    var _ref88 = _slicedToArray(_ref87, 2),
+      g = _ref88[0],
+      items = _ref88[1];
     return /*#__PURE__*/React.createElement("div", {
       key: g,
       "data-testid": "inv-group-".concat(g),
@@ -15315,8 +16137,8 @@ var WEAPON_GROUPS = [["Simple Melee weapons", function (w) {
 }], ["Martial Ranged weapons", function (w) {
   return w.cat === "Martial" && w.ranged;
 }]];
-function KindOptions(_ref84) {
-  var item = _ref84.item;
+function KindOptions(_ref89) {
+  var item = _ref89.item;
   var kinds = magicGearKinds(item),
     info = magicGearInfo(item) || {};
   if (info.kind === "armor") return ["Light", "Medium", "Heavy"].map(function (cat) {
@@ -15333,10 +16155,10 @@ function KindOptions(_ref84) {
       }, a.name, " (AC ", a.base, a.dex ? a.max != null ? " + Dex, max ".concat(a.max) : " + Dex" : "", ")");
     })) : null;
   });
-  return WEAPON_GROUPS.map(function (_ref85) {
-    var _ref86 = _slicedToArray(_ref85, 2),
-      cat = _ref86[0],
-      fits = _ref86[1];
+  return WEAPON_GROUPS.map(function (_ref90) {
+    var _ref91 = _slicedToArray(_ref90, 2),
+      cat = _ref91[0],
+      fits = _ref91[1];
     var list = WEAPONS.filter(function (w) {
       return fits(w) && kinds.includes(w.name);
     });
@@ -15352,12 +16174,12 @@ function KindOptions(_ref84) {
   });
 }
 // The controls for one item: add it to the inventory, mark it important, or remove it.
-function ItemControls(_ref87) {
-  var item = _ref87.item,
-    inv = _ref87.inv,
-    colors = _ref87.colors,
-    small = _ref87.small,
-    onChoose = _ref87.onChoose;
+function ItemControls(_ref92) {
+  var item = _ref92.item,
+    inv = _ref92.inv,
+    colors = _ref92.colors,
+    small = _ref92.small,
+    onChoose = _ref92.onChoose;
   var b = function b(bg, fg) {
     return {
       minWidth: 22,
@@ -15407,10 +16229,10 @@ function ItemControls(_ref87) {
   }, "\xD7");
 }
 // A list of carried items with their controls (Notes tab and the side panels).
-function InventoryList(_ref88) {
-  var items = _ref88.items,
-    inv = _ref88.inv,
-    colors = _ref88.colors;
+function InventoryList(_ref93) {
+  var items = _ref93.items,
+    inv = _ref93.inv,
+    colors = _ref93.colors;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -15475,14 +16297,14 @@ function InventoryList(_ref88) {
     }));
   }));
 }
-function ItemRowHover(_ref89) {
-  var item = _ref89.item,
-    inv = _ref89.inv,
-    onSelect = _ref89.onSelect,
-    isSelected = _ref89.isSelected,
-    accentColor = _ref89.accentColor,
-    colors = _ref89.colors,
-    extraBadge = _ref89.extraBadge;
+function ItemRowHover(_ref94) {
+  var item = _ref94.item,
+    inv = _ref94.inv,
+    onSelect = _ref94.onSelect,
+    isSelected = _ref94.isSelected,
+    accentColor = _ref94.accentColor,
+    colors = _ref94.colors,
+    extraBadge = _ref94.extraBadge;
   var _React$useState25 = React.useState(false),
     _React$useState26 = _slicedToArray(_React$useState25, 2),
     hovered = _React$useState26[0],
@@ -15552,21 +16374,21 @@ function ItemRowHover(_ref89) {
     }
   }, "\u2713"));
 }
-function MagicItemsTab(_ref90) {
-  var itemSearch = _ref90.itemSearch,
-    setItemSearch = _ref90.setItemSearch,
-    itemRarityFilter = _ref90.itemRarityFilter,
-    setItemRarityFilter = _ref90.setItemRarityFilter,
-    itemTypeFilter = _ref90.itemTypeFilter,
-    setItemTypeFilter = _ref90.setItemTypeFilter,
-    itemAttunementFilter = _ref90.itemAttunementFilter,
-    setItemAttunementFilter = _ref90.setItemAttunementFilter,
-    selectedItem = _ref90.selectedItem,
-    setSelectedItem = _ref90.setSelectedItem,
-    inv = _ref90.inv,
-    keep = _ref90.keep,
-    colors = _ref90.colors,
-    fontDisplay = _ref90.fontDisplay;
+function MagicItemsTab(_ref95) {
+  var itemSearch = _ref95.itemSearch,
+    setItemSearch = _ref95.setItemSearch,
+    itemRarityFilter = _ref95.itemRarityFilter,
+    setItemRarityFilter = _ref95.setItemRarityFilter,
+    itemTypeFilter = _ref95.itemTypeFilter,
+    setItemTypeFilter = _ref95.setItemTypeFilter,
+    itemAttunementFilter = _ref95.itemAttunementFilter,
+    setItemAttunementFilter = _ref95.setItemAttunementFilter,
+    selectedItem = _ref95.selectedItem,
+    setSelectedItem = _ref95.setSelectedItem,
+    inv = _ref95.inv,
+    keep = _ref95.keep,
+    colors = _ref95.colors,
+    fontDisplay = _ref95.fontDisplay;
   var _React$useState27 = React.useState(false),
     _React$useState28 = _slicedToArray(_React$useState27, 2),
     expanded = _React$useState28[0],
@@ -15678,12 +16500,12 @@ function MagicItemsTab(_ref90) {
         return x !== r;
       }) : [].concat(_toConsumableArray(raritiesOff), [r]));
     }, RARITY_COLORS[r]];
-  })).map(function (_ref91) {
-    var _ref92 = _slicedToArray(_ref91, 4),
-      r = _ref92[0],
-      on = _ref92[1],
-      click = _ref92[2],
-      col = _ref92[3];
+  })).map(function (_ref96) {
+    var _ref97 = _slicedToArray(_ref96, 4),
+      r = _ref97[0],
+      on = _ref97[1],
+      click = _ref97[2],
+      col = _ref97[3];
     return /*#__PURE__*/React.createElement("button", {
       key: r,
       "data-testid": "rarity-chip-".concat(r),
@@ -15951,17 +16773,17 @@ function MagicItemsTab(_ref90) {
     }
   }, "Select an item to view details"))));
 }
-function MundaneItemsTab(_ref93) {
-  var mundaneSearch = _ref93.mundaneSearch,
-    setMundaneSearch = _ref93.setMundaneSearch,
-    mundaneTypeFilter = _ref93.mundaneTypeFilter,
-    setMundaneTypeFilter = _ref93.setMundaneTypeFilter,
-    selectedMundane = _ref93.selectedMundane,
-    setSelectedMundane = _ref93.setSelectedMundane,
-    inv = _ref93.inv,
-    keep = _ref93.keep,
-    colors = _ref93.colors,
-    fontDisplay = _ref93.fontDisplay;
+function MundaneItemsTab(_ref98) {
+  var mundaneSearch = _ref98.mundaneSearch,
+    setMundaneSearch = _ref98.setMundaneSearch,
+    mundaneTypeFilter = _ref98.mundaneTypeFilter,
+    setMundaneTypeFilter = _ref98.setMundaneTypeFilter,
+    selectedMundane = _ref98.selectedMundane,
+    setSelectedMundane = _ref98.setSelectedMundane,
+    inv = _ref98.inv,
+    keep = _ref98.keep,
+    colors = _ref98.colors,
+    fontDisplay = _ref98.fontDisplay;
   var allCategories = React.useMemo(function () {
     var cats = new Set(MUNDANE_ITEMS.map(function (i) {
       return i.category;
