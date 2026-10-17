@@ -881,24 +881,26 @@ function FundsBox({ money, setMoney, colors, fontDisplay }) {
        ...(money.moneyX || []).map(d => ({ key: "c:" + d.id, name: d.name, value: +d.value || 0, n: (money.coins || {})["c:" + d.id] || 0, set: v => setMoney({ ...money, coins: { ...(money.coins || {}), ["c:" + d.id]: v } }), del: () => setMoney({ ...money, moneyX: (money.moneyX || []).filter(y => y.id !== d.id) }) }))]
     : [...COIN_KINDS.map(([k, n, r]) => ({ key: k, name: `${n} (${k.toUpperCase()})`, value: r, n: (f.coins || {})[k] || 0, set: v => putFund(f.id, { coins: { ...(f.coins || {}), [k]: v } }) })),
        ...(f.custom || []).map(d => ({ key: "c:" + d.id, name: d.name, value: +d.value || 0, n: +d.n || 0, set: v => putFund(f.id, { custom: f.custom.map(z => z.id === d.id ? { ...z, n: v } : z) }), del: () => putFund(f.id, { custom: f.custom.filter(z => z.id !== d.id) }) }))];
-  const total = Math.round(rows.reduce((t, r) => t + r.n * r.value, 0) * 100) / 100;
+  const r2 = n => Math.round(n * 100) / 100;
+  const mainTotal = r2(COIN_KINDS.reduce((t, [k, , r]) => t + (k === "gp" ? money.gold || 0 : (money.coins || {})[k] || 0) * r, 0) + (money.moneyX || []).reduce((t, d) => t + ((money.coins || {})["c:" + d.id] || 0) * (+d.value || 0), 0));
+  const fundTotal = x => r2(COIN_KINDS.reduce((t, [k, , r]) => t + ((x.coins || {})[k] || 0) * r, 0) + (x.custom || []).reduce((t, d) => t + (+d.n || 0) * (+d.value || 0), 0));
+  const delFund = x => { if (window.confirm(`Delete ${x.name}? Everything in it goes with it.`)) { setMoney({ ...money, funds: funds.filter(y => y.id !== x.id) }); if (on === x.id) setTab("main"); } };
   const tabStyle = (sel) => ({ background: sel ? colors.brass : "transparent", color: sel ? colors.ink : colors.parchment, border: `1px solid ${colors.brass}`, borderBottom: "none", borderRadius: "8px 8px 0 0", padding: "5px 12px", fontFamily: fontDisplay, fontSize: 12, fontWeight: 700, cursor: "pointer" });
   const small = { background: "transparent", color: colors.parchment, border: `1px solid ${colors.brass}`, borderRadius: 6, padding: "1px 9px", cursor: "pointer" };
   const field = { ...fieldStyle(colors), width: "auto", display: "inline-block" };
   return (
     <div data-testid="funds" style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", gap: 3, alignItems: "flex-end", borderBottom: `2px solid ${colors.brass}`, flexWrap: "wrap" }}>
-        <button style={tabStyle(on === "main")} data-testid="fund-tab-main" onClick={() => setTab("main")}>💰 Money</button>
-        {funds.map(x => <button key={x.id} style={tabStyle(on === x.id)} data-testid="fund-tab" onClick={() => setTab(x.id)}>{x.name}</button>)}
+        <button style={tabStyle(on === "main")} data-testid="fund-tab-main" onClick={() => setTab("main")}>💰 Money <span style={{ fontWeight: 400, fontSize: 11 }}>{mainTotal} GP</span></button>
+        {funds.map(x => <span key={x.id} role="tab" style={{ ...tabStyle(on === x.id), display: "inline-flex", gap: 6, alignItems: "center" }} data-testid="fund-tab" onClick={() => setTab(x.id)}>{x.name} <span style={{ fontWeight: 400, fontSize: 11 }}>{fundTotal(x)} GP</span>
+          <button data-testid="fund-delete" aria-label={`Delete ${x.name}`} title={`Delete ${x.name}`} onClick={e => { e.stopPropagation(); delFund(x); }} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", fontSize: 11, padding: 0 }}>✕</button></span>)}
         {adding ? <span style={{ display: "inline-flex", gap: 4, marginLeft: 4 }}><input autoFocus aria-label="New purse name" data-testid="fund-name" placeholder="Name it" value={nm} onChange={e => setNm(e.target.value)} style={{ ...field, width: 150, padding: "3px 6px" }} />
           <button style={small} data-testid="fund-add" disabled={!nm.trim()} onClick={() => { const id = nid(); setMoney({ ...money, funds: [...funds, { id, name: nm.trim().slice(0, 30), coins: {}, custom: [] }].slice(0, 12) }); setNm(""); setAdding(false); setTab(id); }}>Add</button>
           <button style={small} onClick={() => setAdding(false)}>Cancel</button></span>
           : <button style={tabStyle(false)} data-testid="fund-new" title="Add a purse or account of its own" onClick={() => setAdding(true)}>+</button>}
-        <span style={{ marginLeft: "auto", fontSize: 13, opacity: 0.85 }}>Worth {total} GP</span>
       </div>
       <div style={{ padding: "8px 4px", display: "flex", flexDirection: "column", gap: 4 }}>
-        {edit && f && <div style={{ display: "flex", gap: 6 }}><input aria-label="Purse name" value={f.name} onChange={e => putFund(f.id, { name: e.target.value.slice(0, 30) })} style={{ ...field, width: 180 }} />
-          <button style={{ ...small, color: CUSTOM_RED, borderColor: CUSTOM_RED }} onClick={() => { if (window.confirm(`Remove ${f.name} and everything in it?`)) { setMoney({ ...money, funds: funds.filter(y => y.id !== f.id) }); setTab("main"); } }}>Remove this purse</button></div>}
+        {edit && f && <div style={{ display: "flex", gap: 6 }}><input aria-label="Purse name" value={f.name} onChange={e => putFund(f.id, { name: e.target.value.slice(0, 30) })} style={{ ...field, width: 180 }} /></div>}
         {rows.map(r => <div key={r.key} style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <span style={{ minWidth: 170 }}>{r.name}{edit && r.del ? <em style={{ fontSize: 12, opacity: 0.75 }}> · {r.value} GP each</em> : null}</span>
           <button style={small} aria-label={`One less ${r.name}`} onClick={() => r.set(Math.max(0, r.n - 1))}>−</button>
@@ -2975,7 +2977,7 @@ function CharacterSheet() {
   // Companions a feature gives ("companion": { "name", "kind", "base": a stat block, "stats": { "ac": "13 + PROF", "hp": "5 + 5 * LEVEL" }, "init": "after" | "shared" | "roll" }): made by themselves, numbers worked out from this character's
   const autoPals = mech.entries.filter(e => e.companion && typeof e.companion === "object").slice(0, 4).map((e, i) => { const cp = e.companion, id = "f:" + (e.pickKey || optionKey(e)), ed = palEdits[id] || {}, ctx = ctxOf(e);
     const stats = {}; Object.entries(pObj(cp.stats)).slice(0, 8).forEach(([k, f]) => { const n = evalFormula(f, ctx); if (Number.isFinite(n)) stats[pStr(k, 12)] = Math.round(n); });
-    return { id, name: ed.name != null ? ed.name : pStr(cp.name || e.name, 60), kind: pStr(cp.kind, 30), base: pStr(cp.base, 80), from: e.name, stats, init: ed.init || (["after", "shared", "roll"].includes(cp.init) ? cp.init : "after"), ac: stats.ac || 0, hp: stats.hp || 0, speed: stats.speed || 0 }; });
+    return { id, name: ed.name != null ? ed.name : pStr(cp.name || e.name, 60), kind: pStr(cp.kind, 30), base: pStr(cp.base, 80), from: e.name, stats, init: ed.init || (["after", "shared", "roll"].includes(cp.init) ? cp.init : "after"), count: Math.max(1, Math.min(12, parseInt(ed.count || evalFormula(cp.count || 1, ctx)) || 1)), ac: stats.ac || 0, hp: stats.hp || 0, speed: stats.speed || 0 }; });
   const pending = (() => {
     const keys = new Set(), count = { identity: 0, skills: 0, features: 0, spells: 0 };
     if (cls && cls.subclassLevel && level >= cls.subclassLevel && !subclassName && cls.subclasses && Object.keys(cls.subclasses).length) { keys.add("subclass"); count.identity++; }
@@ -3180,7 +3182,7 @@ function CharacterSheet() {
     setCharId(typeof data.charId === "string" && /^[a-z0-9]{4,20}$/.test(data.charId) ? data.charId : newCharId());
     setPortrait(isPic(data.portrait) ? data.portrait : "");
     setPortraitThumb(isPic(data.portraitThumb) ? data.portraitThumb : "");
-    setCompanions(Array.isArray(data.companions) ? data.companions.filter(p => p && typeof p === "object" && String(p.name || "").trim() && !/^f:/.test(String(p.id || ""))).slice(0, 6).map(p => ({ id: String(p.id || newCharId()), name: String(p.name).slice(0, 60), base: String(p.base || "").slice(0, 80), kind: String(p.kind || "").slice(0, 30), ac: parseInt(p.ac) || 0, hp: parseInt(p.hp) || 0, speed: parseInt(p.speed) || 0, init: ["after", "shared", "roll"].includes(p.init) ? p.init : "after" })) : []);
+    setCompanions(Array.isArray(data.companions) ? data.companions.filter(p => p && typeof p === "object" && String(p.name || "").trim() && !/^f:/.test(String(p.id || ""))).slice(0, 6).map(p => ({ id: String(p.id || newCharId()), name: String(p.name).slice(0, 60), base: String(p.base || "").slice(0, 80), kind: String(p.kind || "").slice(0, 30), ac: parseInt(p.ac) || 0, hp: parseInt(p.hp) || 0, speed: parseInt(p.speed) || 0, init: ["after", "shared", "roll"].includes(p.init) ? p.init : "after", count: Math.max(1, Math.min(12, parseInt(p.count) || 1)) })) : []);
     setPalEdits(data.palEdits && typeof data.palEdits === "object" ? data.palEdits : {});
     setCharName(String(data.name || ""));
     setPlayerName(String(data.player || ""));
@@ -3426,8 +3428,7 @@ function CharacterSheet() {
           </div>
           <div style={{ fontSize: 14, color: colors.ink, marginTop: 6, fontWeight: 600 }}>
             Level {totalLevel} {species} {classLine || className}{subclassName && !classLine ? ` (${subclassName})` : ""} · {background}
-            <span style={{ marginLeft: 14, fontWeight: 400 }}><label>XP <input type="text" inputMode="numeric" data-testid="xp-field" aria-label="Experience Points" value={xp} onChange={e => setXp(Math.max(0, parseInt(e.target.value) || 0))} style={{ width: 90, background: colors.parchment, border: `1px solid ${colors.ink}`, borderRadius: 4, color: colors.ink, padding: "1px 6px" }} /></label>
-              <span style={{ fontSize: 12, opacity: 0.85, marginLeft: 6 }}>{totalLevel >= 20 ? "Level 20 is the highest level." : `Level ${totalLevel + 1} at ${XP_LEVELS[totalLevel].toLocaleString("en-US")}.`}{totalLevel < 20 && xp >= XP_LEVELS[totalLevel] ? " Enough to level up." : ""}</span></span>
+
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, alignItems: "center" }}>
             {[
@@ -3483,6 +3484,12 @@ function CharacterSheet() {
             <div style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.8 }}>{label}</div>
           </div>
         ))}
+        <div data-testid="xp-box" title={totalLevel >= 20 ? "Level 20 is the highest level." : `Level ${totalLevel + 1} at ${XP_LEVELS[totalLevel].toLocaleString("en-US")} XP${xp >= XP_LEVELS[totalLevel] ? ". Enough to level up." : ""}`} style={{
+          background: colors.inkLight, border: `1px solid ${totalLevel < 20 && xp >= XP_LEVELS[totalLevel] ? colors.brassLight : colors.brass + "66"}`, borderRadius: 6, padding: "8px 10px", textAlign: "center", minWidth: 96 }}>
+          <input type="text" inputMode="numeric" data-testid="xp-field" aria-label="Experience Points" value={xp} onChange={e => setXp(Math.max(0, parseInt(e.target.value) || 0))}
+            style={{ width: 84, textAlign: "center", fontFamily: fontDisplay, fontSize: 20, fontWeight: 700, color: colors.brassLight, background: "transparent", border: "none", borderBottom: `1px dashed ${colors.brass}88`, padding: 0 }} />
+          <div style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.8 }}>XP{totalLevel < 20 ? ` · next ${XP_LEVELS[totalLevel].toLocaleString("en-US")}` : ""}</div>
+        </div>
       </div>
 
       {/* TABS */}
@@ -3601,6 +3608,7 @@ function CharacterSheet() {
               {m ? <span style={{ fontSize: 13, opacity: 0.85 }}>{m.t} · AC {(p.stats && p.stats.ac) || m.ac} · {(p.stats && p.stats.hp) || m.hp} HP · {m.sp}</span>
                 : what === "own" && !auto ? [["ac", "AC"], ["hp", "HP"], ["speed", "Speed"]].map(([k, l]) => <label key={k} style={{ fontSize: 13 }}>{l} <input type="number" aria-label={`Companion ${l}`} value={p[k] || ""} onChange={e => upd({ [k]: parseInt(e.target.value) || 0 })} style={{ ...field, width: 64 }} /></label>)
                 : auto && p.stats ? <span style={{ fontSize: 13, opacity: 0.85 }}>{Object.entries(p.stats).map(([k, v]) => `${k.toUpperCase()} ${v}`).join(" · ")} (grows with your level)</span> : null}
+              {!isSheet && <label style={{ fontSize: 13 }} title="Several of the same creature, each with its own Hit Points">How many <input type="number" min={1} max={12} aria-label="How many" data-testid="companion-count" value={p.count || 1} onChange={e => upd({ count: Math.max(1, Math.min(12, parseInt(e.target.value) || 1)) })} style={{ ...field, width: 56 }} /></label>}
               <label style={{ fontSize: 13 }}>Initiative <select aria-label="Companion Initiative" data-testid="companion-init" value={p.init || "after"} onChange={e => upd({ init: e.target.value })} style={field}>{INIT.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
               {!auto && <button onClick={() => setCompanions(prev => prev.filter(x => x.id !== p.id))} style={{ background: "transparent", color: CUSTOM_RED, border: `1px solid ${CUSTOM_RED}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Remove</button>}
             </div>); };
