@@ -3485,7 +3485,7 @@ function CharacterSheet() {
           </div>
         ))}
         <div data-testid="xp-box" title={totalLevel >= 20 ? "Level 20 is the highest level." : `Level ${totalLevel + 1} at ${XP_LEVELS[totalLevel].toLocaleString("en-US")} XP${xp >= XP_LEVELS[totalLevel] ? ". Enough to level up." : ""}`} style={{
-          background: colors.inkLight, border: `1px solid ${totalLevel < 20 && xp >= XP_LEVELS[totalLevel] ? colors.brassLight : colors.brass + "66"}`, borderRadius: 6, padding: "8px 10px", textAlign: "center", minWidth: 96 }}>
+          background: colors.inkLight, border: "2px solid #000", boxShadow: totalLevel < 20 && xp >= XP_LEVELS[totalLevel] ? `0 0 0 1px ${colors.brassLight}` : "none", borderRadius: 6, padding: "7px 10px", textAlign: "center", minWidth: 96 }}>
           <input type="text" inputMode="numeric" data-testid="xp-field" aria-label="Experience Points" value={xp} onChange={e => setXp(Math.max(0, parseInt(e.target.value) || 0))}
             style={{ width: 84, textAlign: "center", fontFamily: fontDisplay, fontSize: 20, fontWeight: 700, color: colors.brassLight, background: "transparent", border: "none", borderBottom: `1px dashed ${colors.brass}88`, padding: 0 }} />
           <div style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.8 }}>XP{totalLevel < 20 ? ` · next ${XP_LEVELS[totalLevel].toLocaleString("en-US")}` : ""}</div>
@@ -4869,7 +4869,7 @@ function SpellsTab({ sharedSlots = null, attnEdge = () => ({}), bookInfo, spellb
   const q = search.trim().toLowerCase();
   const pool = ALL_SPELLS.filter(sp =>
     !chosen.has(sp.n) && (wideList || (caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(l => sp.c.includes(l) && sp.l > 0)))) && (sp.l === 0 || sp.l <= topLevel)
-    && (!spellInfo.book || wideList || sp.l === 0 || spellInfo.book.includes(sp.n)) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
+    && (!spellInfo.book || wideList || wideLevel && sp.l > maxLevel || sp.l === 0 || spellInfo.book.includes(sp.n)) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
     .sort((a, b) => (sortBy === "level" ? a.l - b.l : 0) || a.n.localeCompare(b.n));
   const levelChoices = Array.from({ length: topLevel + 1 }).map((_, i) => i); // 0 is cantrips; only the levels this character can reach
   const shownLevels = levelChoices.filter(l => !levelsOff.includes(l));

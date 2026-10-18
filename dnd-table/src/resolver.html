@@ -99,6 +99,7 @@
     .fund-tabs { display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--pp-border, var(--brass)); flex-wrap: wrap; }
     .fund-tab { background: transparent; border: 1px solid var(--pp-line, #3d5166); border-bottom: none; border-radius: 8px 8px 0 0; color: var(--pp-text, var(--parchment)); padding: 4px 12px; cursor: pointer; font-family: 'Cinzel', serif; font-size: 13px; }
     .fund-tab.on { background: var(--pp-border, var(--brass)); color: var(--pp-main, #1a2535); font-weight: 700; }
+    .money-fold { min-width: 34px; font-size: 15px; padding: 2px 8px; border: 1px solid var(--pp-line, #3d5166); border-radius: 6px; margin-right: 4px; }
     .fund-sum { font-family: 'Crimson Text', serif; font-weight: 400; font-size: 12px; opacity: .85; }
     .fund-x { background: none; border: none; color: inherit; cursor: pointer; font-size: 11px; padding: 0 0 0 4px; opacity: .7; }
     .fund-plus { font-weight: 700; padding: 4px 10px; }
@@ -112,6 +113,13 @@
     .log-flagdot { float: left; width: 18px; height: 18px; border-radius: 50%; background: #c62828; color: #fff; border: none; font-weight: 800; font-size: 12px; line-height: 18px; padding: 0; margin: 2px 6px 0 0; cursor: pointer; }
     .log-flag-why { color: #ff8a80; font-size: 0.8rem; margin-top: 2px; }
     .tool-chip { white-space: nowrap; opacity: 1; margin: 2px; }
+    .pal-group { padding: 8px 12px; margin: 8px 0; }
+    .pal-block { font-size: 13.5px; margin: 2px 0 6px; }
+    .pal-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .pal-table td { padding: 3px 6px; border-bottom: 1px solid var(--pp-line); white-space: nowrap; }
+    .pal-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+    .group-run { position: fixed; z-index: 62; left: 50%; transform: translateX(-50%); bottom: 150px; max-width: min(720px, 94vw); box-shadow: 0 6px 24px rgba(0,0,0,.6); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: #2a2210; border: 1px solid var(--gold); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
+    .group-run span { padding: 1px 8px; border-radius: 10px; border: 1px solid #3d5166; } .group-run span.on { border-color: var(--gold); color: var(--gold); } .group-run span.done { opacity: .6; }
     .app-ver { font-size: 0.55em; opacity: .6; letter-spacing: 1px; vertical-align: middle; }
     .card-pic.hidden-pic { opacity: .45; outline: 1px dashed var(--brass); }
     .banner-pic { float: right; width: 72px; height: 72px; border-radius: 8px; object-fit: cover; border: 2px solid var(--brass); cursor: zoom-in; margin-left: 10px; }
@@ -2746,8 +2754,10 @@ function App() {
   const [rosterInit, setRosterInitRaw] = useState(() => { try { const v = JSON.parse(window.localStorage.getItem('hba-roster-init') || 'null'); return v && ['roll', 'avg', 'type'].includes(v.mode) ? {mode: v.mode, val: ''} : {mode: 'roll', val: ''}; } catch (e) { return {mode: 'roll', val: ''}; } }); // the Initiative a monster added from the roster gets
   const setRosterInit = v => { setRosterInitRaw(v); try { window.localStorage.setItem('hba-roster-init', JSON.stringify({mode: v.mode})); } catch (e) {} };
   const [toolOpen, setToolOpen] = useState('');
+  const [palHidden, setPalHidden] = useState([]), [groupRun, setGroupRun] = useState(null); // companions taken off the list; one action done by several companions in turn
   const [palTab, setPalTab] = useState('all'), [palSort, setPalSort] = useState('name'), [palSel, setPalSel] = useState([]), [palAmt, setPalAmt] = useState(''); // the Companions tab // the tool opened on the sheet
-  const [logOpen, setLogOpen] = useState([]); // Combat Log entries opened to show all their details
+  const [logOpen, setLogOpen] = useState([]);
+  const toggleLogOpen = id => setLogOpen(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id].slice(-200)); // Combat Log entries opened to show all their details
   const [pics, setPics] = useState({}); // pictures of creatures in this session: {creature id: {big, thumb, show, at}}
   const [bigPic, setBigPic] = useState(''); // a picture opened full size
   const [board, setBoard] = useState(false); // the DM's board of every monster's stat block
@@ -2809,7 +2819,8 @@ function App() {
   const viewed = (viewId && visible.find(c => c.id === viewId && canControl(c)))
     || (active && canControl(active) ? active : null)
     || mine[0] || active || null;
-  const canAct = !!(combatStarted && active && viewed && viewed.id === active.id && canControl(active));
+  const sharesTurn = v => !!(v && active && v.shareTurn && (v.after === active.id || v.palOf === active.id)); // a companion on a shared Initiative acts on its owner's turn
+  const canAct = !!(combatStarted && active && viewed && (viewed.id === active.id || sharesTurn(viewed)) && canControl(viewed));
   const target = inPlay.find(c => c.id === targetId) || null;
   // Things that keep working while they last (a spell used again each turn): offered again with no slot or use spent.
   const runningOf = c => (c && c.running || []).filter(r => r && r.a && (!r.turnOnly || r.turnOnly === `${round}:${activeId}`) && (!r.conc || (c.conc && c.conc.name === r.conc)) && (!r.concBy || ((combatants.find(x => x.id === r.concBy) || {}).conc || {}).name === r.concName));
@@ -2898,7 +2909,7 @@ function App() {
       const pc = sheetPal ? {...sheetToFields(sheetPal), id: newId(), conditions: [], effects: []} : m ? {...monsterToCombatant(m), ...(+st.hp ? {maxHP: +st.hp, currentHP: +st.hp} : {}), ...(+st.ac ? {ac: +st.ac} : {})} : {id: newId(), type: 'companion', level: 1, maxHP: Math.max(1, +p.hp || 1), currentHP: Math.max(1, +p.hp || 1), ac: +p.ac || 10, speed: Math.max(0, +p.speed || 30), initBonus: 0,
         scores: {Strength: 10, Dexterity: 10, Constitution: 10, Intelligence: 10, Wisdom: 10, Charisma: 10}, saves: {Strength: 0, Dexterity: 0, Constitution: 0, Intelligence: 0, Wisdom: 0, Charisma: 0}, conditions: [], effects: [], pb: 2, size: 'Small'};
       const mode = ['shared', 'after', 'roll'].includes(p.init) ? p.init : 'after', rolled = mode === 'roll' ? rollD(20) + (+pc.initBonus || 0) : newC.initiative;
-      return {...pc, name: String(p.name).trim().slice(0, 60), type: sheetPal ? 'player' : 'companion', rel: 'ally', owner: newC.owner || myId, initiative: rolled, ...(mode === 'roll' ? {} : {after: newC.id}), ...(mode === 'shared' ? {shareTurn: true} : {}), ...(p.kind ? {sub: `${String(p.kind).slice(0, 30)}${m ? ` · ${m.n}` : ''}`} : {}), ...(newC.pending ? {pending: true} : {})}; });
+      return {...pc, name: String(p.name).trim().slice(0, 60), type: sheetPal ? 'player' : 'companion', rel: 'ally', owner: newC.owner || myId, palOf: newC.id, initiative: rolled, ...(mode === 'roll' ? {} : {after: newC.id}), ...(mode === 'shared' ? {shareTurn: true} : {}), ...(p.kind ? {sub: `${String(p.kind).slice(0, 30)}${m ? ` · ${m.n}` : ''}`} : {}), ...(newC.pending ? {pending: true} : {})}; });
     setCombatants(prev => palCs.reduce((l, x) => placeByInitiative(l, x), placeByInitiative(prev, newC)));
     setViewId(v => v || (newC.owner === myId ? newC.id : v));
     setForm(emptyForm);
@@ -2944,7 +2955,7 @@ function App() {
     }
     setCombatants(prev => prev.filter(c => c.id !== id));
   };
-  const acceptCombatant = (id) => setCombatants(prev => prev.map(c => c.id === id || (c.pending && c.after === id) ? {...c, pending: false} : c)); // a character's companions come in with it
+  const acceptCombatant = (id) => setCombatants(prev => prev.map(c => c.id === id || (c.pending && (c.after === id || c.palOf === id)) ? {...c, pending: false} : c)); // a character's companions come in with it
 
   const startCombat = () => { // with the table rule on, combat begins once everyone has rolled Initiative
     if (askInit && !initCall) {
@@ -3926,7 +3937,7 @@ function App() {
       const rollShown = `Roll: ${rollsTxt(roll)} ${signed(action.atk)}${extras ? ` (${extras})` : ''} = <strong>${total}</strong><span class="ac-secret"> vs AC ${targetAC}</span>${modeText(t) ? `<div class="log-detail">${modeText(t)}</div>` : ''}`;
       const rollText = isDM && !active.owner ? `<span class="dm-secret">${rollShown}</span>` : rollShown;
 
-      let dmgHtml = '';
+      let dmgHtml = '', dmgTotal = null;
       if (hit && target) {
         const hasDmg = (action.dmgList && action.dmgList.length) || action.dmg;
         const gwf = feat.gwf && action.weapon && action.twoHanded && !action.ranged; // Great Weapon Fighting
@@ -3973,22 +3984,23 @@ function App() {
           if (extra.length) parts.push({amount: extra.reduce((a, b) => a + b, 0), type: parts[0].type, dice: `extra d${action.explode.die}: ${extra.join(', ')}`}); }
         if (action.leap && parts.length) { const faces = (String(parts[0].dice).match(/\[([^\]]*)\]/) || [, ''])[1].split(',').map(x => x.trim()).filter(Boolean); if (new Set(faces).size < faces.length) { featNotes.push('Two damage dice match: it leaps to a new target. Use it again from Active.'); const nm = `${String(action.name).replace(/ \(Level \d slot\)$/, '')} (leap)`, {id, slot, pool, cost, usesMax, ...keep} = action; setCombatants(prev => prev.map(c => c.id !== active.id ? c : {...c, running: [...(c.running || []).filter(r => r.name !== nm), plain({id: newId(), name: nm, act: 'free', conc: '', usedAt: '', once: true, a: {...keep, name: nm}})].slice(-6)})); } }
         effs(active).filter(e => e.atkDmg).forEach(e => parts.push(...rollDamageParts({dmgList: [[e.atkDmg.dice, (e.atkDmg.types && elemType && e.atkDmg.types.includes(elemType) ? elemType : e.atkDmg.type) || (parts[0] || {}).type || '']]}, isCrit).map(pt => ({...pt, dice: `${esc(e.name)} ${pt.dice}`}))));
-        dmgHtml = (parts.length ? dealDamage(target, parts, false, feat.ignoreRes || null).html : '') + applyOutcome(target, action.onHit, action, active);
+        { const dr = parts.length ? dealDamage(target, parts, false, feat.ignoreRes || null) : null; if (dr) dmgTotal = dr.total; dmgHtml = (dr ? `<div class="log-detail">Damage: ${dr.html}</div>` : '') + applyOutcome(target, action.onHit, action, active); }
         if (!action.ranged) effs(target).filter(e => e.retaliate && (!e.retaliate.types || e.retaliate.types.includes(creatureType(active)))).forEach(e => { const rt = e.retaliate; // Fire Shield, Holy Aura: hitting it in melee costs the attacker
           if (rt.dice && !rt.save) { const rp = parseDamage(rt.dice); dmgHtml += `<div class="log-detail">${esc(e.name)}: ${esc(active.name)} takes</div>` + dealDamage(active, [{amount: rp.total, type: rt.type, dice: `${rt.dice} = ${rp.total}`}]).html; }
           if (rt.save) setPrompts(prev => [...prev, plain({id: newId(), kind: 'save', by: myId, targetId: active.id, actorId: target.id, actorName: target.name, action: {name: e.name, dc: +e.dc || (((combatants.find(c => c.id === e.casterId) || {}).sheet || {}).spell || {}).dc || 13, saveAbility: rt.save, ...(rt.dice ? {dmgList: [[rt.dice, rt.type]]} : {}), ...(rt.cond ? {onFail: {conds: [{name: rt.cond, left: rt.left || 60}]}} : {})}})]); });
       }
+      { const what = `<div class="log-detail">${action.spell ? 'Spell' : action.weapon ? 'Weapon' : action.unarmed ? 'Unarmed Strike' : 'Attack'}: ${esc(action.name)}</div>`; // the preview: who attacks whom, then what it did; the rest when opened
       entries.push({
         type: isCrit && hit ? 'crit' : hit ? 'hit' : 'miss',
         html: hit
-          ? `<strong>${actorName}</strong> → <strong>${targetName}</strong> · ${esc(action.name)}<br/>
-             <span class="log-result">${isCrit?'⚔️ CRITICAL HIT!':'⚔️ Hit!'}</span>
-             &nbsp;${rollText}${autoCrit && !nat20 ? `<div class="log-detail">Critical Hit because the target is ${autoCrit} (attacker within 5 feet)</div>` : ''}
+          ? `⚔️ <strong>${actorName}</strong> → <strong>${targetName}</strong><span class="sr-only"> · ${esc(action.name)}</span><br/>
+             <span class="log-result">${isCrit ? 'CRITICAL HIT' : 'Hit'}${dmgTotal != null ? ` · ${dmgTotal} damage` : ''}</span>
+             ${what}<div class="log-dice">${rollText}</div>${autoCrit && !nat20 ? `<div class="log-detail">Critical Hit because the target is ${autoCrit} (attacker within 5 feet)</div>` : ''}
              ${dmgHtml}${featNotes.length ? `<div class="log-detail">${featNotes.map(esc).join(' · ')}</div>` : ''}`
-          : `<strong>${actorName}</strong> → <strong>${targetName}</strong> · ${esc(action.name)}<br/>
-             <span style="color:var(--text-muted)">Miss</span>
-             &nbsp;${rollText}${masteryHtml}${featNotes.length ? `<div class="log-detail">${featNotes.map(esc).join(' · ')}</div>` : ''}${action.missHalf && target ? dealDamage(target, rollDamageParts(action, false), true).html + '<div class="log-detail">Potent Cantrip: half damage on a miss</div>' : ''}`
-      });
+          : `⚔️ <strong>${actorName}</strong> → <strong>${targetName}</strong><span class="sr-only"> · ${esc(action.name)}</span><br/>
+             <span class="log-result" style="color:var(--text-muted)">Miss</span>${action.missHalf && target ? (() => { const dr = dealDamage(target, rollDamageParts(action, false), true); return ` · ${dr.total} damage<div class="log-detail">${dr.html} (Potent Cantrip: half damage on a miss)</div>`; })() : ''}
+             ${what}<div class="log-dice">${rollText}</div>${masteryHtml}${featNotes.length ? `<div class="log-detail">${featNotes.map(esc).join(' · ')}</div>` : ''}`
+      }); }
     }
 
     else if ((action.type === 'auto' || action.type === 'apply') && target) {
@@ -4957,7 +4969,12 @@ function App() {
   const setCoin = (c, k, n) => setCombatants(prev => prev.map(x => x.id !== c.id ? x : k === 'gp' ? {...x, gold: n, goldAt: Date.now(), moneyAt: Date.now()} : {...x, coins: {...(x.coins || {}), [k]: n}, moneyAt: Date.now()}));
   // Funds, like tabs in a browser: Money (the coins, the table's own kinds of money and your own denominations) and any purse or account you name, each with its own coins
   // A character's companions: those it brought, its summons and creatures that act on its turn
-  const palsOf = c => !c ? [] : inPlay.filter(x => x.id !== c.id && (x.summonOf === c.id || x.after === c.id || (x.type === 'companion' && c.owner && x.owner === c.owner)));
+  // A Combat Log entry with more than its two lines: details, a rule broken, or buttons to act on it. Those show when it is opened.
+  const logLong = e => /log-detail|log-dice/i.test(e.html || '') || !!e.flag || !!e.void || !!e.dmOnly || canOverride(e) || !!(coverable(e) && coverTarget(e) && canControl(coverTarget(e))) || canEndConc(e);
+  // The same action by several companions, one after another: each opens with that action chosen and the same targets kept
+  const startGroupRun = (ids, name) => { if (!ids.length) return; setGroupRun({ids, name, i: 0}); openRunStep(ids[0], name); };
+  const openRunStep = (id, name) => { const x = combatants.find(y => y.id === id); if (!x) return; const a = buildActions(x).find(y => y.name === name); setViewId(id); setSelectedAction(a ? a.id : null); };
+  const palsOf = c => !c ? [] : inPlay.filter(x => x.id !== c.id && (x.summonOf === c.id || x.after === c.id || x.palOf === c.id || (x.type === 'companion' && c.owner && x.owner === c.owner)));
   const palCr = x => { const m = /CR (\d+)(?:\/(\d+))?/.exec(x.sub || ''); return m ? (m[2] ? +m[1] / +m[2] : +m[1]) : null; };
   const fundsOf = c => Array.isArray(c.funds) ? c.funds : (c.purses || []).map(p => ({id: p.id, name: p.name, coins: {}, custom: [{id: 'v', name: 'Amount', value: 0, n: +p.amt || 0}]}));
   const setFunds = (c, f) => setCombatants(prev => prev.map(x => x.id !== c.id ? x : (({purses, ...rest}) => ({...rest, funds: f, moneyAt: Date.now()}))(x)));
@@ -4978,7 +4995,7 @@ function App() {
       if (tab === 'main') setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, moneyX: [...(x.moneyX || []), d].slice(0, 12)})); else setFunds(c, funds.map(y => y.id !== f.id ? y : {...y, custom: [...(y.custom || []), {...d, n: 0}].slice(0, 12)})); setCoinName(''); setDenomVal(''); };
     return <div className="money-box funds" data-testid="money-box">
       <div className="fund-tabs" role="tablist">
-        <button className="note-toggle" data-testid="money-toggle" aria-expanded={moneyOpen} title={moneyOpen ? 'Fold the money away' : 'Show the money'} onClick={() => setMoneyOpen(!moneyOpen)}>{moneyOpen ? '▾' : '▸'}</button>
+        <button className="note-toggle money-fold" data-testid="money-toggle" aria-expanded={moneyOpen} title={moneyOpen ? 'Fold the money away' : 'Show the money'} onClick={() => setMoneyOpen(!moneyOpen)}>{moneyOpen ? '▾' : '▸'}</button>
         <button role="tab" className={`fund-tab ${tab === 'main' ? 'on' : ''}`} data-testid="fund-tab-main" onClick={() => { setFundTab('main'); setMoneyOpen(true); }}>💰 Money <span className="fund-sum">{val(mainTotal)} GP</span></button>
         {funds.map(x => <span key={x.id} role="tab" className={`fund-tab ${tab === x.id ? 'on' : ''}`} data-testid="fund-tab" onClick={() => { setFundTab(x.id); setMoneyOpen(true); }}>{x.name} <span className="fund-sum">{val(fundTotal(x))} GP</span>
           {ctl && <button className="fund-x" data-testid="fund-delete" aria-label={`Delete ${x.name}`} title={`Delete ${x.name}`} onClick={e => { e.stopPropagation(); delFund(x); }}>✕</button>}</span>)}
@@ -5299,8 +5316,8 @@ function App() {
     const hitLeft = Math.max(0, c.level - (+c.hitDiceUsed || 0));
     const res = [c.res && `Resistant: ${c.res}`, c.ci && `Immune: ${c.ci}`].filter(Boolean);
     const slotCircles = (lvl) => { const max = ((sh.slotMax || [])[lvl - 1]) || 0, left = slotsLeft(c, lvl); return max ? (
-      <span className="pp-circles" title={ctl ? 'Click a filled circle to spend a slot, an empty one to give it back' : ''}>
-        {Array.from({length: max}).map((_, i) => <span key={i} className={`pp-circle ${i < left ? 'full' : ''}`} onClick={() => ctl && adjustSlot(c.id, lvl, i < left ? -1 : 1)} />)}
+      <span className="pp-circles" data-testid={`slots-${lvl}`} data-left={left} data-max={max} title={ctl ? 'Click a filled circle to spend a slot, an empty one to give it back' : ''}>
+        {Array.from({length: max}).map((_, i) => <span key={i} role={ctl ? 'button' : undefined} aria-label={ctl ? (i < left ? `Spend a Level ${lvl} slot` : `Give back a Level ${lvl} slot`) : undefined} className={`pp-circle ${i < left ? 'full' : ''}`} onClick={() => ctl && adjustSlot(c.id, lvl, i < left ? -1 : 1)} />)}
       </span>) : null; };
     const spellRow = (s, cols) => { const a = actOf(s.n), open = !!openSpells[s.n]; return (
       <div key={s.n} data-ex={`spell:${s.n}`} className={a ? rowCls(a, 'pp-spell') : 'pp-spell pp-text'} data-open={open ? 'yes' : ''} style={a ? dim(a) : {}} onClick={() => a && ctl && sel(a)}>
@@ -5576,6 +5593,7 @@ function App() {
                 <select aria-label="Sort spells" data-testid="spf-sort" value={spf.sort} onChange={e => setSpf({...spf, sort: e.target.value})}><option value="">Sort: A to Z</option><option value="time">Casting time</option><option value="range">Range</option><option value="dur">Duration, shortest first</option></select>
                 <span className="pp-muted">{shown.length} of {list.length}</span>
               </div>
+              {(() => { const rest = (sh.slotMax || []).map((n, i) => n > 0 && !groups.includes(i + 1) ? i + 1 : 0).filter(Boolean); return rest.length > 0 && <div className="pp-lvl" data-testid="paper-slots" style={{display: 'flex', flexWrap: 'wrap', gap: 14}}>{groups[0] === 'all' ? 'Spell slots:' : 'Other spell slots:'} {rest.map(l => <span key={l}>Level {l} {slotCircles(l)}</span>)}</div>; })()}
               {shown.length === 0 && <div className="pp-center pp-muted">{list.length ? 'No spell matches these filters.' : 'No spells above cantrips yet.'}</div>}
               {groups.map(l => { const shut = lvlShut.includes(l), rows = order(l === 'all' ? shown : shown.filter(s0 => s0.l === l)); return (
                 <div key={l} data-testid={`paper-spells-${l}`}>
@@ -5592,10 +5610,10 @@ function App() {
         <div data-testid="paper-inventory">
           {(() => { const sz = {Tiny: 7.5, Small: 15, Medium: 15, Large: 30, Huge: 60, Gargantuan: 120}[sizeOf(c)] || 15, cap = Math.floor(((c.scores || {}).Strength || 10) * sz), wt = full.reduce((t, it) => t + (parseFloat(String(it.weight || '').replace(/[^\d.]/g, '')) || 0), 0);
             return <div className="pp-card" data-testid="inv-money" style={{display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10}}>
-              {moneyBox(c, ctl)}
               <span data-testid="inv-carry"><strong>Carrying capacity</strong> {cap} lb.{wt ? ` · carrying ${Math.round(wt * 10) / 10} lb.` : ''}
                 <label className="rule-label" data-ex="enc" style={{margin: '0 0 0 10px'}} title={encTable ? 'The DM set this for the table' : 'Encumbrance for this character'}>Encumbrance <select data-testid="enc-mode" disabled={!ctl || !!encTable} value={encTable || c.enc || 'off'} onChange={e => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, enc: e.target.value}))}><option value="off">Off</option><option value="on">On (2024)</option><option value="variant">Variant (2014)</option></select></label>
                 {encOf(c) && <span className="pp-muted" data-testid="enc-note" style={{display: 'block', color: '#ff8a80'}}>{encOf(c).text}</span>}</span>
+              {moneyBox(c, ctl)}
             </div>; })()}
           {Object.values(sh.pools || {}).some(q => q.recharge === 'dawn') && <label className="rule-label" style={{display: 'block', margin: '0 0 6px'}} title="Off: the app rolls each item's charges at dawn. On: you get a prompt with a Roll button for each."><input type="checkbox" data-testid="manual-charges" disabled={!ctl} checked={!!c.manualCharges} onChange={e => setCombatants(prev => prev.map(x => x.id === c.id ? {...x, manualCharges: e.target.checked} : x))}/> Roll my items' charges myself at dawn</label>}
           {allItems.some(it => it.attune) && <div className="attune-line" data-testid="attune-inv">{slotKinds(sh, allItems).map((t, i) => <span key={t.name}>{i ? ' · ' : ''}{t.on}{t.name === 'Attunement' ? '' : ` (${t.name})`}: <strong>{allItems.filter(it => it.slot === t.name && it.attuned).length} of {t.max}</strong>{allItems.filter(it => it.slot === t.name && it.attuned).length ? ` (${allItems.filter(it => it.slot === t.name && it.attuned).map(it => it.name).join(', ')})` : ''}</span>)}<span className="pp-muted"> (attune or end it in the Character Builder)</span></div>}
@@ -5617,33 +5635,51 @@ function App() {
               </div>}
             </div>); })}</div>
         </div>); })()}
-        {sheetTab === 'companions' && (() => { const pals = palsOf(c), cur = pals.find(x => x.id === palTab), sorted = pals.slice().sort((a, b) => palSort === 'hp' ? (a.currentHP / totalHP(a)) - (b.currentHP / totalHP(b)) : palSort === 'cr' ? ((palCr(b) ?? -1) - (palCr(a) ?? -1)) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name));
-          const sel = palSel.filter(id => pals.some(x => x.id === id)), n = Math.abs(parseInt(palAmt, 10) || 0);
-          const mass = (heal) => { if (!n) return; sel.map(id => pals.find(x => x.id === id)).filter(x => x && canControl(x)).forEach(x => { updateHP(x.id, heal ? n : -n, !!heal); handLog(x, heal ? `regains ${n} Hit Points` : `takes ${n} damage`); }); setPalAmt(''); };
+        {sheetTab === 'companions' && (() => { const pals = palsOf(c).filter(x => !palHidden.includes(x.id)), hiddenN = palsOf(c).length - pals.length;
+          const kindOf = x => String(x.name).replace(/ \d+$/, ''), kinds = Array.from(new Set(pals.map(kindOf)));
+          const order = (list) => list.slice().sort((a, b) => palSort === 'hp' ? (a.currentHP / totalHP(a)) - (b.currentHP / totalHP(b)) : palSort === 'cr' ? ((palCr(b) ?? -1) - (palCr(a) ?? -1)) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name, undefined, {numeric: true}));
+          const shownKinds = palTab === 'all' || !kinds.includes(palTab) ? order(kinds.map(k => pals.find(x => kindOf(x) === k))).map(kindOf) : [palTab];
+          const n = Math.abs(parseInt(palAmt, 10) || 0);
+          const group = (k) => { const mem = order(pals.filter(x => kindOf(x) === k)), lead = mem[0], sel = palSel.filter(id => mem.some(x => x.id === id)), who = sel.length ? mem.filter(x => sel.includes(x.id)) : mem;
+            const acts = buildActions(lead).filter(a => a.type !== 'info').slice(0, 12);
+            const mass = (heal) => { if (!n) return; who.filter(canControl).forEach(x => { updateHP(x.id, heal ? n : -n, !!heal); handLog(x, heal ? `regains ${n} Hit Points` : `takes ${n} damage`); }); setPalAmt(''); };
+            return (
+            <div key={k} className="pp-card pal-group" data-testid="pal-group">
+              <div className="pp-ename">{k} {mem.length > 1 ? <span className="pp-muted" style={{fontSize: 13}}>× {mem.length}</span> : null} <span className="pp-muted" style={{fontSize: 13}}>{[lead.base && lead.base !== k && !String(lead.sub || '').includes(lead.base) ? lead.base : '', lead.sub || lead.classLine || ''].filter(Boolean).join(' · ')}</span></div>
+              <div className="pal-block">AC {effectiveAC(lead)} · Speed {effectiveSpeed(lead)} ft.{lead.speedExtra ? `, ${lead.speedExtra}` : ''} · {ABILITY_KEYS.map(([kk, ab]) => `${kk.toUpperCase()} ${modStr((lead.scores || {})[ab] ?? 10)}`).join(' ')}</div>
+              <table className="pal-table" data-testid="pal-members"><tbody>
+                {mem.map(x => <tr key={x.id} data-testid="pal-row">
+                  {ctl && <td><input type="checkbox" aria-label={`Choose ${x.name}`} checked={palSel.includes(x.id)} onChange={e => setPalSel(e.target.checked ? [...palSel, x.id] : palSel.filter(y => y !== x.id))}/></td>}
+                  <td><strong>{x.name}</strong></td>
+                  <td style={{color: hpColor(x.currentHP, totalHP(x))}}>{x.currentHP}/{totalHP(x)} HP</td>
+                  <td className="pp-muted">{(x.conditions || []).join(', ') || '—'}</td>
+                  <td className="pp-muted">{x.shareTurn ? 'your turn' : `Init ${effectiveInit(x)}`}</td>
+                  <td>{canControl(x) && <button className="pp-chip on" data-testid="pal-act" onClick={() => { setViewId(x.id); setSelectedAction(null); }}>Act</button>}</td>
+                  <td><button className="item-star" data-testid="pal-hide" aria-label={`Take ${x.name} off this list`} title="Take it off this list (Restore brings it back)" onClick={() => setPalHidden([...palHidden, x.id])}>✕</button></td>
+                </tr>)}
+              </tbody></table>
+              {ctl && <div className="pp-filter" style={{flexWrap: 'wrap', marginTop: 6}}>
+                <label className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="pal-all" checked={sel.length === mem.length} onChange={e => setPalSel(e.target.checked ? Array.from(new Set([...palSel, ...mem.map(x => x.id)])) : palSel.filter(id => !mem.some(x => x.id === id)))}/> All {mem.length}</label>
+                <span className="pp-muted">{sel.length ? `${sel.length} chosen` : 'none chosen: all of them'}</span>
+                <input type="number" min="0" aria-label="Amount for the chosen companions" data-testid="pal-amt" placeholder="amount" value={palAmt} onChange={e => setPalAmt(e.target.value)} style={{width: 76}}/>
+                <button className="pp-chip on" data-testid="pal-dmg" disabled={!n} onClick={() => mass(false)}>Damage</button>
+                <button className="pp-chip on" data-testid="pal-heal" disabled={!n} onClick={() => mass(true)}>Heal</button>
+              </div>}
+              {acts.length > 0 && <div className="pal-acts" data-testid="pal-acts"><span className="pp-muted">{who.length > 1 ? `Each of the ${who.length} does:` : `${who[0].name} does:`}</span>
+                {acts.map(a => <button key={a.id} className="pp-chip on" data-testid="pal-do" title={a.detail || ''} disabled={!who.some(canControl)} onClick={() => startGroupRun(who.filter(canControl).map(x => x.id), a.name)}>{a.name}</button>)}</div>}
+            </div>); };
           return (
           <div data-testid="paper-companions">
             <div className="pp-tabs" style={{marginTop: 0}}>
-              <button className={`pp-tab ${!cur ? 'on' : ''}`} data-testid="pal-tab-all" onClick={() => setPalTab('all')}>All ({pals.length})</button>
-              {pals.map(x => <button key={x.id} className={`pp-tab ${cur && cur.id === x.id ? 'on' : ''}`} data-testid="pal-tab" onClick={() => setPalTab(x.id)}>{x.name}</button>)}
+              <button className={`pp-tab ${!kinds.includes(palTab) ? 'on' : ''}`} data-testid="pal-tab-all" onClick={() => setPalTab('all')}>All ({pals.length})</button>
+              {kinds.map(k => <button key={k} className={`pp-tab ${palTab === k ? 'on' : ''}`} data-testid="pal-tab" onClick={() => setPalTab(k)}>{k}{pals.filter(x => kindOf(x) === k).length > 1 ? ` × ${pals.filter(x => kindOf(x) === k).length}` : ''}</button>)}
             </div>
-            {!cur ? <>
-              <div className="pp-filter" style={{flexWrap: 'wrap'}}>
-                <label className="rule-label" style={{margin: 0}}>Sort <select aria-label="Sort companions" data-testid="pal-sort" value={palSort} onChange={e => setPalSort(e.target.value)}><option value="name">by name</option><option value="cr">by Challenge Rating</option><option value="hp">by Hit Points left</option></select></label>
-                {ctl && <><label className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="pal-all" checked={sel.length === pals.length && pals.length > 0} onChange={e => setPalSel(e.target.checked ? pals.map(x => x.id) : [])}/> All</label>
-                  <input type="number" min="0" aria-label="Amount for the chosen companions" data-testid="pal-amt" placeholder="amount" value={palAmt} onChange={e => setPalAmt(e.target.value)} style={{width: 80}}/>
-                  <button className="pp-chip on" data-testid="pal-dmg" disabled={!sel.length || !n} onClick={() => mass(false)}>Damage {sel.length || ''}</button>
-                  <button className="pp-chip on" data-testid="pal-heal" disabled={!sel.length || !n} onClick={() => mass(true)}>Heal {sel.length || ''}</button></>}
-              </div>
-              {sorted.map(x => <div key={x.id} className="pp-arow" data-testid="pal-row">
-                <span>{ctl && <input type="checkbox" aria-label={`Choose ${x.name}`} checked={sel.includes(x.id)} onChange={e => setPalSel(e.target.checked ? [...sel, x.id] : sel.filter(y => y !== x.id))}/>} <strong style={{cursor: 'pointer'}} onClick={() => setPalTab(x.id)}>{x.name}</strong> <span className="pp-muted">{x.sub || x.classLine || x.charClass || 'Companion'}{x.shareTurn ? ' · acts on your turn' : ''}</span></span>
-                <span>AC {effectiveAC(x)} · <strong style={{color: hpColor(x.currentHP, totalHP(x))}}>{x.currentHP}/{totalHP(x)} HP</strong>{(x.conditions || []).length ? ` · ${x.conditions.join(', ')}` : ''}</span>
-              </div>)}
-            </> : <div className="pp-card" style={{padding: '8px 12px'}} data-testid="pal-one">
-              <div className="pp-ename">{cur.name} <span className="pp-muted" style={{fontSize: 13}}>{cur.sub || cur.classLine || ''}</span></div>
-              <div className="pp-arow"><span>AC {effectiveAC(cur)} · Speed {effectiveSpeed(cur)} ft. · Initiative {cur.shareTurn ? 'on your turn' : effectiveInit(cur)}</span><strong style={{color: hpColor(cur.currentHP, totalHP(cur))}}>{cur.currentHP}/{totalHP(cur)} HP</strong></div>
-              {(cur.actions || []).length > 0 && <div style={{margin: '6px 0'}}>{cur.actions.map(a => <div key={a.id} style={{fontSize: 14}}><strong>{a.name}.</strong> {a.detail || ''}</div>)}</div>}
-              {canControl(cur) && <button className="pp-chip on" data-testid="pal-open" onClick={() => { setViewId(cur.id); setSelectedAction(null); }}>Open it to act</button>}
-            </div>}
+            <div className="pp-filter" style={{flexWrap: 'wrap'}}>
+              <label className="rule-label" style={{margin: 0}}>Sort <select aria-label="Sort companions" data-testid="pal-sort" value={palSort} onChange={e => setPalSort(e.target.value)}><option value="name">by name</option><option value="cr">by Challenge Rating</option><option value="hp">by Hit Points left</option></select></label>
+              {hiddenN > 0 && <button className="pp-chip on" data-testid="pal-restore" onClick={() => setPalHidden([])}>Restore all ({hiddenN} taken off)</button>}
+            </div>
+            {shownKinds.map(group)}
+            {!pals.length && <div className="pp-muted">Every companion is taken off the list. Restore brings them back.</div>}
           </div>); })()}
 
         {sheetTab === 'trackers' && (
@@ -5763,7 +5799,7 @@ function App() {
     return a; };
   const selAction = withMode(actions.find(a => a.id === selectedAction));
   const needsTargetNow = selAction && !['selfheal','info'].includes(selAction.type) && !selAction.self;
-  const actorNow = viewed && canControl(viewed) && (!fight || (active && viewed.id === active.id) || (selAction && selAction.activation === 'reaction')) ? viewed : null;
+  const actorNow = viewed && canControl(viewed) && (!fight || (active && (viewed.id === active.id || sharesTurn(viewed))) || (selAction && selAction.activation === 'reaction')) ? viewed : null;
   // Why the chosen action cannot be done right now, in words, or '' when it can.
   const effectBlock = (c, a) => { if (!c || !a) return ''; const nc = a.spell && effs(c).find(e => e.noCast), na = (['action', 'bonus'].includes(a.activation || 'action') && effs(c).find(e => e.noAct)) || (a.activation === 'bonus' && effs(c).find(e => e.noBonus));
     if (nc) return `${c.name} can't cast spells (${nc.name}).`; if (na) return `${c.name} can't take ${na.noBonus && !na.noAct ? 'Bonus Actions' : 'actions'} (${na.name}).`;
@@ -6391,6 +6427,51 @@ function App() {
             {isDM && <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={openAdd}>+ Add Combatant</button>}
             {isDM && <button className="btn btn-ghost btn-full" style={{marginTop:6}} onClick={()=>setShowRoster(true)}>Monster Roster</button>}
             </>}
+            {/* Conditions: the DM gives one to as many creatures as they like, from DM Controls */}
+            {isDM && (leftTab === 'dm' || condPick) && (() => { const tgs = (condTargets.length ? condTargets : targetIds).map(id => inPlay.find(c => c.id === id)).filter(Boolean), first = tgs[0] || null; return (
+                  <div className="manual-roll" data-testid="cond-box" style={leftTab !== 'dm' ? {position: 'sticky', bottom: 0, zIndex: 5, background: 'var(--panel)', boxShadow: '0 -4px 12px rgba(0,0,0,.4)'} : undefined}>
+                    <div className="section-title">🔮 Apply a Condition</div>
+                    <div className="time-row" style={{marginBottom: 6, gridTemplateColumns: 'auto 1fr auto'}} data-testid="cond-targets">
+                      <label className="opt-label">To</label>
+                      <span style={{display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center'}}>{tgs.length ? tgs.map(t => <span key={t.id} className="pp-chip on">{t.name} <button className="item-star" aria-label={`Take ${t.name} off`} onClick={() => setCondTargets(tgs.filter(x => x.id !== t.id).map(x => x.id))}>✕</button></span>) : <span className="pp-muted">No one yet</span>}
+                        <input list="cond-names" aria-label="Add a target by name" data-testid="cond-add-name" placeholder="Type a name" style={{width: 120}} onChange={e => { const m = inPlay.find(c => c.name.toLowerCase() === e.target.value.trim().toLowerCase()); if (m) { setCondTargets(Array.from(new Set([...tgs.map(x => x.id), m.id]))); e.target.value = ''; } }}/>
+                        <datalist id="cond-names">{inPlay.map(c => <option key={c.id} value={c.name}/>)}</datalist></span>
+                      <button className={`btn btn-sm ${condPick ? 'btn-primary' : 'btn-ghost'}`} data-testid="cond-pick" title="Click creatures in the turn order to add or take them off" onClick={() => { if (!condPick && !condTargets.length) setCondTargets(tgs.map(x => x.id)); setCondPick(!condPick); setLeftTab(condPick ? 'dm' : 'order'); }}>{condPick ? 'Done' : 'Add targets'}</button>
+                    </div>
+                    <div className="time-row" style={{marginBottom:6}}>
+                      <label className="opt-label">Lasts</label>
+                      <input type="number" min="0" aria-label="How long the condition lasts" placeholder="until removed" value={condOpts.n} onChange={e=>setCondOpts({...condOpts, n:e.target.value})}/>
+                      <select aria-label="Condition duration unit" value={condOpts.unit} onChange={e=>setCondOpts({...condOpts, unit:e.target.value})}>
+                        {['rounds','minutes','hours','days'].map(u=><option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </div>
+                    {first && <div className="time-row" style={{marginBottom:6}}>
+                      <label className="opt-label">Repeat save</label>
+                      <select aria-label="When the save repeats" value={condOpts.when} onChange={e=>setCondOpts({...condOpts, when:e.target.value})}>
+                        <option value="">None</option>
+                        <option value="end">End of its turn</option>
+                        <option value="start">Start of its turn</option>
+                        {viewed && <option value="src-end">End of {viewed.name}'s turn</option>}
+                        {viewed && <option value="src-start">Start of {viewed.name}'s turn</option>}
+                      </select>
+                      {condOpts.when && <>
+                        <select aria-label="Save ability" value={condOpts.abil} onChange={e=>setCondOpts({...condOpts, abil:e.target.value})}>
+                          {ABILITIES.map(a=><option key={a} value={a}>{a}</option>)}
+                        </select>
+                        <label className="opt-label">DC</label>
+                        <input type="number" min="1" max="40" aria-label="Save DC" value={condDc} onChange={e=>setCondOpts({...condOpts, dc:e.target.value})}/>
+                      </>}
+                    </div>}
+                    <button className="btn btn-ghost btn-sm" data-testid="cond-list" disabled={!tgs.length} onClick={() => setCondList(!condList)}>{condList ? 'Hide conditions' : 'Conditions ▾'}</button>
+                    {condList && tgs.length > 0 && <div style={{display:'flex',flexWrap:'wrap',gap:4, marginTop: 6}} data-testid="cond-buttons">
+                      {CONDITIONS.map(cond => { const all = tgs.every(t => (t.conditions || []).includes(cond)); return (
+                        <button key={cond} className="btn btn-sm btn-ghost" data-testid={`cond-${cond}`} title={all ? `Take ${cond} off ${tgs.map(t => t.name).join(', ')}` : `Give ${tgs.map(t => t.name).join(', ')} ${cond}`}
+                          style={all ? {borderColor:'var(--blood-light)',color:'#ff8a80'} : {}}
+                          onClick={() => tgs.forEach(t => all ? removeCondition(t.id, cond) : !(t.conditions || []).includes(cond) && applyCondition(t, cond))}>
+                          {CONDITION_ICON[cond]} {cond}
+                        </button>); })}
+                    </div>}
+                  </div>); })()}
             {isDM && leftTab === 'dm' && (
               <div className="manual-roll" data-testid="flow-panel">
                 <span className="label">How actions resolve</span>
@@ -6803,7 +6884,7 @@ function App() {
                   </div>
                 )}
                 {/* Spell slots */}
-                {viewed && ((viewed.sheet || {}).slotMax || []).some(n => n > 0) && (
+                {viewed && !paper && ((viewed.sheet || {}).slotMax || []).some(n => n > 0) && (
                   <div className="slot-row" data-testid="slot-row">
                     <span className="opt-label">Spell slots</span>
                     {viewed.sheet.slotMax.map((n, i) => n > 0 ? <span key={i} className={`slot-chip ${slotsLeft(viewed, i + 1) ? '' : 'spent'}`}>L{i + 1}: {slotsLeft(viewed, i + 1)}/{n}
@@ -6813,51 +6894,6 @@ function App() {
 
                 </>}
 
-                {/* Conditions: the DM gives one to as many creatures as they like */}
-                {isDM && (() => { const tgs = (condTargets.length ? condTargets : targetIds).map(id => inPlay.find(c => c.id === id)).filter(Boolean), first = tgs[0] || null; return (
-                  <>
-                    <div className="section-title">🔮 Apply a Condition</div>
-                    <div className="time-row" style={{marginBottom: 6, gridTemplateColumns: 'auto 1fr auto'}} data-testid="cond-targets">
-                      <label className="opt-label">To</label>
-                      <span style={{display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center'}}>{tgs.length ? tgs.map(t => <span key={t.id} className="pp-chip on">{t.name} <button className="item-star" aria-label={`Take ${t.name} off`} onClick={() => setCondTargets(tgs.filter(x => x.id !== t.id).map(x => x.id))}>✕</button></span>) : <span className="pp-muted">No one yet</span>}
-                        <input list="cond-names" aria-label="Add a target by name" data-testid="cond-add-name" placeholder="Type a name" style={{width: 120}} onChange={e => { const m = inPlay.find(c => c.name.toLowerCase() === e.target.value.trim().toLowerCase()); if (m) { setCondTargets(Array.from(new Set([...tgs.map(x => x.id), m.id]))); e.target.value = ''; } }}/>
-                        <datalist id="cond-names">{inPlay.map(c => <option key={c.id} value={c.name}/>)}</datalist></span>
-                      <button className={`btn btn-sm ${condPick ? 'btn-primary' : 'btn-ghost'}`} data-testid="cond-pick" title="Click creatures in the turn order to add or take them off" onClick={() => { if (!condPick && !condTargets.length) setCondTargets(tgs.map(x => x.id)); setCondPick(!condPick); }}>{condPick ? 'Done' : 'Add targets'}</button>
-                    </div>
-                    <div className="time-row" style={{marginBottom:6}}>
-                      <label className="opt-label">Lasts</label>
-                      <input type="number" min="0" aria-label="How long the condition lasts" placeholder="until removed" value={condOpts.n} onChange={e=>setCondOpts({...condOpts, n:e.target.value})}/>
-                      <select aria-label="Condition duration unit" value={condOpts.unit} onChange={e=>setCondOpts({...condOpts, unit:e.target.value})}>
-                        {['rounds','minutes','hours','days'].map(u=><option key={u} value={u}>{u}</option>)}
-                      </select>
-                    </div>
-                    {first && <div className="time-row" style={{marginBottom:6}}>
-                      <label className="opt-label">Repeat save</label>
-                      <select aria-label="When the save repeats" value={condOpts.when} onChange={e=>setCondOpts({...condOpts, when:e.target.value})}>
-                        <option value="">None</option>
-                        <option value="end">End of its turn</option>
-                        <option value="start">Start of its turn</option>
-                        {viewed && <option value="src-end">End of {viewed.name}'s turn</option>}
-                        {viewed && <option value="src-start">Start of {viewed.name}'s turn</option>}
-                      </select>
-                      {condOpts.when && <>
-                        <select aria-label="Save ability" value={condOpts.abil} onChange={e=>setCondOpts({...condOpts, abil:e.target.value})}>
-                          {ABILITIES.map(a=><option key={a} value={a}>{a}</option>)}
-                        </select>
-                        <label className="opt-label">DC</label>
-                        <input type="number" min="1" max="40" aria-label="Save DC" value={condDc} onChange={e=>setCondOpts({...condOpts, dc:e.target.value})}/>
-                      </>}
-                    </div>}
-                    <button className="btn btn-ghost btn-sm" data-testid="cond-list" disabled={!tgs.length} onClick={() => setCondList(!condList)}>{condList ? 'Hide conditions' : 'Conditions ▾'}</button>
-                    {condList && tgs.length > 0 && <div style={{display:'flex',flexWrap:'wrap',gap:4, marginTop: 6}} data-testid="cond-buttons">
-                      {CONDITIONS.map(cond => { const all = tgs.every(t => (t.conditions || []).includes(cond)); return (
-                        <button key={cond} className="btn btn-sm btn-ghost" data-testid={`cond-${cond}`} title={all ? `Take ${cond} off ${tgs.map(t => t.name).join(', ')}` : `Give ${tgs.map(t => t.name).join(', ')} ${cond}`}
-                          style={all ? {borderColor:'var(--blood-light)',color:'#ff8a80'} : {}}
-                          onClick={() => tgs.forEach(t => all ? removeCondition(t.id, cond) : !(t.conditions || []).includes(cond) && applyCondition(t, cond))}>
-                          {CONDITION_ICON[cond]} {cond}
-                        </button>); })}
-                    </div>}
-                  </>); })()}
 
                 {/* Sheet details */}
                 {!paper && viewed.sheet && viewed.sheet.skills && Object.keys(viewed.sheet.skills).length > 0 && (
@@ -7003,17 +7039,17 @@ function App() {
                 : !isDM && entry.sys ? null
                 : <div key={entry.id||i} className={`log-entry ${entry.type} dice-result ${entry.void ? 'void' : ''} ${entry.flag ? 'flagged' : ''} ${fateChoose && entry.d20 && !entry.void && (rollWin !== 'heroic' || (entry.d20.who === fateChoose && entry.d20.die)) ? 'fate-pickable' : ''}`} data-testid={fateChoose && entry.d20 && !entry.void && (rollWin !== 'heroic' || (entry.d20.who === fateChoose && entry.d20.die)) ? 'fate-pickable' : undefined}
                     onClickCapture={fateChoose && entry.d20 && !entry.void && (rollWin !== 'heroic' || (entry.d20.who === fateChoose && entry.d20.die)) ? (ev => { ev.stopPropagation(); ev.preventDefault(); const cid = fateChoose; setFateChoose(null); setFatePick({cId: cid, entryId: entry.id}); }) : undefined}>
-                    {entry.flag && <button className="log-flagdot" data-testid="log-flag" title={`Against the rules: ${entry.flag}. Click for the reason.`} aria-label="Against the rules: show the reason" onClick={() => setOpenFlag({...openFlag, [entry.id]: !openFlag[entry.id]})}>!</button>}
+                    {entry.flag && <button className="log-flagdot" data-testid="log-flag" title={`Against the rules: ${entry.flag}`} aria-label="Against the rules: show the reason" onClick={() => toggleLogOpen(entry.id)}>!</button>}
                     {isDM && dmHist.current[entry.id] && <button className="log-star" data-testid="log-undo" title="Take back only what this did (DM). Shift-click: go back to just before it, undoing everything after too" aria-label="Take back" onClick={(ev) => ev.shiftKey ? undoToEntry(entry) : reverseEntry(entry)}>↶</button>}
                     {isDM && dmHist.current[entry.id] && <button className="log-star" data-testid="log-change" title="Change what this did (DM)" aria-label="Change the result" onClick={() => openChange(entry)}>✎</button>}
                     <button className="log-star" data-testid="log-hide" title="Take this off your own Combat Log (others still see it)" aria-label="Hide this entry" onClick={() => hideEntry(entry.id)}>✕</button>
                     <button className="log-star" data-testid="log-note" title={noteSaved === entry.id ? 'Saved to your Notes' : 'Save this to your Notes (under this fight)'} aria-label="Save to notes" onClick={() => noteFromLog(entry)}>{noteSaved === entry.id ? '✓' : '📝'}</button>
                     <button className={`log-star ${stars.some(x => x.id === entry.id) ? 'on' : ''}`} data-testid="log-star" title="Star this to keep it for after the fight" aria-label="Star this entry" onClick={() => toggleStar(entry)}>{stars.some(x => x.id === entry.id) ? '★' : '☆'}</button>
-                    {(() => { const long = /log-detail|log-dice/i.test(entry.html || ''), open = logOpen.includes(entry.id); return <>
-                      {long && <button className="log-star" data-testid="log-more" aria-expanded={open} title={open ? 'Show less' : 'Show everything about this'} onClick={() => setLogOpen(open ? logOpen.filter(x => x !== entry.id) : [...logOpen, entry.id].slice(-200))}>{open ? '▴' : '▾'}</button>}
-                      <div className={`log-html ${long && !open ? 'log-short' : ''}`} dangerouslySetInnerHTML={{__html:sanitizeLogHtml(entry.html)}}/>
-                      {entry.flag && openFlag[entry.id] && <div className="log-flag-why" data-testid="log-flag-why">Error: {entry.flag}</div>}
-                      {entry.flag && !openFlag[entry.id] && <span className="sr-only">Against the rules: {entry.flag}</span>}</>; })()}
+                    {logLong(entry) && <button className="log-star" data-testid="log-more" aria-expanded={logOpen.includes(entry.id)} title={logOpen.includes(entry.id) ? 'Show less' : 'Show everything about this'} onClick={() => toggleLogOpen(entry.id)}>{logOpen.includes(entry.id) ? '▴' : '▾'}</button>}
+                    <div className={`log-html ${logLong(entry) && !logOpen.includes(entry.id) ? 'log-short' : ''}`} dangerouslySetInnerHTML={{__html:sanitizeLogHtml(entry.html)}}/>
+                    {entry.flag && !logOpen.includes(entry.id) && <span className="sr-only">Against the rules: {entry.flag}</span>}
+                    {(!logLong(entry) || logOpen.includes(entry.id)) && <>
+                    {entry.flag && <div className="log-flag-why" data-testid="log-flag-why">Error: {entry.flag}</div>}
                     {entry.void && <div className="log-detail" style={{color:'#fff176'}}>Overridden by the DM. See the new result below.</div>}
                     {entry.dmOnly && <div className="log-detail" style={{color:'#fff176'}}>Only you can see this roll.</div>}
                     {canOverride(entry) && <div className="log-ov"><button className="btn btn-ghost btn-sm" data-testid="log-override" title="Undo what this did and resolve it the other way, with the same roll. Open for one round." onClick={() => overrideEntry(entry)}>
@@ -7021,6 +7057,7 @@ function App() {
                     {(() => { const t = coverable(entry) ? coverTarget(entry) : null; if (!t || !canControl(t)) return null;
                       return <div className="log-ov" data-testid="cover-late"><span>{t.name} had cover?</span><button className="btn btn-ghost btn-sm" data-testid="cover-late-half" onClick={() => applyCover(entry, 2)}>Half (+2)</button><button className="btn btn-ghost btn-sm" data-testid="cover-late-tq" onClick={() => applyCover(entry, 5)}>Three-Quarters (+5)</button></div>; })()}
                     {canEndConc(entry) && <div className="log-ov"><button className="btn btn-ghost btn-sm" data-testid="conc-end" onClick={() => endConcentration(entry.concEnd.id, 'After a failed Constitution saving throw to maintain Concentration.')}>End Concentration on {entry.concEnd.name}</button></div>}
+                    </>}
                   </div>
             ))}
             <div ref={logEndRef}/>
@@ -7219,6 +7256,11 @@ function App() {
             </div>
           </div>
         </div>); })()}
+      {groupRun && (() => { const names = groupRun.ids.map(id => (combatants.find(x => x.id === id) || {}).name || '?'); return (
+              <div className="group-run" data-testid="group-run"><strong>{groupRun.name}</strong> by each in turn: {names.map((nm, i) => <span key={i} className={i === groupRun.i ? 'on' : i < groupRun.i ? 'done' : ''}>{i < groupRun.i ? '✓ ' : ''}{nm}</span>)}
+                {groupRun.i < groupRun.ids.length - 1 ? <button className="btn btn-primary btn-sm" data-testid="group-next" onClick={() => { const i = groupRun.i + 1; setGroupRun({...groupRun, i}); openRunStep(groupRun.ids[i], groupRun.name); }}>Next: {names[groupRun.i + 1]}</button> : null}
+                <button className="btn btn-ghost btn-sm" data-testid="group-stop" onClick={() => { setGroupRun(null); setSelectedAction(null); endTargeting(); }}>{groupRun.i >= groupRun.ids.length - 1 ? 'Done' : 'Stop'}</button>
+                <div className="pp-muted" style={{fontSize: 12.5, width: '100%'}}>Pick the targets and use it; the targets stay chosen for the next one.</div></div>); })()}
       {bigPic && <div className="modal-overlay" data-testid="pic-big" onClick={() => setBigPic('')} style={{cursor: 'zoom-out'}}><img className="pic-full" src={bigPic} alt=""/></div>}
       {showRoster && (
         <div className="modal-overlay" onClick={()=>setShowRoster(false)}>
