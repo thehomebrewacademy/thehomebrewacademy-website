@@ -7855,6 +7855,21 @@ function CharacterSheet() {
       info: sortSpells(CLASSES[x.name], x.name, x.level, x.spells && x.spells.length ? x.spells : [""], 0, [], null)
     };
   });
+  var casterRows = [].concat(_toConsumableArray(cls && cls.casterType ? [{
+    name: className,
+    level: level,
+    cls: cls,
+    info: spellInfo
+  }] : []), _toConsumableArray(mcSpellInfo.map(function (m) {
+    return {
+      name: m.x.name,
+      level: m.x.level,
+      cls: CLASSES[m.x.name],
+      info: m.info
+    };
+  }))).filter(function (r) {
+    return r.cls && r.cls.spellAbility;
+  }); // every class that casts, for the Spellcasting overview
   var sharedSlots = function () {
     var cs = allClasses.filter(function (x) {
       return CLASSES[x.name] && ["full", "half"].includes(CLASSES[x.name].casterType);
@@ -10778,7 +10793,22 @@ function CharacterSheet() {
     customScores: customScores,
     setCustomScores: setCustomScores,
     abilityAdj: abilityAdj,
-    setAbilityAdj: setAbilityAdj
+    setAbilityAdj: setAbilityAdj,
+    bgName: originCustom ? "customized" : background,
+    bgAbilities: bgEff.abilityScores || [],
+    bgBonusMode: bgBonusMode,
+    setBgBonusMode: setBgBonusMode,
+    bgBonusChoices: bgBonusChoices,
+    setBgBonusChoices: setBgBonusChoices,
+    reachedAsiLevels: reachedAsiLevels,
+    asiChoices: asiChoices,
+    setAsiType: setAsiType,
+    setAsiAbilities: setAsiAbilities,
+    asiLabel: function asiLabel(k) {
+      return (asiOf(k) || {
+        label: "Level ".concat(k)
+      }).label;
+    }
   }), tab === "skills" && /*#__PURE__*/React.createElement(SkillsTab, {
     expertiseMax: expertiseMax,
     expertiseList: expertiseList,
@@ -10921,6 +10951,7 @@ function CharacterSheet() {
       return m.x.name === spellClass && spellClass !== className;
     }) || !(cls && cls.casterType) && mcSpellInfo[0];
     if (!sel) return /*#__PURE__*/React.createElement(SpellsTab, {
+      casterRows: casterRows,
       attnEdge: attnEdge,
       bookInfo: derived.spellbook || null,
       spellbook: spellbook,
@@ -10945,6 +10976,7 @@ function CharacterSheet() {
     });
     return /*#__PURE__*/React.createElement(SpellsTab, {
       key: sel.x.name,
+      casterRows: casterRows,
       attnEdge: attnEdge,
       bookInfo: null,
       spellbook: [],
@@ -11925,7 +11957,31 @@ function AbilitiesTab(_ref78) {
     customScores = _ref78.customScores,
     setCustomScores = _ref78.setCustomScores,
     abilityAdj = _ref78.abilityAdj,
-    setAbilityAdj = _ref78.setAbilityAdj;
+    setAbilityAdj = _ref78.setAbilityAdj,
+    _ref78$bgName = _ref78.bgName,
+    bgName = _ref78$bgName === void 0 ? "" : _ref78$bgName,
+    _ref78$bgAbilities = _ref78.bgAbilities,
+    bgAbilities = _ref78$bgAbilities === void 0 ? [] : _ref78$bgAbilities,
+    _ref78$bgBonusMode = _ref78.bgBonusMode,
+    bgBonusMode = _ref78$bgBonusMode === void 0 ? "2-1" : _ref78$bgBonusMode,
+    _ref78$setBgBonusMode = _ref78.setBgBonusMode,
+    setBgBonusMode = _ref78$setBgBonusMode === void 0 ? function () {} : _ref78$setBgBonusMode,
+    _ref78$bgBonusChoices = _ref78.bgBonusChoices,
+    bgBonusChoices = _ref78$bgBonusChoices === void 0 ? [] : _ref78$bgBonusChoices,
+    _ref78$setBgBonusChoi = _ref78.setBgBonusChoices,
+    setBgBonusChoices = _ref78$setBgBonusChoi === void 0 ? function () {} : _ref78$setBgBonusChoi,
+    _ref78$reachedAsiLeve = _ref78.reachedAsiLevels,
+    reachedAsiLevels = _ref78$reachedAsiLeve === void 0 ? [] : _ref78$reachedAsiLeve,
+    _ref78$asiChoices = _ref78.asiChoices,
+    asiChoices = _ref78$asiChoices === void 0 ? {} : _ref78$asiChoices,
+    _ref78$setAsiType = _ref78.setAsiType,
+    setAsiType = _ref78$setAsiType === void 0 ? function () {} : _ref78$setAsiType,
+    _ref78$setAsiAbilitie = _ref78.setAsiAbilities,
+    setAsiAbilities = _ref78$setAsiAbilitie === void 0 ? function () {} : _ref78$setAsiAbilitie,
+    _ref78$asiLabel = _ref78.asiLabel,
+    asiLabel = _ref78$asiLabel === void 0 ? function (k) {
+      return "Level ".concat(k);
+    } : _ref78$asiLabel;
   var _useState165 = useState(false),
     _useState166 = _slicedToArray(_useState165, 2),
     editing = _useState166[0],
@@ -12202,7 +12258,140 @@ function AbilitiesTab(_ref78) {
       marginTop: 12,
       lineHeight: 1.5
     }
-  }, isCustom ? "Custom scores have no point limit: set each score from 1 to 30, then press Accept. Background increases, Ability Score Improvements and additional modifiers are added on top." : "Standard point buy: scores range 8 to 15 before bonuses. Cost: 9=1pt, 10=2, 11=3, 12=4, 13=5, 14=7, 15=9. Background increases and Ability Score Improvements are added automatically above.", !custom && " Turn on Further Customization to set scores freely or add modifiers.")));
+  }, isCustom ? "Custom scores have no point limit: set each score from 1 to 30, then press Accept. Background increases, Ability Score Improvements and additional modifiers are added on top." : "Standard point buy: scores range 8 to 15 before bonuses. Cost: 9=1pt, 10=2, 11=3, 12=4, 13=5, 14=7, 15=9. Background increases and Ability Score Improvements are added automatically above.", !custom && " Turn on Further Customization to set scores freely or add modifiers.", /*#__PURE__*/React.createElement("div", {
+    "data-testid": "abil-increases",
+    style: {
+      marginTop: 16,
+      borderTop: "1px solid ".concat(colors.brass, "44"),
+      paddingTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: fontDisplay,
+      color: colors.brassLight,
+      fontSize: 14,
+      marginBottom: 8
+    }
+  }, "Ability Score Increases"), /*#__PURE__*/React.createElement("div", {
+    "data-testid": "abil-bg",
+    style: {
+      display: "flex",
+      gap: 10,
+      flexWrap: "wrap",
+      alignItems: "center",
+      marginBottom: 10,
+      fontSize: 13
+    }
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      minWidth: 150
+    }
+  }, "Background", bgName ? " (".concat(bgName, ")") : ""), /*#__PURE__*/React.createElement("label", null, /*#__PURE__*/React.createElement("input", {
+    type: "radio",
+    checked: bgBonusMode === "2-1",
+    onChange: function onChange() {
+      setBgBonusMode("2-1");
+      setBgBonusChoices([]);
+    }
+  }), " +2 / +1"), /*#__PURE__*/React.createElement("label", null, /*#__PURE__*/React.createElement("input", {
+    type: "radio",
+    checked: bgBonusMode === "1-1-1",
+    onChange: function onChange() {
+      setBgBonusMode("1-1-1");
+      setBgBonusChoices([]);
+    }
+  }), " +1 / +1 / +1"), Array.from({
+    length: bgBonusMode === "2-1" ? 2 : 3
+  }).map(function (_, idx) {
+    return /*#__PURE__*/React.createElement("select", {
+      key: idx,
+      "aria-label": "Background increase ".concat(idx + 1),
+      value: bgBonusChoices[idx] || "",
+      onChange: function onChange(e) {
+        var v = e.target.value;
+        setBgBonusChoices(function (prev) {
+          var next = _toConsumableArray(prev);
+          next[idx] = v;
+          return next;
+        });
+      },
+      style: _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
+        width: 150
+      }, bgBonusChoices[idx] ? {} : {
+        borderColor: "#e8590c"
+      })
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, bgBonusMode === "2-1" && idx === 0 ? "+2 to..." : "+1 to..."), bgAbilities.map(function (x) {
+      return /*#__PURE__*/React.createElement("option", {
+        key: x,
+        value: x
+      }, x);
+    }));
+  })), reachedAsiLevels.map(function (lvl) {
+    var ch = asiChoices[lvl] || {
+      type: "asi",
+      abilities: [null, null]
+    };
+    return /*#__PURE__*/React.createElement("div", {
+      key: lvl,
+      "data-testid": "abil-asi-".concat(lvl),
+      style: {
+        display: "flex",
+        gap: 10,
+        flexWrap: "wrap",
+        alignItems: "center",
+        marginBottom: 8,
+        fontSize: 13
+      }
+    }, /*#__PURE__*/React.createElement("strong", {
+      style: {
+        minWidth: 150
+      }
+    }, asiLabel(lvl)), /*#__PURE__*/React.createElement("label", null, /*#__PURE__*/React.createElement("input", {
+      type: "radio",
+      checked: ch.type === "asi",
+      onChange: function onChange() {
+        return setAsiType(lvl, "asi");
+      }
+    }), " Ability Score Improvement"), /*#__PURE__*/React.createElement("label", null, /*#__PURE__*/React.createElement("input", {
+      type: "radio",
+      checked: ch.type === "feat",
+      onChange: function onChange() {
+        return setAsiType(lvl, "feat");
+      }
+    }), " Feat"), ch.type === "asi" ? [0, 1].map(function (idx) {
+      return /*#__PURE__*/React.createElement("select", {
+        key: idx,
+        "aria-label": "".concat(asiLabel(lvl), " increase ").concat(idx + 1),
+        value: ch.abilities && ch.abilities[idx] || "",
+        onChange: function onChange(e) {
+          return setAsiAbilities(lvl, idx, e.target.value);
+        },
+        style: _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
+          width: 150
+        }, ch.abilities && ch.abilities[idx] ? {} : {
+          borderColor: "#e8590c"
+        })
+      }, /*#__PURE__*/React.createElement("option", {
+        value: ""
+      }, "+1 to..."), ABILITIES.map(function (x) {
+        return /*#__PURE__*/React.createElement("option", {
+          key: x,
+          value: x
+        }, x);
+      }));
+    }) : /*#__PURE__*/React.createElement("span", {
+      style: {
+        opacity: 0.85
+      }
+    }, ch.name ? "".concat(ch.name, " (its choices are in the Features tab)") : "Choose the feat in the Features tab."));
+  }), reachedAsiLevels.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      opacity: 0.7
+    }
+  }, "Ability Score Improvements come at level 4 and later. Picking the same ability twice gives it +2.")))));
 }
 function SkillsTab(_ref79) {
   var expertiseMax = _ref79.expertiseMax,
@@ -14797,7 +14986,9 @@ function SpellRow(_ref97) {
   }, /*#__PURE__*/React.createElement("strong", null, "Using a Higher-Level Spell Slot."), " ", sp.h) : null));
 }
 function SpellsTab(_ref98) {
-  var _ref98$sharedSlots = _ref98.sharedSlots,
+  var _ref98$casterRows = _ref98.casterRows,
+    casterRows = _ref98$casterRows === void 0 ? [] : _ref98$casterRows,
+    _ref98$sharedSlots = _ref98.sharedSlots,
     sharedSlots = _ref98$sharedSlots === void 0 ? null : _ref98$sharedSlots,
     _ref98$attnEdge = _ref98.attnEdge,
     attnEdge = _ref98$attnEdge === void 0 ? function () {
@@ -14826,26 +15017,30 @@ function SpellsTab(_ref98) {
     _useState172 = _slicedToArray(_useState171, 2),
     levelsOff = _useState172[0],
     setLevelsOff = _useState172[1]; // spell levels switched off in the Add Spells list (none: every level shows)
-  var _useState173 = useState("level"),
+  var _useState173 = useState("prepared"),
     _useState174 = _slicedToArray(_useState173, 2),
-    sortBy = _useState174[0],
-    setSortBy = _useState174[1]; // "level" (alphabetical inside each level) or "name"
-  var _useState175 = useState(""),
+    bookTab = _useState174[0],
+    setBookTab = _useState174[1]; // a Wizard: Prepared Spells or the Spellbook
+  var _useState175 = useState("level"),
     _useState176 = _slicedToArray(_useState175, 2),
-    search = _useState176[0],
-    setSearch = _useState176[1];
-  var _useState177 = useState(false),
+    sortBy = _useState176[0],
+    setSortBy = _useState176[1]; // "level" (alphabetical inside each level) or "name"
+  var _useState177 = useState(""),
     _useState178 = _slicedToArray(_useState177, 2),
-    anyList = _useState178[0],
-    setAnyList = _useState178[1]; // customization: spells from every class list
+    search = _useState178[0],
+    setSearch = _useState178[1];
   var _useState179 = useState(false),
     _useState180 = _slicedToArray(_useState179, 2),
-    allLevels = _useState180[0],
-    setAllLevels = _useState180[1]; // customization: spells above the level you can cast
-  var _useState181 = useState(""),
+    anyList = _useState180[0],
+    setAnyList = _useState180[1]; // customization: spells from every class list
+  var _useState181 = useState(false),
     _useState182 = _slicedToArray(_useState181, 2),
-    typed = _useState182[0],
-    setTyped = _useState182[1];
+    allLevels = _useState182[0],
+    setAllLevels = _useState182[1]; // customization: spells above the level you can cast
+  var _useState183 = useState(""),
+    _useState184 = _slicedToArray(_useState183, 2),
+    typed = _useState184[0],
+    setTyped = _useState184[1];
   var caster = spellInfo.caster,
     maxLevel = spellInfo.maxLevel,
     cantripMax = spellInfo.cantripMax,
@@ -15010,7 +15205,69 @@ function SpellsTab(_ref98) {
       gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
       gap: 12
     }
-  }, stat("Spellcasting Ability", cls.spellAbility), stat("Spell Save DC", 8 + profBonus + finalMods[cls.spellAbility]), stat("Spell Attack Bonus", fmt(profBonus + finalMods[cls.spellAbility])), stat("Cantrips", "".concat(spellInfo.cantrips, " / ").concat(cantripMax)), stat("Prepared Spells", "".concat(spellInfo.prepared, " / ").concat(prepMax == null ? "no limit" : prepMax)), stat("Highest Spell Level", maxLevel || "none yet"))), cls.spellPoints ? /*#__PURE__*/React.createElement(Section, {
+  }, stat("Spellcasting Ability", cls.spellAbility), stat("Spell Save DC", 8 + profBonus + finalMods[cls.spellAbility]), stat("Spell Attack Bonus", fmt(profBonus + finalMods[cls.spellAbility])), stat("Cantrips", "".concat(spellInfo.cantrips, " / ").concat(cantripMax)), stat("Prepared Spells", "".concat(spellInfo.prepared, " / ").concat(prepMax == null ? "no limit" : prepMax)), stat("Highest Spell Level", maxLevel || "none yet")), casterRows.length > 1 && /*#__PURE__*/React.createElement("div", {
+    "data-testid": "caster-rows",
+    style: {
+      marginTop: 12,
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: 13
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      fontFamily: fontDisplay,
+      color: colors.brassLight,
+      textAlign: "left"
+    }
+  }, ["Class", "Ability", "Save DC", "Attack", "Cantrips", "Prepared", "Highest"].map(function (h) {
+    return /*#__PURE__*/React.createElement("th", {
+      key: h,
+      style: {
+        padding: "4px 8px",
+        borderBottom: "1px solid ".concat(colors.brass, "55")
+      }
+    }, h);
+  }))), /*#__PURE__*/React.createElement("tbody", null, casterRows.map(function (r) {
+    return /*#__PURE__*/React.createElement("tr", {
+      key: r.name,
+      "data-testid": "caster-row",
+      style: {
+        fontWeight: r.name === className ? 700 : 400
+      }
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "4px 8px"
+      }
+    }, r.name, " ", r.level), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "4px 8px"
+      }
+    }, r.cls.spellAbility), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "4px 8px"
+      }
+    }, 8 + profBonus + finalMods[r.cls.spellAbility]), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "4px 8px"
+      }
+    }, fmt(profBonus + finalMods[r.cls.spellAbility])), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "4px 8px"
+      }
+    }, r.info.cantrips, " / ", r.info.cantripMax), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "4px 8px"
+      }
+    }, r.info.prepared, " / ", r.info.prepMax == null ? "no limit" : r.info.prepMax), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "4px 8px"
+      }
+    }, r.info.maxLevel ? "Level ".concat(r.info.maxLevel) : "none yet"));
+  }))))), cls.spellPoints ? /*#__PURE__*/React.createElement(Section, {
     title: "Casting with ".concat(cls.spellPoints.pool),
     colors: colors,
     fontDisplay: fontDisplay
@@ -15034,7 +15291,47 @@ function SpellsTab(_ref98) {
       fontSize: 14,
       opacity: 0.8
     }
-  }, className, " has no Spellcasting feature. ", custom ? "Further Customization is on, so you can still add spells below. They will show in red." : "Turn on Further Customization to add spells anyway.")), bookInfo && /*#__PURE__*/React.createElement(Section, {
+  }, className, " has no Spellcasting feature. ", custom ? "Further Customization is on, so you can still add spells below. They will show in red." : "Turn on Further Customization to add spells anyway.")), bookInfo && /*#__PURE__*/React.createElement("div", {
+    "data-testid": "book-tabs",
+    role: "tablist",
+    style: {
+      display: "flex",
+      gap: 4,
+      borderBottom: "1px solid ".concat(colors.brass),
+      margin: "4px 0 12px"
+    }
+  }, [["prepared", "Prepared Spells (".concat(spellInfo.prepared).concat(prepMax == null ? "" : " of ".concat(prepMax), ")")], ["book", "Spellbook (".concat((spellbook || []).length, ")")]].map(function (_ref99) {
+    var _ref100 = _slicedToArray(_ref99, 2),
+      k = _ref100[0],
+      t = _ref100[1];
+    return /*#__PURE__*/React.createElement("button", {
+      key: k,
+      role: "tab",
+      "data-testid": "book-tab-".concat(k),
+      "aria-selected": bookTab === k,
+      onClick: function onClick() {
+        return setBookTab(k);
+      },
+      style: {
+        background: bookTab === k ? colors.brass : "transparent",
+        color: bookTab === k ? colors.ink : colors.parchment,
+        border: "1px solid ".concat(colors.brass),
+        borderBottom: "none",
+        borderRadius: "8px 8px 0 0",
+        padding: "6px 16px",
+        fontFamily: fontDisplay,
+        fontWeight: 700,
+        cursor: "pointer"
+      }
+    }, t);
+  })), bookInfo && bookTab === "prepared" && /*#__PURE__*/React.createElement("div", {
+    "data-testid": "book-note",
+    style: {
+      fontSize: 13,
+      opacity: 0.85,
+      marginBottom: 10
+    }
+  }, "You prepare spells from your spellbook. Write new spells into it, or prepare them straight from the list, in the Spellbook tab."), bookInfo && bookTab === "book" && /*#__PURE__*/React.createElement(Section, {
     title: "Your Spellbook",
     colors: colors,
     fontDisplay: fontDisplay
@@ -15078,17 +15375,42 @@ function SpellsTab(_ref98) {
         marginBottom: 8
       }
     }, (spellbook || []).map(function (n) {
-      var sp = spellOf(n);
+      var sp = spellOf(n),
+        on = spells.includes(n);
       return /*#__PURE__*/React.createElement("span", {
         key: n,
         "data-testid": "spellbook-item",
         style: {
-          border: "1px solid ".concat(colors.brass, "77"),
+          border: "1px solid ".concat(on ? colors.brassLight : colors.brass + "77"),
+          background: on ? colors.brass + "33" : "transparent",
           borderRadius: 6,
           padding: "2px 8px",
           fontSize: 13
         }
-      }, n, sp ? " (Level ".concat(sp.l).concat(sp.rit ? ", Ritual" : "", ")") : "", own.includes(n) ? /*#__PURE__*/React.createElement("button", {
+      }, /*#__PURE__*/React.createElement("button", {
+        "data-testid": "book-prepare",
+        title: on ? "Prepared: click to unprepare" : "Prepare this spell",
+        onClick: function onClick() {
+          return on ? setSpells(spells.filter(function (x) {
+            return x !== n;
+          }).length ? spells.filter(function (x) {
+            return x !== n;
+          }) : [""]) : setSpells([].concat(_toConsumableArray(spells.filter(Boolean)), [n]));
+        },
+        style: {
+          background: "transparent",
+          border: "1px solid ".concat(colors.brass),
+          color: colors.brassLight,
+          borderRadius: 10,
+          width: 20,
+          height: 20,
+          lineHeight: "16px",
+          padding: 0,
+          marginRight: 6,
+          cursor: "pointer",
+          fontSize: 11
+        }
+      }, on ? "✓" : "+"), n, sp ? " (Level ".concat(sp.l).concat(sp.rit ? ", Ritual" : "", ")") : "", own.includes(n) ? /*#__PURE__*/React.createElement("button", {
         "aria-label": "Remove ".concat(n, " from the spellbook"),
         onClick: function onClick() {
           return setBook(own.filter(function (x) {
@@ -15125,7 +15447,7 @@ function SpellsTab(_ref98) {
         value: sp.n
       }, sp.n, " (Level ", sp.l, ")");
     })));
-  }()), (picks || []).length > 0 && /*#__PURE__*/React.createElement(Section, {
+  }()), (!bookInfo || bookTab === "prepared") && /*#__PURE__*/React.createElement(React.Fragment, null, (picks || []).length > 0 && /*#__PURE__*/React.createElement(Section, {
     title: "Spells Your Features Let You Choose",
     colors: colors,
     fontDisplay: fontDisplay
@@ -15332,12 +15654,12 @@ function SpellsTab(_ref98) {
     return [l, levelName(l), !levelsOff.includes(l), function () {
       return toggleLevel(l);
     }];
-  })).map(function (_ref99) {
-    var _ref100 = _slicedToArray(_ref99, 4),
-      k = _ref100[0],
-      text = _ref100[1],
-      on = _ref100[2],
-      click = _ref100[3];
+  })).map(function (_ref101) {
+    var _ref102 = _slicedToArray(_ref101, 4),
+      k = _ref102[0],
+      text = _ref102[1],
+      on = _ref102[2],
+      click = _ref102[3];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       "data-testid": "level-chip-".concat(k),
@@ -15502,7 +15824,7 @@ function SpellsTab(_ref98) {
       padding: "0 14px",
       cursor: "pointer"
     }
-  }, "Add"))));
+  }, "Add")))));
 }
 
 /* ============ JOURNAL ============ */
@@ -15621,14 +15943,14 @@ function cleanJournal(raw, oldNotes, oldEquipment) {
   }
   return j;
 }
-function JournalTab(_ref101) {
-  var journal = _ref101.journal,
-    setJournal = _ref101.setJournal,
-    alignment = _ref101.alignment,
-    setAlignment = _ref101.setAlignment,
-    knownTools = _ref101.knownTools,
-    colors = _ref101.colors,
-    fontDisplay = _ref101.fontDisplay;
+function JournalTab(_ref103) {
+  var journal = _ref103.journal,
+    setJournal = _ref103.setJournal,
+    alignment = _ref103.alignment,
+    setAlignment = _ref103.setAlignment,
+    knownTools = _ref103.knownTools,
+    colors = _ref103.colors,
+    fontDisplay = _ref103.fontDisplay;
   var _React$useState5 = React.useState(0),
     _React$useState6 = _slicedToArray(_React$useState5, 2),
     page = _React$useState6[0],
@@ -15687,9 +16009,9 @@ function JournalTab(_ref101) {
       i = o.indexOf(key),
       k = i + by;
     if (k < 0 || k >= o.length) return;
-    var _ref102 = [o[k], o[i]];
-    o[i] = _ref102[0];
-    o[k] = _ref102[1];
+    var _ref104 = [o[k], o[i]];
+    o[i] = _ref104[0];
+    o[k] = _ref104[1];
     set({
       order: o
     });
@@ -15842,10 +16164,10 @@ function JournalTab(_ref101) {
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 12
         }
-      }, [["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(function (_ref103) {
-        var _ref104 = _slicedToArray(_ref103, 2),
-          k = _ref104[0],
-          t = _ref104[1];
+      }, [["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(function (_ref105) {
+        var _ref106 = _slicedToArray(_ref105, 2),
+          k = _ref106[0],
+          t = _ref106[1];
         return /*#__PURE__*/React.createElement("div", {
           key: k
         }, /*#__PURE__*/React.createElement("div", {
@@ -16389,16 +16711,16 @@ function inventoryGroup(item) {
 }
 var inventoryFolded = false,
   inventoryOnlyProf = false; // stay as you left them while the page is open
-function InventoryTab(_ref105) {
-  var inv = _ref105.inv,
-    prof = _ref105.prof,
-    magic = _ref105.magic,
-    mundane = _ref105.mundane,
-    components = _ref105.components,
-    setComponents = _ref105.setComponents,
-    spellMats = _ref105.spellMats,
-    colors = _ref105.colors,
-    fontDisplay = _ref105.fontDisplay;
+function InventoryTab(_ref107) {
+  var inv = _ref107.inv,
+    prof = _ref107.prof,
+    magic = _ref107.magic,
+    mundane = _ref107.mundane,
+    components = _ref107.components,
+    setComponents = _ref107.setComponents,
+    spellMats = _ref107.spellMats,
+    colors = _ref107.colors,
+    fontDisplay = _ref107.fontDisplay;
   var isCaster = function isCaster(item) {
     return /component pouch|arcane focus|druidic focus|holy symbol/i.test(item.name);
   };
@@ -16548,10 +16870,10 @@ function InventoryTab(_ref105) {
     }));
   }), /*#__PURE__*/React.createElement("div", {
     "data-testid": "inventory-list"
-  }, groups.map(function (_ref106) {
-    var _ref107 = _slicedToArray(_ref106, 2),
-      g = _ref107[0],
-      items = _ref107[1];
+  }, groups.map(function (_ref108) {
+    var _ref109 = _slicedToArray(_ref108, 2),
+      g = _ref109[0],
+      items = _ref109[1];
     return /*#__PURE__*/React.createElement("div", {
       key: g,
       "data-testid": "inv-group-".concat(g),
@@ -16970,8 +17292,8 @@ var WEAPON_GROUPS = [["Simple Melee weapons", function (w) {
 }], ["Martial Ranged weapons", function (w) {
   return w.cat === "Martial" && w.ranged;
 }]];
-function KindOptions(_ref108) {
-  var item = _ref108.item;
+function KindOptions(_ref110) {
+  var item = _ref110.item;
   var kinds = magicGearKinds(item),
     info = magicGearInfo(item) || {};
   if (info.kind === "armor") return ["Light", "Medium", "Heavy"].map(function (cat) {
@@ -16988,10 +17310,10 @@ function KindOptions(_ref108) {
       }, a.name, " (AC ", a.base, a.dex ? a.max != null ? " + Dex, max ".concat(a.max) : " + Dex" : "", ")");
     })) : null;
   });
-  return WEAPON_GROUPS.map(function (_ref109) {
-    var _ref110 = _slicedToArray(_ref109, 2),
-      cat = _ref110[0],
-      fits = _ref110[1];
+  return WEAPON_GROUPS.map(function (_ref111) {
+    var _ref112 = _slicedToArray(_ref111, 2),
+      cat = _ref112[0],
+      fits = _ref112[1];
     var list = WEAPONS.filter(function (w) {
       return fits(w) && kinds.includes(w.name);
     });
@@ -17007,12 +17329,12 @@ function KindOptions(_ref108) {
   });
 }
 // The controls for one item: add it to the inventory, mark it important, or remove it.
-function ItemControls(_ref111) {
-  var item = _ref111.item,
-    inv = _ref111.inv,
-    colors = _ref111.colors,
-    small = _ref111.small,
-    onChoose = _ref111.onChoose;
+function ItemControls(_ref113) {
+  var item = _ref113.item,
+    inv = _ref113.inv,
+    colors = _ref113.colors,
+    small = _ref113.small,
+    onChoose = _ref113.onChoose;
   var b = function b(bg, fg) {
     return {
       minWidth: 22,
@@ -17062,10 +17384,10 @@ function ItemControls(_ref111) {
   }, "\xD7");
 }
 // A list of carried items with their controls (Notes tab and the side panels).
-function InventoryList(_ref112) {
-  var items = _ref112.items,
-    inv = _ref112.inv,
-    colors = _ref112.colors;
+function InventoryList(_ref114) {
+  var items = _ref114.items,
+    inv = _ref114.inv,
+    colors = _ref114.colors;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -17130,14 +17452,14 @@ function InventoryList(_ref112) {
     }));
   }));
 }
-function ItemRowHover(_ref113) {
-  var item = _ref113.item,
-    inv = _ref113.inv,
-    onSelect = _ref113.onSelect,
-    isSelected = _ref113.isSelected,
-    accentColor = _ref113.accentColor,
-    colors = _ref113.colors,
-    extraBadge = _ref113.extraBadge;
+function ItemRowHover(_ref115) {
+  var item = _ref115.item,
+    inv = _ref115.inv,
+    onSelect = _ref115.onSelect,
+    isSelected = _ref115.isSelected,
+    accentColor = _ref115.accentColor,
+    colors = _ref115.colors,
+    extraBadge = _ref115.extraBadge;
   var _React$useState25 = React.useState(false),
     _React$useState26 = _slicedToArray(_React$useState25, 2),
     hovered = _React$useState26[0],
@@ -17207,21 +17529,21 @@ function ItemRowHover(_ref113) {
     }
   }, "\u2713"));
 }
-function MagicItemsTab(_ref114) {
-  var itemSearch = _ref114.itemSearch,
-    setItemSearch = _ref114.setItemSearch,
-    itemRarityFilter = _ref114.itemRarityFilter,
-    setItemRarityFilter = _ref114.setItemRarityFilter,
-    itemTypeFilter = _ref114.itemTypeFilter,
-    setItemTypeFilter = _ref114.setItemTypeFilter,
-    itemAttunementFilter = _ref114.itemAttunementFilter,
-    setItemAttunementFilter = _ref114.setItemAttunementFilter,
-    selectedItem = _ref114.selectedItem,
-    setSelectedItem = _ref114.setSelectedItem,
-    inv = _ref114.inv,
-    keep = _ref114.keep,
-    colors = _ref114.colors,
-    fontDisplay = _ref114.fontDisplay;
+function MagicItemsTab(_ref116) {
+  var itemSearch = _ref116.itemSearch,
+    setItemSearch = _ref116.setItemSearch,
+    itemRarityFilter = _ref116.itemRarityFilter,
+    setItemRarityFilter = _ref116.setItemRarityFilter,
+    itemTypeFilter = _ref116.itemTypeFilter,
+    setItemTypeFilter = _ref116.setItemTypeFilter,
+    itemAttunementFilter = _ref116.itemAttunementFilter,
+    setItemAttunementFilter = _ref116.setItemAttunementFilter,
+    selectedItem = _ref116.selectedItem,
+    setSelectedItem = _ref116.setSelectedItem,
+    inv = _ref116.inv,
+    keep = _ref116.keep,
+    colors = _ref116.colors,
+    fontDisplay = _ref116.fontDisplay;
   var _React$useState27 = React.useState(false),
     _React$useState28 = _slicedToArray(_React$useState27, 2),
     expanded = _React$useState28[0],
@@ -17333,12 +17655,12 @@ function MagicItemsTab(_ref114) {
         return x !== r;
       }) : [].concat(_toConsumableArray(raritiesOff), [r]));
     }, RARITY_COLORS[r]];
-  })).map(function (_ref115) {
-    var _ref116 = _slicedToArray(_ref115, 4),
-      r = _ref116[0],
-      on = _ref116[1],
-      click = _ref116[2],
-      col = _ref116[3];
+  })).map(function (_ref117) {
+    var _ref118 = _slicedToArray(_ref117, 4),
+      r = _ref118[0],
+      on = _ref118[1],
+      click = _ref118[2],
+      col = _ref118[3];
     return /*#__PURE__*/React.createElement("button", {
       key: r,
       "data-testid": "rarity-chip-".concat(r),
@@ -17606,17 +17928,17 @@ function MagicItemsTab(_ref114) {
     }
   }, "Select an item to view details"))));
 }
-function MundaneItemsTab(_ref117) {
-  var mundaneSearch = _ref117.mundaneSearch,
-    setMundaneSearch = _ref117.setMundaneSearch,
-    mundaneTypeFilter = _ref117.mundaneTypeFilter,
-    setMundaneTypeFilter = _ref117.setMundaneTypeFilter,
-    selectedMundane = _ref117.selectedMundane,
-    setSelectedMundane = _ref117.setSelectedMundane,
-    inv = _ref117.inv,
-    keep = _ref117.keep,
-    colors = _ref117.colors,
-    fontDisplay = _ref117.fontDisplay;
+function MundaneItemsTab(_ref119) {
+  var mundaneSearch = _ref119.mundaneSearch,
+    setMundaneSearch = _ref119.setMundaneSearch,
+    mundaneTypeFilter = _ref119.mundaneTypeFilter,
+    setMundaneTypeFilter = _ref119.setMundaneTypeFilter,
+    selectedMundane = _ref119.selectedMundane,
+    setSelectedMundane = _ref119.setSelectedMundane,
+    inv = _ref119.inv,
+    keep = _ref119.keep,
+    colors = _ref119.colors,
+    fontDisplay = _ref119.fontDisplay;
   var allCategories = React.useMemo(function () {
     var cats = new Set(MUNDANE_ITEMS.map(function (i) {
       return i.category;
