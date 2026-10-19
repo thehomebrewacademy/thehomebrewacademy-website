@@ -199,6 +199,7 @@ SPELLS AND ITEMS
   { "name": "Ashen Grasp", "level": 2, "school": "Necromancy", "classes": ["Warden", "Warlock"], "castingTime": "Action", "range": "60 feet", "duration": "1 minute", "concentration": true, "ritual": false, "components": "VSM", "material": "a pinch of ash worth 10+ GP, which the spell consumes", "text": "Full spell text, without the higher-level paragraph.", "higherLevels": "The Using a Higher-Level Spell Slot (or Cantrip Upgrade) paragraph, word for word, without its heading; empty if none." }
 ]
 components is the letters V (Verbal), S (Somatic) and M (Material) the spell needs, such as "V", "VS" or "VSM". material is the Material component exactly as the spell words it, including "worth 50+ GP" and "which the spell consumes" when it says so. The Combat Resolver reads these when the DM turns on spell components: a Verbal spell cannot be cast while Silenced, a Somatic or Material component needs a free hand, a Component Pouch or Spellcasting Focus stands in for any Material component that has no cost, and a component with a cost has to be owned (and is used up if the spell consumes it).
+Every spell also gets "summary": one line of at most 100 characters that says what it does in play, most useful numbers first (damage dice and type, the save and what failing or succeeding does, conditions, area, number of targets), such as "8d6 Fire in a 20-ft Sphere; DEX save, half on success". Give "summaryHigher" in at most 80 characters for its higher-level effect ("+1d6 damage per slot level above 3"), or leave it out. The character sheet and the Combat Resolver's Spells tab show these under the spell's name.
 level 0 is a cantrip. A spell a character casts in a fight needs a "record" (see SPELL RECORDS below) so the Combat Resolver can run it.
 
 SPELL RECORDS: HOW A SPELL RUNS IN THE COMBAT RESOLVER
@@ -930,115 +931,155 @@ function FundsBox({ money, setMoney, colors, fontDisplay }) {
 
 /* ============ A PRINTABLE CHARACTER SHEET (shown on the Character Sheet tab and downloaded as one file) ============ */
 function sheetHtml(d) {
-  // A printable character sheet, page by page, like a paper one: only what stays put (no Active, no hands, no Heroic Inspiration); current and temporary Hit Points are left blank to fill in
+  // A printable character sheet on Letter-size pages: only what stays put. Current and temporary Hit Points are left blank to fill in.
   const e = (v) => String(v == null ? "" : v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const sg = (n) => (n >= 0 ? "+" : "") + n, md = (v) => Math.floor(((+v || 10) - 10) / 2), arr = (v) => Array.isArray(v) ? v : [];
   const AB = [["STR", "Strength"], ["DEX", "Dexterity"], ["CON", "Constitution"], ["INT", "Intelligence"], ["WIS", "Wisdom"], ["CHA", "Charisma"]];
   const SK = [["Acrobatics", "DEX"], ["Animal Handling", "WIS"], ["Arcana", "INT"], ["Athletics", "STR"], ["Deception", "CHA"], ["History", "INT"], ["Insight", "WIS"], ["Intimidation", "CHA"], ["Investigation", "INT"], ["Medicine", "WIS"], ["Nature", "INT"], ["Perception", "WIS"], ["Performance", "CHA"], ["Persuasion", "CHA"], ["Religion", "INT"], ["Sleight of Hand", "DEX"], ["Stealth", "DEX"], ["Survival", "WIS"]];
   const sc = d.scores || {}, sv = d.saves || {}, profs = arr(d.skillProfs), exp = arr(d.skillExpertise), saveP = arr(d.saveProfs), sk = d.skills || {};
   const pic = typeof d.portrait === "string" && /^data:image\//.test(d.portrait) ? d.portrait : "";
-  const TYPE = { action: "A", bonus: "BA", reaction: "R", free: "", minute: "1 Min", hour: "1 Hr" };
+  const TYPE = { action: "A", bonus: "BA", reaction: "R" };
   const acts = arr(d.actions);
-  const attacks = acts.filter(a => a && !a.spell && a.type === "attack").slice(0, 16);
-  const others = acts.filter(a => a && !a.spell && a.type !== "attack" && !/^(Grapple|Shove)/.test(a.name || "")).slice(0, 24);
-  const first = (t) => { const s = String(t || "").replace(/\s+/g, " ").trim(); const m = /^(.{20,220}?[.!?])(\s|$)/.exec(s); return m ? m[1] : s.slice(0, 220); };
+  const attacks = acts.filter(a => a && !a.spell && a.type === "attack").slice(0, 12);
+  const others = acts.filter(a => a && !a.spell && a.type !== "attack" && !/^(Grapple|Shove)/.test(a.name || "")).slice(0, 20);
+  const first = (t) => { const s = String(t || "").replace(/\s+/g, " ").trim(); const m = /^(.{20,200}?[.!?])(\s|$)/.exec(s); return m ? m[1] : s.slice(0, 200); };
   const pools = d.pools || {}, circles = (n) => n > 0 ? `<span class="circ">${"○ ".repeat(Math.min(n, 30)).trim()}</span>` : "";
-  const banner = (page, img) => `<div class="banner"><div class="bn">${img ? `<img class="pic" src="${img}" alt="">` : ""}<span class="nm">${e(d.name || "__________")}</span> <span class="the">the</span> <span class="nm">${e(d.species || "")} ${e(d.classLine || d.className || "")}</span></div><div class="lvl"><span>Level</span><b>${e(d.level || 1)}</b></div></div><div class="pname">${e(page)}</div>`;
+  // the class line: the class with the most levels names the character; the others go under it, smaller
+  const cls = (arr(d.classes).length ? d.classes.map(x => ({ name: x.name, sub: x.sub, level: +x.level || 1 })) : [{ name: d.className || "", sub: d.subclassName || "", level: +d.level || 1 }]).sort((a, b) => b.level - a.level);
+  const total = cls.reduce((t, x) => t + x.level, 0) || +d.level || 1;
+  const banner = (page, img) => `<div class="banner"><div class="bn">${img ? `<img class="pic" src="${img}" alt="">` : ""}<div class="bt"><div><span class="nm">${e(d.name || "__________")}</span> <span class="the">the</span> <span class="nm">${e(d.species || "")} ${e(cls[0].name)}</span>${cls[0].sub ? ` <span class="sub">(${e(cls[0].sub)})</span>` : ""}</div>${cls.slice(1).map(x => `<div class="mc">${e(x.name)} ${x.level}${x.sub ? ` (${e(x.sub)})` : ""}</div>`).join("")}</div></div><div class="lvl"><span>Level</span><b>${total}</b></div></div><div class="pname">${e(page)}</div>`;
+  const spellRow = (x) => { const s0 = typeof spellOf === "function" ? spellOf(x.n) : null, conc = x.conc || (s0 && s0.conc), rit = x.rit || (s0 && s0.rit);
+    return `<tbody class="fb sp"><tr class="sn"><td><b>${e(x.n)}</b>${conc ? ' <i class="mk" title="Concentration">C</i>' : ""}${rit ? ' <i class="mk" title="Ritual">R</i>' : ""}</td><td>${e(x.s)}</td><td>${e(x.k)}</td><td>${e(x.r)}</td><td>${e(x.sv)}</td><td>${e(String(x.d || "").replace("<*>", ""))}</td><td>${e(String(x.t || "").replace(" (R*)", ""))}</td></tr><tr><td colspan="7" class="sum">${e(x.sum)}${x.up ? `<div><span class="up">Upcast.</span> ${e(x.up)}</div>` : ""}</td></tr></tbody>`; };
+  const sp = d.spellcasting || {}, list = arr(d.spellList).slice().sort((a, b) => (+a.l || 0) - (+b.l || 0) || String(a.n).localeCompare(String(b.n)));
+  const cantrips = list.filter(x => !(+x.l)), leveled = list.filter(x => +x.l);
+  const spTable = (rows) => `<table class="spl"><thead><tr><th>Name</th><th>School</th><th>Comps</th><th>Range</th><th>Save</th><th>Duration</th><th>C Time</th></tr></thead>${rows}</table>`;
   const pages = [];
-  // Page 1: the character
-  const hd = d.hitDie ? `d${e(d.hitDie)}` : "";
+  // Page 1: the character in play
   pages.push(["Character", `${banner("Character", pic)}
 <div class="top">
   ${AB.map(([k, f]) => `<div class="ab"><div class="sv"><span>${sg(+(sv[f] ?? md(sc[f])))}</span><i class="${saveP.includes(f) ? "on" : ""}"></i></div><div class="k">${k}</div><div class="v">${e(sc[f] ?? 10)}</div><div class="m">${sg(md(sc[f]))}</div></div>`).join("")}
-  <div class="hpbox"><div class="hit"><span>HIT ${hd}</span><b>&nbsp;&nbsp;&nbsp;/ ${e(d.level || 1)}</b></div><div class="heart"><svg viewBox="0 0 100 92"><path d="M50 88 C20 62 4 46 4 27 C4 13 15 4 27 4 C37 4 45 9 50 18 C55 9 63 4 73 4 C85 4 96 13 96 27 C96 46 80 62 50 88 Z"/></svg><div><b>${e(d.maxHP)}</b><span>MAX</span></div></div><div class="pill"><span class="sl">/</span><span class="l1">HP</span><span class="l2">TEMP</span></div></div>
+  <div class="hpbox"><div class="hprow"><div class="heart"><svg viewBox="0 0 100 92"><path d="M50 88 C20 62 4 46 4 27 C4 13 15 4 27 4 C37 4 45 9 50 18 C55 9 63 4 73 4 C85 4 96 13 96 27 C96 46 80 62 50 88 Z"/></svg><div><b>${e(d.maxHP)}</b><span>MAX</span></div></div><div class="pill"><span class="sl">/</span><span class="l1">HP</span><span class="l2">TEMP</span></div></div>
+    <div class="hit">Hit Dice${d.hitDie ? ` (d${e(d.hitDie)})` : ""} <b>&nbsp;&nbsp;&nbsp;&nbsp; / ${total}</b></div></div>
 </div>
 <div class="cols">
   <div class="left">
     <div class="skills">${SK.map(([n, a]) => `<div class="sk"><i class="${exp.includes(n) ? "ex" : profs.includes(n) ? "on" : ""}"></i><u>${sg(+(sk[n] ?? 0))}</u><span>${e(n)}</span><em>${a}</em></div>`).join("")}</div>
     <div class="small"><b>Passive Perception</b> ${e(d.passivePerception ?? "")}</div>
-    <h3>Important Items</h3><div class="small c">${e(arr(d.importantItems).join(", ") || arr(d.items).slice(0, 8).join(", ") || "")}</div>
+    <h3>Important Items</h3><div class="small c">${e(arr(d.importantItems).join(", ") || "")}</div>
     <h3>Languages</h3><div class="small c">${e(arr(d.languages).join(", ") || "")}</div>
     <h3>Tool Proficiencies</h3><div class="small c">${e(arr(d.tools).join(", ") || "None")}</div>
   </div>
   <div class="right">
     <div class="row4"><div class="shield"><svg viewBox="0 0 80 92"><path d="M40 3 L76 14 C76 52 64 76 40 89 C16 76 4 52 4 14 Z"/></svg><div><b>${e(d.ac)}</b><span>AC</span></div></div>
       <div class="star"><svg viewBox="0 0 100 100"><polygon points="50,4 61,28 88,22 76,47 96,66 69,70 66,96 50,79 34,96 31,70 4,66 24,47 12,22 39,28"/></svg><div><b>${sg(+d.profBonus || 2)}</b></div><span>PROF</span></div>
-      <div class="sq"><b>${e(d.speed)}</b><span>Speed</span></div><div class="sq"><b>${sg(+d.initiativeBonus || 0)}</b><span>INIT</span></div>
-      <div class="cond"><u>Conditions / Resistances</u><div class="small">${e([arr(d.resist).length ? "Resistant: " + arr(d.resist).join(", ") : "", arr(d.immune).length ? "Immune: " + arr(d.immune).join(", ") : "", arr(d.conditionImmune).length ? "Can't be: " + arr(d.conditionImmune).join(", ") : ""].filter(Boolean).join(". "))}</div></div></div>
+      <div class="sq"><b>${e(d.speed)}</b><span>Speed</span></div><div class="sq"><b>${sg(+d.initiativeBonus || 0)}</b><span>INIT</span></div></div>
+    <div class="cond"><u>Conditions / Resistances</u><div class="small">${e([arr(d.resist).length ? "Resistant: " + arr(d.resist).join(", ") : "", arr(d.immune).length ? "Immune: " + arr(d.immune).join(", ") : "", arr(d.conditionImmune).length ? "Can't be: " + arr(d.conditionImmune).join(", ") : ""].filter(Boolean).join(". "))}</div></div>
     <div class="small"><b>Senses:</b> ${e(arr(d.senses).join(", ") || "None")} &nbsp; <b>Speeds:</b> ${e(arr(d.moves).map(m => typeof m === "string" ? m : `${m.kind || ""} ${m.feet || ""} ft.`).join(", ") || `Walk ${d.speed} ft.`)}</div>
     <h2>Attacks</h2>
     <table class="atk"><tr><th>Name</th><th>Range / Reach</th><th>To Hit</th><th>Damage</th></tr>${attacks.map(a => `<tr><td>${e(a.name)}</td><td>${e(a.rng || (a.ranged ? "" : "0"))}${a.reach ? ` - ${e(a.reach)}` : ""}</td><td>${a.atk != null ? sg(+a.atk) : a.dc ? `DC ${e(a.dc)}` : ""}</td><td>${e(arr(a.dmgList).map(x => `${x[0]} ${String(x[1] || "").slice(0, 3)}`).join(" + "))}</td></tr>`).join("") || `<tr><td colspan="4" class="blank"></td></tr>`}</table>
     <h2>Actions <span class="tcol">Type</span></h2>
     <div class="act"><span>Attack. Dash. Disengage. Dodge. Help. Hide. Influence. Magic. Ready. Search. Study. Utilize.</span><b>A</b></div>
-    ${others.map(a => { const q = a.pool && pools[a.pool] ? pools[a.pool].max : 0; return `<div class="act"><span><strong>${e(a.name)}.</strong> ${e(first(a.desc || a.detail || ""))}${q ? ` ${circles(q)}` : ""}</span><b>${e(TYPE[a.activation] ?? "")}</b></div>`; }).join("")}
+    ${others.map(a => { const q = a.pool && pools[a.pool] ? pools[a.pool].max : 0; return `<div class="act"><span><strong>${e(a.name)}.</strong> ${e(first(a.desc || a.detail || ""))}${q ? ` ${circles(q)}` : ""}</span><b title="${a.activation && !TYPE[a.activation] ? e(a.activation) : ""}">${TYPE[a.activation] || "Other"}</b></div>`; }).join("")}
     <h2>Feats</h2><div class="small c">${e(arr(d.feats).join(", ") || "None")}</div>
-    <h2>Notes</h2><div class="write" title="Room to write: what is going on, effects, reminders"></div>
+    ${cantrips.length ? `<div class="can"><h2>Cantrips</h2>${spTable(cantrips.map(spellRow).join(""))}</div>` : ""}
   </div>
 </div>`]);
-  // Page 2: features and traits
+  // Features and traits, with the levels of each class
   const feats = arr(d.featureList).length ? arr(d.featureList) : arr(d.features).map(t => ({ n: t, d: "" }));
-  pages.push(["Features & Traits", `${banner("Features & Traits")}<div class="feats">${feats.map(f => `<div class="ft"><b>${e(f.n)}</b>${f.src ? ` <span class="muted">${e(f.src)}${f.lv ? `, level ${e(f.lv)}` : ""}</span>` : ""}${f.d ? `<div>${e(f.d)}</div>` : ""}</div>`).join("") || "<div class='muted'>None yet.</div>"}</div>`]);
-  // Spell pages: a page for cantrips and each spell level
-  const sp = d.spellcasting || {}, list = arr(d.spellList);
+  pages.push(["Features & Traits", `${banner("Features & Traits")}<div class="classes">${cls.map(x => `${e(x.name)} ${x.level}${x.sub ? ` (${e(x.sub)})` : ""}`).join(" · ")}${d.background ? ` · Background: ${e(d.background)}` : ""}</div><div class="flow">${feats.map(f => `<div class="fb ft"><b>${e(f.n)}</b>${f.src ? ` <span class="muted">${e(f.src)}${f.lv ? `, level ${e(f.lv)}` : ""}</span>` : ""}${f.d ? `<div>${e(f.d)}</div>` : ""}</div>`).join("") || "<div class='fb muted'>None yet.</div>"}</div>`, true]);
+  // Spells, by level and then by name, as many as fit on a page
   if (list.length) {
     const head = `<div class="sphead"><span class="spt">Spells</span><span>Attack: ${sg(+sp.attack || 0)}</span><span>Save DC: ${e(sp.dc || "")}</span>${sp.ability ? `<span>${e(sp.ability)}</span>` : ""}</div>`;
-    const row = (x) => { const s0 = typeof spellOf === "function" ? spellOf(x.n) : null; const mk = `${s0 && s0.conc ? ' <i class="mk c" title="Concentration">C</i>' : ""}${s0 && s0.rit ? ' <i class="mk" title="Ritual">R</i>' : ""}`;
-      return `<tr class="sn"><td><b>${e(x.n)}</b>${mk}</td><td>${e(x.s)}</td><td>${e(x.k)}</td><td>${e(x.r)}</td><td>${e(x.sv === "Atk" ? "Atk" : x.sv)}</td><td>${e(x.d)}</td><td>${e(x.t)}</td></tr><tr><td colspan="7" class="sum">${e(x.sum)}${x.up ? `<div><span class="up">Upcast.</span> ${e(first(x.up))}</div>` : ""}</td></tr>`; };
-    const lv = Array.from(new Set(list.map(x => +x.l || 0))).sort((a, b) => a - b);
-    lv.forEach(l => { const n = l ? (arr(sp.slotList)[l - 1] || 0) : 0;
-      pages.push([l ? `Level ${l} Spells` : "Cantrips", `${banner(l ? `Level ${l} Spells` : "Cantrips")}${head}<div class="lvh">${l ? `Level ${l}` : "Cantrips"}${n ? ` &nbsp; <span class="slots">Slots ${circles(n)}</span>` : ""}</div>
-<table class="spl"><tr><th>Name</th><th>School</th><th>Comps</th><th>Range</th><th>Save</th><th>Duration</th><th>C Time</th></tr>${list.filter(x => (+x.l || 0) === l).map(row).join("")}</table>`]); });
+    const lvls = Array.from(new Set(list.map(x => +x.l || 0)));
+    const blocks = lvls.map(l => { const n = l ? (arr(sp.slotList)[l - 1] || 0) : 0, rows = list.filter(x => (+x.l || 0) === l);
+      return `<div class="fb lvh ${l ? "" : "dupcan"}">${l ? `Level ${l}` : "Cantrips"}${n ? ` &nbsp; <span class="slots">Slots ${circles(n)}</span>` : ""}</div>${rows.map(r => `<div class="fb ${l ? "" : "dupcan"}">${spTable(spellRow(r))}</div>`).join("")}`; }).join("");
+    pages.push(["Spells", `${banner("Spells")}${head}<div class="flow">${blocks}</div>`, true]);
   }
-  // Last page: equipment, money and companions
-  pages.push(["Equipment", `${banner("Equipment")}<h2>Equipment</h2><div class="small c">${e(arr(d.items).join(", ") || d.equipment || "None")}</div>
-<h2>Money</h2><div class="money">${["CP", "SP", "EP", "GP", "PP"].map(k => `<div><span>${k}</span><b>${k === "GP" ? e(d.gold ?? "") : e(((d.coins || {})[k.toLowerCase()]) ?? "")}</b></div>`).join("")}</div>
-${arr(d.companions).length ? `<h2>Companions</h2>${d.companions.map(p => `<div class="ft"><b>${e(p.name)}</b>${p.kind ? ` <span class="muted">${e(p.kind)}</span>` : ""}${p.base && !/^sheet:/.test(p.base) ? ` · ${e(p.base)}` : p.hp ? ` · AC ${e(p.ac)}, ${e(p.hp)} HP, Speed ${e(p.speed)} ft.` : ""}${(p.count || 1) > 1 ? ` × ${e(p.count)}` : ""}</div>`).join("")}` : ""}
-<h2>Notes</h2><div class="write tall"></div>`]);
+  // The character: personality, looks, story
+  const j = d.journal || {}, P = j.personality || {}, A = j.appearance || {}, line = (k, v) => v ? `<div class="fb ft"><b>${e(k)}</b><div>${e(v)}</div></div>` : "";
+  pages.push(["Character Details", `${banner("Character Details")}<div class="flow">
+${line("Alignment", d.alignment)}${line("Personality Traits", P.traits)}${line("Ideals", P.ideals)}${line("Bonds", P.bonds)}${line("Flaws", P.flaws)}${line("Deity", j.deity)}
+${line("Appearance", ["age", "height", "weight", "eyes", "hair", "skin"].map(k => A[k] ? `${k[0].toUpperCase() + k.slice(1)}: ${A[k]}` : "").filter(Boolean).join(", ") + (A.description ? (A.description && ["age", "height", "weight", "eyes", "hair", "skin"].some(k => A[k]) ? ". " : "") + A.description : ""))}
+${line("Backstory", j.backstory)}${line("Allies", arr(j.allies).map(x => typeof x === "string" ? x : x && (x.name || x.text)).filter(Boolean).join(", "))}${line("Enemies", arr(j.enemies).map(x => typeof x === "string" ? x : x && (x.name || x.text)).filter(Boolean).join(", "))}
+${arr(j.notes).map(n => line(n.title || "Notes", n.text)).join("")}
+<div class="fb ft"><b>Notes</b><div class="write tall"></div></div></div>`, true]);
+  // Inventory: the things, then a short row of money
+  const items = arr(((d.builder || {}).characterItems)).filter(i => i && i.name);
+  pages.push(["Inventory", `${banner("Inventory")}<div class="money">${["CP", "SP", "EP", "GP", "PP"].map(k => `<div><span>${k}</span><b>${k === "GP" ? e(d.gold || "") : e(((d.coins || {})[k.toLowerCase()]) || "")}</b></div>`).join("")}</div>
+<div class="flow"><table class="inv fb"><tr><th>Item</th><th>Type</th><th>Weight</th></tr>${(items.length ? items : arr(d.items).map(n => ({ name: n }))).map(i => `<tr><td>${e(i.name)}${i.qty > 1 ? ` × ${e(i.qty)}` : ""}</td><td>${e(i.type || "")}</td><td>${e(i.weight || "")}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">Nothing yet.</td></tr>`}</table>
+<div class="fb small"><b>Carrying capacity</b> ${Math.floor((sc.Strength || 10) * 15)} lb.</div></div>`, true]);
+  // Stat blocks of the creatures that come with the character (a beast companion, a familiar, a steed)
+  const mons = Array.isArray(window.HBA_MONSTERS) ? window.HBA_MONSTERS : [];
+  const blocks = arr(d.companions).map(p => { const m = p.base && !/^sheet:/.test(p.base) ? mons.find(x => x.n === p.base) : null, st = p.stats || {};
+    if (!m && !p.hp && !arr(p.acts).length) return "";
+    const ac = st.ac || p.ac || (m && m.ac), hp = st.hp || p.hp || (m && m.hp), spd = p.speed ? `${p.speed} ft.` : m ? m.sp : "";
+    return `<div class="fb block"><div class="bh"><b>${e(p.name)}</b>${(p.count || 1) > 1 ? ` × ${e(p.count)}` : ""} <span class="muted">${e([p.kind, m ? m.t : "", m && m.cr != null ? `CR ${m.cr}` : ""].filter(Boolean).join(" · "))}</span></div>
+<div class="small"><b>AC</b> ${e(ac)} · <b>HP</b> ${e(hp)} · <b>Speed</b> ${e(spd)}</div>${m ? `<div class="small">${AB.map(([k], i) => `<b>${k}</b> ${m.s[i]} (${sg(md(m.s[i]))})`).join(" &nbsp; ")}</div>` : ""}
+${m ? [["Traits", m.tr], ["Actions", (m.a || []).map(a => [a.n, a.d])], ["Bonus Actions", m.ba], ["Reactions", m.re]].filter(x => arr(x[1]).length).map(([h, l]) => `<div class="bsec"><i>${h}</i>${l.map(t => `<div><b>${e(t[0])}.</b> ${e(t[1])}</div>`).join("")}</div>`).join("") : arr(p.acts).length ? `<div class="bsec"><i>Actions</i>${p.acts.map(a => `<div><b>${e(a.name)}.</b> ${a.dice ? `${sg(+a.hit || 0)} to hit, ${e(a.dice)} ${e(a.type || "")} damage.` : ""} ${e(a.text || "")}</div>`).join("")}</div>` : ""}</div>`; }).filter(Boolean);
+  if (blocks.length) pages.push(["Stat Blocks", `${banner("Stat Blocks")}<div class="flow">${blocks.join("")}</div>`, true]);
+  // Muted color: this computer's sheet colors from the Combat Resolver, lightened
+  const SCH = { Default: ["#1a2535", "#b8860b"], Parchment: ["#f1e7d0", "#6b4423"], Crimson: ["#3a1216", "#d4a017"], Forest: ["#142a1f", "#b08d57"], Arcane: ["#241a3a", "#b9a7e6"], Frost: ["#1c2f3f", "#8fd3f4"], Ember: ["#221c1a", "#e8742a"], Ink: ["#ffffff", "#000000"] };
+  let main = "#1a2535", bord = "#b8860b"; try { const t = JSON.parse(window.localStorage.getItem("hba-sheet-theme") || "null") || {}; if (t.custom && t.custom.main) { main = t.custom.main; bord = t.custom.border || bord; } else if (SCH[t.scheme]) [main, bord] = SCH[t.scheme]; } catch (x) {}
+  const mix = (h, w, k) => { try { const p = (x) => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16)), a = p(h), b = p(w); return "#" + a.map((v, i) => Math.round(v + (b[i] - v) * k).toString(16).padStart(2, "0")).join(""); } catch (x) { return h; } };
+  const mFill = mix(main, "#ffffff", 0.88), mLine = mix(bord, "#000000", 0.25), mSoft = mix(bord, "#ffffff", 0.55);
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${e(d.name || "Character")} - Character Sheet</title>
 <style>
-  :root { --ink: #111; --line: #111; --soft: #666; --fill: #fff; --accent: #111; }
-  body.muted { --ink: #2b2a27; --line: #5b4a36; --soft: #7a6d5c; --fill: #f6f1e7; --accent: #7a5c3a; }
+  @page { size: letter; margin: 0; }
+  :root { --ink: #111; --line: #111; --soft: #666; --fill: #fff; --tint: #e3e3e3; }
+  body.tinted { --ink: #222; --line: ${mLine}; --soft: ${mix(mLine, "#ffffff", 0.35)}; --fill: ${mFill}; --tint: ${mSoft}; }
   body { margin: 0; background: #d9d9d9; color: var(--ink); font-family: 'Helvetica Neue', Arial, sans-serif; }
   .bar { position: sticky; top: 0; z-index: 3; display: flex; gap: 10px; align-items: center; justify-content: center; padding: 8px; background: #333; color: #fff; font-size: 14px; }
   .bar button { background: #fff; border: none; border-radius: 6px; padding: 4px 12px; font-size: 16px; cursor: pointer; } .bar button:disabled { opacity: .35; } .bar label { cursor: pointer; }
-  .pic { width: 58px; height: 58px; object-fit: cover; border-radius: 50%; border: 2px solid var(--line); vertical-align: middle; margin-right: 12px; }
-  .page { width: 816px; min-height: 1056px; box-sizing: border-box; margin: 16px auto; padding: 36px 40px; background: var(--fill); box-shadow: 0 2px 10px rgba(0,0,0,.25); position: relative; }
+  .page { width: 816px; height: 1056px; overflow: hidden; box-sizing: border-box; margin: 16px auto; padding: 34px 40px; background: var(--fill); box-shadow: 0 2px 10px rgba(0,0,0,.25); position: relative; }
   body.one .page { display: none; } body.one .page.on { display: block; }
-  .banner { display: flex; align-items: center; } .bn { flex: 1; border: 2.5px solid var(--line); border-right: none; border-radius: 4px 0 0 4px; padding: 10px 20px 10px 18px; font-size: 30px; font-weight: 800; letter-spacing: .5px; }
-  .bn .the { font-weight: 600; font-size: 24px; margin: 0 6px; } .lvl { width: 96px; height: 96px; border: 2.5px solid var(--line); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: -10px; background: var(--fill); }
-  .lvl span { font-weight: 700; font-size: 16px; } .lvl b { font-size: 34px; } .pname { text-align: right; font-size: 12px; color: var(--soft); letter-spacing: 2px; text-transform: uppercase; margin: 4px 6px 10px; }
-  .top { display: flex; gap: 8px; align-items: stretch; } .ab { width: 62px; border: 2px solid var(--line); border-radius: 10px 10px 6px 6px; text-align: center; position: relative; padding: 18px 0 6px; }
-  .ab .sv { position: absolute; top: -12px; left: 6px; right: 6px; display: flex; justify-content: space-between; align-items: center; } .ab .sv span { background: var(--fill); border: 1.5px solid var(--line); border-radius: 8px; padding: 0 6px; font-size: 13px; }
-  .ab .sv i, .sk i { display: inline-block; width: 16px; height: 16px; border: 1.5px solid var(--line); border-radius: 50%; background: var(--fill); } .ab .sv i.on, .sk i.on { background: #9a9a9a; } .sk i.ex { background: var(--ink); }
-  .ab .k { font-size: 14px; font-weight: 700; } .ab .v { font-size: 26px; font-weight: 300; } .ab .m { border: 1.5px solid var(--line); border-radius: 12px; margin: 2px 8px 0; font-size: 15px; }
-  .hpbox { flex: 1; display: flex; align-items: center; gap: 0; } .hit { border: 2px solid var(--line); padding: 6px 6px; font-size: 12px; white-space: nowrap; display: flex; flex-direction: column; gap: 8px; } .hit b { font-size: 18px; font-weight: 400; }
-  .heart { position: relative; width: 100px; height: 94px; margin: 0 -14px 0 -4px; z-index: 1; } .heart svg { width: 100%; height: 100%; } .heart path { fill: var(--fill); stroke: var(--line); stroke-width: 3; }
-  .heart div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 12px; } .heart b { font-size: 30px; } .heart span { font-size: 12px; }
-  .pill { flex: 1; min-width: 130px; height: 64px; background: #e3e3e3; border-radius: 0 40px 40px 0; position: relative; } body.muted .pill { background: #e9e0cf; } .pill .sl { position: absolute; left: 50%; top: 8px; font-size: 30px; } .pill .l1, .pill .l2 { position: absolute; bottom: 4px; font-size: 13px; } .pill .l1 { left: 22%; } .pill .l2 { left: 62%; }
-  .cols { display: grid; grid-template-columns: 250px 1fr; gap: 18px; margin-top: 14px; } .skills { border: 1.5px solid var(--line); padding: 6px 8px; }
-  .sk { display: grid; grid-template-columns: 20px 34px 1fr 36px; align-items: center; font-size: 14px; padding: 2px 0; } .sk u { text-decoration: none; border-bottom: 1px solid var(--line); text-align: center; margin-right: 6px; } .sk em { color: var(--soft); font-style: normal; font-size: 12px; text-align: right; }
-  h2 { font-size: 18px; margin: 14px 0 4px; text-align: center; letter-spacing: .5px; } h2 .tcol { float: right; font-size: 13px; font-weight: 400; } h3 { font-size: 15px; margin: 12px 0 2px; text-align: center; }
-  .small { font-size: 13.5px; } .c { text-align: center; } .muted { color: var(--soft); font-size: 12.5px; }
-  .row4 { display: grid; grid-template-columns: 70px 70px 66px 66px 1fr; gap: 8px; align-items: center; } .shield, .star { position: relative; height: 82px; text-align: center; } .shield svg, .star svg { height: 70px; } .shield path, .star polygon { fill: var(--fill); stroke: var(--line); stroke-width: 3; }
-  .shield div, .star div { position: absolute; left: 0; right: 0; top: 14px; } .shield b, .star b { display: block; font-size: 24px; } .shield span { font-size: 11px; } .star div { top: 22px; } .star span { position: absolute; bottom: -2px; left: 0; right: 0; font-size: 11px; }
-  .sq { border: 2px solid var(--line); text-align: center; padding: 4px 0; } .sq b { display: block; font-size: 24px; } .sq span { font-size: 11px; } .cond { border: 1.5px solid var(--line); border-radius: 30px; min-height: 70px; padding: 6px 14px; text-align: center; font-size: 13px; }
-  table { width: 100%; border-collapse: collapse; } .atk th, .atk td { font-size: 13.5px; padding: 2px 4px; text-align: left; } .atk td.blank { height: 60px; }
-  .act { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 3px 0; } .act b { min-width: 30px; text-align: center; } .circ { letter-spacing: 1px; white-space: nowrap; }
-  .write { border: 1.5px solid var(--line); border-radius: 8px; min-height: 120px; } .write.tall { min-height: 360px; }
-  .feats .ft, .ft { font-size: 13.5px; margin: 0 0 8px; } .ft div { margin-top: 2px; line-height: 1.4; }
-  .sphead { display: flex; gap: 26px; align-items: baseline; font-size: 15px; } .spt { font-size: 26px; font-weight: 300; } .lvh { font-size: 19px; font-weight: 700; margin: 10px 0 4px; } .slots { font-weight: 400; font-size: 15px; }
-  .spl th { text-align: left; font-size: 13.5px; padding: 4px 4px 2px; } .spl td { font-size: 13.5px; padding: 4px 4px 0; vertical-align: top; } .spl td.sum { padding: 0 4px 8px; color: var(--ink); font-size: 13px; } .up { font-weight: 700; color: var(--soft); }
-  .mk { display: inline-block; font-style: normal; font-size: 10px; font-weight: 700; border: 1px solid var(--line); border-radius: 2px; padding: 0 3px; margin-left: 4px; vertical-align: middle; } .mk.c { border-radius: 8px; }
-  .money { display: flex; gap: 10px; } .money div { flex: 1; border: 1.5px solid var(--line); border-radius: 8px; text-align: center; padding: 4px; } .money span { display: block; font-size: 12px; } .money b { font-size: 18px; display: block; min-height: 22px; }
+  .banner { display: flex; align-items: center; } .bn { flex: 1; display: flex; align-items: center; border: 2.5px solid var(--line); border-right: none; border-radius: 4px 0 0 4px; padding: 8px 18px; min-height: 64px; }
+  .bt .nm { font-size: 26px; font-weight: 800; } .bt .the { font-weight: 600; font-size: 20px; margin: 0 4px; } .bt .sub { font-size: 15px; font-weight: 600; color: var(--soft); } .bt .mc { font-size: 14px; color: var(--soft); font-weight: 600; }
+  .pic { width: 56px; height: 56px; object-fit: cover; border-radius: 50%; border: 2px solid var(--line); margin-right: 12px; }
+  .lvl { width: 88px; height: 88px; border: 2.5px solid var(--line); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: -10px; background: var(--fill); flex: none; }
+  .lvl span { font-weight: 700; font-size: 15px; } .lvl b { font-size: 32px; } .pname { text-align: right; font-size: 11px; color: var(--soft); letter-spacing: 2px; text-transform: uppercase; margin: 2px 6px 8px; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 12px; } .ab { width: 64px; border: 2px solid var(--line); border-radius: 10px 10px 6px 6px; text-align: center; position: relative; padding: 18px 0 6px; }
+  .ab .sv { position: absolute; top: -12px; left: 5px; right: 5px; display: flex; justify-content: space-between; align-items: center; } .ab .sv span { background: var(--fill); border: 1.5px solid var(--line); border-radius: 8px; padding: 0 5px; font-size: 12.5px; }
+  .ab .sv i, .sk i { display: inline-block; width: 15px; height: 15px; border: 1.5px solid var(--line); border-radius: 50%; background: var(--fill); } .ab .sv i.on, .sk i.on { background: #9a9a9a; } .sk i.ex { background: var(--ink); }
+  .ab .k { font-size: 13px; font-weight: 700; } .ab .v { font-size: 26px; font-weight: 300; } .ab .m { border: 1.5px solid var(--line); border-radius: 12px; margin: 2px 7px 0; font-size: 14px; }
+  .hpbox { width: 230px; } .hprow { display: flex; align-items: center; } .heart { position: relative; width: 92px; height: 86px; margin-right: -14px; z-index: 1; flex: none; } .heart svg { width: 100%; height: 100%; } .heart path { fill: var(--fill); stroke: var(--line); stroke-width: 3; }
+  .heart div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 10px; } .heart b { font-size: 26px; } .heart span { font-size: 11px; }
+  .pill { flex: 1; height: 60px; background: var(--tint); border-radius: 0 34px 34px 0; position: relative; } .pill .sl { position: absolute; left: 52%; top: 6px; font-size: 28px; } .pill .l1, .pill .l2 { position: absolute; bottom: 3px; font-size: 12px; } .pill .l1 { left: 30%; } .pill .l2 { left: 66%; }
+  .hit { margin: 6px 0 0 70px; border: 1.5px solid var(--line); border-radius: 8px; padding: 3px 10px; font-size: 13px; } .hit b { font-weight: 400; font-size: 15px; }
+  .cols { display: grid; grid-template-columns: 236px 1fr; gap: 18px; margin-top: 12px; } .skills { border: 1.5px solid var(--line); padding: 5px 8px; }
+  .sk { display: grid; grid-template-columns: 19px 32px 1fr 34px; align-items: center; font-size: 13.5px; padding: 1.5px 0; } .sk u { text-decoration: none; border-bottom: 1px solid var(--line); text-align: center; margin-right: 6px; } .sk em { color: var(--soft); font-style: normal; font-size: 11.5px; text-align: right; }
+  h2 { font-size: 17px; margin: 10px 0 3px; text-align: center; letter-spacing: .5px; } h2 .tcol { float: right; font-size: 12.5px; font-weight: 400; } h3 { font-size: 14.5px; margin: 10px 0 2px; text-align: center; }
+  .small { font-size: 13px; } .c { text-align: center; } .muted { color: var(--soft); font-size: 12px; }
+  .row4 { display: flex; gap: 8px; align-items: center; } .shield, .star { position: relative; width: 56px; height: 66px; text-align: center; } .shield svg, .star svg { height: 58px; } .shield path, .star polygon { fill: var(--fill); stroke: var(--line); stroke-width: 3; }
+  .shield div, .star div { position: absolute; left: 0; right: 0; top: 10px; } .shield b, .star b { display: block; font-size: 19px; } .shield span { font-size: 10px; } .star div { top: 17px; } .star span { position: absolute; bottom: -1px; left: 0; right: 0; font-size: 10px; }
+  .sq { border: 2px solid var(--line); text-align: center; padding: 2px 0; width: 54px; } .sq b { display: block; font-size: 19px; } .sq span { font-size: 10px; }
+  .cond { border: 1.5px solid var(--line); border-radius: 24px; min-height: 92px; padding: 6px 14px; margin: 8px 0 6px; text-align: center; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; } .atk th, .atk td { font-size: 13px; padding: 2px 4px; text-align: left; } .atk td.blank { height: 50px; }
+  .act { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 2px 0; } .act b { min-width: 40px; text-align: center; } .circ { letter-spacing: 1px; white-space: nowrap; }
+  .write { border: 1.5px solid var(--line); border-radius: 8px; min-height: 120px; margin-top: 4px; } .write.tall { min-height: 300px; }
+  .ft { font-size: 13.5px; margin: 0 0 8px; } .ft div { margin-top: 2px; line-height: 1.4; } .classes { text-align: center; font-weight: 700; margin-bottom: 8px; }
+  .sphead { display: flex; gap: 26px; align-items: baseline; font-size: 15px; } .spt { font-size: 24px; font-weight: 300; } .lvh { font-size: 18px; font-weight: 700; margin: 10px 0 2px; } .slots { font-weight: 400; font-size: 14px; }
+  .spl { table-layout: fixed; } .spl th { text-align: left; font-size: 12.5px; padding: 3px 4px 1px; } .spl td { font-size: 13px; padding: 3px 4px 0; vertical-align: top; } .spl td.sum { padding: 0 4px 6px 18px; color: var(--soft); font-size: 12.5px; }
+  .spl th:nth-child(1), .spl td:nth-child(1) { width: 34%; } .spl td.sum { width: auto; } .flow .spl thead { display: none; } .flow .fb:first-child .spl thead, .flow .lvh + .fb .spl thead { display: table-header-group; }
+  .up { font-weight: 700; } .mk { display: inline-block; font-style: normal; font-size: 9.5px; font-weight: 700; border: 1px solid var(--line); border-radius: 50%; width: 13px; height: 13px; line-height: 12px; text-align: center; margin-left: 3px; vertical-align: middle; }
+  .money { display: flex; gap: 8px; width: 60%; } .money div { flex: 1; border: 1.5px solid var(--line); border-radius: 8px; text-align: center; padding: 2px; } .money span { display: block; font-size: 11px; } .money b { font-size: 15px; display: block; min-height: 18px; }
+  .inv { margin-top: 10px; } .inv th, .inv td { text-align: left; font-size: 13px; padding: 3px 4px; border-bottom: 1px solid var(--tint); }
+  .block { border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 13px; } .block .bh { font-size: 16px; margin-bottom: 2px; } .bsec { margin-top: 6px; } .bsec i { display: block; font-style: normal; font-weight: 700; border-bottom: 1px solid var(--line); margin-bottom: 2px; } .bsec div { margin: 2px 0; }
   @media print { body { background: #fff; } .bar { display: none; } body.one .page, .page { display: block !important; box-shadow: none; margin: 0; page-break-after: always; } }
-</style></head><body class="one"><div class="bar"><button id="prev" aria-label="Previous page">◀</button><span id="pn"></span><button id="next" aria-label="Next page">▶</button><label><input type="checkbox" id="muted"> Muted color</label></div>
-${pages.map(([n, h], i) => `<section class="page${i ? "" : " on"}" data-name="${e(n)}">${h}</section>`).join("\n")}
-<script>(function(){var p=[].slice.call(document.querySelectorAll('.page')),i=0,pn=document.getElementById('pn');function go(k){i=Math.max(0,Math.min(p.length-1,k));p.forEach(function(x,j){x.classList.toggle('on',j===i);});pn.textContent=(i+1)+' of '+p.length+': '+p[i].getAttribute('data-name');document.getElementById('prev').disabled=i===0;document.getElementById('next').disabled=i===p.length-1;window.scrollTo(0,0);}
+</style></head><body><div class="bar"><button id="prev" aria-label="Previous page">◀</button><span id="pn"></span><button id="next" aria-label="Next page">▶</button><label><input type="checkbox" id="muted"> Muted color</label></div>
+${pages.map(([n, h, flow]) => `<section class="page" data-name="${e(n)}"${flow ? " data-flow" : ""}>${h}</section>`).join("\n")}
+<script>(function(){
+var full=function(p){return p.scrollHeight>p.clientHeight+1;};
+var one=document.querySelector('.page'),can=one&&one.querySelector('.can');
+if(can&&full(one)){can.parentNode.removeChild(can);}else{[].slice.call(document.querySelectorAll('.dupcan')).forEach(function(x){x.parentNode.removeChild(x);});}
+[].slice.call(document.querySelectorAll('.page[data-flow]')).forEach(function(pg){var fl=pg.querySelector('.flow');if(!fl)return;var bl=[].slice.call(fl.children);fl.innerHTML='';var cur=pg,body=fl,k=1;
+ if(!bl.length&&pg.querySelector('.sphead')){pg.parentNode.removeChild(pg);return;}
+ bl.forEach(function(b){body.appendChild(b);if(full(cur)&&body.children.length>1){body.removeChild(b);var np=cur.cloneNode(true);k++;np.setAttribute('data-name',pg.getAttribute('data-name')+' ('+k+')');var pn=np.querySelector('.pname');if(pn)pn.textContent=np.getAttribute('data-name');np.querySelector('.flow').innerHTML='';cur.parentNode.insertBefore(np,cur.nextSibling);cur=np;body=np.querySelector('.flow');body.appendChild(b);}});});
+var p=[].slice.call(document.querySelectorAll('.page')),i=0,pn=document.getElementById('pn');document.body.classList.add('one');
+function go(k){i=Math.max(0,Math.min(p.length-1,k));p.forEach(function(x,j){x.classList.toggle('on',j===i);});pn.textContent=(i+1)+' of '+p.length+': '+p[i].getAttribute('data-name');document.getElementById('prev').disabled=i===0;document.getElementById('next').disabled=i===p.length-1;window.scrollTo(0,0);}
 document.getElementById('prev').onclick=function(){go(i-1);};document.getElementById('next').onclick=function(){go(i+1);};document.addEventListener('keydown',function(ev){if(ev.key==='ArrowLeft')go(i-1);if(ev.key==='ArrowRight')go(i+1);});
-document.getElementById('muted').onchange=function(ev){document.body.classList.toggle('muted',ev.target.checked);};go(0);})();<\/script>
+document.getElementById('muted').onchange=function(ev){document.body.classList.toggle('tinted',ev.target.checked);};go(0);})();<\/script>
 </body></html>`;
 }
-
 
 /* ============ 2024 PHB DATA ============ */
 
@@ -1892,7 +1933,7 @@ function checkPack(raw) {
   pArr(raw.spells).slice(0, 600).forEach((sp) => {
     const name = pStr(pObj(sp).name, 60).trim(); if (!name) return;
     pack.spells.push({ name, level: Math.max(0, Math.min(9, parseInt(sp.level, 10) || 0)), school: pStr(sp.school, 20), classes: pArr(sp.classes).map((x) => pStr(x, 40)),
-      castingTime: pStr(sp.castingTime, 60), range: pStr(sp.range, 60), duration: pStr(sp.duration, 60), concentration: !!sp.concentration, ritual: !!sp.ritual, text: pStr(sp.text, 4000), higherLevels: pStr(sp.higherLevels, 1500),
+      castingTime: pStr(sp.castingTime, 60), range: pStr(sp.range, 60), duration: pStr(sp.duration, 60), concentration: !!sp.concentration, ritual: !!sp.ritual, text: pStr(sp.text, 4000), higherLevels: pStr(sp.higherLevels, 1500), summary: pStr(sp.summary, 100), summaryHigher: pStr(sp.summaryHigher, 80),
       components: (pStr(sp.components, 10).toUpperCase().match(/[VSM]/g) || []).filter((x, i, a) => a.indexOf(x) === i).join(""), material: pStr(sp.material, 240), record: packRecord(sp.record, 12000), extras: packRecord(sp.extras, 12000) });
   });
   pArr(raw.slotTypes).slice(0, 10).forEach((t) => { const name = pStr(pObj(t).name, 30).trim(); if (!name) return; const max = parseInt(t.max, 10);
@@ -1979,7 +2020,7 @@ function mergePack(pack) {
   Object.keys(pack.feats).forEach((name) => { const def = typeof pack.feats[name] === "string" ? { category: "Any", text: pack.feats[name] } : pack.feats[name]; ORIGIN_FEATS[name] = def.text || ""; FEATS[name] = def; });
   pack.items.forEach((it) => { const k = MAGIC_ITEMS.findIndex((x) => x.name === it.name); if (k >= 0) MAGIC_ITEMS[k] = it; else MAGIC_ITEMS.push(it); });
   pack.spells.forEach((sp) => { const k = PACK_SPELLS.findIndex((x) => x.name === sp.name); if (k >= 0) PACK_SPELLS[k] = sp; else PACK_SPELLS.push(sp); });
-  pack.spells.forEach((sp) => registerSpell({ n: sp.name, l: sp.level, s: sp.school || "", c: sp.classes || [], t: sp.castingTime || "", r: sp.range || "", k: sp.components || "", mat: sp.material || "", d: sp.duration || "", x: sp.text || "", ...(sp.higherLevels ? { h: sp.higherLevels } : {}), conc: sp.concentration ? 1 : 0, rit: sp.ritual ? 1 : 0, pack: true, ...(sp.record ? { f: sp.record, e: sp.extras || {} } : {}) }));
+  pack.spells.forEach((sp) => registerSpell({ ...(sp.summary ? { su: sp.summary } : {}), ...(sp.summaryHigher ? { su2: sp.summaryHigher } : {}), n: sp.name, l: sp.level, s: sp.school || "", c: sp.classes || [], t: sp.castingTime || "", r: sp.range || "", k: sp.components || "", mat: sp.material || "", d: sp.duration || "", x: sp.text || "", ...(sp.higherLevels ? { h: sp.higherLevels } : {}), conc: sp.concentration ? 1 : 0, rit: sp.ritual ? 1 : 0, pack: true, ...(sp.record ? { f: sp.record, e: sp.extras || {} } : {}) }));
   pack.abilities.forEach((ab) => PACK_ABILITIES.push(ab));
   (pack.slotTypes || []).forEach((t) => { const k = SLOT_TYPES.findIndex((x) => x.name === t.name); if (k >= 0) SLOT_TYPES[k] = { ...SLOT_TYPES[k], ...t }; else SLOT_TYPES.push(t); });
 }
@@ -4713,7 +4754,7 @@ function sheetSpell(sp) {
     r: String(sp.r || "").replace(/ Component.*$/, "").replace(/ feet| foot/g, "ft").replace(/ miles?/, "mi"),
     sv: m.k === "save" && m.ab ? m.ab.slice(0, 3).toUpperCase() : m.k === "attack" ? "Atk" : "-",
     d: shortTime(sp.d) + (sp.conc ? "<*>" : ""), t: shortTime(sp.t) + (sp.rit ? " (R*)" : ""),
-    sum: first.length > 118 ? first.slice(0, 115).replace(/\s+\S*$/, "") + "..." : first, up: String(sp.h || "").slice(0, 130) };
+    sum: sp.su || (first.length > 118 ? first.slice(0, 115).replace(/\s+\S*$/, "") + "..." : first), up: sp.su2 != null ? sp.su2 : String(sp.h || "").slice(0, 130), ...(sp.conc ? { conc: 1 } : {}), ...(sp.rit ? { rit: 1 } : {}) };
 }
 // A spell record from a Content Pack: kept only if it is a plain object of a sensible size with the fields the app reads.
 function packRecord(o, max) {
@@ -4965,7 +5006,7 @@ function fullSpellAction(sp, ctx, opts) {
 // Concentration and Ritual marks, as on D&D Beyond: a C and an R in small boxes
 function SpellMarks({ sp, colors }) {
   if (!sp || !(sp.conc || sp.rit)) return null;
-  const box = (t, title) => <span key={t} title={title} aria-label={title} data-mark={t} style={{ display: "inline-block", minWidth: 16, height: 16, lineHeight: "14px", textAlign: "center", fontSize: 10.5, fontWeight: 700, border: `1px solid ${colors.brassLight}`, color: colors.brassLight, borderRadius: t === "C" ? 8 : 3, marginLeft: 5, verticalAlign: "middle" }}>{t}</span>;
+  const box = (t, title) => <span key={t} title={title} aria-label={title} data-mark={t} style={{ display: "inline-block", minWidth: 16, height: 16, lineHeight: "14px", textAlign: "center", fontSize: 10.5, fontWeight: 700, border: `1px solid ${colors.brassLight}`, color: colors.brassLight, borderRadius: 8, marginLeft: 5, verticalAlign: "middle" }}>{t}</span>;
   return <>{sp.conc && box("C", "Concentration")}{sp.rit && box("R", "Ritual")}</>;
 }
 function SpellRow({ entry, onRemove, onExtra = null, colors, fontDisplay, summary }) {
@@ -4982,6 +5023,7 @@ function SpellRow({ entry, onRemove, onExtra = null, colors, fontDisplay, summar
         {sp && onExtra && <button data-testid="spell-extra" onClick={onExtra} title={entry.extra ? "An additional spell: it does not count against your limits. Click to count it again." : "Make this an additional spell that does not count against your limits (the DM is told)"} style={{ background: entry.extra ? "#5c7cfa33" : "transparent", border: `1px solid ${entry.extra ? "#5c7cfa" : colors.brass + "66"}`, color: entry.extra ? "#bac8ff" : colors.parchment, borderRadius: 10, fontSize: 11, padding: "1px 8px", cursor: "pointer" }}>{entry.extra ? "Additional" : "Counts"}</button>}
         <button onClick={onRemove} aria-label={`Remove ${sp ? sp.n : entry.raw}`} style={{ background: "transparent", border: "none", color: colors.parchment, opacity: 0.7, cursor: "pointer", fontSize: 16 }}>×</button>
       </div>
+      {sp && sp.su && <div data-testid="spell-su" style={{ fontSize: 12.5, opacity: 0.75, paddingLeft: 12 }}>{sp.su}{sp.su2 ? <span style={{ opacity: 0.85 }}> · Upcast: {sp.su2}</span> : null}</div>}
       {summary && <div style={{ fontSize: 12, color: colors.brassLight }}>In combat: {summary}</div>}
       {red && <div style={{ fontSize: 12, color: CUSTOM_RED }}>Beyond the rules: {entry.problem}.</div>}
       {open && sp && (
@@ -5118,11 +5160,15 @@ function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [],
         {rows.length === 0 && grantedSpells.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No spells yet. Add them from the list below.</div>}
         {["Cleric", "Druid", "Paladin", "Wizard"].includes(className) && spellRows.some(e => !e.extra) && <button data-testid="clear-prepared" title="These classes can change their whole list of prepared spells after a Long Rest. Cantrips and additional spells stay." onClick={() => { const n = spellRows.filter(e => !e.extra).length; if (!window.confirm(`Remove all ${n} prepared ${n === 1 ? "spell" : "spells"} so you can choose again? Cantrips and additional spells stay.`)) return; const drop = new Set(spellRows.filter(e => !e.extra).map(e => e.index)); const next = spells.filter((_, i) => !drop.has(i)); setSpells(next.length ? next : [""]); }}
           style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "4px 12px", fontSize: 13, cursor: "pointer", marginBottom: 8 }}>Remove all prepared spells (keeps cantrips)</button>}
-        {cantripRows.length > 0 && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "4px 0 6px" }}>CANTRIPS</div>}
-        {cantripRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} onExtra={() => flipExtra(e.sp.n)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
-        {spellRows.length > 0 && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "10px 0 6px" }}>PREPARED SPELLS</div>}
-        {spellRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} onExtra={() => flipExtra(e.sp.n)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
+        {cantripRows.some(e => !e.extra) && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "4px 0 6px" }}>CANTRIPS</div>}
+        {cantripRows.filter(e => !e.extra).map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} onExtra={() => flipExtra(e.sp.n)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
+        {spellRows.some(e => !e.extra) && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "10px 0 6px" }}>PREPARED SPELLS</div>}
+        {spellRows.filter(e => !e.extra).map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} onExtra={() => flipExtra(e.sp.n)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
         {handRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} />)}
+        {rows.some(e => e.extra) && <div data-testid="extra-section" style={{ marginTop: 12, borderTop: `1px dashed #5c7cfa`, paddingTop: 8 }}>
+          <div style={{ fontFamily: fontDisplay, fontSize: 12, color: "#bac8ff", margin: "0 0 6px" }}>ADDITIONAL SPELLS (on top of the rules; they do not count, and the DM is told)</div>
+          {[...cantripRows, ...spellRows].filter(e => e.extra).map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} onExtra={() => flipExtra(e.sp.n)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
+        </div>}
         {grantedSpells.length > 0 && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "10px 0 6px" }}>ALWAYS PREPARED (these do not count against your limits)</div>}
         {grantedSpells.map((g, i) => {
           const sp = spellOf(g.name);

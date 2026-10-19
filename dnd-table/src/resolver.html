@@ -136,9 +136,11 @@
     .pal-mass-atk { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 4px 0 6px; }
     .sheet-only { position: fixed; inset: 0; overflow: auto; background: var(--ink); padding: 12px; z-index: 100; }
     .pp-quick { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 6px 0 10px; font-size: 13.5px; } .pp-quick input { flex: 1; min-width: 180px; }
+    .pp-spsum { font-size: 12.5px; color: var(--pp-muted); padding: 0 0 4px 34px; line-height: 1.3; }
     .tracker-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 6px; font-size: 13px; }
     .card-more { position: absolute; right: 52px; top: 6px; background: transparent; border: 1px solid var(--panel-light); color: var(--text-muted); border-radius: 6px; padding: 0 6px; cursor: pointer; font-size: 13px; line-height: 18px; }
     .turn-pop { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 90; background: var(--gold); color: #1a2535; border-radius: 12px; padding: 10px 14px 10px 18px; font-size: 18px; font-family: 'Cinzel', serif; box-shadow: 0 6px 22px rgba(0,0,0,.5); display: flex; gap: 12px; align-items: center; animation: turnpop .35s ease-out; pointer-events: none; }
+    .turn-pop.time-up { top: 120px; background: #c92a2a; color: #fff; } .turn-pop.time-up button { color: #fff; border-color: #fff; }
     .turn-pop button { pointer-events: auto; background: transparent; border: 1px solid #1a2535; border-radius: 6px; color: #1a2535; cursor: pointer; font-size: 16px; padding: 0 8px; }
     @keyframes turnpop { from { transform: translate(-50%, -16px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
     .pal-group.acting { box-shadow: 0 0 0 2px var(--gold), 0 0 18px rgba(212,160,23,.55); }
@@ -1137,6 +1139,7 @@ function reactEvents(name, trigger, text) {
   return out;
 }
 const SPELL_NAMES = new Set((window.HBA_SPELLS || []).map(x => String(x.n || '').toLowerCase()));
+const SPELL_SUM = {}, SPELL_SUM2 = {}; (window.HBA_SPELLS || []).forEach(x => { const k = String(x.n || '').toLowerCase(); if (x.su) SPELL_SUM[k] = x.su; if (x.su2) SPELL_SUM2[k] = x.su2; }); // one-line summaries for the Spells tab
 let ENC_TABLE = ''; // the DM's encumbrance rule for the table ('off', 'on', 'variant'); empty: each player chooses
 // Encumbrance: what a character carries, and the rule in use. On is the 2024 rule (over capacity: Speed at most 5 feet); Variant is the 2014 PHB variant.
 // Coins weigh something when the character tracks it: fifty coins of any kind weigh 1 pound; a kind of money of your own weighs what you set for it
@@ -2085,7 +2088,7 @@ function sheetToFields(data) {
       if (q.regain && DMG_RE.test(String(q.regain).replace(/\s/g, ''))) pools[str(k, 40)].regain = String(q.regain).replace(/\s/g, ''); if (q.item) pools[str(k, 40)].item = str(q.item, 80); }
   });
   const sheet = {
-    pools, extraSpells: list(data.extraSpells, 40, 60), customizations: list(data.customizations, 60, 200), packsUsed: list(data.packs, 20, 60),
+    pools, charId: str(data.charId, 24), extraSpells: list(data.extraSpells, 40, 60), customizations: list(data.customizations, 60, 200), packsUsed: list(data.packs, 20, 60),
     homebrew: (Array.isArray(data.homebrew) ? data.homebrew : []).slice(0, 80).filter(h => h && h.name && h.pack).map(h => ({kind: str(h.kind, 20), name: str(h.name, 60), pack: str(h.pack, 48), ...(h.text ? {text: str(h.text, 600)} : {})})), species: str(data.species, 30), background: str(data.background, 30), subclass: str(data.subclassName, 40),
     player: str(data.player, 40), pp: num(data.passivePerception, 10 + mod(scores.Wisdom)),
     skills, skillProfs: list(data.skillProfs, 30, 30), skillExpertise: list(data.skillExpertise, 30, 30),
@@ -2665,16 +2668,17 @@ function App() {
   const [turnPaused, setTurnPaused] = useState(false); const pauseEl = useRef(0); // the DM can pause the turn timer
   useEffect(() => { setTurnStart(Date.now()); setHideTimer(false); pauseEl.current = 0; }, [activeId, round, combatStarted]);
   useEffect(() => { if (!turnSecs || !combatStarted || rest) return; setClock(Date.now()); const t = setInterval(() => setClock(Date.now()), 1000); return () => clearInterval(t); }, [turnSecs, combatStarted, rest]);
-  useEffect(() => { // the DM's screen notes it in the log, once, when a player's time runs out
-    const a = combatants.find(c => c.id === activeId);
-    if (!isDM || !turnSecs || !combatStarted || rest || turnPaused || !a || !a.owner || clock - turnStart < turnSecs * 1000) return;
-    const key = round + ':' + activeId; if (timeUpRef.current === key) return; timeUpRef.current = key;
-    setLog(prev => [...prev, stamp({type:'roll', forId: a.id, by: '', priv: [a.id], html:`<strong>${esc(a.name)}</strong>: the time for this turn is up<div class="log-detail">${timeText(turnSecs)} per turn.</div>`})]);
+  const [timeUp, setTimeUp] = useState(null); // a pop-up for the DM and the player when the time for a turn runs out
+  useEffect(() => { const a = combatants.find(c => c.id === activeId);
+    if (!turnSecs || !combatStarted || rest || turnPaused || !a || !a.owner || !(isDM || a.owner === myId) || clock - turnStart < turnSecs * 1000) return;
+    const key = round + ':' + activeId; if (timeUpRef.current === key) return; timeUpRef.current = key; setTimeUp({key, name: a.name, mine: a.owner === myId});
   }, [clock]);
+  useEffect(() => { if (timeUp && timeUp.key !== round + ':' + activeId) setTimeUp(null); }, [activeId, round]);
   useEffect(() => { FUDGE_DONE = () => setFudge(''); return () => { FUDGE_DONE = null; NEXT_D20 = 0; }; }, []);
   const [blockPick, setBlockPick] = useState(null);  // choosing the creature for a form or a summon: {cId, kind, source, left, q}
   const [showGlossary, setShowGlossary] = useState(false);
   const [showNotes, setShowNotes] = useState(false); const [notesVer, setNotesVer] = useState(0);
+  const [playerName, setPlayerName] = useState(() => lsGet('hba-player-name') || ''); // the player's own name, shown to the DM
   const [inbox, setInbox] = useState([]), [inboxOpen, setInboxOpen] = useState(false), [inboxSeen, setInboxSeen] = useState(0), [inboxGroup, setInboxGroup] = useState(''); // the DM's notification center
   const combatKey = useRef(''); // the DM's Rules Glossary
   const [restSummary, setRestSummary] = useState(null); // what a player's rest just gave back
@@ -2815,7 +2819,7 @@ function App() {
   const setRosterInit = v => { setRosterInitRaw(v); try { window.localStorage.setItem('hba-roster-init', JSON.stringify({mode: v.mode})); } catch (e) {} };
   const [toolOpen, setToolOpen] = useState('');
   const [palHidden, setPalHidden] = useState([]), [groupRun, setGroupRun] = useState(null); // companions taken off the list; one action done by several companions in turn
-  const [palTab, setPalTab] = useState('all'), [palSort, setPalSort] = useState('name'), [palSel, setPalSel] = useState([]), [palAmt, setPalAmt] = useState(''); const [palCombine, setPalCombine] = useState(true), [palOpen, setPalOpen] = useState([]) /* the stat blocks folded shut (they start open) */, [massPick, setMassPick] = useState({}), [massRun, setMassRun] = useState(null), [massOpen, setMassOpen] = useState(false), [massSel, setMassSel] = useState([]); // the Companions tab // the tool opened on the sheet
+  const [palTab, setPalTab] = useState('all'), [palSort, setPalSort] = useState('name'), [palSel, setPalSel] = useState([]), [palAmt, setPalAmt] = useState(''); const [palCombine, setPalCombine] = useState(true), [palView, setPalView] = useState({}) /* each stat block: 'min' (its name), 'mid' (the default: its numbers and a line for each one), 'full' (everything) */, [palOptsOpen, setPalOptsOpen] = useState(false), [massPick, setMassPick] = useState({}), [massRun, setMassRun] = useState(null), [massOpen, setMassOpen] = useState(false), [massSel, setMassSel] = useState([]); // the Companions tab // the tool opened on the sheet
   const [logOpen, setLogOpen] = useState([]);
   const toggleLogOpen = id => setLogOpen(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id].slice(-200)); // Combat Log entries opened to show all their details
   const [pics, setPics] = useState({}); // pictures of creatures in this session: {creature id: {big, thumb, show, at}}
@@ -2859,6 +2863,7 @@ function App() {
   const setNoticesOn = v => { if (isDM) { setNoticesDm(v); try { window.localStorage.setItem('hba-notices-dm', v ? 'on' : 'off'); } catch (e) {} } else { setNoticesPl(v); try { window.localStorage.setItem('hba-notices', v ? 'on' : 'off'); } catch (e) {} } };
   const canControl = c => !!c && (isDM || (!!c.owner && c.owner === myId));
   const veil = c => !isDM && !canControl(c) && c.type !== 'player'; // a creature whose numbers the DM may be hiding from this player
+  const [addAs, setAddAs] = useState(null); // the Monster Roster: a stat block named and set up before it is added
   const SEE_KEYS = [['cond', 'Conditions'], ['cr', 'CR and type'], ['bar', 'HP bar'], ['hp', 'HP numbers'], ['ac', 'AC']];
   // What a player sees of a creature: its own choice from the DM (it wins), or the table setting. Its name and size always show.
   const seeOfTable = k => ({cond: reveal !== 'none', cr: reveal !== 'none' && reveal !== 'conditions', bar: reveal === 'full' || reveal === 'bar', hp: reveal === 'full', ac: !!revealAC && reveal !== 'none'})[k];
@@ -2869,7 +2874,7 @@ function App() {
   useEffect(() => {
     if (combatants.some(c => canControl(c) && c.currentHP > totalHP(c))) setCombatants(prev => prev.map(c => canControl(c) && c.currentHP > totalHP(c) ? {...c, currentHP: totalHP(c)} : c));
   });
-  const [cardsFull, setCardsFull] = useState(() => lsGet('hba-cards') === 'full'), [cardMore, setCardMore] = useState([]), [hidePals, setHidePals] = useState(() => lsGet('hba-hide-pals') === 'on'); // the tracker: short cards (name, picture, Hit Point bar) unless opened
+  const [cardsFull, setCardsFull] = useState(() => lsGet('hba-cards') !== 'short'), [cardMore, setCardMore] = useState([]), [hidePals, setHidePals] = useState(() => lsGet('hba-hide-pals') === 'on'); // the tracker: short cards (name, picture, Hit Point bar) unless opened
   const isPal = c => !!(c.palOf || c.summonOf || c.type === 'companion');
   const visible = combatants.filter(c => (!c.pending || isDM || c.owner === myId) && !(hidePals && isPal(c) && c.owner !== myId && c.id !== activeId));
   const inPlay = combatants.filter(c => !c.pending);
@@ -2880,7 +2885,7 @@ function App() {
   useEffect(() => { setTurnOpen(!!(active && canControl(active) && turnAuto)); }, [activeId]); // opens by itself on each turn this screen runs, unless switched off; folded on other turns // opens by itself on each turn this screen runs, unless switched off
   const viewed = (viewId && visible.find(c => c.id === viewId && canControl(c)))
     || (active && canControl(active) ? active : null)
-    || mine[0] || active || null;
+    || mine[0] || (isDM ? active : null) || null; // a player never opens a creature they do not control
   const sharesTurn = v => !!(v && active && v.shareTurn && (v.after === active.id || v.palOf === active.id)); // a companion on a shared Initiative acts on its owner's turn
   const canAct = !!(combatStarted && active && viewed && (viewed.id === active.id || sharesTurn(viewed)) && canControl(viewed));
   const target = inPlay.find(c => c.id === targetId) || null;
@@ -2926,7 +2931,7 @@ function App() {
     if (form.sheetData) {
       // A real character sheet: everything on it comes along.
       newC = {...sheetToFields(form.sheetData), id: newId(), initiative: +form.initiative || 0, conditions: [], effects: []};
-      if (asPlayer || form.fromSheet) newC.owner = myId;
+      if (asPlayer || form.fromSheet) { newC.owner = myId; if (playerName.trim()) newC.ownerName = playerName.trim().slice(0, 40); }
       if (form.fromSheet) newC.main = true;
     } else {
       const type = asPlayer && form.type !== 'player' ? 'companion' : form.type === 'npc' ? 'monster' : form.type;
@@ -3003,10 +3008,10 @@ function App() {
     ['res','imm','vul','ci'].forEach(k => { if (m[k]) c[k] = m[k]; });
     return c;
   };
-  const addMonster = (m) => {
+  const addMonster = (m, opt) => { const o = opt || {};
     const n = combatants.filter(c => c.base === m.n).length;
     const init = rosterInit.mode === 'avg' ? 10 + mod(m.s[1]) : rosterInit.mode === 'type' && String(rosterInit.val).trim() !== '' && Number.isFinite(+rosterInit.val) ? Math.round(+rosterInit.val) : rollD(20) + mod(m.s[1]); // rolled, its average, or what the DM typed
-    const c = {...monsterToCombatant(m), name: n ? `${m.n} ${n + 1}` : m.n, initiative: init};
+    const nm = String(o.name || '').trim().slice(0, 40), c = {...monsterToCombatant(m), name: nm || (n ? `${m.n} ${n + 1}` : m.n), initiative: init, ...(Array.isArray(o.see) ? {see: o.see} : {})};
     setCombatants(prev => placeByInitiative(prev, c));
   };
 
@@ -3252,7 +3257,7 @@ function App() {
   const atkRef = useRef(0); // an attack is one roll: its d20 and its damage together use the roll switch, then it turns off
   // The roll switch: the next roll of any kind is rolled twice and the higher or lower is kept, then it goes back to Normal.
   const setRollSwitch = v => { setAdvantage(v); dmgTwiceRef.current = v; };
-  const toggleRollMod = k => { const m = {...rollMods, [k]: !rollMods[k]}; setRollMods(m); ROLL_R1 = m.r1; ROLL_LOW3 = m.low3; if (k === 'hi' || k === 'lo') setRollSwitch((m.hi ? 1 : 0) - (m.lo ? 1 : 0)); };
+  const toggleRollMod = k => { if (!isDM && !rollMods[k]) noticeDM('reroll', `turned on "${{hi: 'Roll twice, keep the higher', lo: 'Roll twice, keep the lower', r1: 'Reroll 1s', low3: '1s and 2s count as 3s'}[k]}" for their next roll, with no feature giving it`, null); const m = {...rollMods, [k]: !rollMods[k]}; setRollMods(m); ROLL_R1 = m.r1; ROLL_LOW3 = m.low3; if (k === 'hi' || k === 'lo') setRollSwitch((m.hi ? 1 : 0) - (m.lo ? 1 : 0)); };
   const clearRollMods = () => { setRollMods({hi: false, lo: false, r1: false, low3: false}); ROLL_R1 = false; ROLL_LOW3 = false; setRollSwitch(0); setDmgTwice(0); };
   const d20Spent = r => { ROLL_R1 = false; ROLL_LOW3 = false; return r; }; // the next roll was this d20; what follows it (the attack's damage) is not changed
   const withPrompt = (key, fn) => { const m = promptMods[key] || {}, keep = [ROLL_R1, ROLL_LOW3];
@@ -3568,7 +3573,7 @@ function App() {
   // Takes back the last action I took: everything goes back to how it was just before it.
   const undoLast = () => {
     const u = undoRef.current; if (!u) return;
-    if (!window.confirm(`Take back ${u.name}? Everything goes back to how it was just before it.`)) return;
+    if (!window.confirm(`Take back ${u.name}? Everything goes back to how it was just before it.`)) return; noticeDM('undo', `took back ${u.name}`, null);
     Object.keys(pendingRef.current).forEach(k => delete pendingRef.current[k]);
     prompts.filter(q => !u.promptIds.has(q.id)).forEach(q => removePrompt(q.id));
     log.filter(e => !u.logIds.has(e.id)).forEach(e => { if (room && db) db.ref('rooms/' + room + '/log/' + e.id).remove(); });
@@ -4914,9 +4919,10 @@ function App() {
 
   // ── NOTIFICATION CENTER (the DM's): changes to what players cannot normally change in play, grouped by player and kind ──
   useEffect(() => { if (!isDM || !room) return; try { const a = JSON.parse(lsGet('hba-inbox-' + room) || '[]'); if (Array.isArray(a)) { setInbox(a); setInboxSeen(+lsGet('hba-inbox-seen-' + room) || 0); } } catch (e) {} }, [isDM, room]);
-  const pushInbox = items => { if (!items.length) return; setInbox(prev => { const next = [...prev, ...items].slice(-400); lsSet('hba-inbox-' + room, JSON.stringify(next)); return next; }); };
-  const sigRef = useRef({});
-  const playerOf = c => { const main = combatants.find(x => x.owner === c.owner && x.main) || combatants.find(x => x.owner === c.owner && x.sheet); return (main && main.sheet && main.sheet.player) || (main ? main.name + "'s player" : 'A player'); };
+  const noticeDM = (kind, text, c) => { if (isDM || !room) return; setLog(prev => [...prev, stamp({type: 'info', sys: true, dmOnly: true, by: myId, notice: {kind, text: String(text).slice(0, 200), cId: c ? c.id : '', cName: c ? c.name : '', player: playerName || ''}, html: `<strong>${esc(playerName || 'A player')}</strong>: ${esc(text)}`})]); };
+  const pushInbox = items => { if (!items.length) return; setInbox(prev => { const fresh = items.filter(n => !n.src || !prev.some(x => x.src === n.src)); if (!fresh.length) return prev; const next = [...prev, ...fresh].slice(-400); lsSet('hba-inbox-' + room, JSON.stringify(next)); return next; }); };
+  const sigRef = useRef({}), joinRef = useRef({}), seenNotice = useRef(new Set());
+  const playerOf = c => { const mine = combatants.filter(x => x.owner === c.owner), main = mine.find(x => x.main) || mine.find(x => x.sheet); return c.ownerName || (mine.find(x => x.ownerName) || {}).ownerName || (main && main.sheet && main.sheet.player) || (main ? main.name + "'s player" : 'A player'); };
   const coreOf = c => { const sh = c.sheet || {}, out = {AC: c.ac, 'Hit Point maximum': c.maxHP, Level: c.level, Speed: c.speed};
     ABILITY_KEYS.forEach(([k, f]) => { out[k.toUpperCase()] = (c.scores || {})[f]; });
     out.Actions = buildActions(c).map(a => `${a.name}${a.atk != null ? ' ' + signed(a.atk) : ''}`).join(', ');
@@ -4924,20 +4930,31 @@ function App() {
     if (sh.customizations) out.Customizations = sh.customizations.join(' · ');
     return out; };
   useEffect(() => { if (!isDM || !room) return; const items = [], t = Date.now();
-    combatants.filter(c => c.owner && c.owner !== myId && !c.pending).forEach(c => { const now = coreOf(c), was = sigRef.current[c.id]; sigRef.current[c.id] = now; if (!was) return;
+    combatants.filter(c => c.owner && c.owner !== myId && !c.pending).forEach(c => { const now = coreOf(c), cid = c.sheet && c.sheet.charId, key = cid ? 'hba-char-sig-' + cid : '';
+      let was = sigRef.current[c.id], since = '';
+      if (!was && key) { try { was = JSON.parse(lsGet(key) || 'null'); since = ' since it was last played'; } catch (e) { was = null; } } // the same character, back in a later session: only what changed in between
+      sigRef.current[c.id] = now; if (key) lsSet(key, JSON.stringify(now)); if (!was) return;
       Object.keys(now).forEach(k => { if (String(now[k] ?? '') === String(was[k] ?? '')) return;
         const kind = k === 'Cantrips' ? 'cantrip' : c.sheet && c.type === 'player' ? 'sheet' : 'block';
-        items.push({id: newId(), t, kind, owner: c.owner, player: playerOf(c), cId: c.id, cName: c.name, what: k, from: String(was[k] ?? '').slice(0, 300), to: String(now[k] ?? '').slice(0, 300)}); }); });
-    pushInbox(items); }, [isDM, room, combatants]);
+        items.push({id: newId(), t, kind, owner: c.owner, player: playerOf(c), cId: c.id, cName: c.name, what: k + since, from: String(was[k] ?? '').slice(0, 300), to: String(now[k] ?? '').slice(0, 300)}); }); });
+    // joining and leaving: a player's character comes in, or every one of theirs is gone
+    const owners = Array.from(new Set(combatants.filter(c => c.owner && c.owner !== myId).map(c => c.owner))); if (!joinRef.loaded) { try { joinRef.current = JSON.parse(lsGet('hba-known-' + room) || '{}') || {}; } catch (e) { joinRef.current = {}; } joinRef.loaded = true; } const known = joinRef.current;
+    owners.filter(o => !known[o]).forEach(o => { const c = combatants.find(x => x.owner === o && (x.main || x.sheet)) || combatants.find(x => x.owner === o); known[o] = c ? c.name : '?'; items.push({id: newId(), t, kind: 'join', owner: o, player: playerOf(c), cId: c.id, cName: c.name, what: 'Joined', from: '', to: `${playerOf(c)} joined with ${c.name}`}); });
+    Object.keys(known).filter(o => !owners.includes(o) && combatants.length).forEach(o => { items.push({id: newId(), t, kind: 'join', owner: o, player: known[o] + "'s player", cId: '', cName: known[o], what: 'Left', from: '', to: `${known[o]} left the table`}); delete known[o]; });
+    if (combatants.length) lsSet('hba-known-' + room, JSON.stringify(known));
+    // what players did that the DM should know about (Heroic Inspiration they gave themselves, the roll switch, taking an action back)
+    log.filter(e => e && e.notice && !seenNotice.current.has(e.id)).forEach(e => { seenNotice.current.add(e.id); const n = e.notice, c = combatants.find(x => x.id === n.cId) || combatants.find(x => x.owner === e.by);
+      items.push({id: newId(), src: e.id, t, kind: n.kind, owner: e.by || '', player: n.player || (c ? playerOf(c) : 'A player'), cId: n.cId, cName: n.cName || (c ? c.name : ''), what: {heroic: 'Heroic Inspiration', reroll: 'Roll switch', undo: 'Took an action back'}[n.kind] || 'Note', from: '', to: n.text}); });
+    pushInbox(items); }, [isDM, room, combatants, log]);
   useEffect(() => { if (!isDM || !room) return; const items = [];
-    combatants.filter(c => c.sheet && !c.pending && c.owner && c.owner !== myId).forEach(c => { const sh = c.sheet, n = (sh.customizations || []).length + (sh.homebrew || []).length, key = 'hba-hb-' + room + '-' + c.id; if (!n || lsGet(key)) return; lsSet(key, '1');
+    combatants.filter(c => c.sheet && !c.pending && c.owner && c.owner !== myId).forEach(c => { const sh = c.sheet, n = (sh.customizations || []).length + (sh.homebrew || []).length, key = 'hba-hb-' + (sh.charId || room + '-' + c.id), sig = JSON.stringify([sh.customizations || [], (sh.homebrew || []).map(h => h.kind + h.name)]); if (!n || lsGet(key) === sig) return; lsSet(key, sig);
       items.push({id: newId(), t: Date.now(), kind: 'homebrew', owner: c.owner, player: playerOf(c), cId: c.id, cName: c.name, what: 'Homebrew', from: '', to: `${(sh.homebrew || []).length} from Content Packs, ${(sh.customizations || []).length} Further Customizations. See the Homebrew tab on the sheet.`}); });
     pushInbox(items); }, [isDM, room, combatants]);
   // How each kind of notice is grouped: one line per player (and per character for sheet changes)
   const INBOX_KINDS = {sheet: 'changes to', block: 'stat block', cantrip: 'cantrip', extra: 'additional spells', homebrew: 'homebrew', join: 'joined'};
-  const inboxGroups = () => { const g = {}; inbox.forEach(n => { const key = n.kind + '|' + n.owner + (n.kind === 'sheet' || n.kind === 'homebrew' ? '|' + n.cId : ''); (g[key] = g[key] || []).push(n); });
+  const inboxGroups = () => { const g = {}; inbox.forEach(n => { const key = n.kind === 'join' ? 'join' : n.kind + '|' + n.owner + (n.kind === 'sheet' || n.kind === 'homebrew' ? '|' + n.cId : ''); (g[key] = g[key] || []).push(n); });
     return Object.entries(g).map(([key, list]) => { const n = list[0], k = list.length, many = k === 1 ? 'a change' : `${k} changes`, names = Array.from(new Set(list.map(x => x.cName)));
-      const title = n.kind === 'sheet' ? `${n.player} has made ${many} to ${n.cName}` : n.kind === 'block' ? (names.length === 1 ? `${n.player} has made ${many} to one of their stat blocks (${names[0]})` : `${n.player} has made ${many} to creature stat blocks`) : n.kind === 'cantrip' ? `${n.player} changed ${names.join(', ')}'s cantrips${k > 1 ? ` (${k} times)` : ''}` : n.kind === 'extra' ? `${n.player} changed additional spells${k > 1 ? ` (${k} times)` : ''}` : n.kind === 'homebrew' ? `${n.cName} uses homebrew` : `${n.player}: ${many}`;
+      const title = n.kind === 'sheet' ? `${n.player} has made ${many} to ${n.cName}` : n.kind === 'block' ? (names.length === 1 ? `${n.player} has made ${many} to one of their stat blocks (${names[0]})` : `${n.player} has made ${many} to creature stat blocks`) : n.kind === 'cantrip' ? `${n.player} changed ${names.join(', ')}'s cantrips${k > 1 ? ` (${k} times)` : ''}` : n.kind === 'extra' ? `${n.player} changed additional spells${k > 1 ? ` (${k} times)` : ''}` : n.kind === 'homebrew' ? `${n.cName} uses homebrew` : n.kind === 'join' ? `${k === 1 ? n.to : `Players joining and leaving (${k})`}` : n.kind === 'heroic' ? `${n.player} gave Heroic Inspiration${k > 1 ? ` (${k} times)` : ''}` : n.kind === 'reroll' ? `${n.player} used the roll switch${k > 1 ? ` (${k} times)` : ''}` : n.kind === 'undo' ? `${n.player} took back ${k === 1 ? 'an action' : `${k} actions`}` : `${n.player}: ${many}`;
       return {key, title, list, last: Math.max(...list.map(x => x.t))}; }).sort((a, b) => b.last - a.last); };
   const inboxNew = inbox.filter(n => n.t > inboxSeen).length;
 
@@ -5186,6 +5203,7 @@ function App() {
                           : <label key={k}>{l} <input aria-label={l} className="pp-input" style={{width: k === 'note' ? 180 : 70}} placeholder={ph} value={giveCustom[k]} onChange={e => setGiveCustom({...giveCustom, [k]: e.target.value})}/></label>)}</span>}
                       </>; })()}</>
   </>;
+  const [spSums, setSpSums] = useState(() => lsGet('hba-spell-sums') !== 'off'); // the Spells tab: a short line under each spell
   const [quickAct, setQuickAct] = useState({text: '', act: 'free'}); // something done on the spot, typed in on the sheet
   const doQuick = (c) => { const text = quickAct.text.trim().slice(0, 300); if (!c || !text) return; if (!spendEconomy(c, {activation: quickAct.act, name: text})) return;
     setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> (${esc(ACTIVATIONS[quickAct.act] || 'No action')}): ${esc(text)}`})]); setQuickAct({...quickAct, text: ''}); };
@@ -5478,9 +5496,10 @@ function App() {
           <button className="pp-fold" aria-label={`${open ? 'Hide' : 'Show'} details of ${s.n}`} onClick={e => { e.stopPropagation(); setOpenSpells({...openSpells, [s.n]: !open}); }}>{open ? '▾' : '▸'}</button>
           <span className="a-name">{s.n}{a ? leftText(a) : ''}</span><span>{s.s}</span><span>{s.k || '-'}</span><span>{s.r}</span><span>{s.sv}</span>{cols.split(' ').length > 6 ? <span>{spIcons(s.d)}</span> : null}<span>{spIcons(s.t)}</span>
         </div>
+        {spSums && !open && (SPELL_SUM[s.n.toLowerCase()] || s.sum) && <div className="pp-spsum" data-testid="spell-sum">{SPELL_SUM[s.n.toLowerCase()] || s.sum}</div>}
         {open && <div className="pp-details" data-testid="spell-details">
-          {s.sum && <div className="pp-sum">{s.sum}</div>}
-          {s.up && s.l > 0 && <div className="pp-sum"><strong>Upcast.</strong> {s.up}</div>}
+          {(SPELL_SUM[s.n.toLowerCase()] || s.sum) && <div className="pp-sum">{SPELL_SUM[s.n.toLowerCase()] || s.sum}</div>}
+          {(SPELL_SUM2[s.n.toLowerCase()] || s.up) && <div className="pp-sum"><strong>Upcast.</strong> {SPELL_SUM2[s.n.toLowerCase()] || s.up}</div>}
           {a && a.mat && <div className="pp-sum"><strong>Material.</strong> {a.mat}</div>}
           {a && a.desc && <div className="pp-sum pp-full">{a.desc}</div>}
           {ctl && <button className="pp-chip" data-testid="spell-show" title="Post this spell's rules to the log for the table" onClick={e => { e.stopPropagation(); const si = spellInfoOf(s.n); setLog(prev => [...prev, stamp({type: 'info', html: `<strong>${esc(c.name)}</strong> · <span class="log-result">${esc(s.n)}</span>${glossLogHtml(si ? si.lines.map(([k, v]) => `**${k}:** ${v}`).join('\n') + '\n\n' + si.text : (s.sum || ''))}`})]); }}>Show to table</button>}
@@ -5628,7 +5647,7 @@ function App() {
                 <div className="pp-movecol" data-ex="speed"><strong>Speeds</strong>{speedText(c).split(', ').map((x, i) => <div key={i}>{i === 0 ? `Walk ${x}` : x}</div>)}</div>
                 <div className="pp-jumps" data-ex="jump"><div><span>Long Jump</span><strong>{str} ft.</strong></div><div><span>High Jump</span><strong>{Math.max(0, 3 + mod(str))} ft.</strong></div></div>
                 {c.type === 'player' && <div className={`pp-heroic ${c.heroic ? 'on' : ''}`} data-testid="heroic-line" data-ex="term:Heroic Inspiration">
-                  <button className="pp-heroic-box" data-testid="heroic-toggle" disabled={!ctl} aria-pressed={!!c.heroic} title={c.heroic ? 'Remove Heroic Inspiration' : 'Add Heroic Inspiration'} onClick={() => { setCombatants(prev => prev.map(x => x.id === c.id ? {...x, heroic: !x.heroic} : x)); setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: isDM && !c.owner ? `<strong>The DM</strong> ${c.heroic ? 'removes' : 'gives'} Heroic Inspiration ${c.heroic ? 'from' : 'to'} <strong>${esc(c.name)}</strong>` : `<strong>${esc(c.name)}</strong> ${c.heroic ? 'removes' : 'adds'} Heroic Inspiration${isDM ? ' (the DM)' : ''}`})]); }}>{c.heroic ? '✦' : ''}</button>
+                  <button className="pp-heroic-box" data-testid="heroic-toggle" disabled={!ctl} aria-pressed={!!c.heroic} title={c.heroic ? 'Remove Heroic Inspiration' : 'Add Heroic Inspiration'} onClick={() => { if (!isDM && !c.heroic) noticeDM('heroic', `gave ${c.name} Heroic Inspiration`, c); setCombatants(prev => prev.map(x => x.id === c.id ? {...x, heroic: !x.heroic} : x)); setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: isDM && !c.owner ? `<strong>The DM</strong> ${c.heroic ? 'removes' : 'gives'} Heroic Inspiration ${c.heroic ? 'from' : 'to'} <strong>${esc(c.name)}</strong>` : `<strong>${esc(c.name)}</strong> ${c.heroic ? 'removes' : 'adds'} Heroic Inspiration${isDM ? ' (the DM)' : ''}`})]); }}>{c.heroic ? '✦' : ''}</button>
                   <span className="pp-heroic-label">Heroic<br/>Inspiration</span>
                   {ctl && <button className="pp-chip on" data-testid={c.heroic ? 'heroic-use' : undefined} aria-hidden={!c.heroic} tabIndex={c.heroic ? 0 : -1} style={c.heroic ? {} : {visibility: 'hidden'}} title="Reroll the d20 of one of your rolls and use the new roll" onClick={() => { if (!c.heroic) return; setRollWin('heroic'); setFatePick({cId: c.id}); }}>Use</button>}
                 </div>}
@@ -5745,6 +5764,7 @@ function App() {
             return <>
               <div className="spf-bar" data-testid="spf-bar">
                 <label className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="spf-level" checked={spf.level} onChange={e => setSpf({...spf, level: e.target.checked})}/> By level</label>
+                <label className="rule-label" style={{margin: 0}} title="A short line under each spell saying what it does"><input type="checkbox" data-testid="spf-sums" checked={spSums} onChange={e => { setSpSums(e.target.checked); lsSet('hba-spell-sums', e.target.checked ? 'on' : 'off'); }}/> Short descriptions</label>
                 {menu('school', 'School', allSchools, spf.schools, v => setSpf({...spf, schools: v}))}
                 {menu('cat', 'Kind', SPELL_CATS, spf.cats, v => setSpf({...spf, cats: v}))}
                 {['V', 'S', 'M'].map(k => <label key={k} className="rule-label" style={{margin: 0}} title={`Only spells with ${k === 'V' ? 'a Verbal' : k === 'S' ? 'a Somatic' : 'a Material'} component`}><input type="checkbox" data-testid={`spf-comp-${k}`} checked={spf.comps.includes(k)} onChange={() => setSpf({...spf, comps: spf.comps.includes(k) ? spf.comps.filter(x => x !== k) : [...spf.comps, k]})}/> {k}</label>)}
@@ -5820,7 +5840,7 @@ function App() {
           const monOf = x => MONSTERS.find(m => m.n === (x.base || kindOf(x))) || MONSTERS.find(m => m.n === kindOf(x)) || null;
           const massDo = (ids, fn) => ids.map(id => combatants.find(y => y.id === id)).filter(y => y && canControl(y)).forEach(fn);
           // One stat block: a kind of companion with every member (combined) or a single creature
-          const block = (key, mem) => { const lead = mem[0], one = mem.length === 1, open = !palOpen.includes(key), m = monOf(lead), nowOk = nowOkT, acting = combatStarted && mem.some(x => x.id === activeId || sharesTurn(x));
+          const block = (key, mem) => { const lead = mem[0], one = mem.length === 1, view = palView[key] || 'mid', open = view === 'full', minV = view === 'min', m = monOf(lead), nowOk = nowOkT, acting = combatStarted && mem.some(x => x.id === activeId || sharesTurn(x));
             const sel = palSel.filter(id => mem.some(x => x.id === id)), who = (sel.length ? mem.filter(x => sel.includes(x.id)) : mem).filter(canControl), ready = who.filter(x => !acted(x) && nowOk(x));
             const acts = buildActions(lead).filter(a => !/^multiattack/i.test(a.name || ''));
             const multi = buildActions(lead).find(a => /^multiattack/i.test(a.name || ''));
@@ -5829,8 +5849,9 @@ function App() {
             const hpSum = mem.reduce((t, x) => t + Math.max(0, x.currentHP), 0), hpMax = mem.reduce((t, x) => t + totalHP(x), 0);
             return (
             <div key={key} className={`pp-card pal-group ${open ? 'open' : ''} ${acting ? 'acting' : ''}`} data-testid="pal-group">
-              <div className="pal-top" role="button" data-testid="pal-fold" aria-expanded={open} onClick={() => setPalOpen(open ? [...palOpen, key] : palOpen.filter(k => k !== key))}>
+              <div className="pal-top" role="button" data-testid="pal-fold" aria-expanded={open} title={open ? 'Show less' : 'Show the whole stat block'} onClick={() => setPalView({...palView, [key]: open ? 'mid' : 'full'})}>
                 <span className="pal-arrow">{open ? '▾' : '▸'}</span>
+                <button className="pal-min" data-testid="pal-min" title={minV ? 'Show its numbers and a line for each' : 'Fold it to its name only'} onClick={e => { e.stopPropagation(); setPalView({...palView, [key]: minV ? 'mid' : 'min'}); }}>{minV ? '+' : '–'}</button>
                 <span className="pp-ename" style={{margin: 0}}>{one ? lead.name : kindOf(lead)} {!one ? <span className="pp-muted" style={{fontSize: 13}}>× {mem.length}</span> : null}</span>
                 <span className="pp-muted" style={{fontSize: 13}}>{Array.from(new Set([m ? m.t : '', lead.base && lead.base !== kindOf(lead) ? lead.base : '', ...String(lead.sub || lead.classLine || '').split(' · ')].map((p0, i) => i > 0 && m && p0.startsWith(m.t) ? p0.slice(m.t.length).replace(/^,\s*/, '') : p0.trim()))).filter(Boolean).join(' · ')}</span>
                 {acting && <span className="pal-now" data-testid="pal-now">Acting now</span>}
@@ -5838,7 +5859,7 @@ function App() {
                 {one && canControl(lead) && <button className="pp-chip on" data-testid="pal-act" onClick={e => { e.stopPropagation(); setViewId(lead.id); setSelectedAction(null); }}>Act</button>}
                 {one && <button className="item-star" data-testid="pal-hide" aria-label={`Take ${lead.name} off this list`} title="Take it off this list (Restore brings it back)" onClick={e => { e.stopPropagation(); setPalHidden([...palHidden, lead.id]); }}>✕</button>}
               </div>
-              <div className="pal-block" data-testid="pal-stats">
+              {!minV && <div className="pal-block" data-testid="pal-stats">
                 <span><b>AC</b> {effectiveAC(lead)}</span>
                 <span style={{color: one ? hpColor(lead.currentHP, totalHP(lead)) : undefined}}><b>HP</b> {one ? `${lead.currentHP}/${totalHP(lead)}` : `${hpSum}/${hpMax} in all`}</span>
                 <span><b>Speed</b> {effectiveSpeed(lead)} ft.{lead.speedExtra ? `, ${lead.speedExtra}` : ''}</span>
@@ -5846,9 +5867,8 @@ function App() {
                 {ABILITY_KEYS.map(([kk, ab]) => <span key={ab}><b>{kk.toUpperCase()}</b> {modStr((lead.scores || {})[ab] ?? 10)}</span>)}
                 <span><b>PP</b> {ppOf(lead)}</span>
                 {one && (lead.conditions || []).length > 0 && <span style={{color: '#ff8a80'}}>{lead.conditions.join(', ')}</span>}
-              </div>
-              {open && <div className="pal-sheet" data-testid="pal-sheet">
-                {!one && <table className="pal-table" data-testid="pal-members"><tbody>
+              </div>}
+              {!minV && !one && <table className="pal-table" data-testid="pal-members"><tbody>
                   {mem.map(x => <tr key={x.id} data-testid="pal-row" className={acted(x) ? 'acted' : ''}>
                     {ctl && <td><input type="checkbox" aria-label={`Choose ${x.name}`} checked={palSel.includes(x.id)} onChange={e => setPalSel(e.target.checked ? [...palSel, x.id] : palSel.filter(y => y !== x.id))}/></td>}
                     <td><strong>{x.name}</strong>{acted(x) ? <span className="pal-acted">acted</span> : null}</td>
@@ -5859,6 +5879,8 @@ function App() {
                     <td><button className="item-star" data-testid="pal-hide" aria-label={`Take ${x.name} off this list`} title="Take it off this list (Restore brings it back)" onClick={() => setPalHidden([...palHidden, x.id])}>✕</button></td>
                   </tr>)}
                 </tbody></table>}
+              {open && <div className="pal-sheet" data-testid="pal-sheet">
+                
                 {!one && ctl && <div className="pp-filter" style={{flexWrap: 'wrap', marginTop: 6}}>
                   <label className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="pal-all" checked={sel.length === mem.length} onChange={e => setPalSel(e.target.checked ? Array.from(new Set([...palSel, ...mem.map(x => x.id)])) : palSel.filter(id => !mem.some(x => x.id === id)))}/> All {mem.length}</label>
                   <span className="pp-muted">{sel.length ? `${sel.length} chosen` : 'none chosen: all of them'}</span>
@@ -5890,12 +5912,21 @@ function App() {
           const mReady = mWho.filter(x => !acted(x) && nowOkT(x));
           return (
           <div data-testid="paper-companions">
-            {all.some(x => x.palOf === c.id && !x.summonOf) && (() => { const mode = c.palMode || (all.filter(x => x.palOf === c.id && !x.summonOf).every(x => x.shareTurn) ? 'during' : 'after'), locked = !!c.palLock && !isDM;
+            {all.length > 0 && <div className="pp-card pal-mass" data-testid="pal-opts">
+              <div className="pal-top" role="button" data-testid="pal-opts-fold" aria-expanded={palOptsOpen} onClick={() => setPalOptsOpen(!palOptsOpen)}><span className="pal-arrow">{palOptsOpen ? '▾' : '▸'}</span><span className="pp-ename" style={{margin: 0}}>Options</span><span className="pp-muted" style={{fontSize: 13}}>turns, sorting, combining stat blocks</span></div>
+              {palOptsOpen && <div style={{marginTop: 6}}>
+                {all.some(x => x.palOf === c.id && !x.summonOf) && (() => { const mode = c.palMode || (all.filter(x => x.palOf === c.id && !x.summonOf).every(x => x.shareTurn) ? 'during' : 'after'), locked = !!c.palLock && !isDM;
               const pick = m => { if (isDM) { const owners = combatants.filter(o => o.type === 'player' && o.sheet && combatants.some(x => x.palOf === o.id)); const all2 = owners.length > 1 && window.confirm('Apply this to every player\'s companions?'); setPalMode(all2 ? owners : [c], m, true); } else setPalMode([c], m); };
               return <div className="pal-mode" data-testid="pal-mode"><strong>Companions' turns:</strong>
                 <label className="rule-label" style={{margin: 0}}><input type="radio" name={'palmode' + c.id} data-testid="pal-mode-during" disabled={locked} checked={mode === 'during'} onChange={() => pick('during')}/> All companions go during your turn</label>
                 <label className="rule-label" style={{margin: 0}}><input type="radio" name={'palmode' + c.id} data-testid="pal-mode-after" disabled={locked} checked={mode === 'after'} onChange={() => pick('after')}/> All companions go after your turn</label>
                 {locked && <span className="pp-muted">The DM set this.</span>}{isDM && c.palLock && <button className="link-btn" data-testid="pal-unlock" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, palLock: false}))}>Let the player choose again</button>}</div>; })()}
+                <div className="pp-filter" style={{flexWrap: 'wrap'}}>
+              <label className="rule-label" style={{margin: 0}}>Sort <select aria-label="Sort companions" data-testid="pal-sort" value={palSort} onChange={e => setPalSort(e.target.value)}><option value="name">by name</option><option value="cr">by Challenge Rating</option><option value="hp">by Hit Points left</option></select></label>
+              <label className="rule-label" style={{margin: 0}} title="One stat block for creatures of the same kind, with a row for each"><input type="checkbox" data-testid="pal-combine" checked={palCombine} onChange={e => setPalCombine(e.target.checked)}/> Combine similar stat blocks</label>
+                </div>
+              </div>}
+            </div>}
             {all.length === 0 && <div className="pp-note">No companions yet. Companions from your features join with you, and creatures you summon or forms you take show here too.</div>}
             {everyone.length > 0 && <div className="pp-card pal-mass" data-testid="pal-mass">
               <div className="pal-top" role="button" data-testid="pal-mass-fold" aria-expanded={massOpen} onClick={() => setMassOpen(!massOpen)}><span className="pal-arrow">{massOpen ? '▾' : '▸'}</span><span className="pp-ename" style={{margin: 0}}>Mass actions</span><span className="pp-muted" style={{fontSize: 13}}>every chosen companion, across stat blocks, does the same thing</span></div>
@@ -5926,9 +5957,7 @@ function App() {
               {kinds.map(k => <button key={k} className={`pp-tab ${palTab === k ? 'on' : ''}`} data-testid="pal-tab" onClick={() => setPalTab(k)}>{k}{pals.filter(x => kindOf(x) === k).length > 1 ? ` × ${pals.filter(x => kindOf(x) === k).length}` : ''}</button>)}
             </div>
             <div className="pp-filter" style={{flexWrap: 'wrap'}}>
-              <label className="rule-label" style={{margin: 0}}>Sort <select aria-label="Sort companions" data-testid="pal-sort" value={palSort} onChange={e => setPalSort(e.target.value)}><option value="name">by name</option><option value="cr">by Challenge Rating</option><option value="hp">by Hit Points left</option></select></label>
-              <label className="rule-label" style={{margin: 0}} title="One stat block for creatures of the same kind, with a row for each"><input type="checkbox" data-testid="pal-combine" checked={palCombine} onChange={e => setPalCombine(e.target.checked)}/> Combine similar stat blocks</label>
-              <button className="pp-chip" data-testid="pal-open-all" onClick={() => setPalOpen(palOpen.length ? [] : shownKinds.flatMap(k => blocksOf(k).map(([key]) => key)))}>{palOpen.length ? 'Expand all' : 'Collapse all'}</button>
+              <button className="pp-chip" data-testid="pal-open-all" onClick={() => { const keys = shownKinds.flatMap(k => blocksOf(k).map(([key]) => key)), allFull = keys.every(k => palView[k] === 'full'); setPalView(Object.fromEntries(keys.map(k => [k, allFull ? 'mid' : 'full']))); }}>{shownKinds.flatMap(k => blocksOf(k).map(([key]) => key)).every(k => palView[k] === 'full') ? 'Collapse all' : 'Expand all'}</button>
               {hiddenN > 0 && <button className="pp-chip on" data-testid="pal-restore" onClick={() => setPalHidden([])}>Restore all ({hiddenN} taken off)</button>}
             </div>
             {shownKinds.flatMap(blocksOf).map(([key, mem]) => block(key, mem))}
@@ -6232,6 +6261,7 @@ function App() {
               <span className={`room-dot ${syncStatus}`} title={syncStatus}/>
               <span>Session {sessName ? <strong data-testid="session-name">{sessName} </strong> : null}<span className="room-code" data-testid="session-code">{room}</span></span>
               <span className="role-badge">{isDM ? 'DM' : 'Player'}</span>
+              {!isDM && <input data-testid="player-name" aria-label="Your name" value={playerName} placeholder="Your name" maxLength={40} title="Your name, so the DM knows who is who" onChange={e => { setPlayerName(e.target.value); lsSet('hba-player-name', e.target.value); }} onBlur={() => setCombatants(prev => prev.map(x => x.owner === myId ? {...x, ownerName: playerName.trim().slice(0, 40)} : x))} style={{width: 120}}/>}
               <button className="btn btn-ghost btn-sm" onClick={copyInvite}>{copied ? 'Copied!' : 'Copy Invite Link'}</button>
               <button className="btn btn-ghost btn-sm" onClick={leaveSession}>Leave</button>
               {dmId === myId && <button className="btn btn-danger btn-sm" onClick={deleteSession}>Delete Session</button>}
@@ -6240,6 +6270,7 @@ function App() {
             <>
               {syncStatus === 'error' && <span style={{color:'#ff8a80'}}>{syncMsg || 'Could not connect'}</span>}
               {syncStatus === 'connecting' && <span>Connecting...</span>}
+              <input data-testid="player-name" aria-label="Your name" value={playerName} placeholder="Your name (player)" maxLength={40} onChange={e => { setPlayerName(e.target.value); lsSet('hba-player-name', e.target.value); }} style={{width: 150}}/>
               <input value={roomInput} placeholder="Session code" maxLength={12}
                 onChange={e=>setRoomInput(cleanCode(e.target.value))}
                 onKeyDown={e=>{ if (e.key==='Enter') joinSession(roomInput); }} />
@@ -6628,7 +6659,7 @@ function App() {
             {(!rest || restCards || targeting || massRun) && visible.map((c) => {
               const isActive = combatStarted && c.id === activeId;
               const ctl = canControl(c);
-              const more = cardsFull || cardMore.includes(c.id);
+              const more = cardMore.includes(c.id) ? !(cardsFull && !isPal(c)) : (cardsFull && !isPal(c)); // cards start open, companions' cards start folded
               return (
               <div
                 key={c.id}
@@ -6658,7 +6689,7 @@ function App() {
                   {folded.includes(c.id) && seeOf(c).hp && <span className="fold-hp">{c.currentHP}/{totalHP(c)}</span>}
                   {ctl && <button className="card-remove" title="Remove from combat" onClick={e=>{e.stopPropagation(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id);}}>×</button>}
                 </div>
-                {(seeOf(c).bar || seeOf(c).hp) && <>
+                {(isDM || !c.owner || c.owner === myId || c.owner === dmId) && (seeOf(c).bar || seeOf(c).hp) && <> {/* another player's creatures show no Hit Points; the DM's creatures follow what the DM lets players see */}
                 <div className="hp-bar-wrap">
                   <div className="hp-bar" style={{width:`${Math.max(0,Math.min(100,(c.currentHP/totalHP(c))*100))}%`,background:hpColor(c.currentHP,totalHP(c))}}/>
                 </div>
@@ -7537,6 +7568,7 @@ function App() {
                 {groupRun.i < groupRun.ids.length - 1 ? <button className="btn btn-primary btn-sm" data-testid="group-next" onClick={() => { const i = groupRun.i + 1; setGroupRun({...groupRun, i}); openRunStep(groupRun.ids[i], (groupRun.names || {})[groupRun.ids[i]] || groupRun.name); }}>Next: {names[groupRun.i + 1]}</button> : null}
                 <button className="btn btn-ghost btn-sm" data-testid="group-stop" onClick={() => { setGroupRun(null); if (armed) cancelArmed(); setSelectedAction(null); endTargeting(); }}>{groupRun.i >= groupRun.ids.length - 1 ? 'Done' : 'Stop'}</button>
                 <div className="pp-muted" style={{fontSize: 12.5, width: '100%'}}>Pick the targets and use it; the targets stay chosen for the next one.</div></div>); })()}
+      {timeUp && <div className="turn-pop time-up" data-testid="time-up" key={timeUp.key}><span>⏱ Time is up{timeUp.mine ? '' : ` for ${timeUp.name}`}!</span><button aria-label="Close" onClick={() => setTimeUp(null)}>×</button></div>}
       {turnPop && <div className="turn-pop" data-testid="turn-pop" key={turnPop.key}><span>⚔ {turnPop.lead ? <>It's your turn, <strong>{turnPop.lead}</strong>{turnPop.names.length > 1 ? <> (with {turnPop.names.filter(n => n !== turnPop.lead).join(', ')})</> : null}!</> : <>It's <strong>{turnPop.names.join(', ')}</strong>'s turn!</>}</span><button aria-label="Close" data-testid="turn-pop-close" onClick={() => setTurnPop(null)}>×</button></div>}
       {inboxOpen && (() => { const groups = inboxGroups(), when = t => new Date(t).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}); return (
         <div className="modal-overlay" onClick={() => { setInboxOpen(false); const t = Date.now(); setInboxSeen(t); lsSet('hba-inbox-seen-' + room, String(t)); }}>
@@ -7585,7 +7617,14 @@ function App() {
                     <span className="r-name" onClick={()=>setRosterOpen(rosterOpen===m.n?null:m.n)}>{m.n}</span>
                     <span className="r-meta">{m.t} · CR {m.cr} · AC {m.ac} · {m.hp} HP{m.src ? ` · ${m.src}` : ''}</span>
                     <button className="btn btn-primary btn-sm" onClick={()=>addMonster(m)}>Add</button>
+                    <button className="btn btn-ghost btn-sm" data-testid="roster-addas" title="Name it and choose what players see before adding it" onClick={() => setAddAs(addAs && addAs.n === m.n ? null : {n: m.n, name: '', see: null})}>Add as…</button>
                   </div>
+                  {addAs && addAs.n === m.n && <div className="roster-detail" data-testid="addas-box">
+                    <label className="rule-label" style={{margin: 0}}>Name <input data-testid="addas-name" autoFocus placeholder={m.n} value={addAs.name} maxLength={40} onChange={e => setAddAs({...addAs, name: e.target.value})} style={{width: 180}}/></label>
+                    <div style={{margin: '6px 0'}}><span className="pp-muted">Players see (name and size always): </span><button className={`pp-chip ${!addAs.see ? 'on' : ''}`} onClick={() => setAddAs({...addAs, see: null})}>Table setting</button>
+                      {SEE_KEYS.map(([k, t]) => { const cur = addAs.see || []; return <label key={k} className="rule-label" style={{margin: '0 0 0 8px'}}><input type="checkbox" data-testid={`addas-see-${k}`} checked={!!addAs.see && cur.includes(k)} onChange={e => setAddAs({...addAs, see: e.target.checked ? [...cur, k] : cur.filter(x => x !== k)})}/> {t}</label>; })}</div>
+                    <button className="btn btn-primary btn-sm" data-testid="addas-go" onClick={() => { addMonster(m, {name: addAs.name, see: addAs.see}); setAddAs(null); }}>Add {addAs.name.trim() || m.n}</button>
+                  </div>}
                   {rosterOpen===m.n && (
                     <div className="roster-detail">
                       <div>{ABILITY_KEYS.map(([k],i)=>`${k.toUpperCase()} ${m.s[i]} (${modStr(m.s[i])})`).join(' · ')}</div>
