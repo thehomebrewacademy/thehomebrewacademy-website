@@ -951,7 +951,7 @@ function sheetHtml(d) {
   const spellRow = (x) => { const s0 = typeof spellOf === "function" ? spellOf(x.n) : null, conc = x.conc || (s0 && s0.conc), rit = x.rit || (s0 && s0.rit);
     return `<tbody class="fb sp"><tr class="sn"><td><b>${e(x.n)}</b>${conc ? ' <i class="mk" title="Concentration">C</i>' : ""}${rit ? ' <i class="mk r" title="Ritual">R</i>' : ""}</td><td>${e(x.s)}</td><td>${e(x.k)}</td><td>${e(x.r)}</td><td>${e(x.sv)}</td><td>${e(String(x.d || "").replace("<*>", ""))}</td><td>${e(String(x.t || "").replace(" (R*)", ""))}</td></tr><tr><td colspan="7" class="sum">${e(x.sum)}${x.up ? `<div><span class="up">Upcast.</span> ${e(x.up)}</div>` : ""}</td></tr></tbody>`; };
   const sp = d.spellcasting || {}, list = arr(d.spellList).slice().sort((a, b) => (+a.l || 0) - (+b.l || 0) || String(a.n).localeCompare(String(b.n)));
-  const cantrips = list.filter(x => !(+x.l) && !x.extra), leveled = list.filter(x => +x.l && !x.extra), extras = list.filter(x => x.extra);
+  const cantrips = list.filter(x => !(+x.l) && !x.extra).sort((a, b) => (a.sv && a.sv !== "-" ? 0 : 1) - (b.sv && b.sv !== "-" ? 0 : 1)), leveled = list.filter(x => +x.l && !x.extra), extras = list.filter(x => x.extra);
   const spTable = (rows) => `<table class="spl"><thead><tr><th>Name</th><th>School</th><th>Comps</th><th>Range</th><th>Save</th><th>Duration</th><th>C Time</th></tr></thead>${rows}</table>`;
   const pages = [];
   // Page 1: the character in play
@@ -959,15 +959,14 @@ function sheetHtml(d) {
 <div class="top">
   ${AB.map(([k, f]) => `<div class="ab"><div class="sv"><span>${sg(+(sv[f] ?? md(sc[f])))}</span><i class="${saveP.includes(f) ? "on" : ""}"></i></div><div class="k">${k}</div><div class="v">${e(sc[f] ?? 10)}</div><div class="m">${sg(md(sc[f]))}</div></div>`).join("")}
   <div class="hpbox"><div class="hprow"><div class="heart"><svg viewBox="0 0 100 92"><path d="M50 88 C20 62 4 46 4 27 C4 13 15 4 27 4 C37 4 45 9 50 18 C55 9 63 4 73 4 C85 4 96 13 96 27 C96 46 80 62 50 88 Z"/></svg><div><b>${e(d.maxHP)}</b><span>MAX</span></div></div><div class="pill"><span class="sl">/</span><span class="l1">HP</span><span class="l2">TEMP</span></div></div>
-    <div class="hit"><span>Hit Dice${d.hitDie ? ` (d${e(d.hitDie)})` : ""}</span><b>&nbsp;&nbsp;&nbsp;&nbsp; / ${total}</b></div></div>
+    <div class="hit"><span>Hit Dice${d.hitDie ? ` d${e(d.hitDie)}` : ""}</span><b><u class="hd"></u> / ${total}</b></div></div>
 </div>
 <div class="cols">
   <div class="left">
     <div class="skills">${SK.map(([n, a]) => `<div class="sk"><i class="${exp.includes(n) ? "ex" : profs.includes(n) ? "on" : ""}"></i><u>${sg(+(sk[n] ?? 0))}</u><span>${e(n)}</span><em>${a}</em></div>`).join("")}</div>
     <div class="small"><b>Passive Perception</b> ${e(d.passivePerception ?? "")}</div>
     <h3>Important Items</h3><div class="small c">${e(arr(d.importantItems).join(", ") || "")}</div>
-    <h3>Languages</h3><div class="small c">${e(arr(d.languages).join(", ") || "")}</div>
-    <h3>Tool Proficiencies</h3><div class="small c">${e(arr(d.tools).join(", ") || "None")}</div>
+    <div class="lt"><div><h3>Languages</h3><div class="small c">${e(arr(d.languages).join(", ") || "")}</div></div><div><h3>Tools</h3><div class="small c">${e(arr(d.tools).join(", ") || "None")}</div></div></div>
   </div>
   <div class="right">
     <div class="row4"><div class="shield"><svg viewBox="0 0 80 92"><path d="M40 3 L76 14 C76 52 64 76 40 89 C16 76 4 52 4 14 Z"/></svg><div><b>${e(d.ac)}</b><span>AC</span></div></div>
@@ -981,14 +980,15 @@ function sheetHtml(d) {
     <div class="act"><span>Attack. Dash. Disengage. Dodge. Help. Hide. Influence. Magic. Ready. Search. Study. Utilize.</span><b>A</b></div>
     ${others.map(a => { const q = a.pool && pools[a.pool] ? pools[a.pool].max : 0; return `<div class="act"><span><strong>${e(a.name)}.</strong> ${e(first(a.desc || a.detail || ""))}${q ? ` ${circles(q)}` : ""}</span><b title="${a.activation && !TYPE[a.activation] ? e(a.activation) : ""}">${TYPE[a.activation] || "Other"}</b></div>`; }).join("")}
     <h2>Feats</h2><div class="small c">${e(arr(d.feats).join(", ") || "None")}</div>
-    ${cantrips.length ? `<div class="can"><h2>Cantrips</h2>${spTable(cantrips.map(spellRow).join(""))}</div>` : ""}
+    ${cantrips.length ? `<div class="can"><h2>Cantrips</h2>${spTable(cantrips.map((x, i) => spellRow(x).replace('<tbody class="fb sp"', `<tbody class="fb sp" data-ci="${i}"`)).join(""))}</div>` : ""}
   </div>
 </div>`]);
   // Spells, by level and then by name, as many as fit on a page
-  if (leveled.length || extras.length) {
+  if (leveled.length || extras.length || cantrips.length) { // cantrips that do not fit at the bottom of the Character page continue here (the extra ones are taken off when the page is shown)
     const head = `<div class="sphead"><span class="spt">Spells</span><span>Attack: ${sg(+sp.attack || 0)}</span><span>Save DC: ${e(sp.dc || "")}</span>${sp.ability ? `<span>${e(sp.ability)}</span>` : ""}</div>`;
     const lvls = Array.from(new Set(leveled.map(x => +x.l)));
-    const blocks = lvls.map(l => { const n = l ? (arr(sp.slotList)[l - 1] || 0) : 0, rows = leveled.filter(x => +x.l === l);
+    const cont = cantrips.length ? `<div class="fb lvh cch">Cantrips (continued)</div>${cantrips.map((r, i) => `<div class="fb cx" data-ci="${i}">${spTable(spellRow(r))}</div>`).join("")}` : "";
+    const blocks = cont + lvls.map(l => { const n = l ? (arr(sp.slotList)[l - 1] || 0) : 0, rows = leveled.filter(x => +x.l === l);
       return `<div class="fb lvh">${`Level ${l}`}${n ? ` &nbsp; <span class="slots">Slots ${circles(n)}</span>` : ""}</div>${rows.map(r => `<div class="fb">${spTable(spellRow(r))}</div>`).join("")}`; }).join("") + (extras.length ? `<div class="fb lvh">Additional Spells <span class="slots">beyond the rules: always available, not prepared</span></div>${extras.map(r => `<div class="fb">${spTable(spellRow(r))}</div>`).join("")}` : "");
     pages.push(["Spells", `${banner("Spells")}${head}<div class="flow">${blocks}</div>`, true]);
   }
@@ -1002,9 +1002,12 @@ ${arr(j.notes).map(n => line(n.title || "Notes", n.text)).join("")}
 <div class="fb ft"><b>Notes</b><div class="write tall"></div></div></div>`, true]);
   // Inventory: the things, then a short row of money
   const items = arr(((d.builder || {}).characterItems)).filter(i => i && i.name);
-  pages.push(["Inventory", `${banner("Inventory")}<div class="money">${["CP", "SP", "EP", "GP", "PP"].map(k => `<div><span>${k}</span><b>${k === "GP" ? e(d.gold || "") : e(((d.coins || {})[k.toLowerCase()]) || "")}</b></div>`).join("")}</div>
+  const str = +sc.Strength || 10, sMod = md(str), cn = (o, k) => +((o || {})[k]) || 0;
+  const coinLine = (name, get, custom) => `<div class="coins"><b>${e(name)}</b> ${["CP", "SP", "EP", "GP", "PP"].map(k => `${k} <u>${get(k) || ""}</u>`).join(" ")}${arr(custom).map(x => ` ${e(x.name)} <u>${x.n || ""}</u>`).join("")}</div>`;
+  const purses = [coinLine("Money", k => k === "GP" ? +d.gold || 0 : cn(d.coins, k.toLowerCase()), arr(d.moneyX).map(x => ({ name: x.name, n: cn(d.coins, "c:" + x.id) }))), ...arr(d.funds).slice(0, 1).map(f => coinLine(f.name, k => cn(f.coins, k.toLowerCase()), f.custom))];
+  pages.push(["Inventory", `${banner("Inventory")}<div class="invtop">${purses.join("")}<div class="coins"><b>Carry</b> ${str * 15} lb. &nbsp; <b>Push, Drag or Lift</b> ${str * 30} lb. &nbsp; <b>Long Jump</b> ${str} ft. (${Math.floor(str / 2)} ft. standing) &nbsp; <b>High Jump</b> ${Math.max(0, 3 + sMod)} ft. (${Math.floor(Math.max(0, 3 + sMod) / 2)} ft. standing)</div></div>
 <div class="flow"><table class="inv fb"><tr><th>Item</th><th>Type</th><th>Weight</th></tr>${(items.length ? items : arr(d.items).map(n => ({ name: n }))).map(i => `<tr><td>${e(i.name)}${i.qty > 1 ? ` × ${e(i.qty)}` : ""}</td><td>${e(i.type || "")}</td><td>${e(i.weight || "")}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">Nothing yet.</td></tr>`}</table>
-<div class="fb small"><b>Carrying capacity</b> ${Math.floor((sc.Strength || 10) * 15)} lb.</div></div>`, true]);
+</div>`, true]);
   // Features and traits, with the levels of each class
   const feats = arr(d.featureList).length ? arr(d.featureList) : arr(d.features).map(t => ({ n: t, d: "" }));
   pages.push(["Features & Traits", `${banner("Features & Traits")}<div class="classes">${cls.map(x => `${e(x.name)} ${x.level}${x.sub ? ` (${e(x.sub)})` : ""}`).join(" · ")}${d.background ? ` · Background: ${e(d.background)}` : ""}</div><div class="flow">${feats.map(f => `<div class="fb ft"><b>${e(f.n)}</b>${f.src ? ` <span class="muted">${e(f.src)}${f.lv ? `, level ${e(f.lv)}` : ""}</span>` : ""}${f.d ? `<div>${e(f.d)}</div>` : ""}</div>`).join("") || "<div class='fb muted'>None yet.</div>"}</div>`, true]);
@@ -1017,17 +1020,10 @@ ${arr(j.notes).map(n => line(n.title || "Notes", n.text)).join("")}
 <div class="small"><b>AC</b> ${e(ac)} · <b>HP</b> ${e(hp)} · <b>Speed</b> ${e(spd)}</div>${m ? `<div class="small">${AB.map(([k], i) => `<b>${k}</b> ${m.s[i]} (${sg(md(m.s[i]))})`).join(" &nbsp; ")}</div>` : ""}
 ${m ? [["Traits", m.tr], ["Actions", (m.a || []).map(a => [a.n, a.d])], ["Bonus Actions", m.ba], ["Reactions", m.re]].filter(x => arr(x[1]).length).map(([h, l]) => `<div class="bsec"><i>${h}</i>${l.map(t => `<div><b>${e(t[0])}.</b> ${e(t[1])}</div>`).join("")}</div>`).join("") : arr(p.acts).length ? `<div class="bsec"><i>Actions</i>${p.acts.map(a => `<div><b>${e(a.name)}.</b> ${a.dice ? `${sg(+a.hit || 0)} to hit, ${e(a.dice)} ${e(a.type || "")} damage.` : ""} ${e(a.text || "")}</div>`).join("")}</div>` : ""}</div>`; }).filter(Boolean);
   if (blocks.length) pages.push(["Stat Blocks", `${banner("Stat Blocks")}<div class="flow">${blocks.join("")}</div>`, true]);
-  // Muted color: this computer's sheet colors from the Combat Resolver, lightened
-  const SCH = { Default: ["#1a2535", "#b8860b"], Parchment: ["#f1e7d0", "#6b4423"], Crimson: ["#3a1216", "#d4a017"], Forest: ["#142a1f", "#b08d57"], Arcane: ["#241a3a", "#b9a7e6"], Frost: ["#1c2f3f", "#8fd3f4"], Ember: ["#221c1a", "#e8742a"], Ink: ["#ffffff", "#000000"] };
-  let main = "#1a2535", bord = "#b8860b", fm = "", main2 = ""; try { const t = JSON.parse(window.localStorage.getItem("hba-sheet-theme") || "null") || {}; if (t.custom && t.custom.main) { main = t.custom.main; bord = t.custom.border || bord; } else if (SCH[t.scheme]) [main, bord] = SCH[t.scheme]; fm = t.fm || ""; main2 = t.main2 || ""; } catch (x) {}
-  const mix = (h, w, k) => { try { const p = (x) => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16)), a = p(h), b = p(w); return "#" + a.map((v, i) => Math.round(v + (b[i] - v) * k).toString(16).padStart(2, "0")).join(""); } catch (x) { return h; } };
-  const mFill = mix(main, "#ffffff", 0.9), mFill2 = mix(main2 || mix(main, bord, 0.35), "#ffffff", 0.88), mLine = bord, mSoft = mix(bord, "#ffffff", 0.6);
-  const mBg = fm === "two" ? `linear-gradient(180deg, ${mFill}, ${mFill2})` : fm === "diag" ? `linear-gradient(135deg, ${mFill} 15%, ${mFill2})` : fm === "radial" ? `radial-gradient(ellipse at 50% 15%, ${mFill2}, ${mFill} 75%)` : mFill;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${e(d.name || "Character")} - Character Sheet</title>
 <style>
   @page { size: letter; margin: 0; }
   :root { --ink: #111; --line: #111; --soft: #666; --fill: #fff; --tint: #e3e3e3; }
-  body.tinted { --ink: #1d1d1d; --line: ${mLine}; --soft: #555; --fill: ${mFill}; --tint: ${mSoft}; } body.tinted .page { background: ${mBg}; }
   body { margin: 0; background: #d9d9d9; color: var(--ink); font-family: 'Helvetica Neue', Arial, sans-serif; }
   .bar { position: sticky; top: 0; z-index: 3; display: flex; gap: 10px; align-items: center; justify-content: center; padding: 8px; background: #333; color: #fff; font-size: 14px; }
   .bar button { background: #fff; border: none; border-radius: 6px; padding: 4px 12px; font-size: 16px; cursor: pointer; } .bar button:disabled { opacity: .35; } .bar label { cursor: pointer; }
@@ -1045,11 +1041,11 @@ ${m ? [["Traits", m.tr], ["Actions", (m.a || []).map(a => [a.n, a.d])], ["Bonus 
   .hpbox { width: 230px; } .hprow { display: flex; align-items: center; } .heart { position: relative; width: 92px; height: 86px; margin-right: -14px; z-index: 1; flex: none; } .heart svg { width: 100%; height: 100%; } .heart path { fill: var(--fill); stroke: var(--line); stroke-width: 3; }
   .heart div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 10px; } .heart b { font-size: 26px; } .heart span { font-size: 11px; }
   .pill { flex: 1; height: 60px; background: var(--tint); border-radius: 0 34px 34px 0; position: relative; } .pill .sl { position: absolute; left: 52%; top: 6px; font-size: 28px; } .pill .l1, .pill .l2 { position: absolute; bottom: 3px; font-size: 12px; } .pill .l1 { left: 30%; } .pill .l2 { left: 66%; }
-  .hit { margin: -2px 0 0 78px; border: 1.5px solid var(--line); border-top: none; border-radius: 0 0 10px 10px; padding: 3px 12px; font-size: 13px; display: flex; justify-content: space-between; background: var(--fill); } .hit b { font-weight: 400; font-size: 15px; }
+  .hit { margin: -13px 0 0 78px; position: relative; border: 1.5px solid var(--line); border-top: none; border-radius: 0 0 10px 10px; padding: 3px 12px; font-size: 13px; display: flex; justify-content: space-between; background: var(--fill); } .hit span, .hit b { white-space: nowrap; } .hit b { font-weight: 400; font-size: 15px; } .hit u.hd { display: inline-block; width: 26px; border-bottom: 1px solid var(--line); }
   .cols { display: grid; grid-template-columns: 236px 1fr; gap: 18px; margin-top: 12px; } .skills { border: 1.5px solid var(--line); padding: 5px 8px; }
   .sk { display: grid; grid-template-columns: 19px 32px 1fr 34px; align-items: center; font-size: 13.5px; padding: 1.5px 0; } .sk u { text-decoration: none; border-bottom: 1px solid var(--line); text-align: center; margin-right: 6px; } .sk em { color: var(--soft); font-style: normal; font-size: 11.5px; text-align: right; }
   h2 { font-size: 17px; margin: 10px 0 3px; text-align: center; letter-spacing: .5px; } h2 .tcol { float: right; font-size: 12.5px; font-weight: 400; } h3 { font-size: 14.5px; margin: 10px 0 2px; text-align: center; }
-  .small { font-size: 13px; } .c { text-align: center; } .muted { color: var(--soft); font-size: 12px; }
+  .lt { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .small { font-size: 13px; } .c { text-align: center; } .muted { color: var(--soft); font-size: 12px; }
   .row4 { display: flex; gap: 14px; align-items: center; justify-content: space-around; } .shield, .star { position: relative; width: 72px; height: 84px; text-align: center; } .shield svg, .star svg { height: 74px; } .shield path, .star polygon { fill: var(--fill); stroke: var(--line); stroke-width: 3; }
   .shield div, .star div { position: absolute; left: 0; right: 0; top: 13px; } .shield b, .star b { display: block; font-size: 25px; } .shield span { font-size: 11px; } .star div { top: 20px; } .star span { position: absolute; bottom: -2px; left: 0; right: 0; font-size: 11px; }
   .sq { border: 2px solid var(--line); text-align: center; padding: 4px 0; width: 72px; } .sq b { display: block; font-size: 25px; } .sq span { font-size: 11px; }
@@ -1059,26 +1055,28 @@ ${m ? [["Traits", m.tr], ["Actions", (m.a || []).map(a => [a.n, a.d])], ["Bonus 
   .write { border: 1.5px solid var(--line); border-radius: 8px; min-height: 120px; margin-top: 4px; } .write.tall { min-height: 300px; }
   .ft { font-size: 13.5px; margin: 0 0 8px; } .ft div { margin-top: 2px; line-height: 1.4; } .classes { text-align: center; font-weight: 700; margin-bottom: 8px; }
   .sphead { display: flex; gap: 26px; align-items: baseline; font-size: 15px; } .spt { font-size: 24px; font-weight: 300; } .lvh { font-size: 18px; font-weight: 700; margin: 10px 0 2px; } .slots { font-weight: 400; font-size: 14px; }
-  .spl { table-layout: fixed; } .spl th { text-align: left; font-size: 12.5px; padding: 3px 4px 1px; } .spl td { font-size: 13px; padding: 3px 4px 0; vertical-align: top; } .spl td.sum { padding: 0 4px 6px 18px; color: var(--soft); font-size: 12.5px; }
-  .spl th:nth-child(1), .spl td:nth-child(1) { width: 34%; } .spl td.sum { width: auto; } .flow .spl thead { display: none; } .flow .fb:first-child .spl thead, .flow .lvh + .fb .spl thead { display: table-header-group; }
+  .spl { table-layout: fixed; } .spl th { text-align: left; font-size: 12.5px; padding: 3px 4px 1px; } .spl td { font-size: 13px; padding: 3px 4px 0; vertical-align: top; overflow-wrap: anywhere; } .spl td.sum { padding: 0 4px 6px 18px; color: var(--soft); font-size: 12.5px; }
+  .spl th:nth-child(1), .spl td:nth-child(1) { width: 34%; } .spl td.sum { width: auto; } .flow .spl thead { display: none; } .flow .fb:first-child .spl thead, .flow .lvh + .fb .spl thead { display: table-header-group; } .flow .fb.cch + .fb .spl thead { display: table-header-group; }
   .up { font-weight: 700; } .mk { display: inline-block; font-style: normal; font-size: 9.5px; font-weight: 700; border: 1px solid var(--line); border-radius: 50%; width: 13px; height: 13px; line-height: 12px; text-align: center; margin-left: 3px; vertical-align: middle; } .mk.r { border-radius: 2px; }
-  .money { display: flex; gap: 8px; width: 60%; } .money div { flex: 1; border: 1.5px solid var(--line); border-radius: 8px; text-align: center; padding: 2px; } .money span { display: block; font-size: 11px; } .money b { font-size: 15px; display: block; min-height: 18px; }
+  .invtop { border: 1.5px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 13px; } .coins { padding: 2px 0; } .coins u { text-decoration: none; display: inline-block; min-width: 34px; border-bottom: 1px solid var(--line); text-align: center; margin-right: 6px; }
   .inv { margin-top: 10px; } .inv th, .inv td { text-align: left; font-size: 13px; padding: 3px 4px; border-bottom: 1px solid var(--tint); }
   .block { border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 13px; } .block .bh { font-size: 16px; margin-bottom: 2px; } .bsec { margin-top: 6px; } .bsec i { display: block; font-style: normal; font-weight: 700; border-bottom: 1px solid var(--line); margin-bottom: 2px; } .bsec div { margin: 2px 0; }
   @media print { body { background: #fff; } .bar { display: none; } body.one .page, .page { display: block !important; box-shadow: none; margin: 0; page-break-after: always; } }
-</style></head><body><div class="bar"><button id="prev" aria-label="Previous page">◀</button><span id="pn"></span><button id="next" aria-label="Next page">▶</button><label><input type="checkbox" id="muted"> Muted color</label></div>
+</style></head><body><div class="bar"><button id="prev" aria-label="Previous page">◀</button><span id="pn"></span><button id="next" aria-label="Next page">▶</button></div>
 ${pages.map(([n, h, flow]) => `<section class="page" data-name="${e(n)}"${flow ? " data-flow" : ""}>${h}</section>`).join("\n")}
 <script>(function(){
 var full=function(p){return p.scrollHeight>p.clientHeight+1;};
-var one=document.querySelector('.page'),can=one&&one.querySelector('.can');
-if(can&&full(one)){var cp=one.cloneNode(false);cp.setAttribute('data-name','Cantrips');var bn=one.querySelector('.banner').cloneNode(true),pn0=one.querySelector('.pname').cloneNode(true);pn0.textContent='Cantrips';cp.appendChild(bn);cp.appendChild(pn0);can.parentNode.removeChild(can);cp.appendChild(can);one.parentNode.insertBefore(cp,one.nextSibling);}
+var one=document.querySelector('.page'),can=one&&one.querySelector('.can'),spg=document.querySelector('.page[data-name="Spells"]');
+if(can){var rows=[].slice.call(can.querySelectorAll('tbody[data-ci]'));while(full(one)&&rows.length){var r=rows.pop();r.parentNode.removeChild(r);}var kept=rows.length;if(!kept)can.parentNode.removeChild(can);
+ if(spg){[].slice.call(spg.querySelectorAll('.cx')).forEach(function(x){if(+x.getAttribute('data-ci')<kept)x.parentNode.removeChild(x);});var ch=spg.querySelector('.cch');if(ch){if(!spg.querySelector('.cx'))ch.parentNode.removeChild(ch);else if(!kept)ch.textContent='Cantrips';}
+  var fl0=spg.querySelector('.flow');if(fl0&&!fl0.children.length)spg.parentNode.removeChild(spg);}}
 [].slice.call(document.querySelectorAll('.page[data-flow]')).forEach(function(pg){var fl=pg.querySelector('.flow');if(!fl)return;var bl=[].slice.call(fl.children);fl.innerHTML='';var cur=pg,body=fl,k=1;
  
  bl.forEach(function(b){body.appendChild(b);if(full(cur)&&body.children.length>1){body.removeChild(b);var np=cur.cloneNode(true);k++;np.setAttribute('data-name',pg.getAttribute('data-name')+' ('+k+')');var pn=np.querySelector('.pname');if(pn)pn.textContent=np.getAttribute('data-name');np.querySelector('.flow').innerHTML='';cur.parentNode.insertBefore(np,cur.nextSibling);cur=np;body=np.querySelector('.flow');body.appendChild(b);}});});
 var p=[].slice.call(document.querySelectorAll('.page')),i=0,pn=document.getElementById('pn');document.body.classList.add('one');
 function go(k){i=Math.max(0,Math.min(p.length-1,k));p.forEach(function(x,j){x.classList.toggle('on',j===i);});pn.textContent=(i+1)+' of '+p.length+': '+p[i].getAttribute('data-name');document.getElementById('prev').disabled=i===0;document.getElementById('next').disabled=i===p.length-1;window.scrollTo(0,0);}
 document.getElementById('prev').onclick=function(){go(i-1);};document.getElementById('next').onclick=function(){go(i+1);};document.addEventListener('keydown',function(ev){if(ev.key==='ArrowLeft')go(i-1);if(ev.key==='ArrowRight')go(i+1);});
-document.getElementById('muted').onchange=function(ev){document.body.classList.toggle('tinted',ev.target.checked);};go(0);})();<\/script>
+go(0);})();<\/script>
 </body></html>`;
 }
 
@@ -5005,6 +5003,14 @@ function fullSpellAction(sp, ctx, opts) {
 }
 
 // Concentration and Ritual marks, as on D&D Beyond: a C and an R in small boxes
+// Spell search: words must all match (name, school, class, level, Concentration, Ritual, Cantrip); "quotes" keep a phrase together; a comma means OR; -word leaves out; +word must match
+function spellMatch(sp, query) {
+  const q = String(query || "").trim().toLowerCase(); if (!q || !sp) return true;
+  const hay = [sp.n, sp.s, ...(sp.c || []), sp.l ? `level ${sp.l}` : "cantrip level 0", sp.conc ? "concentration conc" : "", sp.rit ? "ritual" : "", sp.t || ""].join(" | ").toLowerCase();
+  const groups = []; let cur = "", inQ = false; for (const ch of q) { if (ch === '"') inQ = !inQ; if (ch === "," && !inQ) { groups.push(cur); cur = ""; } else cur += ch; } groups.push(cur);
+  return groups.map(g => g.trim()).filter(Boolean).some(g => { const terms = []; g.replace(/([+-]?)"([^"]*)"?|([+-]?)(\S+)/g, (m, s1, ph, s2, w) => { const t = ph != null ? ph : w; if (t && t.trim()) terms.push({ neg: (s1 || s2) === "-", t: t.trim() }); return m; });
+    return terms.every(x => x.neg ? !hay.includes(x.t) : hay.includes(x.t)); });
+}
 function SpellMarks({ sp, colors }) {
   if (!sp || !(sp.conc || sp.rit)) return null;
   const box = (t, title) => <span key={t} title={title} aria-label={title} data-mark={t} style={{ display: "inline-block", minWidth: 16, height: 16, lineHeight: "14px", textAlign: "center", fontSize: 10.5, fontWeight: 700, border: `1px solid ${colors.brassLight}`, color: colors.brassLight, borderRadius: t === "C" ? 8 : 3, marginLeft: 5, verticalAlign: "middle" }}>{t}</span>;
@@ -5055,7 +5061,7 @@ function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [],
   const q = search.trim().toLowerCase();
   const pool = ALL_SPELLS.filter(sp =>
     !chosen.has(sp.n) && (wideList || (caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(l => sp.c.includes(l) && sp.l > 0)))) && (sp.l === 0 || sp.l <= topLevel)
-    && (!spellInfo.book || wideList || addExtra || wideLevel && sp.l > maxLevel || sp.l === 0 || spellInfo.book.includes(sp.n)) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
+    && (!spellInfo.book || wideList || addExtra || wideLevel && sp.l > maxLevel || sp.l === 0 || spellInfo.book.includes(sp.n)) && !levelsOff.includes(sp.l) && spellMatch(sp, q))
     .sort((a, b) => (sortBy === "level" ? a.l - b.l : 0) || a.n.localeCompare(b.n));
   const levelChoices = Array.from({ length: topLevel + 1 }).map((_, i) => i); // 0 is cantrips; only the levels this character can reach
   const shownLevels = levelChoices.filter(l => !levelsOff.includes(l));
@@ -5069,9 +5075,9 @@ function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [],
   const flipExtra = (name) => setSpellExtra(spellExtra.includes(name) ? spellExtra.filter(n => n !== name) : [...spellExtra, name]);
   const rows = spellInfo.list.filter(e => e.raw);
   const cantripRows = rows.filter(e => e.sp && e.sp.l === 0), spellRows = rows.filter(e => e.sp && e.sp.l > 0).sort((a, b) => a.sp.l - b.sp.l), handRows = rows.filter(e => !e.sp);
-  const stat = (label, val) => (
-    <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
-      <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>{label}</div>
+  const stat = (label, val, red) => (
+    <div style={{ background: colors.inkLight, border: red ? `1.5px solid ${CUSTOM_RED}` : `1px solid ${colors.brass}55`, borderRadius: 8, padding: "10px 6px", textAlign: "center", minWidth: 0 }}>
+      <div style={{ fontSize: 10.5, textTransform: "uppercase", opacity: 0.8, color: red ? CUSTOM_RED : undefined }}>{label}</div>
       <div style={{ fontFamily: fontDisplay, fontSize: String(val).length > 9 ? 16 : 20, fontWeight: 700, color: colors.brassLight, overflowWrap: "anywhere", lineHeight: 1.25 }}>{val}</div>
     </div>
   );
@@ -5098,14 +5104,14 @@ function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [],
     <div>
       {caster ? (<>
         <Section title="Spellcasting Overview" colors={colors} fontDisplay={fontDisplay}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-            {stat("Spellcasting Ability", cls.spellAbility)}
-            {stat("Spell Save DC", 8 + profBonus + finalMods[cls.spellAbility])}
-            {stat("Spell Attack Bonus", fmt(profBonus + finalMods[cls.spellAbility]))}
+          <div data-testid="cast-boxes" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 8 }}>
+            {stat("Ability", String(cls.spellAbility || "").slice(0, 3).toUpperCase())}
+            {stat("Save DC", 8 + profBonus + finalMods[cls.spellAbility])}
+            {stat("Attack", fmt(profBonus + finalMods[cls.spellAbility]))}
             {stat("Cantrips", `${spellInfo.cantrips} / ${cantripMax}`)}
-            {stat("Prepared Spells", `${spellInfo.prepared} / ${prepMax == null ? "no limit" : prepMax}`)}
-            {spellInfo.additional > 0 && <div data-testid="extra-tally">{stat("Additional Spells", spellInfo.additional)}</div>}
-            {stat("Highest Spell Level", maxLevel || "none yet")}
+            {stat("Prepared", `${spellInfo.prepared} / ${prepMax == null ? "any" : prepMax}`)}
+            {stat("Highest Level", maxLevel || "none")}
+            <div data-testid="extra-tally" style={{ display: "grid" }}>{stat("Additional", spellInfo.additional || 0, true)}</div>
           </div>
           {casterRows.length > 1 && <div data-testid="caster-rows" style={{ marginTop: 12, overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -5181,8 +5187,8 @@ function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [],
         <div data-testid="extra-section" style={{ fontSize: 13, opacity: 0.9, marginBottom: 8 }}>Spells you always have available on top of the rules, such as one an NPC taught you or one the DM gave you. They are not prepared spells and do not count against your limits. The DM is told.</div>
         {!custom && <div data-testid="extra-locked" style={{ fontSize: 13, color: CUSTOM_RED, border: `1px dashed ${CUSTOM_RED}`, borderRadius: 6, padding: "6px 10px", marginBottom: 8 }}>Further Customization must be on to add additional spells.</div>}
         {rows.filter(e => e.extra).map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
-        {custom && (() => { const q2 = extraQ.trim().toLowerCase(), opts = q2.length < 2 ? [] : ALL_SPELLS.filter(sp => !spells.includes(sp.n) && sp.n.toLowerCase().includes(q2)).slice(0, 12);
-          return <div style={{ position: "relative", maxWidth: 360 }}><input aria-label="Add an additional spell" data-testid="extra-search" value={extraQ} onChange={e => setExtraQ(e.target.value)} placeholder="Add an additional spell: type its name" style={fieldStyle(colors)} />
+        {custom && (() => { const q2 = extraQ.trim().toLowerCase(), opts = q2.length < 2 ? [] : ALL_SPELLS.filter(sp => !spells.includes(sp.n) && spellMatch(sp, q2)).slice(0, 12);
+          return <div style={{ position: "relative", maxWidth: 360 }}><input aria-label="Add an additional spell" data-testid="extra-search" value={extraQ} onChange={e => setExtraQ(e.target.value)} placeholder="Add an additional spell: name, school, ritual, concentration…" style={fieldStyle(colors)} />
             {opts.length > 0 && <div data-testid="extra-options" style={{ border: `1px solid ${colors.brass}`, borderRadius: 6, background: colors.inkLight, marginTop: 4 }}>{opts.map(sp => <button key={sp.n} data-testid="extra-add" onClick={() => { setSpells([...spells.filter(Boolean), sp.n]); setSpellExtra(Array.from(new Set([...spellExtra, sp.n]))); setExtraQ(""); }} style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: colors.parchment, padding: "4px 10px", cursor: "pointer" }}>{sp.n} <span style={{ opacity: 0.7, fontSize: 12 }}>{spellLine(sp)}</span><SpellMarks sp={sp} colors={colors} /></button>)}</div>}</div>; })()}
       </Section>
 
@@ -5200,7 +5206,7 @@ function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [],
               <option value="level">Sort by level</option>
               <option value="name">Sort A to Z</option>
             </select>
-            <input aria-label="Search spells" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or school" style={{ ...fieldStyle(colors), width: 240 }} />
+            <input aria-label="Search spells" value={search} onChange={e => setSearch(e.target.value)} placeholder='Name, school, ritual, concentration…' title={'Search spells. Words must all match: name, school, class, level ("level 3"), concentration, ritual, cantrip.\n"quotes" keep a phrase together.\nA comma means OR: fire, cold\n-word leaves out: -concentration\n+word must match'} style={{ ...fieldStyle(colors), width: 260 }} />
             {custom && <label style={check}><input type="checkbox" checked={anyList} onChange={e => setAnyList(e.target.checked)} data-testid="any-list" /> Any spell list</label>}
             {custom && <label style={check}><input type="checkbox" checked={allLevels} onChange={e => setAllLevels(e.target.checked)} data-testid="all-levels" /> All spell levels</label>}
           </div>

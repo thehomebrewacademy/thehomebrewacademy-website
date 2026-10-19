@@ -144,8 +144,8 @@
     .turn-pop.time-up { top: 120px; background: #c92a2a; color: #fff; } .turn-pop.time-up button { color: #fff; border-color: #fff; }
     .turn-pop button { pointer-events: auto; background: transparent; border: 1px solid #1a2535; border-radius: 6px; color: #1a2535; cursor: pointer; font-size: 16px; padding: 0 8px; }
     @keyframes turnpop { from { transform: translate(-50%, -16px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
-    .pal-group.acting { box-shadow: 0 0 0 2px var(--gold), 0 0 18px rgba(212,160,23,.55); }
-    .pal-group.mass-cur { box-shadow: 0 0 0 3px var(--gold), 0 0 20px rgba(212,160,23,.6); }
+    .pal-group.acting { border-color: #c9a84c !important; box-shadow: 0 0 0 2px #c9a84c, 0 0 18px rgba(212,160,23,.6) !important; }
+    .pal-group.mass-cur { opacity: 1; box-shadow: 0 0 0 3px var(--gold), 0 0 20px rgba(212,160,23,.6); }
     .pal-now { background: var(--gold); color: #1a2535; border-radius: 10px; padding: 0 8px; font-size: 12px; font-weight: 700; }
     .pal-mass-who .now { font-weight: 700; }
     .pal-mode { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 0 0 8px; font-size: 13.5px; }
@@ -153,6 +153,8 @@
     .inbox-head { display: flex; gap: 8px; align-items: center; width: 100%; background: transparent; border: none; color: var(--text-light); padding: 8px 10px; cursor: pointer; font-family: inherit; font-size: 15px; }
     .inbox-new { background: var(--gold); color: #1a2535; border-radius: 10px; padding: 0 8px; font-size: 12px; font-weight: 700; }
     .inbox-items { padding: 0 10px 8px 30px; font-size: 13.5px; } .inbox-item { padding: 3px 0; border-top: 1px dashed var(--panel-light); }
+    .mass-float { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(640px, 94vw); max-height: 46vh; overflow: auto; z-index: 70; margin: 0 !important; }
+    .pal-group.mass-dim { opacity: .4; }
     .mass-run { position: sticky; top: 0; z-index: 6; background: var(--panel); border: 2px solid var(--gold); border-radius: 10px; padding: 8px 10px; margin: 0 0 8px; font-size: 13.5px; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
     .mass-adv, .mass-atks { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
     .mass-run .do-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
@@ -3005,7 +3007,7 @@ function App() {
           return ok ? {id: 'own' + i, name: nm, type: 'attack', tag: 'attack', atk: parseInt(a.hit, 10) || 0, dmgList: [[dice, ty]], detail: `${signed(parseInt(a.hit, 10) || 0)} to hit · ${dice} ${ty.toLowerCase()}`, desc: `Melee Attack Roll: ${signed(parseInt(a.hit, 10) || 0)}. Hit: ${dice} ${ty} damage.${txt ? ' ' + txt : ''}`}
             : {id: 'own' + i, name: nm, type: 'info', tag: 'utility', desc: txt || nm, detail: 'Posts its text to the log'}; })};
       const mode = ['shared', 'after', 'roll'].includes(p.init) ? p.init : 'after', rolled = mode === 'roll' ? rollD(20) + (+pc.initBonus || 0) : newC.initiative;
-      return {...pc, name: String(p.name).trim().slice(0, 60), type: sheetPal ? 'player' : 'companion', rel: 'ally', owner: newC.owner || myId, palOf: newC.id, initiative: rolled, ...(mode === 'roll' ? {} : {after: newC.id}), ...(mode === 'shared' ? {shareTurn: true} : {}), ...(p.kind ? {sub: `${String(p.kind).slice(0, 30)}${m ? ` · ${m.n}` : ''}`} : {}), ...(newC.pending ? {pending: true} : {})}; });
+      return {...pc, name: String(p.name).trim().slice(0, 60), type: sheetPal ? 'player' : 'companion', rel: 'ally', owner: newC.owner || myId, palOf: newC.id, initiative: rolled, initOrig: mode, ...(mode === 'roll' ? {initRolled: rolled} : {after: newC.id}), ...(mode === 'shared' ? {shareTurn: true} : {}), ...(p.kind ? {sub: `${String(p.kind).slice(0, 30)}${m ? ` · ${m.n}` : ''}`} : {}), ...(newC.pending ? {pending: true} : {})}; });
     setCombatants(prev => palCs.reduce((l, x) => placeByInitiative(l, x), placeByInitiative(prev, newC)));
     setViewId(v => v || (newC.owner === myId ? newC.id : v));
     setForm(emptyForm);
@@ -3069,9 +3071,15 @@ function App() {
     let v, how;
     if (Number.isFinite(t)) { v = t; how = 'entered by hand'; }
     else { const sw = curAdv(); useRollSwitch(); LUCK_NEXT = !!(c.passives || {}).luck; const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0)); v = r.total + b; how = `${rollsTxt(r)} ${signed(b)}${(c.passives || {}).initiativeAdvantage ? ' with Advantage' : ''}`; }
-    setCombatants(prev => prev.map(x => x.id === c.id ? {...x, initiative: v, initFor: initCall} : x.after === c.id ? {...x, initiative: v, initFor: initCall} : x));
+    setCombatants(prev => prev.map(x => x.id === c.id ? {...x, initiative: v, initFor: initCall, ...(x.palOf ? {initRolled: v} : {})} : x.after === c.id ? {...x, initiative: v, initFor: initCall} : x));
     setLog(prev => [...prev, stamp({type:'roll', ...(isDM && !c.owner && hideRolls ? {dmOnly: true} : {}), html:`<strong>${esc(c.name)}</strong> · Initiative<br/><span class="log-result">🎲 ${v}</span><div class="log-dice">${esc(how)}</div>`})]);
   };
+  // Several companions roll Initiative at once: one Combat Log entry, opened to see each
+  const rollInitMany = (list) => { const mine = list.filter(c => initCall && canControl(c) && c.initFor !== initCall); if (!mine.length) return;
+    const res = mine.map(c => { const b = effectiveInitBonus(c), r = roll20((c.passives || {}).initiativeAdvantage ? 1 : 0); return {c, v: r.total + b, how: `${rollsTxt(r)} ${signed(b)}`}; });
+    setCombatants(prev => prev.map(x => { const h = res.find(q => q.c.id === x.id || x.after === q.c.id); return !h ? x : {...x, initiative: h.v, initFor: initCall, ...(x.id === h.c.id && x.palOf ? {initRolled: h.v} : {})}; }));
+    const own = combatants.find(o => o.id === mine[0].palOf);
+    setLog(prev => [...prev, stamp({type: 'roll', html: `<strong>${esc(own ? own.name : 'Companions')}</strong> · Initiative for ${res.length} companions<br/><span class="log-result">🎲 ${res.map(q => q.v).join(', ')}</span>${res.map(q => `<div class="log-detail">${esc(q.c.name)}: ${q.v} (${esc(q.how)})</div>`).join('')}`})]); };
   // Clicking Init on the sheet: the Initiative roll for the turn order when the DM has called for it, or a roll on its own
   const rollInitFree = (c) => { if (initCall && !(c.initFor === initCall)) { rollInit(c); return; }
     const b = effectiveInitBonus(c), sw = advantage; useRollSwitch(); LUCK_NEXT = !!(c.passives || {}).luck; const r = roll20(sw || ((c.passives || {}).initiativeAdvantage ? 1 : 0));
@@ -3177,7 +3185,7 @@ function App() {
     const r = c ? explainFor(c, el.getAttribute('data-ex')) : null; if (r) setExplained(r); };
   const forceStart = () => { // the DM starts now: whoever has not rolled is rolled for
     let work = combatants;
-    needInit.forEach(c => { const v = rollD(20) + effectiveInitBonus(c); work = work.map(x => x.id === c.id || x.after === c.id ? {...x, initiative: v, initFor: initCall} : x); });
+    needInit.forEach(c => { const v = rollD(20) + effectiveInitBonus(c); work = work.map(x => x.id === c.id || x.after === c.id ? {...x, initiative: v, initFor: initCall, ...(x.id === c.id && x.palOf ? {initRolled: v} : {})} : x); });
     beginCombat(work);
   };
   useEffect(() => { if (isDM && initCall && !combatStarted && inPlay.length > 0 && needInit.length === 0) beginCombat(combatants); }, [initCall, combatants]);
@@ -3198,6 +3206,11 @@ function App() {
   };
 
   const isAway = c => ((c && c.effects) || []).some(e => e.away);
+  // The DM moves the turn: back one, or to any creature
+  const setTurnTo = (id, back) => { if (!isDM || !combatStarted) return; const c = combatants.find(x => x.id === id); if (!c) return; setActiveId(id); setSelectedAction(null); setTargetIds([]);
+    setLog(prev => [...prev, stamp({type: 'round', text: back ? `The DM goes back to ${c.name}'s turn` : `The DM makes it ${c.name}'s turn`})]); };
+  const prevTurn = () => { const elig = inPlay.filter(c => !c.shareTurn && !isAway(c)); let i = elig.findIndex(c => c.id === activeId); if (i < 0) return;
+    if (i === 0) { if (round <= 1) return; setRound(round - 1); setLog(prev => [...prev, stamp({type: 'round', text: `Back to Round ${round - 1}`})]); i = elig.length; } setTurnTo(elig[i - 1].id, true); };
   const nextTurn = () => {
     if (!inPlay.some(c => c.currentHP > 0)) return;
     { const cur = combatants.find(c => c.id === activeId); if (cur && +cur.extraTurns > 0) { // Time Stop: the same creature goes again
@@ -4954,9 +4967,21 @@ function App() {
     const mine = [a, ...combatants.filter(c => c.id !== a.id && c.shareTurn && (c.after === a.id || c.palOf === a.id))].filter(c => c.owner === myId && !c.pending);
     setTurnPop(mine.length ? {key: activeId + ':' + round, names: mine.map(c => c.name), lead: a.owner === myId ? a.name : ''} : null); }, [activeId, round, combatStarted, isDM]);
   // Companions: during their owner's turn, or right after it. The DM can set it for one character or for every player, and lock it.
+  // Companions' turns, for all of a character's companions: 'set' (each as the Character Builder set it), 'during' (with the owner), 'after' (right after the owner), 'roll' (each rolls its own Initiative)
+  const PAL_MODES = [['set', 'Each as set on the character sheet'], ['during', 'All companions go during your turn'], ['after', 'All companions go right after your turn'], ['roll', 'All companions roll their own Initiative']];
+  const palApply = (list, ids, mode, lock) => { const rolls = [];
+    const out = list.map(x => { if (ids.includes(x.id)) return {...x, palMode: mode, ...(lock != null ? {palLock: lock} : {})};
+      const o = x.palOf || x.summonOf; if (!o || !ids.includes(o)) return x;
+      const base = mode === 'set' ? (x.initOrig || (x.summonOf && !x.palOf ? '' : 'after')) : mode === 'during' ? 'shared' : mode;
+      if (!base) return x;
+      if (base === 'roll') { if (!x.after) return x; let v = x.initRolled; if (v == null && combatStarted) { v = rollD(20) + effectiveInitBonus(x); rolls.push(`${x.name}: ${v}`); } const {after, ...r} = x; return {...r, shareTurn: false, ...(v != null ? {initiative: v, initRolled: v} : {})}; }
+      const own = list.find(y => y.id === o); return {...x, after: o, shareTurn: base === 'shared', ...(!x.after && x.initRolled == null ? {initRolled: x.initiative} : {}), initiative: own ? own.initiative : x.initiative}; });
+    return {list: reorder(out), rolls}; };
   const setPalMode = (owners, mode, lock) => { const ids = owners.map(o => o.id);
-    setCombatants(prev => reorder(prev.map(x => ids.includes(x.id) ? {...x, palMode: mode, ...(lock != null ? {palLock: lock} : {})} : (x.palOf && ids.includes(x.palOf)) || (x.summonOf && ids.includes(x.summonOf)) ? {...x, after: x.palOf || x.summonOf, shareTurn: mode === 'during'} : x)));
-    setLog(prev => [...prev, stamp({type: 'info', sys: true, html: `<strong>${isDM ? 'The DM' : esc(owners[0].name)}</strong>: ${owners.length > 1 ? 'every player\'s companions' : esc(owners[0].name) + '\'s companions'} now act ${mode === 'during' ? 'during their turn' : 'right after their turn'}${lock ? ' (set by the DM)' : ''}`})]); };
+    const before = combatants, r = palApply(before, ids, mode, lock), ord = l => l.filter(x => !x.pending).map(x => x.id + (x.shareTurn ? '+' : '')).join(',');
+    if (ord(byInit(before)) !== ord(byInit(r.list)) && (combatStarted || before.some(x => x.initFor)) && !window.confirm('This changes the initiative order. Are you sure?')) return false;
+    setCombatants(prev => palApply(prev, ids, mode, lock).list.map(x => { const y = r.list.find(z => z.id === x.id); return y && y.initRolled != null && x.initRolled == null ? {...x, initiative: y.initiative, initRolled: y.initRolled} : x; }));
+    setLog(prev => [...prev, stamp({type: 'info', sys: true, html: `<strong>${isDM ? 'The DM' : esc(owners[0].name)}</strong>: ${owners.length > 1 ? 'every player\'s companions' : esc(owners[0].name) + '\'s companions'}: ${esc((PAL_MODES.find(m => m[0] === mode) || ['', mode])[1].replace(/^All companions /, '').replace(/your/, 'their'))}${lock ? ' (set by the DM)' : ''}${r.rolls.length ? `<div class="log-detail">Initiative: ${esc(r.rolls.join(', '))}</div>` : ''}`})]); return true; };
 
   // ── NOTIFICATION CENTER (the DM's): changes to what players cannot normally change in play, grouped by player and kind ──
   useEffect(() => { if (!isDM || !room) return; try { const a = JSON.parse(lsGet('hba-inbox-' + room) || '[]'); if (Array.isArray(a)) { setInbox(a); setInboxSeen(+lsGet('hba-inbox-seen-' + room) || 0); } } catch (e) {} }, [isDM, room]);
@@ -4982,8 +5007,8 @@ function App() {
         items.push({id: newId(), t, kind, owner: c.owner, player: playerOf(c), cId: c.id, cName: c.name, what: k + since, from: String(was[k] ?? '').slice(0, 300), to: String(now[k] ?? '').slice(0, 300)}); }); });
     // joining and leaving: a player's character comes in, or every one of theirs is gone
     const owners = Array.from(new Set(combatants.filter(c => c.owner && c.owner !== myId).map(c => c.owner))); if (!joinRef.loaded) { try { joinRef.current = JSON.parse(lsGet('hba-known-' + room) || '{}') || {}; } catch (e) { joinRef.current = {}; } joinRef.loaded = true; } const known = joinRef.current;
-    owners.filter(o => !known[o]).forEach(o => { const c = combatants.find(x => x.owner === o && (x.main || x.sheet)) || combatants.find(x => x.owner === o); known[o] = c ? c.name : '?'; items.push({id: newId(), t, kind: 'join', owner: o, player: playerOf(c), cId: c.id, cName: c.name, what: 'Joined', from: '', to: `${playerOf(c)} joined with ${c.name}`}); addPop(`${playerOf(c)} joined with ${c.name}`); });
-    Object.keys(known).filter(o => !owners.includes(o) && combatants.length).forEach(o => { items.push({id: newId(), t, kind: 'join', owner: o, player: known[o] + "'s player", cId: '', cName: known[o], what: 'Left', from: '', to: `${known[o]} left the table`}); delete known[o]; });
+    owners.filter(o => !known[o]).forEach(o => { const c = combatants.find(x => x.owner === o && (x.main || x.sheet)) || combatants.find(x => x.owner === o); known[o] = c ? c.name : '?'; known['p:' + o] = c ? playerOf(c) : ''; items.push({id: newId(), t, kind: 'join', owner: o, player: playerOf(c), cId: c.id, cName: c.name, what: 'Joined', from: '', to: `${playerOf(c)} joined with ${c.name}`}); addPop(`${playerOf(c)} joined with ${c.name}`); });
+    Object.keys(known).filter(o => !/^p:/.test(o) && !owners.includes(o) && combatants.length).forEach(o => { const pn = known['p:' + o] || known[o] + "'s player"; items.push({id: newId(), t, kind: 'join', owner: o, player: pn, cId: '', cName: known[o], what: 'Left', from: '', to: `${pn} left the table (${known[o]})`}); addPop(`${pn} left the table`); delete known[o]; delete known['p:' + o]; });
     if (combatants.length) lsSet('hba-known-' + room, JSON.stringify(known));
     // what players did that the DM should know about (Heroic Inspiration they gave themselves, the roll switch, taking an action back)
     log.filter(e => e && e.notice && !seenNotice.current.has(e.id)).forEach(e => { seenNotice.current.add(e.id); const n = e.notice, c = combatants.find(x => x.id === n.cId) || combatants.find(x => x.owner === e.by);
@@ -5893,7 +5918,7 @@ function App() {
             const go = a => { if (a.type === 'attack') { startMass(one ? [lead] : ready, x => attackActs(x).filter(y => y.name === a.name)); return; } if (one) { setViewId(lead.id); setSelectedAction(a.id); return; } startGroupRun(ready.map(x => x.id), a.name); }; // an attack keeps you on this page: pick the target on the tracker, then roll
             const hpSum = mem.reduce((t, x) => t + Math.max(0, x.currentHP), 0), hpMax = mem.reduce((t, x) => t + totalHP(x), 0);
             return (
-            <div key={key} className={`pp-card pal-group ${open ? 'open' : ''} ${acting ? 'acting' : ''} ${hasCur ? 'mass-cur' : ''}`} data-testid="pal-group" data-mass-cur={hasCur ? '1' : undefined}>
+            <div key={key} className={`pp-card pal-group ${open ? 'open' : ''} ${acting ? 'acting' : ''} ${hasCur ? 'mass-cur' : massCurId ? 'mass-dim' : ''}`} data-testid="pal-group" data-mass-cur={hasCur ? '1' : undefined}>
               <div className="pal-top" role="button" data-testid="pal-fold" aria-expanded={open} title={open ? 'Show less' : 'Show the whole stat block'} onClick={() => setPalView({...palView, [key]: open ? 'mid' : 'full'})}>
                 <span className="pal-arrow">{open ? '▾' : '▸'}</span>
                 <button className="pal-min" data-testid="pal-min" title={minV ? 'Show its numbers and a line for each' : 'Fold it to its name only'} onClick={e => { e.stopPropagation(); setPalView({...palView, [key]: minV ? 'mid' : 'min'}); }}>{minV ? '+' : '–'}</button>
@@ -5960,16 +5985,15 @@ function App() {
             {all.length > 0 && <div className="pp-card pal-mass" data-testid="pal-opts">
               <div className="pal-top" role="button" data-testid="pal-opts-fold" aria-expanded={palOptsOpen} onClick={() => setPalOptsOpen(!palOptsOpen)}><span className="pal-arrow">{palOptsOpen ? '▾' : '▸'}</span><span className="pp-ename" style={{margin: 0}}>Options</span><span className="pp-muted" style={{fontSize: 13}}>turns, sorting, combining stat blocks</span></div>
               {palOptsOpen && <div style={{marginTop: 6}}>
-                {all.length > 0 && (() => { const mode = c.palMode || (all.filter(x => x.palOf === c.id && !x.summonOf).length && all.filter(x => x.palOf === c.id && !x.summonOf).every(x => x.shareTurn) ? 'during' : 'after'), locked = !!c.palLock && !isDM;
-              const pick = m => { if (isDM) { const owners = combatants.filter(o => o.type === 'player' && o.sheet && combatants.some(x => x.palOf === o.id)); const all2 = owners.length > 1 && window.confirm('Apply this to every player\'s companions?'); setPalMode(all2 ? owners : [c], m, true); } else setPalMode([c], m); };
+                {all.length > 0 && (() => { const mode = c.palMode || 'set', locked = !!c.palLock && !isDM;
+              const pick = m => { if (m === mode) return; if (isDM) { const owners = combatants.filter(o => o.type === 'player' && o.sheet && combatants.some(x => x.palOf === o.id)); const all2 = owners.length > 1 && window.confirm('Apply this to every player\'s companions?'); setPalMode(all2 ? owners : [c], m, true); } else setPalMode([c], m); };
               return <div className="pal-mode" data-testid="pal-mode"><strong>Companions' turns:</strong>
-                <label className="rule-label" style={{margin: 0}}><input type="radio" name={'palmode' + c.id} data-testid="pal-mode-during" disabled={locked} checked={mode === 'during'} onChange={() => pick('during')}/> All companions go during your turn</label>
-                <label className="rule-label" style={{margin: 0}}><input type="radio" name={'palmode' + c.id} data-testid="pal-mode-after" disabled={locked} checked={mode === 'after'} onChange={() => pick('after')}/> All companions go after your turn</label>
+                {PAL_MODES.map(([k, t]) => <label key={k} className="rule-label" style={{margin: 0}}><input type="radio" name={'palmode' + c.id} data-testid={`pal-mode-${k}`} disabled={locked} checked={mode === k} onChange={() => pick(k)}/> {t}</label>)}
                 {locked && <span className="pp-muted">The DM set this.</span>}{isDM && c.palLock && <button className="link-btn" data-testid="pal-unlock" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, palLock: false}))}>Let the player choose again</button>}</div>; })()}
                 {ctl && <label className="rule-label" style={{margin: '4px 0'}} title="On a Long Rest, your companions get back all their Hit Points"><input type="checkbox" data-testid="pal-rest" checked={c.palRest !== false} onChange={e => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, palRest: e.target.checked}))}/> Companions regain their Hit Points when you rest</label>}
                 {(() => { const others = combatants.filter(o => o.type === 'player' && o.sheet && o.owner && !o.pending && o.owner !== c.owner && !o.palOf), mineP = all.filter(x => canControl(x) && x.owner === (c.owner || myId)), lent = all.filter(x => x.lentFrom && (x.lentFrom === myId || isDM));
                   return (others.length > 0 && mineP.length > 0) || lent.length > 0 ? <div className="pal-mode" data-testid="pal-give"><strong>Hand a companion to another player:</strong>
-                    {mineP.length > 0 && others.length > 0 && <select aria-label="Hand a companion to another player" data-testid="pal-give-pick" value="" onChange={e => { const [pid, oid] = e.target.value.split('|'); const x = all.find(y => y.id === pid), o = others.find(y => y.owner === oid); if (!x || !o) return; setCombatants(prev => prev.map(y => y.id !== x.id ? y : {...y, owner: o.owner, lentFrom: y.lentFrom || y.owner})); setLog(prev => [...prev, stamp({type: 'info', html: `<strong>${esc(c.name)}</strong> hands <strong>${esc(x.name)}</strong> over to <strong>${esc(o.name)}</strong>'s player to control`})]); }}>
+                    {mineP.length > 0 && others.length > 0 && <select aria-label="Hand a companion to another player" data-testid="pal-give-pick" value="" onChange={e => { const [pid, oid] = e.target.value.split('|'); const x = all.find(y => y.id === pid), o = others.find(y => y.owner === oid); if (!x || !o) return; setCombatants(prev => prev.map(y => y.id !== x.id ? y : {...y, owner: o.owner, lentFrom: y.lentFrom || y.owner})); setLog(prev => [...prev, stamp({type: 'info', html: `<strong>${esc(c.name)}</strong> hands <strong>${esc(x.name)}</strong> over to <strong>${esc(playerOf(o))}</strong> (${esc(o.name)}) to control`})]); }}>
                       <option value="">Choose…</option>{mineP.flatMap(x => others.map(o => <option key={x.id + o.id} value={x.id + '|' + o.owner}>{x.name} → {o.name}</option>))}</select>}
                     {lent.map(x => <button key={x.id} className="pp-chip" data-testid="pal-take-back" onClick={() => { setCombatants(prev => prev.map(y => y.id !== x.id ? y : (({lentFrom, ...rest}) => ({...rest, owner: lentFrom}))(y))); setLog(prev => [...prev, stamp({type: 'info', html: `<strong>${esc(c.name)}</strong> takes back <strong>${esc(x.name)}</strong>`})]); }}>Take back {x.name}</button>)}</div> : null; })()}
                 <div className="pp-filter" style={{flexWrap: 'wrap'}}>
@@ -6541,6 +6565,7 @@ function App() {
           <div className="card-menu" data-testid="card-menu" style={{left: cardMenu.x, top: cardMenu.y}} onClick={e => e.stopPropagation()}>
             <button data-testid="menu-more" onClick={() => { setCardMore(cardMore.includes(c.id) ? cardMore.filter(x => x !== c.id) : [...cardMore, c.id]); close(); }}>{(cardMore.includes(c.id) ? !(cardsFull && !isPal(c)) : (cardsFull && !isPal(c))) ? 'Show less' : 'Show more'}</button>
             {ctl && <button data-testid="menu-view" onClick={() => { setViewId(c.id); setSelectedAction(null); setPane('sheet'); close(); }}>View {c.name}</button>}
+            {isDM && combatStarted && c.id !== activeId && !c.shareTurn && !c.pending && <button data-testid="menu-turn" onClick={() => { setTurnTo(c.id); close(); }}>Make it this creature's turn</button>}
             {isDM && <button data-testid="menu-round" onClick={() => { setRoundPick({id: c.id, what: 'atkDis', ability: 'Dexterity', until: 'startOwn'}); close(); }}>Add a round effect…</button>}
             {selAction && needsTarget && viewed && c.id !== viewed.id && <button data-testid="menu-target" onClick={() => { if (selMax > 1) toggleTarget(c.id); else setTargetIds([c.id]); endTargeting(); close(); }}>Target with {selAction.name}</button>}
             {fold && ctl && <button onClick={() => { setOpenDown(p => ({...p, [c.id]: !p[c.id]})); close(); }}>{openDown[c.id] ? 'Fold away' : 'Open up'}</button>}
@@ -6573,13 +6598,16 @@ function App() {
         <div className={`init-bar ${needInit.some(canControl) && askLater !== 'init-' + initCall ? 'pop' : ''}`} data-testid="init-bar">
           {needInit.some(canControl) && askLater !== 'init-' + initCall && <div className="pop-title"><span>Combat is starting</span></div>}
           <strong>Roll Initiative.</strong>
-          {needInit.filter(canControl).map(c => (
+          {needInit.filter(c => canControl(c) && !c.palOf).map(c => (
             <span key={c.id} className="p-btns" data-testid="init-item">
               <button className="btn btn-primary btn-sm" data-testid="init-roll" onClick={() => withPrompt('init-' + c.id, () => rollInit(c))}>🎲 {c.name} ({signed(effectiveInitBonus(c))})</button>
               <input type="number" aria-label={`Initiative total for ${c.name}`} placeholder="or type" value={initType[c.id] || ''} onChange={e => setInitType({...initType, [c.id]: e.target.value})} onKeyDown={e => { if (e.key === 'Enter' && initType[c.id]) rollInit(c, initType[c.id]); }} style={{width: 70}}/>
               {initType[c.id] ? <button className="btn btn-ghost btn-sm" data-testid="init-set" onClick={() => rollInit(c, initType[c.id])}>Set</button> : null}
               {promptSwitch('init-' + c.id)}
             </span>))}
+          {(() => { const pl = needInit.filter(c => canControl(c) && c.palOf); return pl.length > 0 && <span className="p-btns" data-testid="init-pals"><span className="pp-muted">Companions:</span>
+            {pl.map(c => <button key={c.id} className="btn btn-ghost btn-sm" data-testid="init-roll-pal" onClick={() => rollInit(c)}>🎲 {c.name} ({signed(effectiveInitBonus(c))})</button>)}
+            {pl.length > 1 && <button className="btn btn-primary btn-sm" data-testid="init-roll-pals" onClick={() => rollInitMany(pl)}>🎲 Roll all {pl.length} companions</button>}</span>; })()}
           {needInit.filter(canControl).length === 0 && <span className="prompt-wait">{needInit.length ? `Waiting for ${needInit.map(c => c.name).join(', ')}` : 'Everyone has rolled.'}</span>}
           {isDM && needInit.filter(canControl).length > 1 && <button className="btn btn-ghost btn-sm" data-testid="init-roll-mine" onClick={() => needInit.filter(c => !c.owner || c.owner === myId).forEach(c => rollInit(c))}>Roll all of mine</button>}
           {isDM && <button className="btn btn-ghost btn-sm" data-testid="init-force" onClick={forceStart}>Start now, rolling for the rest</button>}
@@ -6683,22 +6711,6 @@ function App() {
             : <div className="panel-header">Initiative Order</div>}
           <div className="panel-body">
             {(!isDM || leftTab === 'order') && <>
-            {massRun && (() => { const cur = massRun.ids[massRun.i], cx = combatants.find(y => y.id === cur), nm = id => (combatants.find(y => y.id === id) || {}).name || '?', n = Object.keys(massRun.tgt).filter(k => massRun.ids.includes(k)).length, rolls = massRun.ids.reduce((t, id) => t + (massRun.tgt[id] ? (massRun.acts[id] || []).length : 0), 0);
-              const advRow = <span className="mass-adv">{[[1, 'Advantage'], [0, 'Normal'], [-1, 'Disadvantage']].map(([v, t]) => <button key={v} className={`pp-chip ${massRun.adv === v ? 'on' : ''}`} data-testid={`mass-adv-${v}`} onClick={() => setMassRun({...massRun, adv: v})}>{t}</button>)}</span>;
-              const cancel = <button className="btn btn-ghost btn-sm" data-testid="mass-cancel" onClick={() => setMassRun(null)}>Cancel</button>;
-              const pickAtk = id => { const x = combatants.find(y => y.id === id); if (!x) return null; const ml = multiList(x), cur0 = massRun.acts[id] || [], curKey = cur0.length > 1 ? 'multi' : (cur0[0] || {}).id;
-                return <span className="mass-atks" data-testid="mass-atk-choice">{attackActs(x).map(a => <button key={a.id} className={`pp-chip ${curKey === a.id ? 'on' : ''}`} onClick={() => massSwap(id, a.id)}>{a.name}</button>)}{ml.length > 1 && <button className={`pp-chip ${curKey === 'multi' ? 'on' : ''}`} onClick={() => massSwap(id, 'multi')}>All attacks ({ml.length})</button>}</span>; };
-              return <div className="mass-run" data-testid="mass-run">
-                {!massRun.mode ? <><div><strong>Attack with {massRun.ids.length}:</strong> the same target for all, or a target for each?</div>
-                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-same" onClick={() => setMassRun({...massRun, mode: 'same', acts: Object.fromEntries(massRun.ids.map(id => [id, (massRun.acts[id] || []).slice(0, 1)]))})}>Same target</button><button className="btn btn-primary btn-sm" data-testid="mass-diff" onClick={() => setMassRun({...massRun, mode: 'diff'})}>Different targets</button>{cancel}</div></>
-                : cx && massRun.mode === 'diff' ? <><div><strong>Attack {massRun.i + 1} of {massRun.ids.length}:</strong> choose a target for <strong>{cx.name}</strong>. Click a creature below.</div>{pickAtk(cur)}
-                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-skip" onClick={() => setMassRun({...massRun, i: massRun.i + 1})}>Skip this attack</button>{massRun.i > 0 && <button className="btn btn-ghost btn-sm" data-testid="mass-back" onClick={() => setMassRun({...massRun, i: massRun.i - 1})}>Back</button>}{cancel}</div>{advRow}</>
-                : cx ? <><div><strong>Choose one target</strong> for all {massRun.ids.length} (they are lit up on the tracker).</div><div className="do-row">{cancel}</div>{advRow}</>
-                : <><div><strong>Targets chosen.</strong></div>
-                  {massRun.askAll && <div className="do-row" data-testid="mass-askall"><span>Use all their attacks (Multiattack)?</span><button className="btn btn-primary btn-sm" data-testid="mass-all-yes" onClick={() => setMassRun({...massRun, askAll: false, acts: Object.fromEntries(massRun.ids.map(id => { const x = combatants.find(y => y.id === id), ml = x ? multiList(x) : []; return [id, ml.length > 1 ? ml : massRun.acts[id]]; }))})}>Yes, all attacks</button><button className="btn btn-ghost btn-sm" data-testid="mass-all-no" onClick={() => setMassRun({...massRun, askAll: false})}>One each</button></div>}
-                  <div data-testid="mass-list">{massRun.ids.map(id => <div key={id}>{nm(id)} → {massRun.tgt[id] ? `${nm(massRun.tgt[id])} (${(massRun.acts[id] || []).map(a => a.name).join(', ')})` : 'skipped'}</div>)}</div>{advRow}
-                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-roll" disabled={!n} onClick={rollMass}>🎲 Roll all {rolls} {rolls === 1 ? 'attack' : 'attacks'}</button>{massRun.mode === 'diff' && <button className="btn btn-ghost btn-sm" data-testid="mass-back" onClick={() => setMassRun({...massRun, i: massRun.i - 1})}>Back</button>}{cancel}</div></>}
-              </div>; })()}
             <div className="who-am-i" data-testid="who-am-i">{!room ? <>You are running this alone, with <strong>DM</strong> controls.</> : isDM ? <>You are the <strong>DM</strong>{myOwn.length ? <> and also play <strong>{myOwn.map(c => c.name).join(', ')}</strong></> : null}.</> : myOwn.length ? <>You are playing <strong>{myOwn.map(c => c.name).join(', ')}</strong>.</> : <>You are a <strong>player</strong> with no character here yet.</>}</div>
             {isDM && <label className="rule-label" style={{margin:'0 0 4px'}} title="On: your screen opens whichever creature's turn it is. Off: the sheet you are looking at stays until you press View on another."><input type="checkbox" data-testid="rule-follow" checked={followTurn} onChange={e=>{ setFollowTurn(e.target.checked); try { window.localStorage.setItem('hba-follow-turn', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> Follow the turn</label>}
             <div className="rel-key" data-testid="rel-key"><span><i style={{background:'#4da3ff'}}/>Yours</span><span><i style={{background:'#4caf50'}}/>Ally</span><span><i style={{background:'#e05252'}}/>Hostile</span><span><i style={{background:'#e6c84a'}}/>Neutral</span><span><i style={{background:'#000', border:'1px solid #555'}}/>Defeated</span></div>
@@ -7331,6 +7343,7 @@ function App() {
               {fight && turnSecs > 0 && active && active.owner && (isDM || canControl(active)) && (() => { const left = Math.max(0, Math.min(turnSecs, Math.ceil((turnSecs * 1000 - turnUsed()) / 1000))); return hideTimer
                 ? <button className="btn btn-ghost btn-sm" data-testid="timer-show" onClick={() => setHideTimer(false)}>Show timer</button>
                 : <span className={`turn-timer ${left <= 0 ? 'out' : ''} ${turnPaused ? 'paused' : ''}`} data-testid="turn-timer">⏱ {left <= 0 ? 'Time is up' : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`}{turnPaused ? ' (paused)' : ''}{isDM && <button className="link-btn" data-testid="timer-pause" title={turnPaused ? 'Start the turn timer again' : 'Stop the turn timer for everyone'} onClick={() => setTurnPaused(v => !v)}>{turnPaused ? 'resume' : 'pause'}</button>}<button className="link-btn" data-testid="timer-hide" title="Hide the timer" onClick={() => setHideTimer(true)}>hide</button></span>; })()}
+              {combatStarted && isDM && <button className="btn btn-ghost btn-sm" data-testid="prev-turn" title="Go back to the previous creature's turn" onClick={prevTurn}>← Back a turn</button>}
               {combatStarted && <button className="next-turn-btn" disabled={!canControl(active)} style={!canControl(active)?{opacity:0.4,cursor:'default'}:{}} onClick={nextTurn}>Next Turn →</button>}
               <button
                 className="resolve-btn" data-testid="resolve-btn"
@@ -7669,6 +7682,23 @@ function App() {
             <div className="section-title" style={{marginTop: 10}}>How long</div>
             {UNTIL.map(([k, txt]) => <label key={k} className="rule-label" style={{display: 'block', margin: '3px 0'}}><input type="radio" name="rp-until" data-testid={`round-until-${k}`} checked={roundPick.until === k} onChange={() => setRoundPick({...roundPick, until: k})}/> {txt}</label>)}
             <div className="do-row" style={{marginTop: 10}}><button className="btn btn-primary btn-sm" data-testid="round-go" onClick={go}>Give it</button><button className="btn btn-ghost btn-sm" onClick={() => setRoundPick(null)}>Cancel</button></div></div></div></div>; })()}
+      {massRun && (() => { const cur = massRun.ids[massRun.i], cx = combatants.find(y => y.id === cur), nm = id => (combatants.find(y => y.id === id) || {}).name || '?', n = Object.keys(massRun.tgt).filter(k => massRun.ids.includes(k)).length, rolls = massRun.ids.reduce((t, id) => t + (massRun.tgt[id] ? (massRun.acts[id] || []).length : 0), 0);
+              const advRow = <span className="mass-adv">{[[1, 'Advantage'], [0, 'Normal'], [-1, 'Disadvantage']].map(([v, t]) => <button key={v} className={`pp-chip ${massRun.adv === v ? 'on' : ''}`} data-testid={`mass-adv-${v}`} onClick={() => setMassRun({...massRun, adv: v})}>{t}</button>)}</span>;
+              const cancel = <button className="btn btn-ghost btn-sm" data-testid="mass-cancel" onClick={() => setMassRun(null)}>Cancel</button>;
+              const pickAtk = id => { const x = combatants.find(y => y.id === id); if (!x) return null; const ml = multiList(x), cur0 = massRun.acts[id] || [], curKey = cur0.length > 1 ? 'multi' : (cur0[0] || {}).id;
+                return <span className="mass-atks" data-testid="mass-atk-choice">{attackActs(x).map(a => <button key={a.id} className={`pp-chip ${curKey === a.id ? 'on' : ''}`} onClick={() => massSwap(id, a.id)}>{a.name}</button>)}{ml.length > 1 && <button className={`pp-chip ${curKey === 'multi' ? 'on' : ''}`} onClick={() => massSwap(id, 'multi')}>All attacks ({ml.length})</button>}</span>; };
+              return <div className="mass-run mass-float" data-testid="mass-run">
+                {!massRun.mode ? <><div><strong>Attack with {massRun.ids.length}:</strong> the same target for all, or a target for each?</div>
+                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-same" onClick={() => setMassRun({...massRun, mode: 'same', acts: Object.fromEntries(massRun.ids.map(id => [id, (massRun.acts[id] || []).slice(0, 1)]))})}>Same target</button><button className="btn btn-primary btn-sm" data-testid="mass-diff" onClick={() => setMassRun({...massRun, mode: 'diff'})}>Different targets</button>{cancel}</div></>
+                : cx && massRun.mode === 'diff' ? <><div><strong>Attack {massRun.i + 1} of {massRun.ids.length}:</strong> choose a target for <strong>{cx.name}</strong>. Click a creature below.</div>{pickAtk(cur)}
+                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-skip" onClick={() => setMassRun({...massRun, i: massRun.i + 1})}>Skip this attack</button>{massRun.i > 0 && <button className="btn btn-ghost btn-sm" data-testid="mass-back" onClick={() => setMassRun({...massRun, i: massRun.i - 1})}>Back</button>}{cancel}</div>{advRow}</>
+                : cx ? <><div><strong>Choose one target</strong> for all {massRun.ids.length} (they are lit up on the tracker). Click a creature.</div>
+                  <div data-testid="mass-same-atks">{massRun.ids.map(id => <div key={id} style={{margin: '2px 0'}}>{nm(id)}: {pickAtk(id)}</div>)}</div><div className="do-row">{cancel}</div>{advRow}</>
+                : <><div><strong>Targets chosen.</strong></div>
+                  {massRun.askAll && <div className="do-row" data-testid="mass-askall"><span>Use all their attacks (Multiattack)?</span><button className="btn btn-primary btn-sm" data-testid="mass-all-yes" onClick={() => setMassRun({...massRun, askAll: false, acts: Object.fromEntries(massRun.ids.map(id => { const x = combatants.find(y => y.id === id), ml = x ? multiList(x) : []; return [id, ml.length > 1 ? ml : massRun.acts[id]]; }))})}>Yes, all attacks</button><button className="btn btn-ghost btn-sm" data-testid="mass-all-no" onClick={() => setMassRun({...massRun, askAll: false})}>One each</button></div>}
+                  <div data-testid="mass-list">{massRun.ids.map(id => <div key={id}>{nm(id)} → {massRun.tgt[id] ? `${nm(massRun.tgt[id])} (${(massRun.acts[id] || []).map(a => a.name).join(', ')})` : 'skipped'}{massRun.mode === 'same' && massRun.tgt[id] && !massRun.askAll ? <div style={{margin: '2px 0 4px 12px'}}>{pickAtk(id)}</div> : null}</div>)}</div>{advRow}
+                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-roll" disabled={!n} onClick={rollMass}>🎲 Roll all {rolls} {rolls === 1 ? 'attack' : 'attacks'}</button>{massRun.mode === 'diff' && <button className="btn btn-ghost btn-sm" data-testid="mass-back" onClick={() => setMassRun({...massRun, i: massRun.i - 1})}>Back</button>}{cancel}</div></>}
+              </div>; })()}
       {pops.length > 0 && <div className="dm-pops" data-testid="dm-pops">{pops.map(p0 => <div key={p0.id} className="dm-pop" data-testid="dm-pop"><span>{p0.text}</span><button aria-label="Close" onClick={() => setPops(p => p.filter(x => x.id !== p0.id))}>×</button></div>)}</div>}
       {timeUp && <div className="turn-pop time-up" data-testid="time-up" key={timeUp.key}><span>⏱ Time is up{timeUp.mine ? '' : ` for ${timeUp.name}`}!</span><button aria-label="Close" onClick={() => setTimeUp(null)}>×</button></div>}
       {turnPop && <div className="turn-pop" data-testid="turn-pop" key={turnPop.key}><span>⚔ {turnPop.lead ? <>It's your turn, <strong>{turnPop.lead}</strong>{turnPop.names.length > 1 ? <> (with {turnPop.names.filter(n => n !== turnPop.lead).join(', ')})</> : null}!</> : <>It's <strong>{turnPop.names.join(', ')}</strong>'s turn!</>}</span><button aria-label="Close" data-testid="turn-pop-close" onClick={() => setTurnPop(null)}>×</button></div>}
