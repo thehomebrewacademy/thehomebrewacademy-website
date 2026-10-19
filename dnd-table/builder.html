@@ -1407,7 +1407,8 @@ function FundsBox(_ref) {
 
 /* ============ A PRINTABLE CHARACTER SHEET (shown on the Character Sheet tab and downloaded as one file) ============ */
 function sheetHtml(d) {
-  var _d$currentHP;
+  var _d$passivePerception;
+  // A printable character sheet, page by page, like a paper one: only what stays put (no Active, no hands, no Heroic Inspiration); current and temporary Hit Points are left blank to fill in
   var e = function e(v) {
     return String(v == null ? "" : v).replace(/[&<>"]/g, function (c) {
       return {
@@ -1428,47 +1429,112 @@ function sheetHtml(d) {
       return Array.isArray(v) ? v : [];
     };
   var AB = [["STR", "Strength"], ["DEX", "Dexterity"], ["CON", "Constitution"], ["INT", "Intelligence"], ["WIS", "Wisdom"], ["CHA", "Charisma"]];
+  var SK = [["Acrobatics", "DEX"], ["Animal Handling", "WIS"], ["Arcana", "INT"], ["Athletics", "STR"], ["Deception", "CHA"], ["History", "INT"], ["Insight", "WIS"], ["Intimidation", "CHA"], ["Investigation", "INT"], ["Medicine", "WIS"], ["Nature", "INT"], ["Perception", "WIS"], ["Performance", "CHA"], ["Persuasion", "CHA"], ["Religion", "INT"], ["Sleight of Hand", "DEX"], ["Stealth", "DEX"], ["Survival", "WIS"]];
   var sc = d.scores || {},
     sv = d.saves || {},
     profs = arr(d.skillProfs),
     exp = arr(d.skillExpertise),
-    saveP = arr(d.saveProfs);
+    saveP = arr(d.saveProfs),
+    sk = d.skills || {};
   var pic = typeof d.portrait === "string" && /^data:image\//.test(d.portrait) ? d.portrait : "";
-  var attacks = arr(d.actions).filter(function (a) {
-    return a && (a.atk != null || a.type === "attack" || a.type === "save") && (a.weapon || a.unarmed || a.spell || a.type);
-  }).slice(0, 30);
+  var TYPE = {
+    action: "A",
+    bonus: "BA",
+    reaction: "R",
+    free: "",
+    minute: "1 Min",
+    hour: "1 Hr"
+  };
+  var acts = arr(d.actions);
+  var attacks = acts.filter(function (a) {
+    return a && !a.spell && a.type === "attack";
+  }).slice(0, 16);
+  var others = acts.filter(function (a) {
+    return a && !a.spell && a.type !== "attack" && !/^(Grapple|Shove)/.test(a.name || "");
+  }).slice(0, 24);
+  var first = function first(t) {
+    var s = String(t || "").replace(/\s+/g, " ").trim();
+    var m = /^(.{20,220}?[.!?])(\s|$)/.exec(s);
+    return m ? m[1] : s.slice(0, 220);
+  };
+  var pools = d.pools || {},
+    circles = function circles(n) {
+      return n > 0 ? "<span class=\"circ\">".concat("○ ".repeat(Math.min(n, 30)).trim(), "</span>") : "";
+    };
+  var banner = function banner(page, img) {
+    return "<div class=\"banner\"><div class=\"bn\">".concat(img ? "<img class=\"pic\" src=\"".concat(img, "\" alt=\"\">") : "", "<span class=\"nm\">").concat(e(d.name || "__________"), "</span> <span class=\"the\">the</span> <span class=\"nm\">").concat(e(d.species || ""), " ").concat(e(d.classLine || d.className || ""), "</span></div><div class=\"lvl\"><span>Level</span><b>").concat(e(d.level || 1), "</b></div></div><div class=\"pname\">").concat(e(page), "</div>");
+  };
+  var pages = [];
+  // Page 1: the character
+  var hd = d.hitDie ? "d".concat(e(d.hitDie)) : "";
+  pages.push(["Character", "".concat(banner("Character", pic), "\n<div class=\"top\">\n  ").concat(AB.map(function (_ref0) {
+    var _sv$f, _sc$f;
+    var _ref1 = _slicedToArray(_ref0, 2),
+      k = _ref1[0],
+      f = _ref1[1];
+    return "<div class=\"ab\"><div class=\"sv\"><span>".concat(sg(+((_sv$f = sv[f]) !== null && _sv$f !== void 0 ? _sv$f : md(sc[f]))), "</span><i class=\"").concat(saveP.includes(f) ? "on" : "", "\"></i></div><div class=\"k\">").concat(k, "</div><div class=\"v\">").concat(e((_sc$f = sc[f]) !== null && _sc$f !== void 0 ? _sc$f : 10), "</div><div class=\"m\">").concat(sg(md(sc[f])), "</div></div>");
+  }).join(""), "\n  <div class=\"hpbox\"><div class=\"hit\"><span>HIT ").concat(hd, "</span><b>&nbsp;&nbsp;&nbsp;/ ").concat(e(d.level || 1), "</b></div><div class=\"heart\"><svg viewBox=\"0 0 100 92\"><path d=\"M50 88 C20 62 4 46 4 27 C4 13 15 4 27 4 C37 4 45 9 50 18 C55 9 63 4 73 4 C85 4 96 13 96 27 C96 46 80 62 50 88 Z\"/></svg><div><b>").concat(e(d.maxHP), "</b><span>MAX</span></div></div><div class=\"pill\"><span class=\"sl\">/</span><span class=\"l1\">HP</span><span class=\"l2\">TEMP</span></div></div>\n</div>\n<div class=\"cols\">\n  <div class=\"left\">\n    <div class=\"skills\">").concat(SK.map(function (_ref10) {
+    var _sk$n;
+    var _ref11 = _slicedToArray(_ref10, 2),
+      n = _ref11[0],
+      a = _ref11[1];
+    return "<div class=\"sk\"><i class=\"".concat(exp.includes(n) ? "ex" : profs.includes(n) ? "on" : "", "\"></i><u>").concat(sg(+((_sk$n = sk[n]) !== null && _sk$n !== void 0 ? _sk$n : 0)), "</u><span>").concat(e(n), "</span><em>").concat(a, "</em></div>");
+  }).join(""), "</div>\n    <div class=\"small\"><b>Passive Perception</b> ").concat(e((_d$passivePerception = d.passivePerception) !== null && _d$passivePerception !== void 0 ? _d$passivePerception : ""), "</div>\n    <h3>Important Items</h3><div class=\"small c\">").concat(e(arr(d.importantItems).join(", ") || arr(d.items).slice(0, 8).join(", ") || ""), "</div>\n    <h3>Languages</h3><div class=\"small c\">").concat(e(arr(d.languages).join(", ") || ""), "</div>\n    <h3>Tool Proficiencies</h3><div class=\"small c\">").concat(e(arr(d.tools).join(", ") || "None"), "</div>\n  </div>\n  <div class=\"right\">\n    <div class=\"row4\"><div class=\"shield\"><svg viewBox=\"0 0 80 92\"><path d=\"M40 3 L76 14 C76 52 64 76 40 89 C16 76 4 52 4 14 Z\"/></svg><div><b>").concat(e(d.ac), "</b><span>AC</span></div></div>\n      <div class=\"star\"><svg viewBox=\"0 0 100 100\"><polygon points=\"50,4 61,28 88,22 76,47 96,66 69,70 66,96 50,79 34,96 31,70 4,66 24,47 12,22 39,28\"/></svg><div><b>").concat(sg(+d.profBonus || 2), "</b></div><span>PROF</span></div>\n      <div class=\"sq\"><b>").concat(e(d.speed), "</b><span>Speed</span></div><div class=\"sq\"><b>").concat(sg(+d.initiativeBonus || 0), "</b><span>INIT</span></div>\n      <div class=\"cond\"><u>Conditions / Resistances</u><div class=\"small\">").concat(e([arr(d.resist).length ? "Resistant: " + arr(d.resist).join(", ") : "", arr(d.immune).length ? "Immune: " + arr(d.immune).join(", ") : "", arr(d.conditionImmune).length ? "Can't be: " + arr(d.conditionImmune).join(", ") : ""].filter(Boolean).join(". ")), "</div></div></div>\n    <div class=\"small\"><b>Senses:</b> ").concat(e(arr(d.senses).join(", ") || "None"), " &nbsp; <b>Speeds:</b> ").concat(e(arr(d.moves).map(function (m) {
+    return typeof m === "string" ? m : "".concat(m.kind || "", " ").concat(m.feet || "", " ft.");
+  }).join(", ") || "Walk ".concat(d.speed, " ft.")), "</div>\n    <h2>Attacks</h2>\n    <table class=\"atk\"><tr><th>Name</th><th>Range / Reach</th><th>To Hit</th><th>Damage</th></tr>").concat(attacks.map(function (a) {
+    return "<tr><td>".concat(e(a.name), "</td><td>").concat(e(a.rng || (a.ranged ? "" : "0"))).concat(a.reach ? " - ".concat(e(a.reach)) : "", "</td><td>").concat(a.atk != null ? sg(+a.atk) : a.dc ? "DC ".concat(e(a.dc)) : "", "</td><td>").concat(e(arr(a.dmgList).map(function (x) {
+      return "".concat(x[0], " ").concat(String(x[1] || "").slice(0, 3));
+    }).join(" + ")), "</td></tr>");
+  }).join("") || "<tr><td colspan=\"4\" class=\"blank\"></td></tr>", "</table>\n    <h2>Actions <span class=\"tcol\">Type</span></h2>\n    <div class=\"act\"><span>Attack. Dash. Disengage. Dodge. Help. Hide. Influence. Magic. Ready. Search. Study. Utilize.</span><b>A</b></div>\n    ").concat(others.map(function (a) {
+    var _TYPE$a$activation;
+    var q = a.pool && pools[a.pool] ? pools[a.pool].max : 0;
+    return "<div class=\"act\"><span><strong>".concat(e(a.name), ".</strong> ").concat(e(first(a.desc || a.detail || ""))).concat(q ? " ".concat(circles(q)) : "", "</span><b>").concat(e((_TYPE$a$activation = TYPE[a.activation]) !== null && _TYPE$a$activation !== void 0 ? _TYPE$a$activation : ""), "</b></div>");
+  }).join(""), "\n    <h2>Feats</h2><div class=\"small c\">").concat(e(arr(d.feats).join(", ") || "None"), "</div>\n    <h2>Notes</h2><div class=\"write\" title=\"Room to write: what is going on, effects, reminders\"></div>\n  </div>\n</div>")]);
+  // Page 2: features and traits
   var feats = arr(d.featureList).length ? arr(d.featureList) : arr(d.features).map(function (t) {
     return {
       n: t,
       d: ""
     };
   });
-  var slots = d.spellcasting && d.spellcasting.slots ? d.spellcasting.slots : "";
-  var box = function box(title, body) {
-    return "<section><h2>".concat(e(title), "</h2>").concat(body, "</section>");
-  };
-  return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>".concat(e(d.name || "Character"), " - Character Sheet</title>\n<style>\n  body { margin: 0; background: #e9dfc9; color: #1b2430; font-family: Georgia, 'Times New Roman', serif; }\n  .pg { max-width: 900px; margin: 0 auto; padding: 22px; }\n  header { display: flex; gap: 16px; align-items: center; border: 3px double #6b4423; border-radius: 10px; padding: 12px 16px; background: #f4ecda; }\n  header img { width: 110px; height: 110px; object-fit: cover; border-radius: 8px; border: 2px solid #6b4423; }\n  h1 { margin: 0; font-size: 30px; letter-spacing: 1px; } .sub { font-size: 16px; margin-top: 4px; } .tiny { font-size: 13px; opacity: .8; }\n  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 12px 0; }\n  .stat { border: 2px solid #6b4423; border-radius: 8px; text-align: center; padding: 6px 4px; background: #f4ecda; } .stat b { display: block; font-size: 22px; } .stat span { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }\n  .abil { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }\n  .ab { border: 2px solid #6b4423; border-radius: 10px; text-align: center; padding: 6px 2px; background: #f4ecda; } .ab .m { font-size: 24px; font-weight: bold; } .ab .s { font-size: 13px; }\n  .cols { display: grid; grid-template-columns: 1fr 1.6fr; gap: 14px; }\n  section { border: 1px solid #6b4423; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; background: #f7f0e1; break-inside: avoid; }\n  h2 { font-size: 14px; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 6px; color: #6b4423; border-bottom: 1px solid #6b4423; padding-bottom: 3px; }\n  .row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; font-size: 14px; } .row:nth-child(even) { background: #efe5cf; }\n  .dot { display: inline-block; width: 9px; height: 9px; border: 1.5px solid #6b4423; border-radius: 50%; margin-right: 6px; } .dot.on { background: #6b4423; }\n  .feat { font-size: 14px; margin-bottom: 6px; } .feat b { font-size: 14.5px; }\n  table { width: 100%; border-collapse: collapse; font-size: 14px; } td, th { text-align: left; padding: 3px 4px; border-bottom: 1px solid #d6c7a6; }\n  @media (max-width: 640px) { .stats, .abil { grid-template-columns: repeat(3, 1fr); } .cols { grid-template-columns: 1fr; } }\n  @media print { body { background: #fff; } .pg { padding: 0; } section, header, .stat, .ab { background: #fff; } }\n</style></head><body><div class=\"pg\">\n<header>").concat(pic ? "<img src=\"".concat(pic, "\" alt=\"\">") : "", "<div><h1>").concat(e(d.name || "Unnamed character"), "</h1>\n<div class=\"sub\">Level ").concat(e(d.level || 1), " ").concat(e(d.species || ""), " ").concat(e(d.classLine || d.className || "")).concat(d.subclassName && !d.classLine ? " (".concat(e(d.subclassName), ")") : "", "</div>\n<div class=\"tiny\">").concat([d.background && "Background: ".concat(e(d.background)), d.alignment && "Alignment: ".concat(e(d.alignment)), d.player && "Player: ".concat(e(d.player)), d.xp != null && "XP: ".concat(e(d.xp))].filter(Boolean).join(" · "), "</div></div></header>\n<div class=\"stats\">").concat([["Armor Class", d.ac], ["Initiative", sg(+d.initiativeBonus || 0)], ["Speed", "".concat(e(d.speed), " ft.")], ["Hit Points", "".concat(e((_d$currentHP = d.currentHP) !== null && _d$currentHP !== void 0 ? _d$currentHP : d.maxHP), "/").concat(e(d.maxHP))], ["Proficiency", sg(+d.profBonus || 2)], ["Passive Perception", d.passivePerception]].map(function (_ref0) {
-    var _ref1 = _slicedToArray(_ref0, 2),
-      k = _ref1[0],
-      v = _ref1[1];
-    return "<div class=\"stat\"><b>".concat(e(v), "</b><span>").concat(e(k), "</span></div>");
-  }).join(""), "</div>\n<div class=\"abil\">").concat(AB.map(function (_ref10) {
-    var _sc$f, _sv$f;
-    var _ref11 = _slicedToArray(_ref10, 2),
-      k = _ref11[0],
-      f = _ref11[1];
-    return "<div class=\"ab\"><div class=\"tiny\">".concat(k, "</div><div class=\"m\">").concat(sg(md(sc[f])), "</div><div class=\"s\">").concat(e((_sc$f = sc[f]) !== null && _sc$f !== void 0 ? _sc$f : 10), "</div><div class=\"s\"><span class=\"dot ").concat(saveP.includes(f) ? "on" : "", "\"></span>Save ").concat(sg(+((_sv$f = sv[f]) !== null && _sv$f !== void 0 ? _sv$f : md(sc[f]))), "</div></div>");
-  }).join(""), "</div>\n<div class=\"cols\"><div>\n").concat(box("Skills", Object.keys(d.skills || {}).sort().map(function (k) {
-    return "<div class=\"row\"><span><span class=\"dot ".concat(profs.includes(k) ? "on" : "", "\"></span>").concat(e(k)).concat(exp.includes(k) ? " (Expertise)" : "", "</span><b>").concat(sg(+d.skills[k] || 0), "</b></div>");
-  }).join("")), "\n").concat(box("Proficiencies", "<div class=\"feat\"><b>Languages:</b> ".concat(e(arr(d.languages).join(", ") || "None"), "</div><div class=\"feat\"><b>Tools:</b> ").concat(e(arr(d.tools).join(", ") || "None"), "</div>").concat(arr(d.resist).length ? "<div class=\"feat\"><b>Resistances:</b> ".concat(e(d.resist.join(", ")), "</div>") : "").concat(arr(d.senses).length ? "<div class=\"feat\"><b>Senses:</b> ".concat(e(d.senses.join(", ")), "</div>") : "")), "\n").concat(box("Equipment", "<div class=\"feat\">".concat(e(arr(d.items).join(", ") || d.equipment || "None"), "</div>").concat(d.gold != null ? "<div class=\"feat\"><b>Gold:</b> ".concat(e(d.gold), " GP</div>") : "")), "\n</div><div>\n").concat(attacks.length ? box("Attacks and Actions", "<table><tr><th>Name</th><th>To Hit / DC</th><th>Damage</th></tr>".concat(attacks.map(function (a) {
-    return "<tr><td>".concat(e(a.name), "</td><td>").concat(a.dc ? "DC ".concat(e(a.dc)) : a.atk != null ? sg(+a.atk) : "", "</td><td>").concat(e(arr(a.dmgList).map(function (x) {
-      return "".concat(x[0], " ").concat(x[1] || "");
-    }).join(" + ") || a.dmg || ""), "</td></tr>");
-  }).join(""), "</table>")) : "", "\n").concat(box("Features and Traits", feats.map(function (f) {
-    return "<div class=\"feat\"><b>".concat(e(f.n), "</b>").concat(f.src ? " <span class=\"tiny\">(".concat(e(f.src)).concat(f.lv ? ", level ".concat(e(f.lv)) : "", ")</span>") : "").concat(f.d ? ". ".concat(e(f.d)) : "", "</div>");
-  }).join("") || "None"), "\n").concat(arr(d.companions).length ? box("Companions", d.companions.map(function (p) {
-    return "<div class=\"feat\"><b>".concat(e(p.name), "</b>").concat(p.kind ? " (".concat(e(p.kind), ")") : "").concat(p.base ? ": ".concat(e(p.base)) : p.hp ? ": AC ".concat(e(p.ac), ", ").concat(e(p.hp), " HP, Speed ").concat(e(p.speed), " ft.") : "", "</div>");
-  }).join("")) : "", "\n").concat(arr(d.feats).length ? box("Feats", "<div class=\"feat\">".concat(e(d.feats.join(", ")), "</div>")) : "", "\n").concat(arr(d.spellList || d.spells).length ? box("Spells", "".concat(slots ? "<div class=\"feat\"><b>Spell slots:</b> ".concat(e(slots), "</div>") : "", "<div class=\"feat\">").concat(e(arr(d.spellList || d.spells).join(", ")), "</div>")) : "", "\n</div></div>\n<div class=\"tiny\" style=\"text-align:center;margin-top:8px\">Made with The Homebrew Academy Character Builder</div>\n</div></body></html>");
+  pages.push(["Features & Traits", "".concat(banner("Features & Traits"), "<div class=\"feats\">").concat(feats.map(function (f) {
+    return "<div class=\"ft\"><b>".concat(e(f.n), "</b>").concat(f.src ? " <span class=\"muted\">".concat(e(f.src)).concat(f.lv ? ", level ".concat(e(f.lv)) : "", "</span>") : "").concat(f.d ? "<div>".concat(e(f.d), "</div>") : "", "</div>");
+  }).join("") || "<div class='muted'>None yet.</div>", "</div>")]);
+  // Spell pages: a page for cantrips and each spell level
+  var sp = d.spellcasting || {},
+    list = arr(d.spellList);
+  if (list.length) {
+    var head = "<div class=\"sphead\"><span class=\"spt\">Spells</span><span>Attack: ".concat(sg(+sp.attack || 0), "</span><span>Save DC: ").concat(e(sp.dc || ""), "</span>").concat(sp.ability ? "<span>".concat(e(sp.ability), "</span>") : "", "</div>");
+    var row = function row(x) {
+      var s0 = typeof spellOf === "function" ? spellOf(x.n) : null;
+      var mk = "".concat(s0 && s0.conc ? ' <i class="mk c" title="Concentration">C</i>' : "").concat(s0 && s0.rit ? ' <i class="mk" title="Ritual">R</i>' : "");
+      return "<tr class=\"sn\"><td><b>".concat(e(x.n), "</b>").concat(mk, "</td><td>").concat(e(x.s), "</td><td>").concat(e(x.k), "</td><td>").concat(e(x.r), "</td><td>").concat(e(x.sv === "Atk" ? "Atk" : x.sv), "</td><td>").concat(e(x.d), "</td><td>").concat(e(x.t), "</td></tr><tr><td colspan=\"7\" class=\"sum\">").concat(e(x.sum)).concat(x.up ? "<div><span class=\"up\">Upcast.</span> ".concat(e(first(x.up)), "</div>") : "", "</td></tr>");
+    };
+    var lv = Array.from(new Set(list.map(function (x) {
+      return +x.l || 0;
+    }))).sort(function (a, b) {
+      return a - b;
+    });
+    lv.forEach(function (l) {
+      var n = l ? arr(sp.slotList)[l - 1] || 0 : 0;
+      pages.push([l ? "Level ".concat(l, " Spells") : "Cantrips", "".concat(banner(l ? "Level ".concat(l, " Spells") : "Cantrips")).concat(head, "<div class=\"lvh\">").concat(l ? "Level ".concat(l) : "Cantrips").concat(n ? " &nbsp; <span class=\"slots\">Slots ".concat(circles(n), "</span>") : "", "</div>\n<table class=\"spl\"><tr><th>Name</th><th>School</th><th>Comps</th><th>Range</th><th>Save</th><th>Duration</th><th>C Time</th></tr>").concat(list.filter(function (x) {
+        return (+x.l || 0) === l;
+      }).map(row).join(""), "</table>")]);
+    });
+  }
+  // Last page: equipment, money and companions
+  pages.push(["Equipment", "".concat(banner("Equipment"), "<h2>Equipment</h2><div class=\"small c\">").concat(e(arr(d.items).join(", ") || d.equipment || "None"), "</div>\n<h2>Money</h2><div class=\"money\">").concat(["CP", "SP", "EP", "GP", "PP"].map(function (k) {
+    var _d$gold, _k$toLowerCase;
+    return "<div><span>".concat(k, "</span><b>").concat(k === "GP" ? e((_d$gold = d.gold) !== null && _d$gold !== void 0 ? _d$gold : "") : e((_k$toLowerCase = (d.coins || {})[k.toLowerCase()]) !== null && _k$toLowerCase !== void 0 ? _k$toLowerCase : ""), "</b></div>");
+  }).join(""), "</div>\n").concat(arr(d.companions).length ? "<h2>Companions</h2>".concat(d.companions.map(function (p) {
+    return "<div class=\"ft\"><b>".concat(e(p.name), "</b>").concat(p.kind ? " <span class=\"muted\">".concat(e(p.kind), "</span>") : "").concat(p.base && !/^sheet:/.test(p.base) ? " \xB7 ".concat(e(p.base)) : p.hp ? " \xB7 AC ".concat(e(p.ac), ", ").concat(e(p.hp), " HP, Speed ").concat(e(p.speed), " ft.") : "").concat((p.count || 1) > 1 ? " \xD7 ".concat(e(p.count)) : "", "</div>");
+  }).join("")) : "", "\n<h2>Notes</h2><div class=\"write tall\"></div>")]);
+  return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>".concat(e(d.name || "Character"), " - Character Sheet</title>\n<style>\n  :root { --ink: #111; --line: #111; --soft: #666; --fill: #fff; --accent: #111; }\n  body.muted { --ink: #2b2a27; --line: #5b4a36; --soft: #7a6d5c; --fill: #f6f1e7; --accent: #7a5c3a; }\n  body { margin: 0; background: #d9d9d9; color: var(--ink); font-family: 'Helvetica Neue', Arial, sans-serif; }\n  .bar { position: sticky; top: 0; z-index: 3; display: flex; gap: 10px; align-items: center; justify-content: center; padding: 8px; background: #333; color: #fff; font-size: 14px; }\n  .bar button { background: #fff; border: none; border-radius: 6px; padding: 4px 12px; font-size: 16px; cursor: pointer; } .bar button:disabled { opacity: .35; } .bar label { cursor: pointer; }\n  .pic { width: 58px; height: 58px; object-fit: cover; border-radius: 50%; border: 2px solid var(--line); vertical-align: middle; margin-right: 12px; }\n  .page { width: 816px; min-height: 1056px; box-sizing: border-box; margin: 16px auto; padding: 36px 40px; background: var(--fill); box-shadow: 0 2px 10px rgba(0,0,0,.25); position: relative; }\n  body.one .page { display: none; } body.one .page.on { display: block; }\n  .banner { display: flex; align-items: center; } .bn { flex: 1; border: 2.5px solid var(--line); border-right: none; border-radius: 4px 0 0 4px; padding: 10px 20px 10px 18px; font-size: 30px; font-weight: 800; letter-spacing: .5px; }\n  .bn .the { font-weight: 600; font-size: 24px; margin: 0 6px; } .lvl { width: 96px; height: 96px; border: 2.5px solid var(--line); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: -10px; background: var(--fill); }\n  .lvl span { font-weight: 700; font-size: 16px; } .lvl b { font-size: 34px; } .pname { text-align: right; font-size: 12px; color: var(--soft); letter-spacing: 2px; text-transform: uppercase; margin: 4px 6px 10px; }\n  .top { display: flex; gap: 8px; align-items: stretch; } .ab { width: 62px; border: 2px solid var(--line); border-radius: 10px 10px 6px 6px; text-align: center; position: relative; padding: 18px 0 6px; }\n  .ab .sv { position: absolute; top: -12px; left: 6px; right: 6px; display: flex; justify-content: space-between; align-items: center; } .ab .sv span { background: var(--fill); border: 1.5px solid var(--line); border-radius: 8px; padding: 0 6px; font-size: 13px; }\n  .ab .sv i, .sk i { display: inline-block; width: 16px; height: 16px; border: 1.5px solid var(--line); border-radius: 50%; background: var(--fill); } .ab .sv i.on, .sk i.on { background: #9a9a9a; } .sk i.ex { background: var(--ink); }\n  .ab .k { font-size: 14px; font-weight: 700; } .ab .v { font-size: 26px; font-weight: 300; } .ab .m { border: 1.5px solid var(--line); border-radius: 12px; margin: 2px 8px 0; font-size: 15px; }\n  .hpbox { flex: 1; display: flex; align-items: center; gap: 0; } .hit { border: 2px solid var(--line); padding: 6px 6px; font-size: 12px; white-space: nowrap; display: flex; flex-direction: column; gap: 8px; } .hit b { font-size: 18px; font-weight: 400; }\n  .heart { position: relative; width: 100px; height: 94px; margin: 0 -14px 0 -4px; z-index: 1; } .heart svg { width: 100%; height: 100%; } .heart path { fill: var(--fill); stroke: var(--line); stroke-width: 3; }\n  .heart div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 12px; } .heart b { font-size: 30px; } .heart span { font-size: 12px; }\n  .pill { flex: 1; min-width: 130px; height: 64px; background: #e3e3e3; border-radius: 0 40px 40px 0; position: relative; } body.muted .pill { background: #e9e0cf; } .pill .sl { position: absolute; left: 50%; top: 8px; font-size: 30px; } .pill .l1, .pill .l2 { position: absolute; bottom: 4px; font-size: 13px; } .pill .l1 { left: 22%; } .pill .l2 { left: 62%; }\n  .cols { display: grid; grid-template-columns: 250px 1fr; gap: 18px; margin-top: 14px; } .skills { border: 1.5px solid var(--line); padding: 6px 8px; }\n  .sk { display: grid; grid-template-columns: 20px 34px 1fr 36px; align-items: center; font-size: 14px; padding: 2px 0; } .sk u { text-decoration: none; border-bottom: 1px solid var(--line); text-align: center; margin-right: 6px; } .sk em { color: var(--soft); font-style: normal; font-size: 12px; text-align: right; }\n  h2 { font-size: 18px; margin: 14px 0 4px; text-align: center; letter-spacing: .5px; } h2 .tcol { float: right; font-size: 13px; font-weight: 400; } h3 { font-size: 15px; margin: 12px 0 2px; text-align: center; }\n  .small { font-size: 13.5px; } .c { text-align: center; } .muted { color: var(--soft); font-size: 12.5px; }\n  .row4 { display: grid; grid-template-columns: 70px 70px 66px 66px 1fr; gap: 8px; align-items: center; } .shield, .star { position: relative; height: 82px; text-align: center; } .shield svg, .star svg { height: 70px; } .shield path, .star polygon { fill: var(--fill); stroke: var(--line); stroke-width: 3; }\n  .shield div, .star div { position: absolute; left: 0; right: 0; top: 14px; } .shield b, .star b { display: block; font-size: 24px; } .shield span { font-size: 11px; } .star div { top: 22px; } .star span { position: absolute; bottom: -2px; left: 0; right: 0; font-size: 11px; }\n  .sq { border: 2px solid var(--line); text-align: center; padding: 4px 0; } .sq b { display: block; font-size: 24px; } .sq span { font-size: 11px; } .cond { border: 1.5px solid var(--line); border-radius: 30px; min-height: 70px; padding: 6px 14px; text-align: center; font-size: 13px; }\n  table { width: 100%; border-collapse: collapse; } .atk th, .atk td { font-size: 13.5px; padding: 2px 4px; text-align: left; } .atk td.blank { height: 60px; }\n  .act { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 3px 0; } .act b { min-width: 30px; text-align: center; } .circ { letter-spacing: 1px; white-space: nowrap; }\n  .write { border: 1.5px solid var(--line); border-radius: 8px; min-height: 120px; } .write.tall { min-height: 360px; }\n  .feats .ft, .ft { font-size: 13.5px; margin: 0 0 8px; } .ft div { margin-top: 2px; line-height: 1.4; }\n  .sphead { display: flex; gap: 26px; align-items: baseline; font-size: 15px; } .spt { font-size: 26px; font-weight: 300; } .lvh { font-size: 19px; font-weight: 700; margin: 10px 0 4px; } .slots { font-weight: 400; font-size: 15px; }\n  .spl th { text-align: left; font-size: 13.5px; padding: 4px 4px 2px; } .spl td { font-size: 13.5px; padding: 4px 4px 0; vertical-align: top; } .spl td.sum { padding: 0 4px 8px; color: var(--ink); font-size: 13px; } .up { font-weight: 700; color: var(--soft); }\n  .mk { display: inline-block; font-style: normal; font-size: 10px; font-weight: 700; border: 1px solid var(--line); border-radius: 2px; padding: 0 3px; margin-left: 4px; vertical-align: middle; } .mk.c { border-radius: 8px; }\n  .money { display: flex; gap: 10px; } .money div { flex: 1; border: 1.5px solid var(--line); border-radius: 8px; text-align: center; padding: 4px; } .money span { display: block; font-size: 12px; } .money b { font-size: 18px; display: block; min-height: 22px; }\n  @media print { body { background: #fff; } .bar { display: none; } body.one .page, .page { display: block !important; box-shadow: none; margin: 0; page-break-after: always; } }\n</style></head><body class=\"one\"><div class=\"bar\"><button id=\"prev\" aria-label=\"Previous page\">\u25C0</button><span id=\"pn\"></span><button id=\"next\" aria-label=\"Next page\">\u25B6</button><label><input type=\"checkbox\" id=\"muted\"> Muted color</label></div>\n").concat(pages.map(function (_ref12, i) {
+    var _ref13 = _slicedToArray(_ref12, 2),
+      n = _ref13[0],
+      h = _ref13[1];
+    return "<section class=\"page".concat(i ? "" : " on", "\" data-name=\"").concat(e(n), "\">").concat(h, "</section>");
+  }).join("\n"), "\n<script>(function(){var p=[].slice.call(document.querySelectorAll('.page')),i=0,pn=document.getElementById('pn');function go(k){i=Math.max(0,Math.min(p.length-1,k));p.forEach(function(x,j){x.classList.toggle('on',j===i);});pn.textContent=(i+1)+' of '+p.length+': '+p[i].getAttribute('data-name');document.getElementById('prev').disabled=i===0;document.getElementById('next').disabled=i===p.length-1;window.scrollTo(0,0);}\ndocument.getElementById('prev').onclick=function(){go(i-1);};document.getElementById('next').onclick=function(){go(i+1);};document.addEventListener('keydown',function(ev){if(ev.key==='ArrowLeft')go(i-1);if(ev.key==='ArrowRight')go(i+1);});\ndocument.getElementById('muted').onchange=function(ev){document.body.classList.toggle('muted',ev.target.checked);};go(0);})();<\/script>\n</body></html>");
 }
 
 /* ============ 2024 PHB DATA ============ */
@@ -3630,16 +3696,16 @@ var fmt = function fmt(n) {
 function abilityScoreImprovementLevels(className) {
   var cls = CLASSES[className];
   if (!cls) return [];
-  return Object.entries(cls.features).filter(function (_ref12) {
-    var _ref13 = _slicedToArray(_ref12, 2),
-      lvl = _ref13[0],
-      feats = _ref13[1];
+  return Object.entries(cls.features).filter(function (_ref14) {
+    var _ref15 = _slicedToArray(_ref14, 2),
+      lvl = _ref15[0],
+      feats = _ref15[1];
     return feats.some(function (f) {
       return f.includes("Ability Score Improvement");
     });
-  }).map(function (_ref14) {
-    var _ref15 = _slicedToArray(_ref14, 1),
-      lvl = _ref15[0];
+  }).map(function (_ref16) {
+    var _ref17 = _slicedToArray(_ref16, 1),
+      lvl = _ref17[0];
     return parseInt(lvl);
   });
 }
@@ -3976,10 +4042,10 @@ function evalDice(src, ctx) {
     return b[0] - a[0];
   });
   if (!parts.length || parts[0][0] < 0) parts.unshift([1, "0"]);
-  return parts.map(function (_ref16, k) {
-    var _ref17 = _slicedToArray(_ref16, 2),
-      sg = _ref17[0],
-      t = _ref17[1];
+  return parts.map(function (_ref18, k) {
+    var _ref19 = _slicedToArray(_ref18, 2),
+      sg = _ref19[0],
+      t = _ref19[1];
     return (k === 0 ? "" : sg > 0 ? "+" : "-") + t;
   }).join("");
 }
@@ -4036,19 +4102,19 @@ function compileOutcome(o, ctx) {
     var left = durationSeconds(e.duration);
     if (left) out.left = left;
     if (e.concentration) out.conc = true;
-    [["ac", "ac"], ["speed", "speed"], ["initiative", "init"], ["d20Tests", "d20"], ["tempHPEachTurn", "tempEachTurn"], ["hitPointMaximum", "hpMax"]].forEach(function (_ref18) {
-      var _ref19 = _slicedToArray(_ref18, 2),
-        from = _ref19[0],
-        to = _ref19[1];
+    [["ac", "ac"], ["speed", "speed"], ["initiative", "init"], ["d20Tests", "d20"], ["tempHPEachTurn", "tempEachTurn"], ["hitPointMaximum", "hpMax"]].forEach(function (_ref20) {
+      var _ref21 = _slicedToArray(_ref20, 2),
+        from = _ref21[0],
+        to = _ref21[1];
       if (e[from] == null) return;
       var n = evalFormula(e[from], ctx);
       if (Number.isFinite(n) && n) out[to] = n;
     });
     if (+e.speedMultiplier > 0 && +e.speedMultiplier !== 1) out.speedMult = +e.speedMultiplier;
-    [["attackRolls", "atk"], ["savingThrows", "save"]].forEach(function (_ref20) {
-      var _ref21 = _slicedToArray(_ref20, 2),
-        from = _ref21[0],
-        to = _ref21[1];
+    [["attackRolls", "atk"], ["savingThrows", "save"]].forEach(function (_ref22) {
+      var _ref23 = _slicedToArray(_ref22, 2),
+        from = _ref23[0],
+        to = _ref23[1];
       if (e[from] != null) {
         var d = signedDice(e[from], ctx);
         if (d) out[to] = d;
@@ -4122,29 +4188,29 @@ function compileOutcome(o, ctx) {
       if (Object.keys(am).length) out.abilMin = am;
     } // a score set for a while (Potion of Giant Strength)
     // the same effects the built-in spells use, under plain names
-    [["attackDisadvantage", "atkDis"], ["speedZero", "speedZero"], ["noReactions", "noReact"], ["noHealing", "noHeal"], ["dropTo1Instead", "ward0"], ["sharedWard", "wardShared"], ["endsWhenItActs", "endsOnAct"], ["endsAfterAnyAction", "endsOnAnyAct"], ["endsOnDamage", "endsOnDamage"], ["endsAfterNextAttack", "endsOnAttack"], ["endsWhenNextAttacked", "endsWhenAttacked"], ["cannotCastSpells", "noCast"], ["cannotTakeActions", "noAct"], ["repeatSaveOnDamage", "saveOnDamage"], ["outOfPlay", "away"], ["stable", "stable"], ["dashAsBonusAction", "dashBonus"]].forEach(function (_ref22) {
-      var _ref23 = _slicedToArray(_ref22, 2),
-        from = _ref23[0],
-        to = _ref23[1];
+    [["attackDisadvantage", "atkDis"], ["speedZero", "speedZero"], ["noReactions", "noReact"], ["noHealing", "noHeal"], ["dropTo1Instead", "ward0"], ["sharedWard", "wardShared"], ["endsWhenItActs", "endsOnAct"], ["endsAfterAnyAction", "endsOnAnyAct"], ["endsOnDamage", "endsOnDamage"], ["endsAfterNextAttack", "endsOnAttack"], ["endsWhenNextAttacked", "endsWhenAttacked"], ["cannotCastSpells", "noCast"], ["cannotTakeActions", "noAct"], ["repeatSaveOnDamage", "saveOnDamage"], ["outOfPlay", "away"], ["stable", "stable"], ["dashAsBonusAction", "dashBonus"]].forEach(function (_ref24) {
+      var _ref25 = _slicedToArray(_ref24, 2),
+        from = _ref25[0],
+        to = _ref25[1];
       if (e[from]) out[to] = true;
     });
     if (ABILITIES.includes(e.advantageOnChecks) || isPh(e.advantageOnChecks)) out.checkAdv = e.advantageOnChecks;
     if (ABILITIES.includes(e.disadvantageOnSaves) || isPh(e.disadvantageOnSaves)) out.saveDis = e.disadvantageOnSaves;
     if (e.repeatSaveEachTurn === "start" || e.repeatSaveEachTurn === "end") out.saveEnds = e.repeatSaveEachTurn;
     if (+e.sizeChange === 1 || +e.sizeChange === -1) out.sizeStep = +e.sizeChange;
-    [["acMinimum", "acMin"], ["acBase", "acBase"], ["weaponAttackBonus", "weaponAtk"], ["duplicates", "images"]].forEach(function (_ref24) {
-      var _ref25 = _slicedToArray(_ref24, 2),
-        from = _ref25[0],
-        to = _ref25[1];
+    [["acMinimum", "acMin"], ["acBase", "acBase"], ["weaponAttackBonus", "weaponAtk"], ["duplicates", "images"]].forEach(function (_ref26) {
+      var _ref27 = _slicedToArray(_ref26, 2),
+        from = _ref27[0],
+        to = _ref27[1];
       if (e[from] != null) {
         var _n4 = evalFormula(e[from], ctx);
         if (Number.isFinite(_n4) && _n4) out[to] = _n4;
       }
     });
-    [["immuneDamage", "immuneDmg"], ["vulnerableTo", "vuln"], ["conditionImmunities", "condImmune"]].forEach(function (_ref26) {
-      var _ref27 = _slicedToArray(_ref26, 2),
-        from = _ref27[0],
-        to = _ref27[1];
+    [["immuneDamage", "immuneDmg"], ["vulnerableTo", "vuln"], ["conditionImmunities", "condImmune"]].forEach(function (_ref28) {
+      var _ref29 = _slicedToArray(_ref28, 2),
+        from = _ref29[0],
+        to = _ref29[1];
       var l = pArr(e[from]).map(function (t) {
         return pStr(t, 20);
       }).filter(Boolean);
@@ -4158,10 +4224,10 @@ function compileOutcome(o, ctx) {
         if (wd.type) out.weaponDmgType = pStr(wd.type, 20);
       }
     }
-    [["cannotTakeBonusActions", "noBonus"], ["disadvantageAttackingUser", "atkDisVs"], ["maximumHealing", "maxHeal"], ["hitPointMaximumProtected", "noHpMaxDown"], ["onlyAtZeroHitPoints", "healAt0"], ["breaksConcentration", "breakConc"], ["damageOnUsersTurn", "turnOfCaster"]].forEach(function (_ref28) {
-      var _ref29 = _slicedToArray(_ref28, 2),
-        from = _ref29[0],
-        to = _ref29[1];
+    [["cannotTakeBonusActions", "noBonus"], ["disadvantageAttackingUser", "atkDisVs"], ["maximumHealing", "maxHeal"], ["hitPointMaximumProtected", "noHpMaxDown"], ["onlyAtZeroHitPoints", "healAt0"], ["breaksConcentration", "breakConc"], ["damageOnUsersTurn", "turnOfCaster"]].forEach(function (_ref30) {
+      var _ref31 = _slicedToArray(_ref30, 2),
+        from = _ref31[0],
+        to = _ref31[1];
       if (e[from]) out[to] = true;
     });
     if (e.endsOnDamageFromUserSide) out.endsOnDamageBy = "caster";
@@ -5178,19 +5244,19 @@ function checkPack(raw) {
     }).filter(Boolean);
     if (se.length) out.se = se;
     if (m.passivePerception != null) out.pp = parseInt(m.passivePerception, 10) || 10;
-    [["resistances", "res"], ["immunities", "imm"], ["vulnerabilities", "vul"], ["conditionImmunities", "ci"]].forEach(function (_ref30) {
-      var _ref31 = _slicedToArray(_ref30, 2),
-        k = _ref31[0],
-        j = _ref31[1];
+    [["resistances", "res"], ["immunities", "imm"], ["vulnerabilities", "vul"], ["conditionImmunities", "ci"]].forEach(function (_ref32) {
+      var _ref33 = _slicedToArray(_ref32, 2),
+        k = _ref33[0],
+        j = _ref33[1];
       var v = pArr(m[k]).map(function (x) {
         return pStr(x, 30);
       }).filter(Boolean).join(", ") || pStr(typeof m[k] === "string" ? m[k] : "", 200);
       if (v) out[j] = v;
     });
-    [["traits", "tr"], ["bonusActions", "ba"], ["reactions", "re"], ["legendaryActions", "la"]].forEach(function (_ref32) {
-      var _ref33 = _slicedToArray(_ref32, 2),
-        k = _ref33[0],
-        j = _ref33[1];
+    [["traits", "tr"], ["bonusActions", "ba"], ["reactions", "re"], ["legendaryActions", "la"]].forEach(function (_ref34) {
+      var _ref35 = _slicedToArray(_ref34, 2),
+        k = _ref35[0],
+        j = _ref35[1];
       var v = named(m[k]);
       if (v.length) out[j] = v;
     });
@@ -5235,7 +5301,46 @@ function checkPack(raw) {
     counts: counts
   };
 }
+// Where each homebrew option came from: "kind:name" to the Content Pack's name, for the DM's Homebrew list
+var HB_SRC = {};
 function mergePack(pack) {
+  {
+    var pn = pStr(pack.name, 48).trim() || "Content Pack",
+      put = function put(k, n) {
+        if (n) HB_SRC[k + ":" + n] = pn;
+      };
+    Object.keys(pack.classes || {}).forEach(function (n) {
+      return put("class", n);
+    });
+    Object.values(pack.classes || {}).forEach(function (c) {
+      return Object.keys(c && c.subclasses || {}).forEach(function (n) {
+        return put("subclass", n);
+      });
+    });
+    Object.values(pack.subclasses || {}).forEach(function (o) {
+      return Object.keys(o || {}).forEach(function (n) {
+        return put("subclass", n);
+      });
+    });
+    Object.keys(pack.species || {}).forEach(function (n) {
+      return put("species", n);
+    });
+    Object.keys(pack.backgrounds || {}).forEach(function (n) {
+      return put("background", n);
+    });
+    Object.keys(pack.feats || {}).forEach(function (n) {
+      return put("feat", n);
+    });
+    (pack.items || []).forEach(function (it) {
+      return put("item", it && it.name);
+    });
+    (pack.spells || []).forEach(function (sp) {
+      return put("spell", sp && sp.name);
+    });
+    (pack.abilities || []).forEach(function (ab) {
+      return put("ability", ab && ab.name);
+    });
+  }
   Object.assign(CLASSES, JSON.parse(JSON.stringify(pack.classes)));
   Object.keys(pack.classes).forEach(function (cn) {
     // the class's own tables
@@ -5346,9 +5451,9 @@ var INSTALLED_PACKS = [];
 // Installed packs are merged in at the bottom of this script, once every list they add to exists.
 
 // The Enable / Disable Content button at the top of the page, and the list it opens.
-function ContentSwitch(_ref34) {
-  var colors = _ref34.colors,
-    fontDisplay = _ref34.fontDisplay;
+function ContentSwitch(_ref36) {
+  var colors = _ref36.colors,
+    fontDisplay = _ref36.fontDisplay;
   var _useState11 = useState(false),
     _useState12 = _slicedToArray(_useState11, 2),
     open = _useState12[0],
@@ -5504,10 +5609,10 @@ function ContentSwitch(_ref34) {
     }
   }, "Click anywhere else to close. Changes take effect when it closes. Add content on the Content Packs tab.")));
 }
-function ContentPacksTab(_ref35) {
-  var colors = _ref35.colors,
-    fontDisplay = _ref35.fontDisplay,
-    sheetActions = _ref35.sheetActions;
+function ContentPacksTab(_ref37) {
+  var colors = _ref37.colors,
+    fontDisplay = _ref37.fontDisplay,
+    sheetActions = _ref37.sheetActions;
   var inputRef = useRef(null);
   var _useState15 = useState("Homebrew"),
     _useState16 = _slicedToArray(_useState15, 2),
@@ -5642,14 +5747,14 @@ function ContentPacksTab(_ref35) {
     reloadHere();
   };
   var countText = function countText(c) {
-    return Object.entries(c).filter(function (_ref36) {
-      var _ref37 = _slicedToArray(_ref36, 2),
-        n = _ref37[1];
-      return n;
-    }).map(function (_ref38) {
+    return Object.entries(c).filter(function (_ref38) {
       var _ref39 = _slicedToArray(_ref38, 2),
-        k = _ref39[0],
         n = _ref39[1];
+      return n;
+    }).map(function (_ref40) {
+      var _ref41 = _slicedToArray(_ref40, 2),
+        k = _ref41[0],
+        n = _ref41[1];
       return "".concat(n, " ").concat(k);
     }).join(", ") || "nothing";
   };
@@ -6685,22 +6790,22 @@ function weaponActions(weaponNames, ctx, d, featNames, mastered, proficient) {
   });
   return out;
 }
-function GearSection(_ref40) {
-  var inventory = _ref40.inventory,
-    armor = _ref40.armor,
-    setArmor = _ref40.setArmor,
-    shield = _ref40.shield,
-    setShield = _ref40.setShield,
-    weapons = _ref40.weapons,
-    setWeapons = _ref40.setWeapons,
-    ac = _ref40.ac,
-    colors = _ref40.colors,
-    fontDisplay = _ref40.fontDisplay,
-    masteries = _ref40.masteries,
-    setMasteries = _ref40.setMasteries,
-    masteryCount = _ref40.masteryCount,
-    custom = _ref40.custom,
-    glow = _ref40.glow;
+function GearSection(_ref42) {
+  var inventory = _ref42.inventory,
+    armor = _ref42.armor,
+    setArmor = _ref42.setArmor,
+    shield = _ref42.shield,
+    setShield = _ref42.setShield,
+    weapons = _ref42.weapons,
+    setWeapons = _ref42.setWeapons,
+    ac = _ref42.ac,
+    colors = _ref42.colors,
+    fontDisplay = _ref42.fontDisplay,
+    masteries = _ref42.masteries,
+    setMasteries = _ref42.setMasteries,
+    masteryCount = _ref42.masteryCount,
+    custom = _ref42.custom,
+    glow = _ref42.glow;
   var sel = _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
     width: 260
   });
@@ -7403,10 +7508,10 @@ function CharacterSheet() {
   };
   var asiBonuses = useMemo(function () {
     var out = {};
-    Object.entries(asiChoices).forEach(function (_ref41) {
-      var _ref42 = _slicedToArray(_ref41, 2),
-        k = _ref42[0],
-        choice = _ref42[1];
+    Object.entries(asiChoices).forEach(function (_ref43) {
+      var _ref44 = _slicedToArray(_ref43, 2),
+        k = _ref44[0],
+        choice = _ref44[1];
       if (!asiOf(k)) return; // not reached (a lower level, or a class no longer taken)
       if (choice && choice.type === "asi" && choice.abilities) {
         choice.abilities.forEach(function (a) {
@@ -7497,10 +7602,10 @@ function CharacterSheet() {
       var pk = featPicks[sl.id] || {};
       add(sl.id, sl.label, sl.fixed != null ? sl.fixed : pk.name, pk.choices, sl.cats, false);
     });
-    Object.entries(asiChoices).forEach(function (_ref43) {
-      var _ref44 = _slicedToArray(_ref43, 2),
-        lvl = _ref44[0],
-        c = _ref44[1];
+    Object.entries(asiChoices).forEach(function (_ref45) {
+      var _ref46 = _slicedToArray(_ref45, 2),
+        lvl = _ref46[0],
+        c = _ref46[1];
       var a = asiOf(lvl);
       if (!a || !c || c.type !== "feat") return;
       add("asi" + lvl, a.label, c.name, c.choices, ["General", "Origin"].concat(a.lvl >= 19 ? ["Epic Boon"] : []), false);
@@ -7760,10 +7865,10 @@ function CharacterSheet() {
       });
     }); // another class's features, marked with where they came from
     // Ability Score Improvements
-    Object.entries(asiChoices).forEach(function (_ref45) {
-      var _ref46 = _slicedToArray(_ref45, 2),
-        lvl = _ref46[0],
-        choice = _ref46[1];
+    Object.entries(asiChoices).forEach(function (_ref47) {
+      var _ref48 = _slicedToArray(_ref47, 2),
+        lvl = _ref48[0],
+        choice = _ref48[1];
       var a = asiOf(lvl);
       if (!a || !choice) return;
       if (choice.type === "asi" && choice.abilities && choice.abilities.filter(Boolean).length) {
@@ -7951,10 +8056,10 @@ function CharacterSheet() {
       if (e.sp && e.problem) out.push("Spell ".concat(e.sp.n, ": ").concat(e.problem));
     });
     if (maxHp + hpDelta > possibleMaxHp) out.push("Hit Points: ".concat(maxHp + hpDelta, ", above the highest possible ").concat(possibleMaxHp));
-    [["ac", "Armor Class"], ["initiative", "Initiative"], ["speed", "Speed"]].forEach(function (_ref47) {
-      var _ref48 = _slicedToArray(_ref47, 2),
-        k = _ref48[0],
-        l = _ref48[1];
+    [["ac", "Armor Class"], ["initiative", "Initiative"], ["speed", "Speed"]].forEach(function (_ref49) {
+      var _ref50 = _slicedToArray(_ref49, 2),
+        k = _ref50[0],
+        l = _ref50[1];
       if (statAdj[k]) out.push("".concat(l, ": additional modifier ").concat(fmt(statAdj[k])));
     });
     masteries.slice(derived.masteryCount).forEach(function (n) {
@@ -8213,9 +8318,9 @@ function CharacterSheet() {
     spellInfo.list.forEach(function (e) {
       return push(e.sp, tune);
     });
-    mcSpellInfo.forEach(function (_ref49) {
-      var x = _ref49.x,
-        info = _ref49.info;
+    mcSpellInfo.forEach(function (_ref51) {
+      var x = _ref51.x,
+        info = _ref51.info;
       var ab = CLASSES[x.name].spellAbility,
         m = ab ? finalMods[ab] : 0,
         dcB = spellCtx.SPELLDC - 8 - profBonus - spellCtx.SPELLMOD,
@@ -8538,10 +8643,10 @@ function CharacterSheet() {
       ed = palEdits[id] || {},
       ctx = ctxOf(e);
     var stats = {};
-    Object.entries(pObj(cp.stats)).slice(0, 8).forEach(function (_ref50) {
-      var _ref51 = _slicedToArray(_ref50, 2),
-        k = _ref51[0],
-        f = _ref51[1];
+    Object.entries(pObj(cp.stats)).slice(0, 8).forEach(function (_ref52) {
+      var _ref53 = _slicedToArray(_ref52, 2),
+        k = _ref53[0],
+        f = _ref53[1];
       var n = evalFormula(f, ctx);
       if (Number.isFinite(n)) stats[pStr(k, 12)] = Math.round(n);
     });
@@ -8653,10 +8758,10 @@ function CharacterSheet() {
       setHitDiceUsed(0);
       setHdUsedBy({});
     }
-    Object.entries(pools).forEach(function (_ref52) {
-      var _ref53 = _slicedToArray(_ref52, 2),
-        name = _ref53[0],
-        q = _ref53[1];
+    Object.entries(pools).forEach(function (_ref54) {
+      var _ref55 = _slicedToArray(_ref54, 2),
+        name = _ref55[0],
+        q = _ref55[1];
       if (_long || q.recharge === "short") summary.push("".concat(name, ": back to ").concat(q.max));else if (q.shortRegain) summary.push("".concat(name, ": ").concat(q.shortRegain, " use back"));
     });
     var all = [].concat(_toConsumableArray(sheetActions), _toConsumableArray(spellActions));
@@ -9017,6 +9122,50 @@ function CharacterSheet() {
         return allSkillProfs.includes(k);
       }),
       customizations: customizations,
+      homebrew: function () {
+        var out = [],
+          add = function add(kind, name, text) {
+            var pk = HB_SRC[kind.toLowerCase() + ":" + name];
+            if (pk && !out.some(function (x) {
+              return x.kind === kind && x.name === name;
+            })) out.push(_objectSpread({
+              kind: kind,
+              name: name,
+              pack: pk
+            }, text ? {
+              text: String(text).slice(0, 600)
+            } : {}));
+          };
+        [className].concat(_toConsumableArray(mcList.map(function (x) {
+          return x.name;
+        }))).forEach(function (n) {
+          return add("Class", n);
+        });
+        [subclassName].concat(_toConsumableArray(mcList.map(function (x) {
+          return x.sub;
+        }))).filter(Boolean).forEach(function (n) {
+          return add("Subclass", n);
+        });
+        add("Species", species);
+        add("Background", background);
+        takenFeats.forEach(function (f) {
+          return add("Feat", f.name, f.def && f.def.text || ORIGIN_FEATS[f.name]);
+        });
+        [].concat(_toConsumableArray(spells), _toConsumableArray(mcSpellNames)).filter(Boolean).forEach(function (n) {
+          return add("Spell", n);
+        });
+        characterItems.forEach(function (i) {
+          return i && add("Item", i.name, i.description);
+        });
+        featureLedger.forEach(function (f) {
+          var nm = String(f.text).split(": ")[0];
+          add("Ability", nm, String(f.detail || f.text).slice(nm.length + 2));
+        });
+        mech.entries.forEach(function (en) {
+          if (en && en.name) add("Ability", en.name, en.description || en.text || (en.companion ? "Gives a companion: ".concat(en.companion.name || "") : ""));
+        });
+        return out.slice(0, 80);
+      }(),
       extraSpells: spellExtra.filter(function (n) {
         return spells.includes(n) || mcSpellNames.includes(n);
       }),
@@ -9345,15 +9494,15 @@ function CharacterSheet() {
       return ALL_SKILLS.includes(k);
     }));
     setHpDelta(Math.max(-2000, Math.min(2000, parseInt(s.hpDelta, 10) || 0)));
-    setHpClass(s.hpClass && _typeof(s.hpClass) === "object" ? Object.fromEntries(Object.entries(s.hpClass).filter(function (_ref54) {
-      var _ref55 = _slicedToArray(_ref54, 2),
-        k = _ref55[0],
-        v = _ref55[1];
-      return Number.isFinite(+v);
-    }).map(function (_ref56) {
+    setHpClass(s.hpClass && _typeof(s.hpClass) === "object" ? Object.fromEntries(Object.entries(s.hpClass).filter(function (_ref56) {
       var _ref57 = _slicedToArray(_ref56, 2),
         k = _ref57[0],
         v = _ref57[1];
+      return Number.isFinite(+v);
+    }).map(function (_ref58) {
+      var _ref59 = _slicedToArray(_ref58, 2),
+        k = _ref59[0],
+        v = _ref59[1];
       return [k, Math.max(-500, Math.min(500, Math.round(+v)))];
     })) : {});
     var sa = {};
@@ -9955,10 +10104,10 @@ function CharacterSheet() {
     return startRest("long");
   }, true]].filter(function (x) {
     return x[2];
-  }).map(function (_ref59) {
-    var _ref60 = _slicedToArray(_ref59, 2),
-      label = _ref60[0],
-      fn = _ref60[1];
+  }).map(function (_ref61) {
+    var _ref62 = _slicedToArray(_ref61, 2),
+      label = _ref62[0],
+      fn = _ref62[1];
     return /*#__PURE__*/React.createElement("button", {
       key: label,
       onClick: fn,
@@ -10028,11 +10177,11 @@ function CharacterSheet() {
     return openPlayerCode(codeInput);
   }, !codeInput], ["New Player Code", function () {
     return openPlayerCode(makeCode());
-  }, false]].map(function (_ref61) {
-    var _ref62 = _slicedToArray(_ref61, 3),
-      label = _ref62[0],
-      fn = _ref62[1],
-      off = _ref62[2];
+  }, false]].map(function (_ref63) {
+    var _ref64 = _slicedToArray(_ref63, 3),
+      label = _ref64[0],
+      fn = _ref64[1],
+      off = _ref64[2];
     return /*#__PURE__*/React.createElement("button", {
       key: label,
       onClick: fn,
@@ -10066,10 +10215,10 @@ function CharacterSheet() {
       background: colors.ink,
       borderBottom: "1px solid ".concat(colors.brass, "55")
     }
-  }, [["AC", armorClass], ["Initiative", fmt(initiative)], ["Speed", "".concat(speed, " ft")], ["HP", effectiveMaxHp], ["Prof Bonus", fmt(profBonus)], ["Passive Perception", passivePerception]].map(function (_ref63) {
-    var _ref64 = _slicedToArray(_ref63, 2),
-      label = _ref64[0],
-      val = _ref64[1];
+  }, [["AC", armorClass], ["Initiative", fmt(initiative)], ["Speed", "".concat(speed, " ft")], ["HP", effectiveMaxHp], ["Prof Bonus", fmt(profBonus)], ["Passive Perception", passivePerception]].map(function (_ref65) {
+    var _ref66 = _slicedToArray(_ref65, 2),
+      label = _ref66[0],
+      val = _ref66[1];
     return /*#__PURE__*/React.createElement("div", {
       key: label,
       style: {
@@ -10146,10 +10295,10 @@ function CharacterSheet() {
       borderBottom: "2px solid ".concat(colors.brass),
       overflowX: "auto"
     }
-  }, [["identity", "Identity"], ["abilities", "Abilities"], ["skills", "Skills & Saves"], ["combat", "Combat"], ["features", "Features"], ["spells", "Spellcasting"], ["inventory", "Inventory"], ["journal", "Journal"], ["companions", "Companions"], ["packs", "Content Packs"], ["sheet", "Character Sheet"]].map(function (_ref65) {
-    var _ref66 = _slicedToArray(_ref65, 2),
-      key = _ref66[0],
-      label = _ref66[1];
+  }, [["identity", "Identity"], ["abilities", "Abilities"], ["skills", "Skills & Saves"], ["combat", "Combat"], ["features", "Features"], ["spells", "Spellcasting"], ["inventory", "Inventory"], ["journal", "Journal"], ["companions", "Companions"], ["packs", "Content Packs"], ["sheet", "Character Sheet"]].map(function (_ref67) {
+    var _ref68 = _slicedToArray(_ref67, 2),
+      key = _ref68[0],
+      label = _ref68[1];
     return /*#__PURE__*/React.createElement("button", {
       key: key,
       className: "tab-btn",
@@ -10592,10 +10741,10 @@ function CharacterSheet() {
           fontSize: 13,
           opacity: 0.85
         }
-      }, m.t, " \xB7 AC ", p.stats && p.stats.ac || m.ac, " \xB7 ", p.stats && p.stats.hp || m.hp, " HP \xB7 ", m.sp) : what === "own" && !auto ? [["ac", "AC"], ["hp", "HP"], ["speed", "Speed"]].map(function (_ref67) {
-        var _ref68 = _slicedToArray(_ref67, 2),
-          k = _ref68[0],
-          l = _ref68[1];
+      }, m.t, " \xB7 AC ", p.stats && p.stats.ac || m.ac, " \xB7 ", p.stats && p.stats.hp || m.hp, " HP \xB7 ", m.sp) : what === "own" && !auto ? [["ac", "AC"], ["hp", "HP"], ["speed", "Speed"]].map(function (_ref69) {
+        var _ref70 = _slicedToArray(_ref69, 2),
+          k = _ref70[0],
+          l = _ref70[1];
         return /*#__PURE__*/React.createElement("label", {
           key: k,
           style: {
@@ -10617,10 +10766,10 @@ function CharacterSheet() {
           fontSize: 13,
           opacity: 0.85
         }
-      }, Object.entries(p.stats).map(function (_ref69) {
-        var _ref70 = _slicedToArray(_ref69, 2),
-          k = _ref70[0],
-          v = _ref70[1];
+      }, Object.entries(p.stats).map(function (_ref71) {
+        var _ref72 = _slicedToArray(_ref71, 2),
+          k = _ref72[0],
+          v = _ref72[1];
         return "".concat(k.toUpperCase(), " ").concat(v);
       }).join(" · "), " (grows with your level)") : null, !isSheet && /*#__PURE__*/React.createElement("label", {
         style: {
@@ -10656,10 +10805,10 @@ function CharacterSheet() {
           });
         },
         style: field
-      }, INIT.map(function (_ref71) {
-        var _ref72 = _slicedToArray(_ref71, 2),
-          k = _ref72[0],
-          t = _ref72[1];
+      }, INIT.map(function (_ref73) {
+        var _ref74 = _slicedToArray(_ref73, 2),
+          k = _ref74[0],
+          t = _ref74[1];
         return /*#__PURE__*/React.createElement("option", {
           key: k,
           value: k
@@ -10905,7 +11054,7 @@ function CharacterSheet() {
     }, "Download the sheet"), /*#__PURE__*/React.createElement("button", {
       "data-testid": "sheet-print",
       onClick: function onClick() {
-        var f = document.querySelector("[data-testid=sheet-print-frame]");
+        var f = document.querySelector("[data-testid=sheet-frame]");
         if (f && f.contentWindow) f.contentWindow.print();
       },
       style: {
@@ -10922,29 +11071,16 @@ function CharacterSheet() {
         fontSize: 13,
         opacity: 0.8
       }
-    }, "This is the sheet as it looks in the Combat Resolver, page by page. The download and the printout are one long page that opens in any web browser, picture included.")), /*#__PURE__*/React.createElement("iframe", {
+    }, "Use the arrows to turn the pages. Printing gives every page; the download is one file that opens in any web browser.")), /*#__PURE__*/React.createElement("iframe", {
       title: "Character sheet",
       "data-testid": "sheet-frame",
-      key: sheetKey(d),
-      src: "resolver.html#sheet",
-      style: {
-        width: "100%",
-        height: "82vh",
-        border: "1px solid ".concat(colors.brass),
-        borderRadius: 8,
-        background: colors.ink
-      }
-    }), /*#__PURE__*/React.createElement("iframe", {
-      title: "Character sheet to print",
-      "data-testid": "sheet-print-frame",
       srcDoc: html,
       style: {
-        position: "absolute",
-        width: 1,
-        height: 1,
-        left: -9999,
-        top: 0,
-        border: 0
+        width: "100%",
+        height: "86vh",
+        border: "1px solid ".concat(colors.brass),
+        borderRadius: 8,
+        background: "#d9d9d9"
       }
     }));
   }(), tab === "identity" && /*#__PURE__*/React.createElement(IdentityTab, {
@@ -11286,11 +11422,11 @@ function CharacterSheet() {
 
 /* ============ TAB COMPONENTS ============ */
 
-function Section(_ref73) {
-  var title = _ref73.title,
-    colors = _ref73.colors,
-    fontDisplay = _ref73.fontDisplay,
-    children = _ref73.children;
+function Section(_ref75) {
+  var title = _ref75.title,
+    colors = _ref75.colors,
+    fontDisplay = _ref75.fontDisplay,
+    children = _ref75.children;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 24
@@ -11309,12 +11445,12 @@ function Section(_ref73) {
   }, title), children);
 }
 var FOLDED = {};
-function FoldSection(_ref74) {
-  var id = _ref74.id,
-    title = _ref74.title,
-    colors = _ref74.colors,
-    fontDisplay = _ref74.fontDisplay,
-    children = _ref74.children;
+function FoldSection(_ref76) {
+  var id = _ref76.id,
+    title = _ref76.title,
+    colors = _ref76.colors,
+    fontDisplay = _ref76.fontDisplay,
+    children = _ref76.children;
   var _React$useState = React.useState(!!FOLDED[id]),
     _React$useState2 = _slicedToArray(_React$useState, 2),
     shut = _React$useState2[0],
@@ -11355,56 +11491,56 @@ function fieldStyle(colors) {
   };
 }
 var XP_LEVELS = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000]; // Experience Points needed for each level
-function IdentityTab(_ref75) {
-  var _ref75$mcCustom = _ref75.mcCustom,
-    mcCustom = _ref75$mcCustom === void 0 ? false : _ref75$mcCustom,
-    _ref75$extraClasses = _ref75.extraClasses,
-    extraClasses = _ref75$extraClasses === void 0 ? [] : _ref75$extraClasses,
-    _ref75$setExtraClasse = _ref75.setExtraClasses,
-    setExtraClasses = _ref75$setExtraClasse === void 0 ? function () {} : _ref75$setExtraClasse,
-    _ref75$totalLevel = _ref75.totalLevel,
-    totalLevel = _ref75$totalLevel === void 0 ? 1 : _ref75$totalLevel,
-    _ref75$mcScores = _ref75.mcScores,
-    mcScores = _ref75$mcScores === void 0 ? {} : _ref75$mcScores,
-    _ref75$mcChoices = _ref75.mcChoices,
-    mcChoices = _ref75$mcChoices === void 0 ? {} : _ref75$mcChoices,
-    _ref75$setMcChoices = _ref75.setMcChoices,
-    setMcChoices = _ref75$setMcChoices === void 0 ? function () {} : _ref75$setMcChoices,
-    _ref75$attnEdge = _ref75.attnEdge,
-    attnEdge = _ref75$attnEdge === void 0 ? function () {
+function IdentityTab(_ref77) {
+  var _ref77$mcCustom = _ref77.mcCustom,
+    mcCustom = _ref77$mcCustom === void 0 ? false : _ref77$mcCustom,
+    _ref77$extraClasses = _ref77.extraClasses,
+    extraClasses = _ref77$extraClasses === void 0 ? [] : _ref77$extraClasses,
+    _ref77$setExtraClasse = _ref77.setExtraClasses,
+    setExtraClasses = _ref77$setExtraClasse === void 0 ? function () {} : _ref77$setExtraClasse,
+    _ref77$totalLevel = _ref77.totalLevel,
+    totalLevel = _ref77$totalLevel === void 0 ? 1 : _ref77$totalLevel,
+    _ref77$mcScores = _ref77.mcScores,
+    mcScores = _ref77$mcScores === void 0 ? {} : _ref77$mcScores,
+    _ref77$mcChoices = _ref77.mcChoices,
+    mcChoices = _ref77$mcChoices === void 0 ? {} : _ref77$mcChoices,
+    _ref77$setMcChoices = _ref77.setMcChoices,
+    setMcChoices = _ref77$setMcChoices === void 0 ? function () {} : _ref77$setMcChoices,
+    _ref77$attnEdge = _ref77.attnEdge,
+    attnEdge = _ref77$attnEdge === void 0 ? function () {
       return {};
-    } : _ref75$attnEdge,
-    gold = _ref75.gold,
-    setGold = _ref75.setGold,
-    xp = _ref75.xp,
-    setXp = _ref75.setXp,
-    className = _ref75.className,
-    setClassName = _ref75.setClassName,
-    subclassName = _ref75.subclassName,
-    setSubclassName = _ref75.setSubclassName,
-    level = _ref75.level,
-    setLevel = _ref75.setLevel,
-    species = _ref75.species,
-    setSpecies = _ref75.setSpecies,
-    background = _ref75.background,
-    setBackground = _ref75.setBackground,
-    alignment = _ref75.alignment,
-    setAlignment = _ref75.setAlignment,
-    cls = _ref75.cls,
-    colors = _ref75.colors,
-    fontDisplay = _ref75.fontDisplay,
-    bgBonusMode = _ref75.bgBonusMode,
-    setBgBonusMode = _ref75.setBgBonusMode,
-    bgBonusChoices = _ref75.bgBonusChoices,
-    setBgBonusChoices = _ref75.setBgBonusChoices,
-    pinnedItems = _ref75.pinnedItems,
-    setPinnedItems = _ref75.setPinnedItems,
-    inv = _ref75.inv,
-    bgEff = _ref75.bgEff,
-    originCustom = _ref75.originCustom,
-    setOriginCustom = _ref75.setOriginCustom,
-    lineage = _ref75.lineage,
-    setLineage = _ref75.setLineage;
+    } : _ref77$attnEdge,
+    gold = _ref77.gold,
+    setGold = _ref77.setGold,
+    xp = _ref77.xp,
+    setXp = _ref77.setXp,
+    className = _ref77.className,
+    setClassName = _ref77.setClassName,
+    subclassName = _ref77.subclassName,
+    setSubclassName = _ref77.setSubclassName,
+    level = _ref77.level,
+    setLevel = _ref77.setLevel,
+    species = _ref77.species,
+    setSpecies = _ref77.setSpecies,
+    background = _ref77.background,
+    setBackground = _ref77.setBackground,
+    alignment = _ref77.alignment,
+    setAlignment = _ref77.setAlignment,
+    cls = _ref77.cls,
+    colors = _ref77.colors,
+    fontDisplay = _ref77.fontDisplay,
+    bgBonusMode = _ref77.bgBonusMode,
+    setBgBonusMode = _ref77.setBgBonusMode,
+    bgBonusChoices = _ref77.bgBonusChoices,
+    setBgBonusChoices = _ref77.setBgBonusChoices,
+    pinnedItems = _ref77.pinnedItems,
+    setPinnedItems = _ref77.setPinnedItems,
+    inv = _ref77.inv,
+    bgEff = _ref77.bgEff,
+    originCustom = _ref77.originCustom,
+    setOriginCustom = _ref77.setOriginCustom,
+    lineage = _ref77.lineage,
+    setLineage = _ref77.setLineage;
   var bg = bgEff;
   var _useState165 = useState(false),
     _useState166 = _slicedToArray(_useState165, 2),
@@ -12029,12 +12165,12 @@ function IdentityTab(_ref75) {
     }
   }, /*#__PURE__*/React.createElement("strong", null, "Origin Feat:"), " ", bg.feat, /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("strong", null, "Skill Proficiencies:"), " ", bg.skills.join(", "), /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("strong", null, "Tool Proficiency:"), " ", bg.tool))));
 }
-function PinnedItemRow(_ref76) {
-  var item = _ref76.item,
-    isMagic = _ref76.isMagic,
-    dotColor = _ref76.dotColor,
-    onRemove = _ref76.onRemove,
-    colors = _ref76.colors;
+function PinnedItemRow(_ref78) {
+  var item = _ref78.item,
+    isMagic = _ref78.isMagic,
+    dotColor = _ref78.dotColor,
+    onRemove = _ref78.onRemove,
+    colors = _ref78.colors;
   var _React$useState3 = React.useState(false),
     _React$useState4 = _slicedToArray(_React$useState3, 2),
     hovered = _React$useState4[0],
@@ -12138,10 +12274,10 @@ var attnBadge = function attnBadge(n, title) {
 };
 var CUSTOM_RED = "#E5484D"; // anything changed beyond the rules: red outline when added, red letters when removed
 
-function SourceTag(_ref77) {
-  var text = _ref77.text,
-    custom = _ref77.custom,
-    colors = _ref77.colors;
+function SourceTag(_ref79) {
+  var text = _ref79.text,
+    custom = _ref79.custom,
+    colors = _ref79.colors;
   return /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
@@ -12155,48 +12291,48 @@ function SourceTag(_ref77) {
     }
   }, text);
 }
-function AbilitiesTab(_ref78) {
-  var featBonuses = _ref78.featBonuses,
-    pointBuy = _ref78.pointBuy,
-    updatePointBuy = _ref78.updatePointBuy,
-    pointBuyRemaining = _ref78.pointBuyRemaining,
-    finalScores = _ref78.finalScores,
-    finalMods = _ref78.finalMods,
-    bgBonuses = _ref78.bgBonuses,
-    asiBonuses = _ref78.asiBonuses,
-    colors = _ref78.colors,
-    fontDisplay = _ref78.fontDisplay,
-    custom = _ref78.custom,
-    abilityMode = _ref78.abilityMode,
-    setAbilityMode = _ref78.setAbilityMode,
-    customScores = _ref78.customScores,
-    setCustomScores = _ref78.setCustomScores,
-    abilityAdj = _ref78.abilityAdj,
-    setAbilityAdj = _ref78.setAbilityAdj,
-    _ref78$bgName = _ref78.bgName,
-    bgName = _ref78$bgName === void 0 ? "" : _ref78$bgName,
-    _ref78$bgAbilities = _ref78.bgAbilities,
-    bgAbilities = _ref78$bgAbilities === void 0 ? [] : _ref78$bgAbilities,
-    _ref78$bgBonusMode = _ref78.bgBonusMode,
-    bgBonusMode = _ref78$bgBonusMode === void 0 ? "2-1" : _ref78$bgBonusMode,
-    _ref78$setBgBonusMode = _ref78.setBgBonusMode,
-    setBgBonusMode = _ref78$setBgBonusMode === void 0 ? function () {} : _ref78$setBgBonusMode,
-    _ref78$bgBonusChoices = _ref78.bgBonusChoices,
-    bgBonusChoices = _ref78$bgBonusChoices === void 0 ? [] : _ref78$bgBonusChoices,
-    _ref78$setBgBonusChoi = _ref78.setBgBonusChoices,
-    setBgBonusChoices = _ref78$setBgBonusChoi === void 0 ? function () {} : _ref78$setBgBonusChoi,
-    _ref78$reachedAsiLeve = _ref78.reachedAsiLevels,
-    reachedAsiLevels = _ref78$reachedAsiLeve === void 0 ? [] : _ref78$reachedAsiLeve,
-    _ref78$asiChoices = _ref78.asiChoices,
-    asiChoices = _ref78$asiChoices === void 0 ? {} : _ref78$asiChoices,
-    _ref78$setAsiType = _ref78.setAsiType,
-    setAsiType = _ref78$setAsiType === void 0 ? function () {} : _ref78$setAsiType,
-    _ref78$setAsiAbilitie = _ref78.setAsiAbilities,
-    setAsiAbilities = _ref78$setAsiAbilitie === void 0 ? function () {} : _ref78$setAsiAbilitie,
-    _ref78$asiLabel = _ref78.asiLabel,
-    asiLabel = _ref78$asiLabel === void 0 ? function (k) {
+function AbilitiesTab(_ref80) {
+  var featBonuses = _ref80.featBonuses,
+    pointBuy = _ref80.pointBuy,
+    updatePointBuy = _ref80.updatePointBuy,
+    pointBuyRemaining = _ref80.pointBuyRemaining,
+    finalScores = _ref80.finalScores,
+    finalMods = _ref80.finalMods,
+    bgBonuses = _ref80.bgBonuses,
+    asiBonuses = _ref80.asiBonuses,
+    colors = _ref80.colors,
+    fontDisplay = _ref80.fontDisplay,
+    custom = _ref80.custom,
+    abilityMode = _ref80.abilityMode,
+    setAbilityMode = _ref80.setAbilityMode,
+    customScores = _ref80.customScores,
+    setCustomScores = _ref80.setCustomScores,
+    abilityAdj = _ref80.abilityAdj,
+    setAbilityAdj = _ref80.setAbilityAdj,
+    _ref80$bgName = _ref80.bgName,
+    bgName = _ref80$bgName === void 0 ? "" : _ref80$bgName,
+    _ref80$bgAbilities = _ref80.bgAbilities,
+    bgAbilities = _ref80$bgAbilities === void 0 ? [] : _ref80$bgAbilities,
+    _ref80$bgBonusMode = _ref80.bgBonusMode,
+    bgBonusMode = _ref80$bgBonusMode === void 0 ? "2-1" : _ref80$bgBonusMode,
+    _ref80$setBgBonusMode = _ref80.setBgBonusMode,
+    setBgBonusMode = _ref80$setBgBonusMode === void 0 ? function () {} : _ref80$setBgBonusMode,
+    _ref80$bgBonusChoices = _ref80.bgBonusChoices,
+    bgBonusChoices = _ref80$bgBonusChoices === void 0 ? [] : _ref80$bgBonusChoices,
+    _ref80$setBgBonusChoi = _ref80.setBgBonusChoices,
+    setBgBonusChoices = _ref80$setBgBonusChoi === void 0 ? function () {} : _ref80$setBgBonusChoi,
+    _ref80$reachedAsiLeve = _ref80.reachedAsiLevels,
+    reachedAsiLevels = _ref80$reachedAsiLeve === void 0 ? [] : _ref80$reachedAsiLeve,
+    _ref80$asiChoices = _ref80.asiChoices,
+    asiChoices = _ref80$asiChoices === void 0 ? {} : _ref80$asiChoices,
+    _ref80$setAsiType = _ref80.setAsiType,
+    setAsiType = _ref80$setAsiType === void 0 ? function () {} : _ref80$setAsiType,
+    _ref80$setAsiAbilitie = _ref80.setAsiAbilities,
+    setAsiAbilities = _ref80$setAsiAbilitie === void 0 ? function () {} : _ref80$setAsiAbilitie,
+    _ref80$asiLabel = _ref80.asiLabel,
+    asiLabel = _ref80$asiLabel === void 0 ? function (k) {
       return "Level ".concat(k);
-    } : _ref78$asiLabel;
+    } : _ref80$asiLabel;
   var _useState167 = useState(false),
     _useState168 = _slicedToArray(_useState167, 2),
     editing = _useState168[0],
@@ -12608,24 +12744,24 @@ function AbilitiesTab(_ref78) {
     }
   }, "Ability Score Improvements come at level 4 and later. Picking the same ability twice gives it +2.")))));
 }
-function SkillsTab(_ref79) {
-  var expertiseMax = _ref79.expertiseMax,
-    expertiseList = _ref79.expertiseList,
-    expertiseCustom = _ref79.expertiseCustom,
-    cls = _ref79.cls,
-    skillInfo = _ref79.skillInfo,
-    toggleSkill = _ref79.toggleSkill,
-    addSkill = _ref79.addSkill,
-    removeSkill = _ref79.removeSkill,
-    skillExpertise = _ref79.skillExpertise,
-    toggleExpertise = _ref79.toggleExpertise,
-    skillMods = _ref79.skillMods,
-    savingThrows = _ref79.savingThrows,
-    saveInfo = _ref79.saveInfo,
-    toggleSave = _ref79.toggleSave,
-    custom = _ref79.custom,
-    colors = _ref79.colors,
-    fontDisplay = _ref79.fontDisplay;
+function SkillsTab(_ref81) {
+  var expertiseMax = _ref81.expertiseMax,
+    expertiseList = _ref81.expertiseList,
+    expertiseCustom = _ref81.expertiseCustom,
+    cls = _ref81.cls,
+    skillInfo = _ref81.skillInfo,
+    toggleSkill = _ref81.toggleSkill,
+    addSkill = _ref81.addSkill,
+    removeSkill = _ref81.removeSkill,
+    skillExpertise = _ref81.skillExpertise,
+    toggleExpertise = _ref81.toggleExpertise,
+    skillMods = _ref81.skillMods,
+    savingThrows = _ref81.savingThrows,
+    saveInfo = _ref81.saveInfo,
+    toggleSave = _ref81.toggleSave,
+    custom = _ref81.custom,
+    colors = _ref81.colors,
+    fontDisplay = _ref81.fontDisplay;
   var pick = _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
     width: "auto",
     cursor: "pointer"
@@ -12706,10 +12842,10 @@ function SkillsTab(_ref79) {
       lineHeight: 1.6
     },
     "data-testid": "skill-choices"
-  }, Object.entries(skillInfo.grantedBy).map(function (_ref80) {
-    var _ref81 = _slicedToArray(_ref80, 2),
-      src = _ref81[0],
-      list = _ref81[1];
+  }, Object.entries(skillInfo.grantedBy).map(function (_ref82) {
+    var _ref83 = _slicedToArray(_ref82, 2),
+      src = _ref83[0],
+      list = _ref83[1];
     return /*#__PURE__*/React.createElement("div", {
       key: src
     }, /*#__PURE__*/React.createElement("strong", null, src), " grants ", list.join(" and "), ".");
@@ -12827,48 +12963,48 @@ function SkillsTab(_ref79) {
     }, fmt(skillMods[skill])));
   }))));
 }
-function CombatTab(_ref82) {
-  var _ref82$hpRows = _ref82.hpRows,
-    hpRows = _ref82$hpRows === void 0 ? [] : _ref82$hpRows,
-    _ref82$conPerLevel = _ref82.conPerLevel,
-    conPerLevel = _ref82$conPerLevel === void 0 ? 0 : _ref82$conPerLevel,
-    totalLevel = _ref82.totalLevel,
-    hitDiceText = _ref82.hitDiceText,
-    possibleMaxHp = _ref82.possibleMaxHp,
-    averageHp = _ref82.averageHp,
-    setHpTotal = _ref82.setHpTotal,
-    statAdj = _ref82.statAdj,
-    setStatAdj = _ref82.setStatAdj,
-    inventory = _ref82.inventory,
-    masteries = _ref82.masteries,
-    setMasteries = _ref82.setMasteries,
-    custom = _ref82.custom,
-    masteryGlow = _ref82.masteryGlow,
-    armor = _ref82.armor,
-    setArmor = _ref82.setArmor,
-    shield = _ref82.shield,
-    setShield = _ref82.setShield,
-    weapons = _ref82.weapons,
-    setWeapons = _ref82.setWeapons,
-    ac = _ref82.ac,
-    sheetActions = _ref82.sheetActions,
-    pools = _ref82.pools,
-    derived = _ref82.derived,
-    cls = _ref82.cls,
-    level = _ref82.level,
-    effectiveMaxHp = _ref82.effectiveMaxHp,
-    currentHp = _ref82.currentHp,
-    setCurrentHp = _ref82.setCurrentHp,
-    tempHp = _ref82.tempHp,
-    setTempHp = _ref82.setTempHp,
-    hitDiceUsed = _ref82.hitDiceUsed,
-    setHitDiceUsed = _ref82.setHitDiceUsed,
-    finalMods = _ref82.finalMods,
-    armorClass = _ref82.armorClass,
-    initiative = _ref82.initiative,
-    speed = _ref82.speed,
-    colors = _ref82.colors,
-    fontDisplay = _ref82.fontDisplay;
+function CombatTab(_ref84) {
+  var _ref84$hpRows = _ref84.hpRows,
+    hpRows = _ref84$hpRows === void 0 ? [] : _ref84$hpRows,
+    _ref84$conPerLevel = _ref84.conPerLevel,
+    conPerLevel = _ref84$conPerLevel === void 0 ? 0 : _ref84$conPerLevel,
+    totalLevel = _ref84.totalLevel,
+    hitDiceText = _ref84.hitDiceText,
+    possibleMaxHp = _ref84.possibleMaxHp,
+    averageHp = _ref84.averageHp,
+    setHpTotal = _ref84.setHpTotal,
+    statAdj = _ref84.statAdj,
+    setStatAdj = _ref84.setStatAdj,
+    inventory = _ref84.inventory,
+    masteries = _ref84.masteries,
+    setMasteries = _ref84.setMasteries,
+    custom = _ref84.custom,
+    masteryGlow = _ref84.masteryGlow,
+    armor = _ref84.armor,
+    setArmor = _ref84.setArmor,
+    shield = _ref84.shield,
+    setShield = _ref84.setShield,
+    weapons = _ref84.weapons,
+    setWeapons = _ref84.setWeapons,
+    ac = _ref84.ac,
+    sheetActions = _ref84.sheetActions,
+    pools = _ref84.pools,
+    derived = _ref84.derived,
+    cls = _ref84.cls,
+    level = _ref84.level,
+    effectiveMaxHp = _ref84.effectiveMaxHp,
+    currentHp = _ref84.currentHp,
+    setCurrentHp = _ref84.setCurrentHp,
+    tempHp = _ref84.tempHp,
+    setTempHp = _ref84.setTempHp,
+    hitDiceUsed = _ref84.hitDiceUsed,
+    setHitDiceUsed = _ref84.setHitDiceUsed,
+    finalMods = _ref84.finalMods,
+    armorClass = _ref84.armorClass,
+    initiative = _ref84.initiative,
+    speed = _ref84.speed,
+    colors = _ref84.colors,
+    fontDisplay = _ref84.fontDisplay;
   var displayHp = currentHp === null ? effectiveMaxHp : currentHp;
   // Further Customization: an additional modifier on a stat, shown in red
   var adjust = function adjust(k, step) {
@@ -13116,13 +13252,13 @@ function CombatTab(_ref82) {
       gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
       gap: 12
     }
-  }, [["Armor Class", armorClass, ac.how, "ac", 1], ["Initiative", fmt(initiative), "", "initiative", 1], ["Speed", "".concat(speed, " ft"), "", "speed", 5]].map(function (_ref83) {
-    var _ref84 = _slicedToArray(_ref83, 5),
-      label = _ref84[0],
-      val = _ref84[1],
-      note = _ref84[2],
-      k = _ref84[3],
-      step = _ref84[4];
+  }, [["Armor Class", armorClass, ac.how, "ac", 1], ["Initiative", fmt(initiative), "", "initiative", 1], ["Speed", "".concat(speed, " ft"), "", "speed", 5]].map(function (_ref85) {
+    var _ref86 = _slicedToArray(_ref85, 5),
+      label = _ref86[0],
+      val = _ref86[1],
+      note = _ref86[2],
+      k = _ref86[3],
+      step = _ref86[4];
     return /*#__PURE__*/React.createElement("div", {
       key: label,
       style: {
@@ -13194,10 +13330,10 @@ function CombatTab(_ref82) {
       marginBottom: 10
     },
     "data-testid": "pools"
-  }, /*#__PURE__*/React.createElement("strong", null, "Resources:"), " ", Object.entries(pools).map(function (_ref85) {
-    var _ref86 = _slicedToArray(_ref85, 2),
-      n = _ref86[0],
-      p = _ref86[1];
+  }, /*#__PURE__*/React.createElement("strong", null, "Resources:"), " ", Object.entries(pools).map(function (_ref87) {
+    var _ref88 = _slicedToArray(_ref87, 2),
+      n = _ref88[0],
+      p = _ref88[1];
     return "".concat(n, " ").concat(p.max, " (").concat(p.recharge === "short" ? "Short Rest" : p.shortRegain ? "Long Rest, 1 back on a Short Rest" : "Long Rest", ")");
   }).join(" · ")), sheetActions.map(function (a, i) {
     return /*#__PURE__*/React.createElement("div", {
@@ -13443,10 +13579,10 @@ var EXPERTISE_SLOTS = {
 };
 function expertiseSlots(className, level) {
   var n = 0;
-  Object.entries(EXPERTISE_SLOTS[className] || {}).forEach(function (_ref87) {
-    var _ref88 = _slicedToArray(_ref87, 2),
-      l = _ref88[0],
-      total = _ref88[1];
+  Object.entries(EXPERTISE_SLOTS[className] || {}).forEach(function (_ref89) {
+    var _ref90 = _slicedToArray(_ref89, 2),
+      l = _ref90[0],
+      total = _ref90[1];
     if (level >= +l) n = Math.max(n, total);
   });
   return n;
@@ -13497,11 +13633,11 @@ function featProblem(name, cats, ch) {
 }
 
 // The choices a feat asks for, shown right where the feat is picked.
-function FeatChoices(_ref89) {
-  var name = _ref89.name,
-    choices = _ref89.choices,
-    onChange = _ref89.onChange,
-    colors = _ref89.colors;
+function FeatChoices(_ref91) {
+  var name = _ref91.name,
+    choices = _ref91.choices,
+    onChange = _ref91.onChange,
+    colors = _ref91.colors;
   var def = featDef(name);
   if (!def) return null;
   var g = def.grants || {};
@@ -13653,11 +13789,11 @@ function FeatChoices(_ref89) {
       gap: 8,
       flexWrap: "wrap"
     }
-  }, [["cantrip1", "Cantrip...", 0], ["cantrip2", "Cantrip...", 0], ["spell", "Level 1 spell...", 1]].map(function (_ref90) {
-    var _ref91 = _slicedToArray(_ref90, 3),
-      k = _ref91[0],
-      ph = _ref91[1],
-      lvl = _ref91[2];
+  }, [["cantrip1", "Cantrip...", 0], ["cantrip2", "Cantrip...", 0], ["spell", "Level 1 spell...", 1]].map(function (_ref92) {
+    var _ref93 = _slicedToArray(_ref92, 3),
+      k = _ref93[0],
+      ph = _ref93[1],
+      lvl = _ref93[2];
     var list = c.list || featPreset(name);
     var other = k === "cantrip1" ? c.cantrip2 : k === "cantrip2" ? c.cantrip1 : "";
     return /*#__PURE__*/React.createElement("select", {
@@ -13735,16 +13871,16 @@ function FeatChoices(_ref89) {
 }
 
 // A dropdown of feats. allowed: names the rules allow in this slot. With Further Customization on, the rest are listed too.
-function FeatPicker(_ref92) {
-  var value = _ref92.value,
-    onPick = _ref92.onPick,
-    cats = _ref92.cats,
-    taken = _ref92.taken,
-    custom = _ref92.custom,
-    colors = _ref92.colors,
-    label = _ref92.label,
-    hide = _ref92.hide,
-    className = _ref92.className;
+function FeatPicker(_ref94) {
+  var value = _ref94.value,
+    onPick = _ref94.onPick,
+    cats = _ref94.cats,
+    taken = _ref94.taken,
+    custom = _ref94.custom,
+    colors = _ref94.colors,
+    label = _ref94.label,
+    hide = _ref94.hide,
+    className = _ref94.className;
   // hide: categories the rules allow here but that are only listed with Further Customization on
   var names = Object.keys(FEATS).filter(function (n) {
     return n !== "Ability Score Improvement";
@@ -13803,39 +13939,39 @@ function FeatPicker(_ref92) {
     }, n, " (", FEATS[n].category, ")");
   })));
 }
-function FeaturesTab(_ref93) {
-  var _ref93$asiLabel = _ref93.asiLabel,
-    asiLabel = _ref93$asiLabel === void 0 ? function (k) {
+function FeaturesTab(_ref95) {
+  var _ref95$asiLabel = _ref95.asiLabel,
+    asiLabel = _ref95$asiLabel === void 0 ? function (k) {
       return "Level ".concat(k);
-    } : _ref93$asiLabel,
-    _ref93$attnEdge = _ref93.attnEdge,
-    attnEdge = _ref93$attnEdge === void 0 ? function () {
+    } : _ref95$asiLabel,
+    _ref95$attnEdge = _ref95.attnEdge,
+    attnEdge = _ref95$attnEdge === void 0 ? function () {
       return {};
-    } : _ref93$attnEdge,
-    masteries = _ref93.masteries,
-    setMasteries = _ref93.setMasteries,
-    masteryCount = _ref93.masteryCount,
-    className = _ref93.className,
-    glowOf = _ref93.glowOf,
-    optionSlots = _ref93.optionSlots,
-    featureChoices = _ref93.featureChoices,
-    setFeatureChoices = _ref93.setFeatureChoices,
-    featureLedger = _ref93.featureLedger,
-    reachedAsiLevels = _ref93.reachedAsiLevels,
-    asiChoices = _ref93.asiChoices,
-    setAsiAbilities = _ref93.setAsiAbilities,
-    setAsiType = _ref93.setAsiType,
-    setFeatName = _ref93.setFeatName,
-    setAsiFeatChoices = _ref93.setAsiFeatChoices,
-    colors = _ref93.colors,
-    fontDisplay = _ref93.fontDisplay,
-    slots = _ref93.slots,
-    featPicks = _ref93.featPicks,
-    setFeatPick = _ref93.setFeatPick,
-    extraFeats = _ref93.extraFeats,
-    setExtraFeats = _ref93.setExtraFeats,
-    takenFeats = _ref93.takenFeats,
-    custom = _ref93.custom;
+    } : _ref95$attnEdge,
+    masteries = _ref95.masteries,
+    setMasteries = _ref95.setMasteries,
+    masteryCount = _ref95.masteryCount,
+    className = _ref95.className,
+    glowOf = _ref95.glowOf,
+    optionSlots = _ref95.optionSlots,
+    featureChoices = _ref95.featureChoices,
+    setFeatureChoices = _ref95.setFeatureChoices,
+    featureLedger = _ref95.featureLedger,
+    reachedAsiLevels = _ref95.reachedAsiLevels,
+    asiChoices = _ref95.asiChoices,
+    setAsiAbilities = _ref95.setAsiAbilities,
+    setAsiType = _ref95.setAsiType,
+    setFeatName = _ref95.setFeatName,
+    setAsiFeatChoices = _ref95.setAsiFeatChoices,
+    colors = _ref95.colors,
+    fontDisplay = _ref95.fontDisplay,
+    slots = _ref95.slots,
+    featPicks = _ref95.featPicks,
+    setFeatPick = _ref95.setFeatPick,
+    extraFeats = _ref95.extraFeats,
+    setExtraFeats = _ref95.setExtraFeats,
+    takenFeats = _ref95.takenFeats,
+    custom = _ref95.custom;
   var taken = takenFeats.map(function (f) {
     return f.base;
   });
@@ -13917,10 +14053,10 @@ function FeaturesTab(_ref93) {
         }, masteries[i] ? {} : attnEdge("mastery"))
       }, /*#__PURE__*/React.createElement("option", {
         value: ""
-      }, "Choose a weapon..."), WEAPON_GROUPS.map(function (_ref94) {
-        var _ref95 = _slicedToArray(_ref94, 2),
-          cat = _ref95[0],
-          fits = _ref95[1];
+      }, "Choose a weapon..."), WEAPON_GROUPS.map(function (_ref96) {
+        var _ref97 = _slicedToArray(_ref96, 2),
+          cat = _ref97[0],
+          fits = _ref97[1];
         var list = WEAPONS.filter(function (w) {
           return fits(w) && (custom || masteryEligible(className, w) || w.name === masteries[i]) && (!masteries.includes(w.name) || masteries[i] === w.name);
         });
@@ -15058,23 +15194,23 @@ function fullSpellAction(sp, ctx, opts) {
         cost: x.cost
       }
     }), ctx, opts);
-    return a ? function (_ref96) {
-      var name = _ref96.name,
-        spell = _ref96.spell,
-        slot = _ref96.slot,
-        desc = _ref96.desc,
-        comp = _ref96.comp,
-        mat = _ref96.mat,
-        matCost = _ref96.matCost,
-        matConsumed = _ref96.matConsumed,
-        conc = _ref96.conc,
-        concSecs = _ref96.concSecs,
-        range = _ref96.range,
-        hand = _ref96.hand,
-        ritual = _ref96.ritual,
-        gp = _ref96.gp,
-        gpConsumed = _ref96.gpConsumed,
-        keep = _objectWithoutProperties(_ref96, _excluded8);
+    return a ? function (_ref98) {
+      var name = _ref98.name,
+        spell = _ref98.spell,
+        slot = _ref98.slot,
+        desc = _ref98.desc,
+        comp = _ref98.comp,
+        mat = _ref98.mat,
+        matCost = _ref98.matCost,
+        matConsumed = _ref98.matConsumed,
+        conc = _ref98.conc,
+        concSecs = _ref98.concSecs,
+        range = _ref98.range,
+        hand = _ref98.hand,
+        ritual = _ref98.ritual,
+        gp = _ref98.gp,
+        gpConsumed = _ref98.gpConsumed,
+        keep = _objectWithoutProperties(_ref98, _excluded8);
       return keep;
     }(a) : null;
   };
@@ -15117,14 +15253,44 @@ function fullSpellAction(sp, ctx, opts) {
   } // a class that spends points, not slots
   return out;
 }
-function SpellRow(_ref97) {
-  var entry = _ref97.entry,
-    onRemove = _ref97.onRemove,
-    _ref97$onExtra = _ref97.onExtra,
-    onExtra = _ref97$onExtra === void 0 ? null : _ref97$onExtra,
-    colors = _ref97.colors,
-    fontDisplay = _ref97.fontDisplay,
-    summary = _ref97.summary;
+
+// Concentration and Ritual marks, as on D&D Beyond: a C and an R in small boxes
+function SpellMarks(_ref99) {
+  var sp = _ref99.sp,
+    colors = _ref99.colors;
+  if (!sp || !(sp.conc || sp.rit)) return null;
+  var box = function box(t, title) {
+    return /*#__PURE__*/React.createElement("span", {
+      key: t,
+      title: title,
+      "aria-label": title,
+      "data-mark": t,
+      style: {
+        display: "inline-block",
+        minWidth: 16,
+        height: 16,
+        lineHeight: "14px",
+        textAlign: "center",
+        fontSize: 10.5,
+        fontWeight: 700,
+        border: "1px solid ".concat(colors.brassLight),
+        color: colors.brassLight,
+        borderRadius: t === "C" ? 8 : 3,
+        marginLeft: 5,
+        verticalAlign: "middle"
+      }
+    }, t);
+  };
+  return /*#__PURE__*/React.createElement(React.Fragment, null, sp.conc && box("C", "Concentration"), sp.rit && box("R", "Ritual"));
+}
+function SpellRow(_ref100) {
+  var entry = _ref100.entry,
+    onRemove = _ref100.onRemove,
+    _ref100$onExtra = _ref100.onExtra,
+    onExtra = _ref100$onExtra === void 0 ? null : _ref100$onExtra,
+    colors = _ref100.colors,
+    fontDisplay = _ref100.fontDisplay,
+    summary = _ref100.summary;
   var _useState171 = useState(false),
     _useState172 = _slicedToArray(_useState171, 2),
     open = _useState172[0],
@@ -15168,7 +15334,10 @@ function SpellRow(_ref97) {
       opacity: 0.75,
       marginLeft: 8
     }
-  }, spellLine(sp), sp.conc ? " · Concentration" : "", sp.rit ? " · Ritual" : ""), !sp && /*#__PURE__*/React.createElement("span", {
+  }, spellLine(sp)), /*#__PURE__*/React.createElement(SpellMarks, {
+    sp: sp,
+    colors: colors
+  }), !sp && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 12,
       opacity: 0.6,
@@ -15227,38 +15396,38 @@ function SpellRow(_ref97) {
     }
   }, /*#__PURE__*/React.createElement("strong", null, "Using a Higher-Level Spell Slot."), " ", sp.h) : null));
 }
-function SpellsTab(_ref98) {
-  var _ref98$spellExtra = _ref98.spellExtra,
-    spellExtra = _ref98$spellExtra === void 0 ? [] : _ref98$spellExtra,
-    _ref98$setSpellExtra = _ref98.setSpellExtra,
-    setSpellExtra = _ref98$setSpellExtra === void 0 ? function () {} : _ref98$setSpellExtra,
-    _ref98$casterRows = _ref98.casterRows,
-    casterRows = _ref98$casterRows === void 0 ? [] : _ref98$casterRows,
-    _ref98$sharedSlots = _ref98.sharedSlots,
-    sharedSlots = _ref98$sharedSlots === void 0 ? null : _ref98$sharedSlots,
-    _ref98$attnEdge = _ref98.attnEdge,
-    attnEdge = _ref98$attnEdge === void 0 ? function () {
+function SpellsTab(_ref101) {
+  var _ref101$spellExtra = _ref101.spellExtra,
+    spellExtra = _ref101$spellExtra === void 0 ? [] : _ref101$spellExtra,
+    _ref101$setSpellExtra = _ref101.setSpellExtra,
+    setSpellExtra = _ref101$setSpellExtra === void 0 ? function () {} : _ref101$setSpellExtra,
+    _ref101$casterRows = _ref101.casterRows,
+    casterRows = _ref101$casterRows === void 0 ? [] : _ref101$casterRows,
+    _ref101$sharedSlots = _ref101.sharedSlots,
+    sharedSlots = _ref101$sharedSlots === void 0 ? null : _ref101$sharedSlots,
+    _ref101$attnEdge = _ref101.attnEdge,
+    attnEdge = _ref101$attnEdge === void 0 ? function () {
       return {};
-    } : _ref98$attnEdge,
-    bookInfo = _ref98.bookInfo,
-    spellbook = _ref98.spellbook,
-    picks = _ref98.picks,
-    featureChoices = _ref98.featureChoices,
-    setFeatureChoices = _ref98.setFeatureChoices,
-    glow = _ref98.glow,
-    grantedSpells = _ref98.grantedSpells,
-    cls = _ref98.cls,
-    className = _ref98.className,
-    level = _ref98.level,
-    finalMods = _ref98.finalMods,
-    profBonus = _ref98.profBonus,
-    colors = _ref98.colors,
-    fontDisplay = _ref98.fontDisplay,
-    spells = _ref98.spells,
-    setSpells = _ref98.setSpells,
-    spellInfo = _ref98.spellInfo,
-    custom = _ref98.custom,
-    spellSummary = _ref98.spellSummary;
+    } : _ref101$attnEdge,
+    bookInfo = _ref101.bookInfo,
+    spellbook = _ref101.spellbook,
+    picks = _ref101.picks,
+    featureChoices = _ref101.featureChoices,
+    setFeatureChoices = _ref101.setFeatureChoices,
+    glow = _ref101.glow,
+    grantedSpells = _ref101.grantedSpells,
+    cls = _ref101.cls,
+    className = _ref101.className,
+    level = _ref101.level,
+    finalMods = _ref101.finalMods,
+    profBonus = _ref101.profBonus,
+    colors = _ref101.colors,
+    fontDisplay = _ref101.fontDisplay,
+    spells = _ref101.spells,
+    setSpells = _ref101.setSpells,
+    spellInfo = _ref101.spellInfo,
+    custom = _ref101.custom,
+    spellSummary = _ref101.spellSummary;
   var _useState173 = useState([]),
     _useState174 = _slicedToArray(_useState173, 2),
     levelsOff = _useState174[0],
@@ -15564,10 +15733,10 @@ function SpellsTab(_ref98) {
       borderBottom: "1px solid ".concat(colors.brass),
       margin: "4px 0 12px"
     }
-  }, [["prepared", "Prepared Spells (".concat(spellInfo.prepared).concat(prepMax == null ? "" : " of ".concat(prepMax), ")")], ["book", "Spellbook (".concat((spellbook || []).length, ")")]].map(function (_ref99) {
-    var _ref100 = _slicedToArray(_ref99, 2),
-      k = _ref100[0],
-      t = _ref100[1];
+  }, [["prepared", "Prepared Spells (".concat(spellInfo.prepared).concat(prepMax == null ? "" : " of ".concat(prepMax), ")")], ["book", "Spellbook (".concat((spellbook || []).length, ")")]].map(function (_ref102) {
+    var _ref103 = _slicedToArray(_ref102, 2),
+      k = _ref103[0],
+      t = _ref103[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       role: "tab",
@@ -15674,7 +15843,10 @@ function SpellsTab(_ref98) {
           cursor: "pointer",
           fontSize: 11
         }
-      }, on ? "✓" : "+"), n, sp ? " (Level ".concat(sp.l).concat(sp.rit ? ", Ritual" : "").concat(sp.conc ? ", Concentration" : "", ")") : "", own.includes(n) ? /*#__PURE__*/React.createElement("button", {
+      }, on ? "✓" : "+"), n, sp ? " (Level ".concat(sp.l, ")") : "", sp && /*#__PURE__*/React.createElement(SpellMarks, {
+        sp: sp,
+        colors: colors
+      }), own.includes(n) ? /*#__PURE__*/React.createElement("button", {
         "aria-label": "Remove ".concat(n, " from the spellbook"),
         onClick: function onClick() {
           return setBook(own.filter(function (x) {
@@ -15709,7 +15881,7 @@ function SpellsTab(_ref98) {
       return /*#__PURE__*/React.createElement("option", {
         key: sp.n,
         value: sp.n
-      }, sp.n, " (Level ", sp.l, sp.rit ? ", Ritual" : "", sp.conc ? ", Concentration" : "", ")");
+      }, sp.n, " (Level ", sp.l, ")", sp.conc ? " Ⓒ" : "", sp.rit ? " Ⓡ" : "");
     })));
   }()), (!bookInfo || bookTab === "prepared") && /*#__PURE__*/React.createElement(React.Fragment, null, (picks || []).length > 0 && /*#__PURE__*/React.createElement(Section, {
     title: "Spells Your Features Let You Choose",
@@ -15777,7 +15949,7 @@ function SpellsTab(_ref98) {
         return /*#__PURE__*/React.createElement("option", {
           key: sp.n,
           value: sp.n
-        }, sp.n, " (", sp.l ? "Level ".concat(sp.l) : "cantrip", sp.rit ? ", Ritual" : "", sp.conc ? ", Concentration" : "", ")");
+        }, sp.n, " (", sp.l ? "Level ".concat(sp.l) : "cantrip", ")", sp.conc ? " Ⓒ" : "", sp.rit ? " Ⓡ" : "");
       }));
     }));
   })), /*#__PURE__*/React.createElement(Section, {
@@ -15800,7 +15972,37 @@ function SpellsTab(_ref98) {
       fontSize: 13,
       opacity: 0.7
     }
-  }, "No spells yet. Add them from the list below."), cantripRows.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, "No spells yet. Add them from the list below."), ["Cleric", "Druid", "Paladin", "Wizard"].includes(className) && spellRows.some(function (e) {
+    return !e.extra;
+  }) && /*#__PURE__*/React.createElement("button", {
+    "data-testid": "clear-prepared",
+    title: "These classes can change their whole list of prepared spells after a Long Rest. Cantrips and additional spells stay.",
+    onClick: function onClick() {
+      var n = spellRows.filter(function (e) {
+        return !e.extra;
+      }).length;
+      if (!window.confirm("Remove all ".concat(n, " prepared ").concat(n === 1 ? "spell" : "spells", " so you can choose again? Cantrips and additional spells stay."))) return;
+      var drop = new Set(spellRows.filter(function (e) {
+        return !e.extra;
+      }).map(function (e) {
+        return e.index;
+      }));
+      var next = spells.filter(function (_, i) {
+        return !drop.has(i);
+      });
+      setSpells(next.length ? next : [""]);
+    },
+    style: {
+      background: "transparent",
+      border: "1px solid ".concat(colors.brass),
+      color: colors.brassLight,
+      borderRadius: 6,
+      padding: "4px 12px",
+      fontSize: 13,
+      cursor: "pointer",
+      marginBottom: 8
+    }
+  }, "Remove all prepared spells (keeps cantrips)"), cantripRows.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: fontDisplay,
       fontSize: 12,
@@ -15924,12 +16126,12 @@ function SpellsTab(_ref98) {
     return [l, levelName(l), !levelsOff.includes(l), function () {
       return toggleLevel(l);
     }];
-  })).map(function (_ref101) {
-    var _ref102 = _slicedToArray(_ref101, 4),
-      k = _ref102[0],
-      text = _ref102[1],
-      on = _ref102[2],
-      click = _ref102[3];
+  })).map(function (_ref104) {
+    var _ref105 = _slicedToArray(_ref104, 4),
+      k = _ref105[0],
+      text = _ref105[1],
+      on = _ref105[2],
+      click = _ref105[3];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       "data-testid": "level-chip-".concat(k),
@@ -16060,7 +16262,10 @@ function SpellsTab(_ref98) {
         opacity: 0.7,
         marginLeft: 8
       }
-    }, spellLine(sp), sp.conc ? " · Concentration" : "", sp.rit ? " · Ritual" : "", " \xB7 ", sp.c.join(", "))), /*#__PURE__*/React.createElement("button", {
+    }, spellLine(sp), " \xB7 ", sp.c.join(", ")), /*#__PURE__*/React.createElement(SpellMarks, {
+      sp: sp,
+      colors: colors
+    })), /*#__PURE__*/React.createElement("button", {
       disabled: !ok && !custom && !addExtra,
       onClick: function onClick() {
         return add(sp.n);
@@ -16233,14 +16438,14 @@ function cleanJournal(raw, oldNotes, oldEquipment) {
   }
   return j;
 }
-function JournalTab(_ref103) {
-  var journal = _ref103.journal,
-    setJournal = _ref103.setJournal,
-    alignment = _ref103.alignment,
-    setAlignment = _ref103.setAlignment,
-    knownTools = _ref103.knownTools,
-    colors = _ref103.colors,
-    fontDisplay = _ref103.fontDisplay;
+function JournalTab(_ref106) {
+  var journal = _ref106.journal,
+    setJournal = _ref106.setJournal,
+    alignment = _ref106.alignment,
+    setAlignment = _ref106.setAlignment,
+    knownTools = _ref106.knownTools,
+    colors = _ref106.colors,
+    fontDisplay = _ref106.fontDisplay;
   var _React$useState5 = React.useState(0),
     _React$useState6 = _slicedToArray(_React$useState5, 2),
     page = _React$useState6[0],
@@ -16299,9 +16504,9 @@ function JournalTab(_ref103) {
       i = o.indexOf(key),
       k = i + by;
     if (k < 0 || k >= o.length) return;
-    var _ref104 = [o[k], o[i]];
-    o[i] = _ref104[0];
-    o[k] = _ref104[1];
+    var _ref107 = [o[k], o[i]];
+    o[i] = _ref107[0];
+    o[k] = _ref107[1];
     set({
       order: o
     });
@@ -16454,10 +16659,10 @@ function JournalTab(_ref103) {
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 12
         }
-      }, [["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(function (_ref105) {
-        var _ref106 = _slicedToArray(_ref105, 2),
-          k = _ref106[0],
-          t = _ref106[1];
+      }, [["traits", "Personality Traits"], ["ideals", "Ideals"], ["bonds", "Bonds"], ["flaws", "Flaws"]].map(function (_ref108) {
+        var _ref109 = _slicedToArray(_ref108, 2),
+          k = _ref109[0],
+          t = _ref109[1];
         return /*#__PURE__*/React.createElement("div", {
           key: k
         }, /*#__PURE__*/React.createElement("div", {
@@ -17001,16 +17206,16 @@ function inventoryGroup(item) {
 }
 var inventoryFolded = false,
   inventoryOnlyProf = false; // stay as you left them while the page is open
-function InventoryTab(_ref107) {
-  var inv = _ref107.inv,
-    prof = _ref107.prof,
-    magic = _ref107.magic,
-    mundane = _ref107.mundane,
-    components = _ref107.components,
-    setComponents = _ref107.setComponents,
-    spellMats = _ref107.spellMats,
-    colors = _ref107.colors,
-    fontDisplay = _ref107.fontDisplay;
+function InventoryTab(_ref110) {
+  var inv = _ref110.inv,
+    prof = _ref110.prof,
+    magic = _ref110.magic,
+    mundane = _ref110.mundane,
+    components = _ref110.components,
+    setComponents = _ref110.setComponents,
+    spellMats = _ref110.spellMats,
+    colors = _ref110.colors,
+    fontDisplay = _ref110.fontDisplay;
   var isCaster = function isCaster(item) {
     return /component pouch|arcane focus|druidic focus|holy symbol/i.test(item.name);
   };
@@ -17160,10 +17365,10 @@ function InventoryTab(_ref107) {
     }));
   }), /*#__PURE__*/React.createElement("div", {
     "data-testid": "inventory-list"
-  }, groups.map(function (_ref108) {
-    var _ref109 = _slicedToArray(_ref108, 2),
-      g = _ref109[0],
-      items = _ref109[1];
+  }, groups.map(function (_ref111) {
+    var _ref112 = _slicedToArray(_ref111, 2),
+      g = _ref112[0],
+      items = _ref112[1];
     return /*#__PURE__*/React.createElement("div", {
       key: g,
       "data-testid": "inv-group-".concat(g),
@@ -17582,8 +17787,8 @@ var WEAPON_GROUPS = [["Simple Melee weapons", function (w) {
 }], ["Martial Ranged weapons", function (w) {
   return w.cat === "Martial" && w.ranged;
 }]];
-function KindOptions(_ref110) {
-  var item = _ref110.item;
+function KindOptions(_ref113) {
+  var item = _ref113.item;
   var kinds = magicGearKinds(item),
     info = magicGearInfo(item) || {};
   if (info.kind === "armor") return ["Light", "Medium", "Heavy"].map(function (cat) {
@@ -17600,10 +17805,10 @@ function KindOptions(_ref110) {
       }, a.name, " (AC ", a.base, a.dex ? a.max != null ? " + Dex, max ".concat(a.max) : " + Dex" : "", ")");
     })) : null;
   });
-  return WEAPON_GROUPS.map(function (_ref111) {
-    var _ref112 = _slicedToArray(_ref111, 2),
-      cat = _ref112[0],
-      fits = _ref112[1];
+  return WEAPON_GROUPS.map(function (_ref114) {
+    var _ref115 = _slicedToArray(_ref114, 2),
+      cat = _ref115[0],
+      fits = _ref115[1];
     var list = WEAPONS.filter(function (w) {
       return fits(w) && kinds.includes(w.name);
     });
@@ -17619,12 +17824,12 @@ function KindOptions(_ref110) {
   });
 }
 // The controls for one item: add it to the inventory, mark it important, or remove it.
-function ItemControls(_ref113) {
-  var item = _ref113.item,
-    inv = _ref113.inv,
-    colors = _ref113.colors,
-    small = _ref113.small,
-    onChoose = _ref113.onChoose;
+function ItemControls(_ref116) {
+  var item = _ref116.item,
+    inv = _ref116.inv,
+    colors = _ref116.colors,
+    small = _ref116.small,
+    onChoose = _ref116.onChoose;
   var b = function b(bg, fg) {
     return {
       minWidth: 22,
@@ -17674,10 +17879,10 @@ function ItemControls(_ref113) {
   }, "\xD7");
 }
 // A list of carried items with their controls (Notes tab and the side panels).
-function InventoryList(_ref114) {
-  var items = _ref114.items,
-    inv = _ref114.inv,
-    colors = _ref114.colors;
+function InventoryList(_ref117) {
+  var items = _ref117.items,
+    inv = _ref117.inv,
+    colors = _ref117.colors;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -17742,14 +17947,14 @@ function InventoryList(_ref114) {
     }));
   }));
 }
-function ItemRowHover(_ref115) {
-  var item = _ref115.item,
-    inv = _ref115.inv,
-    onSelect = _ref115.onSelect,
-    isSelected = _ref115.isSelected,
-    accentColor = _ref115.accentColor,
-    colors = _ref115.colors,
-    extraBadge = _ref115.extraBadge;
+function ItemRowHover(_ref118) {
+  var item = _ref118.item,
+    inv = _ref118.inv,
+    onSelect = _ref118.onSelect,
+    isSelected = _ref118.isSelected,
+    accentColor = _ref118.accentColor,
+    colors = _ref118.colors,
+    extraBadge = _ref118.extraBadge;
   var _React$useState25 = React.useState(false),
     _React$useState26 = _slicedToArray(_React$useState25, 2),
     hovered = _React$useState26[0],
@@ -17819,21 +18024,21 @@ function ItemRowHover(_ref115) {
     }
   }, "\u2713"));
 }
-function MagicItemsTab(_ref116) {
-  var itemSearch = _ref116.itemSearch,
-    setItemSearch = _ref116.setItemSearch,
-    itemRarityFilter = _ref116.itemRarityFilter,
-    setItemRarityFilter = _ref116.setItemRarityFilter,
-    itemTypeFilter = _ref116.itemTypeFilter,
-    setItemTypeFilter = _ref116.setItemTypeFilter,
-    itemAttunementFilter = _ref116.itemAttunementFilter,
-    setItemAttunementFilter = _ref116.setItemAttunementFilter,
-    selectedItem = _ref116.selectedItem,
-    setSelectedItem = _ref116.setSelectedItem,
-    inv = _ref116.inv,
-    keep = _ref116.keep,
-    colors = _ref116.colors,
-    fontDisplay = _ref116.fontDisplay;
+function MagicItemsTab(_ref119) {
+  var itemSearch = _ref119.itemSearch,
+    setItemSearch = _ref119.setItemSearch,
+    itemRarityFilter = _ref119.itemRarityFilter,
+    setItemRarityFilter = _ref119.setItemRarityFilter,
+    itemTypeFilter = _ref119.itemTypeFilter,
+    setItemTypeFilter = _ref119.setItemTypeFilter,
+    itemAttunementFilter = _ref119.itemAttunementFilter,
+    setItemAttunementFilter = _ref119.setItemAttunementFilter,
+    selectedItem = _ref119.selectedItem,
+    setSelectedItem = _ref119.setSelectedItem,
+    inv = _ref119.inv,
+    keep = _ref119.keep,
+    colors = _ref119.colors,
+    fontDisplay = _ref119.fontDisplay;
   var _React$useState27 = React.useState(false),
     _React$useState28 = _slicedToArray(_React$useState27, 2),
     expanded = _React$useState28[0],
@@ -17945,12 +18150,12 @@ function MagicItemsTab(_ref116) {
         return x !== r;
       }) : [].concat(_toConsumableArray(raritiesOff), [r]));
     }, RARITY_COLORS[r]];
-  })).map(function (_ref117) {
-    var _ref118 = _slicedToArray(_ref117, 4),
-      r = _ref118[0],
-      on = _ref118[1],
-      click = _ref118[2],
-      col = _ref118[3];
+  })).map(function (_ref120) {
+    var _ref121 = _slicedToArray(_ref120, 4),
+      r = _ref121[0],
+      on = _ref121[1],
+      click = _ref121[2],
+      col = _ref121[3];
     return /*#__PURE__*/React.createElement("button", {
       key: r,
       "data-testid": "rarity-chip-".concat(r),
@@ -18218,17 +18423,17 @@ function MagicItemsTab(_ref116) {
     }
   }, "Select an item to view details"))));
 }
-function MundaneItemsTab(_ref119) {
-  var mundaneSearch = _ref119.mundaneSearch,
-    setMundaneSearch = _ref119.setMundaneSearch,
-    mundaneTypeFilter = _ref119.mundaneTypeFilter,
-    setMundaneTypeFilter = _ref119.setMundaneTypeFilter,
-    selectedMundane = _ref119.selectedMundane,
-    setSelectedMundane = _ref119.setSelectedMundane,
-    inv = _ref119.inv,
-    keep = _ref119.keep,
-    colors = _ref119.colors,
-    fontDisplay = _ref119.fontDisplay;
+function MundaneItemsTab(_ref122) {
+  var mundaneSearch = _ref122.mundaneSearch,
+    setMundaneSearch = _ref122.setMundaneSearch,
+    mundaneTypeFilter = _ref122.mundaneTypeFilter,
+    setMundaneTypeFilter = _ref122.setMundaneTypeFilter,
+    selectedMundane = _ref122.selectedMundane,
+    setSelectedMundane = _ref122.setSelectedMundane,
+    inv = _ref122.inv,
+    keep = _ref122.keep,
+    colors = _ref122.colors,
+    fontDisplay = _ref122.fontDisplay;
   var allCategories = React.useMemo(function () {
     var cats = new Set(MUNDANE_ITEMS.map(function (i) {
       return i.category;
