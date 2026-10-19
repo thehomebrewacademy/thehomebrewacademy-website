@@ -136,9 +136,11 @@
     .pal-mass-atk { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 4px 0 6px; }
     .sheet-only { position: fixed; inset: 0; overflow: auto; background: var(--ink); padding: 12px; z-index: 100; }
     .pp-quick { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 6px 0 10px; font-size: 13.5px; } .pp-quick input { flex: 1; min-width: 180px; }
+    .pp-spsum { font-size: 12.5px; color: var(--pp-muted); padding: 0 0 4px 34px; line-height: 1.3; }
     .tracker-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 6px; font-size: 13px; }
     .card-more { position: absolute; right: 52px; top: 6px; background: transparent; border: 1px solid var(--panel-light); color: var(--text-muted); border-radius: 6px; padding: 0 6px; cursor: pointer; font-size: 13px; line-height: 18px; }
     .turn-pop { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 90; background: var(--gold); color: #1a2535; border-radius: 12px; padding: 10px 14px 10px 18px; font-size: 18px; font-family: 'Cinzel', serif; box-shadow: 0 6px 22px rgba(0,0,0,.5); display: flex; gap: 12px; align-items: center; animation: turnpop .35s ease-out; pointer-events: none; }
+    .turn-pop.time-up { top: 120px; background: #c92a2a; color: #fff; } .turn-pop.time-up button { color: #fff; border-color: #fff; }
     .turn-pop button { pointer-events: auto; background: transparent; border: 1px solid #1a2535; border-radius: 6px; color: #1a2535; cursor: pointer; font-size: 16px; padding: 0 8px; }
     @keyframes turnpop { from { transform: translate(-50%, -16px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
     .pal-group.acting { box-shadow: 0 0 0 2px var(--gold), 0 0 18px rgba(212,160,23,.55); }
@@ -1630,6 +1632,13 @@ function reactEvents(name, trigger, text) {
 var SPELL_NAMES = new Set((window.HBA_SPELLS || []).map(function (x) {
   return String(x.n || '').toLowerCase();
 }));
+var SPELL_SUM = {},
+  SPELL_SUM2 = {};
+(window.HBA_SPELLS || []).forEach(function (x) {
+  var k = String(x.n || '').toLowerCase();
+  if (x.su) SPELL_SUM[k] = x.su;
+  if (x.su2) SPELL_SUM2[k] = x.su2;
+}); // one-line summaries for the Spells tab
 var ENC_TABLE = ''; // the DM's encumbrance rule for the table ('off', 'on', 'variant'); empty: each player chooses
 // Encumbrance: what a character carries, and the rule in use. On is the 2024 rule (over capacity: Speed at most 5 feet); Variant is the 2014 PHB variant.
 // Coins weigh something when the character tracks it: fifty coins of any kind weigh 1 pound; a kind of money of your own weighs what you set for it
@@ -4112,6 +4121,7 @@ function sheetToFields(data) {
   });
   var sheet = {
     pools: pools,
+    charId: str(data.charId, 24),
     extraSpells: list(data.extraSpells, 40, 60),
     customizations: list(data.customizations, 60, 200),
     packsUsed: list(data.packs, 20, 60),
@@ -6751,25 +6761,27 @@ function App() {
       return clearInterval(t);
     };
   }, [turnSecs, combatStarted, rest]);
+  var _useState139 = useState(null),
+    _useState140 = _slicedToArray(_useState139, 2),
+    timeUp = _useState140[0],
+    setTimeUp = _useState140[1]; // a pop-up for the DM and the player when the time for a turn runs out
   useEffect(function () {
-    // the DM's screen notes it in the log, once, when a player's time runs out
     var a = combatants.find(function (c) {
       return c.id === activeId;
     });
-    if (!isDM || !turnSecs || !combatStarted || rest || turnPaused || !a || !a.owner || clock - turnStart < turnSecs * 1000) return;
+    if (!turnSecs || !combatStarted || rest || turnPaused || !a || !a.owner || !(isDM || a.owner === myId) || clock - turnStart < turnSecs * 1000) return;
     var key = round + ':' + activeId;
     if (timeUpRef.current === key) return;
     timeUpRef.current = key;
-    setLog(function (prev) {
-      return [].concat(_toConsumableArray(prev), [stamp({
-        type: 'roll',
-        forId: a.id,
-        by: '',
-        priv: [a.id],
-        html: "<strong>".concat(esc(a.name), "</strong>: the time for this turn is up<div class=\"log-detail\">").concat(timeText(turnSecs), " per turn.</div>")
-      })]);
+    setTimeUp({
+      key: key,
+      name: a.name,
+      mine: a.owner === myId
     });
   }, [clock]);
+  useEffect(function () {
+    if (timeUp && timeUp.key !== round + ':' + activeId) setTimeUp(null);
+  }, [activeId, round]);
   useEffect(function () {
     FUDGE_DONE = function FUDGE_DONE() {
       return setFudge('');
@@ -6779,99 +6791,105 @@ function App() {
       NEXT_D20 = 0;
     };
   }, []);
-  var _useState139 = useState(null),
-    _useState140 = _slicedToArray(_useState139, 2),
-    blockPick = _useState140[0],
-    setBlockPick = _useState140[1]; // choosing the creature for a form or a summon: {cId, kind, source, left, q}
-  var _useState141 = useState(false),
+  var _useState141 = useState(null),
     _useState142 = _slicedToArray(_useState141, 2),
-    showGlossary = _useState142[0],
-    setShowGlossary = _useState142[1];
+    blockPick = _useState142[0],
+    setBlockPick = _useState142[1]; // choosing the creature for a form or a summon: {cId, kind, source, left, q}
   var _useState143 = useState(false),
     _useState144 = _slicedToArray(_useState143, 2),
-    showNotes = _useState144[0],
-    setShowNotes = _useState144[1];
-  var _useState145 = useState(0),
+    showGlossary = _useState144[0],
+    setShowGlossary = _useState144[1];
+  var _useState145 = useState(false),
     _useState146 = _slicedToArray(_useState145, 2),
-    notesVer = _useState146[0],
-    setNotesVer = _useState146[1];
-  var _useState147 = useState([]),
+    showNotes = _useState146[0],
+    setShowNotes = _useState146[1];
+  var _useState147 = useState(0),
     _useState148 = _slicedToArray(_useState147, 2),
-    inbox = _useState148[0],
-    setInbox = _useState148[1],
-    _useState149 = useState(false),
+    notesVer = _useState148[0],
+    setNotesVer = _useState148[1];
+  var _useState149 = useState(function () {
+      return lsGet('hba-player-name') || '';
+    }),
     _useState150 = _slicedToArray(_useState149, 2),
-    inboxOpen = _useState150[0],
-    setInboxOpen = _useState150[1],
-    _useState151 = useState(0),
+    playerName = _useState150[0],
+    setPlayerName = _useState150[1]; // the player's own name, shown to the DM
+  var _useState151 = useState([]),
     _useState152 = _slicedToArray(_useState151, 2),
-    inboxSeen = _useState152[0],
-    setInboxSeen = _useState152[1],
-    _useState153 = useState(''),
+    inbox = _useState152[0],
+    setInbox = _useState152[1],
+    _useState153 = useState(false),
     _useState154 = _slicedToArray(_useState153, 2),
-    inboxGroup = _useState154[0],
-    setInboxGroup = _useState154[1]; // the DM's notification center
-  var combatKey = useRef(''); // the DM's Rules Glossary
-  var _useState155 = useState(null),
+    inboxOpen = _useState154[0],
+    setInboxOpen = _useState154[1],
+    _useState155 = useState(0),
     _useState156 = _slicedToArray(_useState155, 2),
-    restSummary = _useState156[0],
-    setRestSummary = _useState156[1]; // what a player's rest just gave back
-  var restRef = useRef(null);
-  var _useState157 = useState(0),
+    inboxSeen = _useState156[0],
+    setInboxSeen = _useState156[1],
+    _useState157 = useState(''),
     _useState158 = _slicedToArray(_useState157, 2),
-    castLevel = _useState158[0],
-    setCastLevel = _useState158[1]; // spell slot level chosen for the selected spell (0 = lowest available)
-  var _useState159 = useState({
+    inboxGroup = _useState158[0],
+    setInboxGroup = _useState158[1]; // the DM's notification center
+  var combatKey = useRef(''); // the DM's Rules Glossary
+  var _useState159 = useState(null),
+    _useState160 = _slicedToArray(_useState159, 2),
+    restSummary = _useState160[0],
+    setRestSummary = _useState160[1]; // what a player's rest just gave back
+  var restRef = useRef(null);
+  var _useState161 = useState(0),
+    _useState162 = _slicedToArray(_useState161, 2),
+    castLevel = _useState162[0],
+    setCastLevel = _useState162[1]; // spell slot level chosen for the selected spell (0 = lowest available)
+  var _useState163 = useState({
       n: '',
       unit: 'minutes',
       when: '',
       abil: 'Wisdom',
       dc: ''
     }),
-    _useState160 = _slicedToArray(_useState159, 2),
-    condOpts = _useState160[0],
-    setCondOpts = _useState160[1]; // how the next condition applied behaves
-  var _useState161 = useState('order'),
-    _useState162 = _slicedToArray(_useState161, 2),
-    pane = _useState162[0],
-    setPane = _useState162[1]; // which panel shows on a phone: order | sheet | log
-  var _useState163 = useState(''),
     _useState164 = _slicedToArray(_useState163, 2),
-    diceExpr = _useState164[0],
-    setDiceExpr = _useState164[1];
-  var _useState165 = useState({
+    condOpts = _useState164[0],
+    setCondOpts = _useState164[1]; // how the next condition applied behaves
+  var _useState165 = useState('order'),
+    _useState166 = _slicedToArray(_useState165, 2),
+    pane = _useState166[0],
+    setPane = _useState166[1]; // which panel shows on a phone: order | sheet | log
+  var _useState167 = useState(''),
+    _useState168 = _slicedToArray(_useState167, 2),
+    diceExpr = _useState168[0],
+    setDiceExpr = _useState168[1];
+  var _useState169 = useState({
       reroll: false,
       twice: ''
     }),
-    _useState166 = _slicedToArray(_useState165, 2),
-    diceOpts = _useState166[0],
-    setDiceOpts = _useState166[1]; // reroll 1s once; roll everything twice and keep the higher or lower total
-  var _useState167 = useState({}),
-    _useState168 = _slicedToArray(_useState167, 2),
-    openDown = _useState168[0],
-    setOpenDown = _useState168[1]; // defeated monsters the DM has opened up again
-  var _useState169 = useState({
+    _useState170 = _slicedToArray(_useState169, 2),
+    diceOpts = _useState170[0],
+    setDiceOpts = _useState170[1]; // reroll 1s once; roll everything twice and keep the higher or lower total
+  var _useState171 = useState({}),
+    _useState172 = _slicedToArray(_useState171, 2),
+    openDown = _useState172[0],
+    setOpenDown = _useState172[1]; // defeated monsters the DM has opened up again
+  var _useState173 = useState({
       off: {},
       extra: ''
     }),
-    _useState170 = _slicedToArray(_useState169, 2),
-    xpPick = _useState170[0],
-    setXpPick = _useState170[1]; // DM: creatures left out of the Experience Points pool, and extra points
-  var _useState171 = useState(null),
-    _useState172 = _slicedToArray(_useState171, 2),
-    dmAsk = _useState172[0],
-    setDmAsk = _useState172[1]; // DM: roll, or choose the total. {kind:'attack'|'prompt', q, label, mod, total}
-  var _useState173 = useState(function () {
+    _useState174 = _slicedToArray(_useState173, 2),
+    xpPick = _useState174[0],
+    setXpPick = _useState174[1]; // DM: creatures left out of the Experience Points pool, and extra points
+  var _useState175 = useState(null),
+    _useState176 = _slicedToArray(_useState175, 2),
+    dmAsk = _useState176[0],
+    setDmAsk = _useState176[1]; // DM: roll, or choose the total. {kind:'attack'|'prompt', q, label, mod, total}
+  var _useState177 = useState(function () {
       try {
         return window.localStorage.getItem('hba-dm-choose') !== 'off';
       } catch (e) {
         return true;
       }
     }),
-    _useState174 = _slicedToArray(_useState173, 2),
-    dmChoose = _useState174[0],
-    setDmChoose = _useState174[1];
-  var _useState175 = useState({
+    _useState178 = _slicedToArray(_useState177, 2),
+    dmChoose = _useState178[0],
+    setDmChoose = _useState178[1];
+  var _useState179 = useState({
       targetId: '',
       kind: 'save',
       ability: 'Constitution',
@@ -6879,64 +6897,64 @@ function App() {
       dc: '10',
       why: ''
     }),
-    _useState176 = _slicedToArray(_useState175, 2),
-    callRoll = _useState176[0],
-    setCallRoll = _useState176[1];
+    _useState180 = _slicedToArray(_useState179, 2),
+    callRoll = _useState180[0],
+    setCallRoll = _useState180[1];
   var actingRef = useRef('');
   var actionRef = useRef(null); // the action whose damage is being dealt                     // whose action is being resolved, for the fight summary
-  var _useState177 = useState(0),
-    _useState178 = _slicedToArray(_useState177, 2),
-    initCall = _useState178[0],
-    setInitCall = _useState178[1]; // the DM has called for Initiative: a number that marks this call, or 0
-  var _useState179 = useState(function () {
+  var _useState181 = useState(0),
+    _useState182 = _slicedToArray(_useState181, 2),
+    initCall = _useState182[0],
+    setInitCall = _useState182[1]; // the DM has called for Initiative: a number that marks this call, or 0
+  var _useState183 = useState(function () {
       try {
         return window.localStorage.getItem('hba-ask-init') !== 'off';
       } catch (e) {
         return true;
       }
     }),
-    _useState180 = _slicedToArray(_useState179, 2),
-    askInit = _useState180[0],
-    setAskInit = _useState180[1]; // table rule: everyone rolls Initiative when combat is called
-  var _useState181 = useState({}),
-    _useState182 = _slicedToArray(_useState181, 2),
-    initType = _useState182[0],
-    setInitType = _useState182[1]; // typed Initiative totals, by creature
-  var _useState183 = useState({}),
     _useState184 = _slicedToArray(_useState183, 2),
-    picks = _useState184[0],
-    setPicks = _useState184[1]; // what the caster chose for a spell that asks: {actionId: [first, second]}
+    askInit = _useState184[0],
+    setAskInit = _useState184[1]; // table rule: everyone rolls Initiative when combat is called
   var _useState185 = useState({}),
     _useState186 = _slicedToArray(_useState185, 2),
-    modePick = _useState186[0],
-    setModePick = _useState186[1]; // which version of a spell with several: {actionId: index}
-  var _useState187 = useState(null),
+    initType = _useState186[0],
+    setInitType = _useState186[1]; // typed Initiative totals, by creature
+  var _useState187 = useState({}),
     _useState188 = _slicedToArray(_useState187, 2),
-    removePick = _useState188[0],
-    setRemovePick = _useState188[1]; // choosing what a spell ends on its target: {targetId, name, options, n}
+    picks = _useState188[0],
+    setPicks = _useState188[1]; // what the caster chose for a spell that asks: {actionId: [first, second]}
   var _useState189 = useState({}),
     _useState190 = _slicedToArray(_useState189, 2),
-    dmAnswer = _useState190[0],
-    setDmAnswer = _useState190[1];
-  var _useState191 = useState({}),
+    modePick = _useState190[0],
+    setModePick = _useState190[1]; // which version of a spell with several: {actionId: index}
+  var _useState191 = useState(null),
     _useState192 = _slicedToArray(_useState191, 2),
-    weaponPick = _useState192[0],
-    setWeaponPick = _useState192[1];
-  var _useState193 = useState(function () {
+    removePick = _useState192[0],
+    setRemovePick = _useState192[1]; // choosing what a spell ends on its target: {targetId, name, options, n}
+  var _useState193 = useState({}),
+    _useState194 = _slicedToArray(_useState193, 2),
+    dmAnswer = _useState194[0],
+    setDmAnswer = _useState194[1];
+  var _useState195 = useState({}),
+    _useState196 = _slicedToArray(_useState195, 2),
+    weaponPick = _useState196[0],
+    setWeaponPick = _useState196[1];
+  var _useState197 = useState(function () {
       try {
         return window.localStorage.getItem('hba-turn-auto') !== 'off';
       } catch (e) {
         return true;
       }
     }),
-    _useState194 = _slicedToArray(_useState193, 2),
-    turnAuto = _useState194[0],
-    setTurnAuto = _useState194[1]; // the turn panel opens by itself on this player's turn
-  var _useState195 = useState(true),
-    _useState196 = _slicedToArray(_useState195, 2),
-    turnOpen = _useState196[0],
-    setTurnOpen = _useState196[1];
-  var _useState197 = useState(function () {
+    _useState198 = _slicedToArray(_useState197, 2),
+    turnAuto = _useState198[0],
+    setTurnAuto = _useState198[1]; // the turn panel opens by itself on this player's turn
+  var _useState199 = useState(true),
+    _useState200 = _slicedToArray(_useState199, 2),
+    turnOpen = _useState200[0],
+    setTurnOpen = _useState200[1];
+  var _useState201 = useState(function () {
       try {
         var v = JSON.parse(window.localStorage.getItem('hba-right-fold') || '{}');
         return v && _typeof(v) === 'object' ? v : {};
@@ -6944,9 +6962,9 @@ function App() {
         return {};
       }
     }),
-    _useState198 = _slicedToArray(_useState197, 2),
-    rightFold = _useState198[0],
-    setRightFold = _useState198[1]; // folded sections of the right-hand bar
+    _useState202 = _slicedToArray(_useState201, 2),
+    rightFold = _useState202[0],
+    setRightFold = _useState202[1]; // folded sections of the right-hand bar
   var foldRight = function foldRight(k) {
     return setRightFold(function (prev) {
       var n = _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, k, !prev[k]));
@@ -6956,51 +6974,51 @@ function App() {
       return n;
     });
   };
-  var _useState199 = useState(null),
-    _useState200 = _slicedToArray(_useState199, 2),
-    actOnly = _useState200[0],
-    setActOnly = _useState200[1]; // the sheet lists only what this part of the turn can do: 'action' | 'bonus' | 'reaction' | 'extra'
-  var _useState201 = useState(0),
-    _useState202 = _slicedToArray(_useState201, 2),
-    dmgTwice = _useState202[0],
-    setDmgTwice = _useState202[1]; // the next damage roll is rolled twice: 1 keeps the higher, -1 the lower
-  var _useState203 = useState({}),
+  var _useState203 = useState(null),
     _useState204 = _slicedToArray(_useState203, 2),
-    storePick = _useState204[0],
-    setStorePick = _useState204[1];
-  var _useState205 = useState(''),
+    actOnly = _useState204[0],
+    setActOnly = _useState204[1]; // the sheet lists only what this part of the turn can do: 'action' | 'bonus' | 'reaction' | 'extra'
+  var _useState205 = useState(0),
     _useState206 = _slicedToArray(_useState205, 2),
-    elemType = _useState206[0],
-    setElemType = _useState206[1]; // the damage type picked for this attack (Conjure Minor Elementals) // the spell put inside another spell: {actionId: stored action id}
-  var _useState207 = useState(null),
+    dmgTwice = _useState206[0],
+    setDmgTwice = _useState206[1]; // the next damage roll is rolled twice: 1 keeps the higher, -1 the lower
+  var _useState207 = useState({}),
     _useState208 = _slicedToArray(_useState207, 2),
-    forced = _useState208[0],
-    setForced = _useState208[1]; // an action used although something says it can't be: {id, why}
-  var forcedRef = useRef(null);
-  var _useState209 = useState({}),
+    storePick = _useState208[0],
+    setStorePick = _useState208[1];
+  var _useState209 = useState(''),
     _useState210 = _slicedToArray(_useState209, 2),
-    openFlag = _useState210[0],
-    setOpenFlag = _useState210[1];
-  var _useState211 = useState(''),
+    elemType = _useState210[0],
+    setElemType = _useState210[1]; // the damage type picked for this attack (Conjure Minor Elementals) // the spell put inside another spell: {actionId: stored action id}
+  var _useState211 = useState(null),
     _useState212 = _slicedToArray(_useState211, 2),
-    castOn = _useState212[0],
-    setCastOn = _useState212[1]; // what or where a spell that works on objects or places is cast
-  var _useState213 = useState(''),
+    forced = _useState212[0],
+    setForced = _useState212[1]; // an action used although something says it can't be: {id, why}
+  var forcedRef = useRef(null);
+  var _useState213 = useState({}),
     _useState214 = _slicedToArray(_useState213, 2),
-    msgText = _useState214[0],
-    setMsgText = _useState214[1]; // the words sent by a spell that carries a message // the weapon a spell is cast through: {actionId: weapon action id}     // the DM's typed answers to spells that ask a question
+    openFlag = _useState214[0],
+    setOpenFlag = _useState214[1];
   var _useState215 = useState(''),
     _useState216 = _slicedToArray(_useState215, 2),
-    askLater = _useState216[0],
-    setAskLater = _useState216[1]; // the set of asks this person chose to deal with later
-  var _useState217 = useState(0),
+    castOn = _useState216[0],
+    setCastOn = _useState216[1]; // what or where a spell that works on objects or places is cast
+  var _useState217 = useState(''),
     _useState218 = _slicedToArray(_useState217, 2),
-    turnSecs = _useState218[0],
-    setTurnSecs = _useState218[1]; // table rule: seconds a player has for a turn (0 = no timer)
-  var _useState219 = useState(Date.now()),
+    msgText = _useState218[0],
+    setMsgText = _useState218[1]; // the words sent by a spell that carries a message // the weapon a spell is cast through: {actionId: weapon action id}     // the DM's typed answers to spells that ask a question
+  var _useState219 = useState(''),
     _useState220 = _slicedToArray(_useState219, 2),
-    turnStart = _useState220[0],
-    setTurnStart = _useState220[1];
+    askLater = _useState220[0],
+    setAskLater = _useState220[1]; // the set of asks this person chose to deal with later
+  var _useState221 = useState(0),
+    _useState222 = _slicedToArray(_useState221, 2),
+    turnSecs = _useState222[0],
+    setTurnSecs = _useState222[1]; // table rule: seconds a player has for a turn (0 = no timer)
+  var _useState223 = useState(Date.now()),
+    _useState224 = _slicedToArray(_useState223, 2),
+    turnStart = _useState224[0],
+    setTurnStart = _useState224[1];
   useEffect(function () {
     if (turnPaused) pauseEl.current = Date.now() - turnStart;else if (pauseEl.current) {
       setTurnStart(Date.now() - pauseEl.current);
@@ -7010,134 +7028,134 @@ function App() {
   var turnUsed = function turnUsed() {
     return turnPaused ? pauseEl.current : clock - turnStart;
   };
-  var _useState221 = useState(false),
-    _useState222 = _slicedToArray(_useState221, 2),
-    hideTimer = _useState222[0],
-    setHideTimer = _useState222[1];
-  var _useState223 = useState(Date.now()),
-    _useState224 = _slicedToArray(_useState223, 2),
-    clock = _useState224[0],
-    setClock = _useState224[1];
-  var timeUpRef = useRef('');
-  var _useState225 = useState(''),
+  var _useState225 = useState(false),
     _useState226 = _slicedToArray(_useState225, 2),
-    sessName = _useState226[0],
-    setSessName = _useState226[1];
-  var _useState227 = useState({
-      n: '',
-      unit: 'minutes'
-    }),
+    hideTimer = _useState226[0],
+    setHideTimer = _useState226[1];
+  var _useState227 = useState(Date.now()),
     _useState228 = _slicedToArray(_useState227, 2),
-    restSet = _useState228[0],
-    setRestSet = _useState228[1];
-  var _useState229 = useState(false),
+    clock = _useState228[0],
+    setClock = _useState228[1];
+  var timeUpRef = useRef('');
+  var _useState229 = useState(''),
     _useState230 = _slicedToArray(_useState229, 2),
-    restCards = _useState230[0],
-    setRestCards = _useState230[1];
-  var fight = combatStarted && !rest; // a rest pauses the fight: nobody waits for their turn until it is over
+    sessName = _useState230[0],
+    setSessName = _useState230[1];
   var _useState231 = useState({
-      what: '',
       n: '',
       unit: 'minutes'
     }),
     _useState232 = _slicedToArray(_useState231, 2),
-    busy = _useState232[0],
-    setBusy = _useState232[1]; // a player doing something that takes time
-  var _useState233 = useState([]),
+    restSet = _useState232[0],
+    setRestSet = _useState232[1];
+  var _useState233 = useState(false),
     _useState234 = _slicedToArray(_useState233, 2),
-    timeMute = _useState234[0],
-    setTimeMute = _useState234[1];
-  var _useState235 = useState({}),
+    restCards = _useState234[0],
+    setRestCards = _useState234[1];
+  var fight = combatStarted && !rest; // a rest pauses the fight: nobody waits for their turn until it is over
+  var _useState235 = useState({
+      what: '',
+      n: '',
+      unit: 'minutes'
+    }),
     _useState236 = _slicedToArray(_useState235, 2),
-    shared = _useState236[0],
-    setShared = _useState236[1]; // homebrew Content Packs the DM shares with this session: {key: pack}
-  var _useState237 = useState(0),
+    busy = _useState236[0],
+    setBusy = _useState236[1]; // a player doing something that takes time
+  var _useState237 = useState([]),
     _useState238 = _slicedToArray(_useState237, 2),
-    packTick = _useState238[0],
-    setPackTick = _useState238[1]; // kinds of "move time forward?" reminders the DM has stopped
-  var _useState239 = useState(null),
+    timeMute = _useState238[0],
+    setTimeMute = _useState238[1];
+  var _useState239 = useState({}),
     _useState240 = _slicedToArray(_useState239, 2),
-    world = _useState240[0],
-    setWorld = _useState240[1]; // the DM's world tracker (time of day, weather, trackers, timers), shared with the session     // the name the DM gave this session
-  var _useState241 = useState(function () {
+    shared = _useState240[0],
+    setShared = _useState240[1]; // homebrew Content Packs the DM shares with this session: {key: pack}
+  var _useState241 = useState(0),
+    _useState242 = _slicedToArray(_useState241, 2),
+    packTick = _useState242[0],
+    setPackTick = _useState242[1]; // kinds of "move time forward?" reminders the DM has stopped
+  var _useState243 = useState(null),
+    _useState244 = _slicedToArray(_useState243, 2),
+    world = _useState244[0],
+    setWorld = _useState244[1]; // the DM's world tracker (time of day, weather, trackers, timers), shared with the session     // the name the DM gave this session
+  var _useState245 = useState(function () {
       return mySessions();
     }),
-    _useState242 = _slicedToArray(_useState241, 2),
-    sessions = _useState242[0],
-    setSessions = _useState242[1];
-  var _useState243 = useState(true),
-    _useState244 = _slicedToArray(_useState243, 2),
-    showSessions = _useState244[0],
-    setShowSessions = _useState244[1];
-  var _useState245 = useState(false),
     _useState246 = _slicedToArray(_useState245, 2),
-    hideRolls = _useState246[0],
-    setHideRolls = _useState246[1]; // DM: players see the result of the DM's rolls, not the numbers
-  var _useState247 = useState(false),
+    sessions = _useState246[0],
+    setSessions = _useState246[1];
+  var _useState247 = useState(true),
     _useState248 = _slicedToArray(_useState247, 2),
-    ammoOn = _useState248[0],
-    setAmmoOn = _useState248[1]; // table rule: everyone counts ammunition (a player can also switch it on alone)
-  var _useState249 = useState(''),
+    showSessions = _useState248[0],
+    setShowSessions = _useState248[1];
+  var _useState249 = useState(false),
     _useState250 = _slicedToArray(_useState249, 2),
-    fudge = _useState250[0],
-    setFudge = _useState250[1]; // DM: what the next d20 shows
-  var _useState251 = useState(null),
+    hideRolls = _useState250[0],
+    setHideRolls = _useState250[1]; // DM: players see the result of the DM's rolls, not the numbers
+  var _useState251 = useState(false),
     _useState252 = _slicedToArray(_useState251, 2),
-    handPick = _useState252[0],
-    setHandPick = _useState252[1];
-  var _useState253 = useState(null),
+    ammoOn = _useState252[0],
+    setAmmoOn = _useState252[1]; // table rule: everyone counts ammunition (a player can also switch it on alone)
+  var _useState253 = useState(''),
     _useState254 = _slicedToArray(_useState253, 2),
-    holdFor = _useState254[0],
-    setHoldFor = _useState254[1];
+    fudge = _useState254[0],
+    setFudge = _useState254[1]; // DM: what the next d20 shows
   var _useState255 = useState(null),
     _useState256 = _slicedToArray(_useState255, 2),
-    clearPick = _useState256[0],
-    setClearPick = _useState256[1]; // the DM choosing what to clear: {log, monsters, players, world, notes}
-  var _useState257 = useState(''),
+    handPick = _useState256[0],
+    setHandPick = _useState256[1];
+  var _useState257 = useState(null),
     _useState258 = _slicedToArray(_useState257, 2),
-    statWhy = _useState258[0],
-    setStatWhy = _useState258[1];
-  var _useState259 = useState(false),
+    holdFor = _useState258[0],
+    setHoldFor = _useState258[1];
+  var _useState259 = useState(null),
     _useState260 = _slicedToArray(_useState259, 2),
-    explainOn = _useState260[0],
-    setExplainOn = _useState260[1]; // Explain: a click shows where something comes from instead of doing it
-  var _useState261 = useState(null),
+    clearPick = _useState260[0],
+    setClearPick = _useState260[1]; // the DM choosing what to clear: {log, monsters, players, world, notes}
+  var _useState261 = useState(''),
     _useState262 = _slicedToArray(_useState261, 2),
-    explained = _useState262[0],
-    setExplained = _useState262[1]; // {title, lines: [[label, value]], text} // which number's breakdown is open: 'ac', 'speed', 'init'     // picking from the Inventory tab what goes in a hand: {cId, i}
-  var _useState263 = useState(''),
+    statWhy = _useState262[0],
+    setStatWhy = _useState262[1];
+  var _useState263 = useState(false),
     _useState264 = _slicedToArray(_useState263, 2),
-    holdText = _useState264[0],
-    setHoldText = _useState264[1]; // choosing what goes in a hand: {cId, i, want}
-  var _useState265 = useState(false),
+    explainOn = _useState264[0],
+    setExplainOn = _useState264[1]; // Explain: a click shows where something comes from instead of doing it
+  var _useState265 = useState(null),
     _useState266 = _slicedToArray(_useState265, 2),
-    handsOn = _useState266[0],
-    setHandsOn = _useState266[1]; // table rule: track what each character holds
+    explained = _useState266[0],
+    setExplained = _useState266[1]; // {title, lines: [[label, value]], text} // which number's breakdown is open: 'ac', 'speed', 'init'     // picking from the Inventory tab what goes in a hand: {cId, i}
   var _useState267 = useState(''),
     _useState268 = _slicedToArray(_useState267, 2),
-    compMode = _useState268[0],
-    setCompMode = _useState268[1]; // table rule: spell components. '' off, 'simple', 'full'
+    holdText = _useState268[0],
+    setHoldText = _useState268[1]; // choosing what goes in a hand: {cId, i, want}
   var _useState269 = useState(false),
     _useState270 = _slicedToArray(_useState269, 2),
-    showPouch = _useState270[0],
-    setShowPouch = _useState270[1];
-  var _useState271 = useState({}),
+    handsOn = _useState270[0],
+    setHandsOn = _useState270[1]; // table rule: track what each character holds
+  var _useState271 = useState(''),
     _useState272 = _slicedToArray(_useState271, 2),
-    openSpells = _useState272[0],
-    setOpenSpells = _useState272[1]; // spell name -> its details are open
+    compMode = _useState272[0],
+    setCompMode = _useState272[1]; // table rule: spell components. '' off, 'simple', 'full'
+  var _useState273 = useState(false),
+    _useState274 = _slicedToArray(_useState273, 2),
+    showPouch = _useState274[0],
+    setShowPouch = _useState274[1];
+  var _useState275 = useState({}),
+    _useState276 = _slicedToArray(_useState275, 2),
+    openSpells = _useState276[0],
+    setOpenSpells = _useState276[1]; // spell name -> its details are open
   var castWatch = useRef(null); // a spell I just cast: everything it causes is gathered into one pop-up
   var promptsRef = useRef([]);
-  var _useState273 = useState([]),
-    _useState274 = _slicedToArray(_useState273, 2),
-    notices = _useState274[0],
-    setNotices = _useState274[1];
+  var _useState277 = useState([]),
+    _useState278 = _slicedToArray(_useState277, 2),
+    notices = _useState278[0],
+    setNotices = _useState278[1];
   var loadedAt = useRef(Date.now()),
     firstSnap = useRef(false),
     preSeen = useRef(new Set());
-  var _useState275 = useState(0),
-    _useState276 = _slicedToArray(_useState275, 2),
-    noticeDone = _useState276[0],
-    setNoticeDone = _useState276[1]; // how many pop-ups of this run have been read, for "2 of 5"              // "this is what happened to you" pop-ups waiting to be read
+  var _useState279 = useState(0),
+    _useState280 = _slicedToArray(_useState279, 2),
+    noticeDone = _useState280[0],
+    setNoticeDone = _useState280[1]; // how many pop-ups of this run have been read, for "2 of 5"              // "this is what happened to you" pop-ups waiting to be read
   var seenLog = useRef(null);
   useEffect(function () {
     if (combatStarted && !combatKey.current) {
@@ -7162,18 +7180,18 @@ function App() {
       return setNoteSaved('');
     }, 1500);
   };
-  var _useState277 = useState(''),
-    _useState278 = _slicedToArray(_useState277, 2),
-    noteSaved = _useState278[0],
-    setNoteSaved = _useState278[1];
+  var _useState281 = useState(''),
+    _useState282 = _slicedToArray(_useState281, 2),
+    noteSaved = _useState282[0],
+    setNoteSaved = _useState282[1];
   var dmHist = useRef({});
   var lastSnap = useRef(null);
   var dmWorld = useRef({});
   var lastWorld = useRef(undefined);
-  var _useState279 = useState('combat'),
-    _useState280 = _slicedToArray(_useState279, 2),
-    logTab = _useState280[0],
-    setLogTab = _useState280[1];
+  var _useState283 = useState('combat'),
+    _useState284 = _slicedToArray(_useState283, 2),
+    logTab = _useState284[0],
+    setLogTab = _useState284[1];
   var worldLogged = useRef(undefined); // the World Tracker as last written in the System Log
   useEffect(function () {
     if (!isDM) return;
@@ -7233,26 +7251,26 @@ function App() {
       return clearTimeout(t);
     };
   }, [world]); // the DM's Combat Log or System Log
-  var _useState281 = useState(null),
-    _useState282 = _slicedToArray(_useState281, 2),
-    changePick = _useState282[0],
-    setChangePick = _useState282[1]; // the DM changing what an entry did: {entry, rows} // the DM can take the table back to just before any Combat Log entry
-  var _useState283 = useState('full'),
-    _useState284 = _slicedToArray(_useState283, 2),
-    reveal = _useState284[0],
-    setReveal = _useState284[1]; // table rule: what players see of creatures that are not theirs: full | bar | conditions | none
-  var _useState285 = useState(true),
+  var _useState285 = useState(null),
     _useState286 = _slicedToArray(_useState285, 2),
-    revealAC = _useState286[0],
-    setRevealAC = _useState286[1];
-  var _useState287 = useState(''),
+    changePick = _useState286[0],
+    setChangePick = _useState286[1]; // the DM changing what an entry did: {entry, rows} // the DM can take the table back to just before any Combat Log entry
+  var _useState287 = useState('full'),
     _useState288 = _slicedToArray(_useState287, 2),
-    trackerDraft = _useState288[0],
-    setTrackerDraft = _useState288[1];
-  var _useState289 = useState(''),
+    reveal = _useState288[0],
+    setReveal = _useState288[1]; // table rule: what players see of creatures that are not theirs: full | bar | conditions | none
+  var _useState289 = useState(true),
     _useState290 = _slicedToArray(_useState289, 2),
-    newTracker = _useState290[0],
-    setNewTracker = _useState290[1]; // a counter a creature keeps on its sheet
+    revealAC = _useState290[0],
+    setRevealAC = _useState290[1];
+  var _useState291 = useState(''),
+    _useState292 = _slicedToArray(_useState291, 2),
+    trackerDraft = _useState292[0],
+    setTrackerDraft = _useState292[1];
+  var _useState293 = useState(''),
+    _useState294 = _slicedToArray(_useState293, 2),
+    newTracker = _useState294[0],
+    setNewTracker = _useState294[1]; // a counter a creature keeps on its sheet
   var addTracker = function addTracker(c) {
     var n = newTracker.trim().slice(0, 40);
     if (!n) return;
@@ -7269,31 +7287,31 @@ function App() {
     });
     setNewTracker('');
   };
-  var _useState291 = useState(false),
-    _useState292 = _slicedToArray(_useState291, 2),
-    dmWide = _useState292[0],
-    setDmWide = _useState292[1]; // the DM controls widened to the right
-  var _useState293 = useState(''),
-    _useState294 = _slicedToArray(_useState293, 2),
-    trackPage = _useState294[0],
-    setTrackPage = _useState294[1]; // the DM's Trackers page: '' closed, 'open' full screen, 'min' folded to a bar
-  var _useState295 = useState({
+  var _useState295 = useState(false),
+    _useState296 = _slicedToArray(_useState295, 2),
+    dmWide = _useState296[0],
+    setDmWide = _useState296[1]; // the DM controls widened to the right
+  var _useState297 = useState(''),
+    _useState298 = _slicedToArray(_useState297, 2),
+    trackPage = _useState298[0],
+    setTrackPage = _useState298[1]; // the DM's Trackers page: '' closed, 'open' full screen, 'min' folded to a bar
+  var _useState299 = useState({
       name: '',
       val: '0',
       ids: []
     }),
-    _useState296 = _slicedToArray(_useState295, 2),
-    multiT = _useState296[0],
-    setMultiT = _useState296[1]; // one tracker added to several creatures
-  var _useState297 = useState(''),
-    _useState298 = _slicedToArray(_useState297, 2),
-    encTable = _useState298[0],
-    setEncTableRaw = _useState298[1];
+    _useState300 = _slicedToArray(_useState299, 2),
+    multiT = _useState300[0],
+    setMultiT = _useState300[1]; // one tracker added to several creatures
+  var _useState301 = useState(''),
+    _useState302 = _slicedToArray(_useState301, 2),
+    encTable = _useState302[0],
+    setEncTableRaw = _useState302[1];
   var setEncTable = function setEncTable(v) {
     ENC_TABLE = v || '';
     setEncTableRaw(v || '');
   };
-  var _useState299 = useState({
+  var _useState303 = useState({
       level: true,
       schools: [],
       comps: [],
@@ -7301,27 +7319,27 @@ function App() {
       sort: '',
       menu: ''
     }),
-    _useState300 = _slicedToArray(_useState299, 2),
-    spf = _useState300[0],
-    setSpf = _useState300[1]; // spell filters on the sheet
-  var _useState301 = useState([]),
-    _useState302 = _slicedToArray(_useState301, 2),
-    lvlShut = _useState302[0],
-    setLvlShut = _useState302[1]; // spell levels folded on the sheet
-  var _useState303 = useState(function () {
+    _useState304 = _slicedToArray(_useState303, 2),
+    spf = _useState304[0],
+    setSpf = _useState304[1]; // spell filters on the sheet
+  var _useState305 = useState([]),
+    _useState306 = _slicedToArray(_useState305, 2),
+    lvlShut = _useState306[0],
+    setLvlShut = _useState306[1]; // spell levels folded on the sheet
+  var _useState307 = useState(function () {
       try {
         return window.localStorage.getItem('hba-auto-damage') === 'on';
       } catch (e) {
         return false;
       }
     }),
-    _useState304 = _slicedToArray(_useState303, 2),
-    autoDmg = _useState304[0],
-    setAutoDmg = _useState304[1]; // this player rolls damage in the same click as the attack
-  var _useState305 = useState(null),
-    _useState306 = _slicedToArray(_useState305, 2),
-    dmgPop = _useState306[0],
-    setDmgPop = _useState306[1]; // the attack's result card: a hit waits for its damage roll; a miss or the damage goes away by itself
+    _useState308 = _slicedToArray(_useState307, 2),
+    autoDmg = _useState308[0],
+    setAutoDmg = _useState308[1]; // this player rolls damage in the same click as the attack
+  var _useState309 = useState(null),
+    _useState310 = _slicedToArray(_useState309, 2),
+    dmgPop = _useState310[0],
+    setDmgPop = _useState310[1]; // the attack's result card: a hit waits for its damage roll; a miss or the damage goes away by itself
   useEffect(function () {
     if (!dmgPop || dmgPop.kind === 'hit') return;
     var t = setTimeout(function () {
@@ -7333,16 +7351,16 @@ function App() {
       return clearTimeout(t);
     };
   }, [dmgPop]);
-  var _useState307 = useState(function () {
+  var _useState311 = useState(function () {
       try {
         return JSON.parse(window.localStorage.getItem('hba-folded-cards') || '[]');
       } catch (e) {
         return [];
       }
     }),
-    _useState308 = _slicedToArray(_useState307, 2),
-    folded = _useState308[0],
-    setFolded = _useState308[1]; // turn-order cards folded to one line, on this computer
+    _useState312 = _slicedToArray(_useState311, 2),
+    folded = _useState312[0],
+    setFolded = _useState312[1]; // turn-order cards folded to one line, on this computer
   var toggleFold = function toggleFold(id) {
     return setFolded(function (prev) {
       var next = prev.includes(id) ? prev.filter(function (x) {
@@ -7357,10 +7375,10 @@ function App() {
   var hideKey = function hideKey() {
     return 'hba-hidden-log-' + (room || 'local');
   };
-  var _useState309 = useState([]),
-    _useState310 = _slicedToArray(_useState309, 2),
-    hiddenLog = _useState310[0],
-    setHiddenLog = _useState310[1]; // Combat Log entries taken off my own view
+  var _useState313 = useState([]),
+    _useState314 = _slicedToArray(_useState313, 2),
+    hiddenLog = _useState314[0],
+    setHiddenLog = _useState314[1]; // Combat Log entries taken off my own view
   useEffect(function () {
     try {
       setHiddenLog(JSON.parse(window.localStorage.getItem(hideKey()) || '[]'));
@@ -7377,78 +7395,78 @@ function App() {
       return next;
     });
   };
-  var _useState311 = useState([]),
-    _useState312 = _slicedToArray(_useState311, 2),
-    tableCoins = _useState312[0],
-    setTableCoins = _useState312[1]; // money kinds the DM adds for the whole table (crowns, ration chits)
-  var _useState313 = useState(true),
-    _useState314 = _slicedToArray(_useState313, 2),
-    moneyOpen = _useState314[0],
-    setMoneyOpen = _useState314[1];
-  var _useState315 = useState(''),
+  var _useState315 = useState([]),
     _useState316 = _slicedToArray(_useState315, 2),
-    purseName = _useState316[0],
-    setPurseName = _useState316[1];
-  var _useState317 = useState(''),
+    tableCoins = _useState316[0],
+    setTableCoins = _useState316[1]; // money kinds the DM adds for the whole table (crowns, ration chits)
+  var _useState317 = useState(true),
     _useState318 = _slicedToArray(_useState317, 2),
-    coinName = _useState318[0],
-    setCoinName = _useState318[1];
-  var _useState319 = useState('main'),
+    moneyOpen = _useState318[0],
+    setMoneyOpen = _useState318[1];
+  var _useState319 = useState(''),
     _useState320 = _slicedToArray(_useState319, 2),
-    fundTab = _useState320[0],
-    setFundTab = _useState320[1],
-    _useState321 = useState(null),
+    purseName = _useState320[0],
+    setPurseName = _useState320[1];
+  var _useState321 = useState(''),
     _useState322 = _slicedToArray(_useState321, 2),
-    fundNew = _useState322[0],
-    setFundNew = _useState322[1],
-    _useState323 = useState(false),
+    coinName = _useState322[0],
+    setCoinName = _useState322[1];
+  var _useState323 = useState('main'),
     _useState324 = _slicedToArray(_useState323, 2),
-    fundEdit = _useState324[0],
-    setFundEdit = _useState324[1],
-    _useState325 = useState(''),
+    fundTab = _useState324[0],
+    setFundTab = _useState324[1],
+    _useState325 = useState(null),
     _useState326 = _slicedToArray(_useState325, 2),
-    denomVal = _useState326[0],
-    setDenomVal = _useState326[1],
-    _useState327 = useState(''),
+    fundNew = _useState326[0],
+    setFundNew = _useState326[1],
+    _useState327 = useState(false),
     _useState328 = _slicedToArray(_useState327, 2),
-    denomWt = _useState328[0],
-    setDenomWt = _useState328[1]; // the money tabs
-  var _useState329 = useState([]),
+    fundEdit = _useState328[0],
+    setFundEdit = _useState328[1],
+    _useState329 = useState(''),
     _useState330 = _slicedToArray(_useState329, 2),
-    condTargets = _useState330[0],
-    setCondTargets = _useState330[1]; // creatures the DM is giving a condition to
-  var _useState331 = useState(false),
+    denomVal = _useState330[0],
+    setDenomVal = _useState330[1],
+    _useState331 = useState(''),
     _useState332 = _slicedToArray(_useState331, 2),
-    condPick = _useState332[0],
-    setCondPick = _useState332[1]; // clicking cards in the turn order adds or takes off condition targets
-  var _useState333 = useState(false),
+    denomWt = _useState332[0],
+    setDenomWt = _useState332[1]; // the money tabs
+  var _useState333 = useState([]),
     _useState334 = _slicedToArray(_useState333, 2),
-    condList = _useState334[0],
-    setCondList = _useState334[1];
-  var _useState335 = useState(null),
+    condTargets = _useState334[0],
+    setCondTargets = _useState334[1]; // creatures the DM is giving a condition to
+  var _useState335 = useState(false),
     _useState336 = _slicedToArray(_useState335, 2),
-    giveSel = _useState336[0],
-    setGiveSel = _useState336[1]; // what the DM picked while typing in the Active box: {kind, name}
-  var _useState337 = useState({
+    condPick = _useState336[0],
+    setCondPick = _useState336[1]; // clicking cards in the turn order adds or takes off condition targets
+  var _useState337 = useState(false),
+    _useState338 = _slicedToArray(_useState337, 2),
+    condList = _useState338[0],
+    setCondList = _useState338[1];
+  var _useState339 = useState(null),
+    _useState340 = _slicedToArray(_useState339, 2),
+    giveSel = _useState340[0],
+    setGiveSel = _useState340[1]; // what the DM picked while typing in the Active box: {kind, name}
+  var _useState341 = useState({
       n: '',
       unit: 'minutes'
     }),
-    _useState338 = _slicedToArray(_useState337, 2),
-    giveDur = _useState338[0],
-    setGiveDur = _useState338[1];
-  var _useState339 = useState(''),
-    _useState340 = _slicedToArray(_useState339, 2),
-    giveOpt = _useState340[0],
-    setGiveOpt = _useState340[1];
-  var _useState341 = useState(null),
     _useState342 = _slicedToArray(_useState341, 2),
-    giveConc = _useState342[0],
-    setGiveConc = _useState342[1];
-  var _useState343 = useState(false),
+    giveDur = _useState342[0],
+    setGiveDur = _useState342[1];
+  var _useState343 = useState(''),
     _useState344 = _slicedToArray(_useState343, 2),
-    giveMore = _useState344[0],
-    setGiveMore = _useState344[1];
-  var _useState345 = useState({
+    giveOpt = _useState344[0],
+    setGiveOpt = _useState344[1];
+  var _useState345 = useState(null),
+    _useState346 = _slicedToArray(_useState345, 2),
+    giveConc = _useState346[0],
+    setGiveConc = _useState346[1];
+  var _useState347 = useState(false),
+    _useState348 = _slicedToArray(_useState347, 2),
+    giveMore = _useState348[0],
+    setGiveMore = _useState348[1];
+  var _useState349 = useState({
       name: '',
       ac: '',
       speed: '',
@@ -7458,62 +7476,62 @@ function App() {
       sense: '',
       note: ''
     }),
-    _useState346 = _slicedToArray(_useState345, 2),
-    giveCustom = _useState346[0],
-    setGiveCustom = _useState346[1];
-  var _useState347 = useState('main'),
-    _useState348 = _slicedToArray(_useState347, 2),
-    sheetTab = _useState348[0],
-    setSheetTab = _useState348[1];
-  var _useState349 = useState(''),
     _useState350 = _slicedToArray(_useState349, 2),
-    invHi = _useState350[0],
-    setInvHi = _useState350[1]; // items picked out on the Inventory tab, as a name pattern
-  var _useState351 = useState({}),
+    giveCustom = _useState350[0],
+    setGiveCustom = _useState350[1];
+  var _useState351 = useState('main'),
     _useState352 = _slicedToArray(_useState351, 2),
-    invOpen = _useState352[0],
-    setInvOpen = _useState352[1];
-  var _useState353 = useState(null),
+    sheetTab = _useState352[0],
+    setSheetTab = _useState352[1];
+  var _useState353 = useState(''),
     _useState354 = _slicedToArray(_useState353, 2),
-    itemCard = _useState354[0],
-    setItemCard = _useState354[1]; // {cId, name}: the magic item card open on top of the page        // Main | Spells | Character | Features & Traits
+    invHi = _useState354[0],
+    setInvHi = _useState354[1]; // items picked out on the Inventory tab, as a name pattern
   var _useState355 = useState({}),
     _useState356 = _slicedToArray(_useState355, 2),
-    actFilter = _useState356[0],
-    setActFilter = _useState356[1]; // which kinds of action the sheet lists; a kind set to false is hidden
+    invOpen = _useState356[0],
+    setInvOpen = _useState356[1];
   var _useState357 = useState(null),
     _useState358 = _slicedToArray(_useState357, 2),
-    stdAct = _useState358[0],
-    setStdAct = _useState358[1]; // the standard action being asked about
-  var _useState359 = useState(false),
+    itemCard = _useState358[0],
+    setItemCard = _useState358[1]; // {cId, name}: the magic item card open on top of the page        // Main | Spells | Character | Features & Traits
+  var _useState359 = useState({}),
     _useState360 = _slicedToArray(_useState359, 2),
-    showTheme = _useState360[0],
-    setShowTheme = _useState360[1];
-  var _useState361 = useState(function () {
+    actFilter = _useState360[0],
+    setActFilter = _useState360[1]; // which kinds of action the sheet lists; a kind set to false is hidden
+  var _useState361 = useState(null),
+    _useState362 = _slicedToArray(_useState361, 2),
+    stdAct = _useState362[0],
+    setStdAct = _useState362[1]; // the standard action being asked about
+  var _useState363 = useState(false),
+    _useState364 = _slicedToArray(_useState363, 2),
+    showTheme = _useState364[0],
+    setShowTheme = _useState364[1];
+  var _useState365 = useState(function () {
       try {
         return normLook(JSON.parse(window.localStorage.getItem('hba-sheet-theme') || 'null'));
       } catch (e) {
         return normLook(null);
       }
     }),
-    _useState362 = _slicedToArray(_useState361, 2),
-    sheetTheme = _useState362[0],
-    setSheetTheme = _useState362[1];
-  var _useState363 = useState(function () {
+    _useState366 = _slicedToArray(_useState365, 2),
+    sheetTheme = _useState366[0],
+    setSheetTheme = _useState366[1];
+  var _useState367 = useState(function () {
       try {
         return window.localStorage.getItem('hba-look-mine') === 'on';
       } catch (e) {
         return false;
       }
     }),
-    _useState364 = _slicedToArray(_useState363, 2),
-    lookMine = _useState364[0],
-    setLookMine = _useState364[1]; // show every sheet in this computer's own look
-  var _useState365 = useState({}),
-    _useState366 = _slicedToArray(_useState365, 2),
-    sharedLooks = _useState366[0],
-    setSharedLooks = _useState366[1];
-  var _useState367 = useState(function () {
+    _useState368 = _slicedToArray(_useState367, 2),
+    lookMine = _useState368[0],
+    setLookMine = _useState368[1]; // show every sheet in this computer's own look
+  var _useState369 = useState({}),
+    _useState370 = _slicedToArray(_useState369, 2),
+    sharedLooks = _useState370[0],
+    setSharedLooks = _useState370[1];
+  var _useState371 = useState(function () {
       try {
         var v = JSON.parse(window.localStorage.getItem('hba-roster-init') || 'null');
         return v && ['roll', 'avg', 'type'].includes(v.mode) ? {
@@ -7530,9 +7548,9 @@ function App() {
         };
       }
     }),
-    _useState368 = _slicedToArray(_useState367, 2),
-    rosterInit = _useState368[0],
-    setRosterInitRaw = _useState368[1]; // the Initiative a monster added from the roster gets
+    _useState372 = _slicedToArray(_useState371, 2),
+    rosterInit = _useState372[0],
+    setRosterInitRaw = _useState372[1]; // the Initiative a monster added from the roster gets
   var setRosterInit = function setRosterInit(v) {
     setRosterInitRaw(v);
     try {
@@ -7541,62 +7559,66 @@ function App() {
       }));
     } catch (e) {}
   };
-  var _useState369 = useState(''),
-    _useState370 = _slicedToArray(_useState369, 2),
-    toolOpen = _useState370[0],
-    setToolOpen = _useState370[1];
-  var _useState371 = useState([]),
-    _useState372 = _slicedToArray(_useState371, 2),
-    palHidden = _useState372[0],
-    setPalHidden = _useState372[1],
-    _useState373 = useState(null),
+  var _useState373 = useState(''),
     _useState374 = _slicedToArray(_useState373, 2),
-    groupRun = _useState374[0],
-    setGroupRun = _useState374[1]; // companions taken off the list; one action done by several companions in turn
-  var _useState375 = useState('all'),
+    toolOpen = _useState374[0],
+    setToolOpen = _useState374[1];
+  var _useState375 = useState([]),
     _useState376 = _slicedToArray(_useState375, 2),
-    palTab = _useState376[0],
-    setPalTab = _useState376[1],
-    _useState377 = useState('name'),
+    palHidden = _useState376[0],
+    setPalHidden = _useState376[1],
+    _useState377 = useState(null),
     _useState378 = _slicedToArray(_useState377, 2),
-    palSort = _useState378[0],
-    setPalSort = _useState378[1],
-    _useState379 = useState([]),
+    groupRun = _useState378[0],
+    setGroupRun = _useState378[1]; // companions taken off the list; one action done by several companions in turn
+  var _useState379 = useState('all'),
     _useState380 = _slicedToArray(_useState379, 2),
-    palSel = _useState380[0],
-    setPalSel = _useState380[1],
-    _useState381 = useState(''),
+    palTab = _useState380[0],
+    setPalTab = _useState380[1],
+    _useState381 = useState('name'),
     _useState382 = _slicedToArray(_useState381, 2),
-    palAmt = _useState382[0],
-    setPalAmt = _useState382[1];
-  var _useState383 = useState(true),
+    palSort = _useState382[0],
+    setPalSort = _useState382[1],
+    _useState383 = useState([]),
     _useState384 = _slicedToArray(_useState383, 2),
-    palCombine = _useState384[0],
-    setPalCombine = _useState384[1],
-    _useState385 = useState([]),
+    palSel = _useState384[0],
+    setPalSel = _useState384[1],
+    _useState385 = useState(''),
     _useState386 = _slicedToArray(_useState385, 2),
-    palOpen = _useState386[0],
-    setPalOpen = _useState386[1],
-    _useState387 = useState({}),
+    palAmt = _useState386[0],
+    setPalAmt = _useState386[1];
+  var _useState387 = useState(true),
     _useState388 = _slicedToArray(_useState387, 2),
-    massPick = _useState388[0],
-    setMassPick = _useState388[1],
-    _useState389 = useState(null),
+    palCombine = _useState388[0],
+    setPalCombine = _useState388[1],
+    _useState389 = useState({}),
     _useState390 = _slicedToArray(_useState389, 2),
-    massRun = _useState390[0],
-    setMassRun = _useState390[1],
+    palView = _useState390[0],
+    setPalView = _useState390[1],
     _useState391 = useState(false),
     _useState392 = _slicedToArray(_useState391, 2),
-    massOpen = _useState392[0],
-    setMassOpen = _useState392[1],
-    _useState393 = useState([]),
+    palOptsOpen = _useState392[0],
+    setPalOptsOpen = _useState392[1],
+    _useState393 = useState({}),
     _useState394 = _slicedToArray(_useState393, 2),
-    massSel = _useState394[0],
-    setMassSel = _useState394[1]; // the Companions tab // the tool opened on the sheet
-  var _useState395 = useState([]),
+    massPick = _useState394[0],
+    setMassPick = _useState394[1],
+    _useState395 = useState(null),
     _useState396 = _slicedToArray(_useState395, 2),
-    logOpen = _useState396[0],
-    setLogOpen = _useState396[1];
+    massRun = _useState396[0],
+    setMassRun = _useState396[1],
+    _useState397 = useState(false),
+    _useState398 = _slicedToArray(_useState397, 2),
+    massOpen = _useState398[0],
+    setMassOpen = _useState398[1],
+    _useState399 = useState([]),
+    _useState400 = _slicedToArray(_useState399, 2),
+    massSel = _useState400[0],
+    setMassSel = _useState400[1]; // the Companions tab // the tool opened on the sheet
+  var _useState401 = useState([]),
+    _useState402 = _slicedToArray(_useState401, 2),
+    logOpen = _useState402[0],
+    setLogOpen = _useState402[1];
   var toggleLogOpen = function toggleLogOpen(id) {
     return setLogOpen(function (prev) {
       return prev.includes(id) ? prev.filter(function (x) {
@@ -7604,37 +7626,37 @@ function App() {
       }) : [].concat(_toConsumableArray(prev), [id]).slice(-200);
     });
   }; // Combat Log entries opened to show all their details
-  var _useState397 = useState({}),
-    _useState398 = _slicedToArray(_useState397, 2),
-    pics = _useState398[0],
-    setPics = _useState398[1]; // pictures of creatures in this session: {creature id: {big, thumb, show, at}}
-  var _useState399 = useState(''),
-    _useState400 = _slicedToArray(_useState399, 2),
-    bigPic = _useState400[0],
-    setBigPic = _useState400[1]; // a picture opened full size
-  var _useState401 = useState(false),
-    _useState402 = _slicedToArray(_useState401, 2),
-    board = _useState402[0],
-    setBoard = _useState402[1]; // the DM's board of every monster's stat block
-  var _useState403 = useState([]),
+  var _useState403 = useState({}),
     _useState404 = _slicedToArray(_useState403, 2),
-    boardOrder = _useState404[0],
-    setBoardOrder = _useState404[1];
-  var _useState405 = useState([]),
+    pics = _useState404[0],
+    setPics = _useState404[1]; // pictures of creatures in this session: {creature id: {big, thumb, show, at}}
+  var _useState405 = useState(''),
     _useState406 = _slicedToArray(_useState405, 2),
-    boardFold = _useState406[0],
-    setBoardFold = _useState406[1];
+    bigPic = _useState406[0],
+    setBigPic = _useState406[1]; // a picture opened full size
+  var _useState407 = useState(false),
+    _useState408 = _slicedToArray(_useState407, 2),
+    board = _useState408[0],
+    setBoard = _useState408[1]; // the DM's board of every monster's stat block
+  var _useState409 = useState([]),
+    _useState410 = _slicedToArray(_useState409, 2),
+    boardOrder = _useState410[0],
+    setBoardOrder = _useState410[1];
+  var _useState411 = useState([]),
+    _useState412 = _slicedToArray(_useState411, 2),
+    boardFold = _useState412[0],
+    setBoardFold = _useState412[1];
   var dragRef = useRef(''); // looks players chose to share on their characters' sheets: {creature id: look}
-  var _useState407 = useState(function () {
+  var _useState413 = useState(function () {
       try {
         return window.localStorage.getItem('hba-sheet-bg') || '';
       } catch (e) {
         return '';
       }
     }),
-    _useState408 = _slicedToArray(_useState407, 2),
-    sheetBg = _useState408[0],
-    setSheetBg = _useState408[1]; // an uploaded background image, on this computer
+    _useState414 = _slicedToArray(_useState413, 2),
+    sheetBg = _useState414[0],
+    setSheetBg = _useState414[1]; // an uploaded background image, on this computer
 
   useEffect(function () {
     var _logEndRef$current;
@@ -7768,6 +7790,10 @@ function App() {
   var veil = function veil(c) {
     return !isDM && !canControl(c) && c.type !== 'player';
   }; // a creature whose numbers the DM may be hiding from this player
+  var _useState415 = useState(null),
+    _useState416 = _slicedToArray(_useState415, 2),
+    addAs = _useState416[0],
+    setAddAs = _useState416[1]; // the Monster Roster: a stat block named and set up before it is added
   var SEE_KEYS = [['cond', 'Conditions'], ['cr', 'CR and type'], ['bar', 'HP bar'], ['hp', 'HP numbers'], ['ac', 'AC']];
   // What a player sees of a creature: its own choice from the DM (it wins), or the table setting. Its name and size always show.
   var seeOfTable = function seeOfTable(k) {
@@ -7816,22 +7842,22 @@ function App() {
       });
     });
   });
-  var _useState409 = useState(function () {
-      return lsGet('hba-cards') === 'full';
+  var _useState417 = useState(function () {
+      return lsGet('hba-cards') !== 'short';
     }),
-    _useState410 = _slicedToArray(_useState409, 2),
-    cardsFull = _useState410[0],
-    setCardsFull = _useState410[1],
-    _useState411 = useState([]),
-    _useState412 = _slicedToArray(_useState411, 2),
-    cardMore = _useState412[0],
-    setCardMore = _useState412[1],
-    _useState413 = useState(function () {
+    _useState418 = _slicedToArray(_useState417, 2),
+    cardsFull = _useState418[0],
+    setCardsFull = _useState418[1],
+    _useState419 = useState([]),
+    _useState420 = _slicedToArray(_useState419, 2),
+    cardMore = _useState420[0],
+    setCardMore = _useState420[1],
+    _useState421 = useState(function () {
       return lsGet('hba-hide-pals') === 'on';
     }),
-    _useState414 = _slicedToArray(_useState413, 2),
-    hidePals = _useState414[0],
-    setHidePals = _useState414[1]; // the tracker: short cards (name, picture, Hit Point bar) unless opened
+    _useState422 = _slicedToArray(_useState421, 2),
+    hidePals = _useState422[0],
+    setHidePals = _useState422[1]; // the tracker: short cards (name, picture, Hit Point bar) unless opened
   var isPal = function isPal(c) {
     return !!(c.palOf || c.summonOf || c.type === 'companion');
   };
@@ -7856,7 +7882,7 @@ function App() {
   }, [activeId]); // opens by itself on each turn this screen runs, unless switched off; folded on other turns // opens by itself on each turn this screen runs, unless switched off
   var viewed = viewId && visible.find(function (c) {
     return c.id === viewId && canControl(c);
-  }) || (active && canControl(active) ? active : null) || mine[0] || active || null;
+  }) || (active && canControl(active) ? active : null) || mine[0] || (isDM ? active : null) || null; // a player never opens a creature they do not control
   var sharesTurn = function sharesTurn(v) {
     return !!(v && active && v.shareTurn && (v.after === active.id || v.palOf === active.id));
   }; // a companion on a shared Initiative acts on its owner's turn
@@ -7995,10 +8021,10 @@ function App() {
     atkType: '',
     size: 'Medium'
   };
-  var _useState415 = useState(emptyForm),
-    _useState416 = _slicedToArray(_useState415, 2),
-    form = _useState416[0],
-    setForm = _useState416[1];
+  var _useState423 = useState(emptyForm),
+    _useState424 = _slicedToArray(_useState423, 2),
+    form = _useState424[0],
+    setForm = _useState424[1];
   var openAdd = function openAdd() {
     setForm(_objectSpread(_objectSpread({}, emptyForm), {}, {
       type: isDM ? 'monster' : 'companion'
@@ -8030,7 +8056,10 @@ function App() {
         conditions: [],
         effects: []
       });
-      if (asPlayer || form.fromSheet) newC.owner = myId;
+      if (asPlayer || form.fromSheet) {
+        newC.owner = myId;
+        if (playerName.trim()) newC.ownerName = playerName.trim().slice(0, 40);
+      }
       if (form.fromSheet) newC.main = true;
     } else {
       var type = asPlayer && form.type !== 'player' ? 'companion' : form.type === 'npc' ? 'monster' : form.type;
@@ -8277,15 +8306,19 @@ function App() {
     });
     return c;
   };
-  var addMonster = function addMonster(m) {
+  var addMonster = function addMonster(m, opt) {
+    var o = opt || {};
     var n = combatants.filter(function (c) {
       return c.base === m.n;
     }).length;
     var init = rosterInit.mode === 'avg' ? 10 + mod(m.s[1]) : rosterInit.mode === 'type' && String(rosterInit.val).trim() !== '' && Number.isFinite(+rosterInit.val) ? Math.round(+rosterInit.val) : rollD(20) + mod(m.s[1]); // rolled, its average, or what the DM typed
-    var c = _objectSpread(_objectSpread({}, monsterToCombatant(m)), {}, {
-      name: n ? "".concat(m.n, " ").concat(n + 1) : m.n,
-      initiative: init
-    });
+    var nm = String(o.name || '').trim().slice(0, 40),
+      c = _objectSpread(_objectSpread({}, monsterToCombatant(m)), {}, {
+        name: nm || (n ? "".concat(m.n, " ").concat(n + 1) : m.n),
+        initiative: init
+      }, Array.isArray(o.see) ? {
+        see: o.see
+      } : {});
     setCombatants(function (prev) {
       return placeByInitiative(prev, c);
     });
@@ -9494,6 +9527,12 @@ function App() {
     dmgTwiceRef.current = v;
   };
   var toggleRollMod = function toggleRollMod(k) {
+    if (!isDM && !rollMods[k]) noticeDM('reroll', "turned on \"".concat({
+      hi: 'Roll twice, keep the higher',
+      lo: 'Roll twice, keep the lower',
+      r1: 'Reroll 1s',
+      low3: '1s and 2s count as 3s'
+    }[k], "\" for their next roll, with no feature giving it"), null);
     var m = _objectSpread(_objectSpread({}, rollMods), {}, _defineProperty({}, k, !rollMods[k]));
     setRollMods(m);
     ROLL_R1 = m.r1;
@@ -10867,6 +10906,7 @@ function App() {
     var u = undoRef.current;
     if (!u) return;
     if (!window.confirm("Take back ".concat(u.name, "? Everything goes back to how it was just before it."))) return;
+    noticeDM('undo', "took back ".concat(u.name), null);
     Object.keys(pendingRef.current).forEach(function (k) {
       return delete pendingRef.current[k];
     });
@@ -16214,10 +16254,10 @@ function App() {
   };
 
   // "It's your turn": a player sees it when the turn of one of their creatures (or companions acting with it) begins; it goes when the turn moves on
-  var _useState417 = useState(null),
-    _useState418 = _slicedToArray(_useState417, 2),
-    turnPop = _useState418[0],
-    setTurnPop = _useState418[1];
+  var _useState425 = useState(null),
+    _useState426 = _slicedToArray(_useState425, 2),
+    turnPop = _useState426[0],
+    setTurnPop = _useState426[1];
   useEffect(function () {
     if (!combatStarted || isDM || !activeId) {
       setTurnPop(null);
@@ -16280,22 +16320,54 @@ function App() {
       }
     } catch (e) {}
   }, [isDM, room]);
+  var noticeDM = function noticeDM(kind, text, c) {
+    if (isDM || !room) return;
+    setLog(function (prev) {
+      return [].concat(_toConsumableArray(prev), [stamp({
+        type: 'info',
+        sys: true,
+        dmOnly: true,
+        by: myId,
+        notice: {
+          kind: kind,
+          text: String(text).slice(0, 200),
+          cId: c ? c.id : '',
+          cName: c ? c.name : '',
+          player: playerName || ''
+        },
+        html: "<strong>".concat(esc(playerName || 'A player'), "</strong>: ").concat(esc(text))
+      })]);
+    });
+  };
   var pushInbox = function pushInbox(items) {
     if (!items.length) return;
     setInbox(function (prev) {
-      var next = [].concat(_toConsumableArray(prev), _toConsumableArray(items)).slice(-400);
+      var fresh = items.filter(function (n) {
+        return !n.src || !prev.some(function (x) {
+          return x.src === n.src;
+        });
+      });
+      if (!fresh.length) return prev;
+      var next = [].concat(_toConsumableArray(prev), _toConsumableArray(fresh)).slice(-400);
       lsSet('hba-inbox-' + room, JSON.stringify(next));
       return next;
     });
   };
-  var sigRef = useRef({});
+  var sigRef = useRef({}),
+    joinRef = useRef({}),
+    seenNotice = useRef(new Set());
   var playerOf = function playerOf(c) {
-    var main = combatants.find(function (x) {
-      return x.owner === c.owner && x.main;
-    }) || combatants.find(function (x) {
-      return x.owner === c.owner && x.sheet;
-    });
-    return main && main.sheet && main.sheet.player || (main ? main.name + "'s player" : 'A player');
+    var mine = combatants.filter(function (x) {
+        return x.owner === c.owner;
+      }),
+      main = mine.find(function (x) {
+        return x.main;
+      }) || mine.find(function (x) {
+        return x.sheet;
+      });
+    return c.ownerName || (mine.find(function (x) {
+      return x.ownerName;
+    }) || {}).ownerName || main && main.sheet && main.sheet.player || (main ? main.name + "'s player" : 'A player');
   };
   var coreOf = function coreOf(c) {
     var sh = c.sheet || {},
@@ -16337,8 +16409,20 @@ function App() {
       return c.owner && c.owner !== myId && !c.pending;
     }).forEach(function (c) {
       var now = coreOf(c),
-        was = sigRef.current[c.id];
+        cid = c.sheet && c.sheet.charId,
+        key = cid ? 'hba-char-sig-' + cid : '';
+      var was = sigRef.current[c.id],
+        since = '';
+      if (!was && key) {
+        try {
+          was = JSON.parse(lsGet(key) || 'null');
+          since = ' since it was last played';
+        } catch (e) {
+          was = null;
+        }
+      } // the same character, back in a later session: only what changed in between
       sigRef.current[c.id] = now;
+      if (key) lsSet(key, JSON.stringify(now));
       if (!was) return;
       Object.keys(now).forEach(function (k) {
         var _now$k, _was$k, _was$k2, _now$k2;
@@ -16352,14 +16436,98 @@ function App() {
           player: playerOf(c),
           cId: c.id,
           cName: c.name,
-          what: k,
+          what: k + since,
           from: String((_was$k2 = was[k]) !== null && _was$k2 !== void 0 ? _was$k2 : '').slice(0, 300),
           to: String((_now$k2 = now[k]) !== null && _now$k2 !== void 0 ? _now$k2 : '').slice(0, 300)
         });
       });
     });
+    // joining and leaving: a player's character comes in, or every one of theirs is gone
+    var owners = Array.from(new Set(combatants.filter(function (c) {
+      return c.owner && c.owner !== myId;
+    }).map(function (c) {
+      return c.owner;
+    })));
+    if (!joinRef.loaded) {
+      try {
+        joinRef.current = JSON.parse(lsGet('hba-known-' + room) || '{}') || {};
+      } catch (e) {
+        joinRef.current = {};
+      }
+      joinRef.loaded = true;
+    }
+    var known = joinRef.current;
+    owners.filter(function (o) {
+      return !known[o];
+    }).forEach(function (o) {
+      var c = combatants.find(function (x) {
+        return x.owner === o && (x.main || x.sheet);
+      }) || combatants.find(function (x) {
+        return x.owner === o;
+      });
+      known[o] = c ? c.name : '?';
+      items.push({
+        id: newId(),
+        t: t,
+        kind: 'join',
+        owner: o,
+        player: playerOf(c),
+        cId: c.id,
+        cName: c.name,
+        what: 'Joined',
+        from: '',
+        to: "".concat(playerOf(c), " joined with ").concat(c.name)
+      });
+    });
+    Object.keys(known).filter(function (o) {
+      return !owners.includes(o) && combatants.length;
+    }).forEach(function (o) {
+      items.push({
+        id: newId(),
+        t: t,
+        kind: 'join',
+        owner: o,
+        player: known[o] + "'s player",
+        cId: '',
+        cName: known[o],
+        what: 'Left',
+        from: '',
+        to: "".concat(known[o], " left the table")
+      });
+      delete known[o];
+    });
+    if (combatants.length) lsSet('hba-known-' + room, JSON.stringify(known));
+    // what players did that the DM should know about (Heroic Inspiration they gave themselves, the roll switch, taking an action back)
+    log.filter(function (e) {
+      return e && e.notice && !seenNotice.current.has(e.id);
+    }).forEach(function (e) {
+      seenNotice.current.add(e.id);
+      var n = e.notice,
+        c = combatants.find(function (x) {
+          return x.id === n.cId;
+        }) || combatants.find(function (x) {
+          return x.owner === e.by;
+        });
+      items.push({
+        id: newId(),
+        src: e.id,
+        t: t,
+        kind: n.kind,
+        owner: e.by || '',
+        player: n.player || (c ? playerOf(c) : 'A player'),
+        cId: n.cId,
+        cName: n.cName || (c ? c.name : ''),
+        what: {
+          heroic: 'Heroic Inspiration',
+          reroll: 'Roll switch',
+          undo: 'Took an action back'
+        }[n.kind] || 'Note',
+        from: '',
+        to: n.text
+      });
+    });
     pushInbox(items);
-  }, [isDM, room, combatants]);
+  }, [isDM, room, combatants, log]);
   useEffect(function () {
     if (!isDM || !room) return;
     var items = [];
@@ -16368,9 +16536,12 @@ function App() {
     }).forEach(function (c) {
       var sh = c.sheet,
         n = (sh.customizations || []).length + (sh.homebrew || []).length,
-        key = 'hba-hb-' + room + '-' + c.id;
-      if (!n || lsGet(key)) return;
-      lsSet(key, '1');
+        key = 'hba-hb-' + (sh.charId || room + '-' + c.id),
+        sig = JSON.stringify([sh.customizations || [], (sh.homebrew || []).map(function (h) {
+          return h.kind + h.name;
+        })]);
+      if (!n || lsGet(key) === sig) return;
+      lsSet(key, sig);
       items.push({
         id: newId(),
         t: Date.now(),
@@ -16398,7 +16569,7 @@ function App() {
   var inboxGroups = function inboxGroups() {
     var g = {};
     inbox.forEach(function (n) {
-      var key = n.kind + '|' + n.owner + (n.kind === 'sheet' || n.kind === 'homebrew' ? '|' + n.cId : '');
+      var key = n.kind === 'join' ? 'join' : n.kind + '|' + n.owner + (n.kind === 'sheet' || n.kind === 'homebrew' ? '|' + n.cId : '');
       (g[key] = g[key] || []).push(n);
     });
     return Object.entries(g).map(function (_ref97) {
@@ -16411,7 +16582,7 @@ function App() {
         names = Array.from(new Set(list.map(function (x) {
           return x.cName;
         })));
-      var title = n.kind === 'sheet' ? "".concat(n.player, " has made ").concat(many, " to ").concat(n.cName) : n.kind === 'block' ? names.length === 1 ? "".concat(n.player, " has made ").concat(many, " to one of their stat blocks (").concat(names[0], ")") : "".concat(n.player, " has made ").concat(many, " to creature stat blocks") : n.kind === 'cantrip' ? "".concat(n.player, " changed ").concat(names.join(', '), "'s cantrips").concat(k > 1 ? " (".concat(k, " times)") : '') : n.kind === 'extra' ? "".concat(n.player, " changed additional spells").concat(k > 1 ? " (".concat(k, " times)") : '') : n.kind === 'homebrew' ? "".concat(n.cName, " uses homebrew") : "".concat(n.player, ": ").concat(many);
+      var title = n.kind === 'sheet' ? "".concat(n.player, " has made ").concat(many, " to ").concat(n.cName) : n.kind === 'block' ? names.length === 1 ? "".concat(n.player, " has made ").concat(many, " to one of their stat blocks (").concat(names[0], ")") : "".concat(n.player, " has made ").concat(many, " to creature stat blocks") : n.kind === 'cantrip' ? "".concat(n.player, " changed ").concat(names.join(', '), "'s cantrips").concat(k > 1 ? " (".concat(k, " times)") : '') : n.kind === 'extra' ? "".concat(n.player, " changed additional spells").concat(k > 1 ? " (".concat(k, " times)") : '') : n.kind === 'homebrew' ? "".concat(n.cName, " uses homebrew") : n.kind === 'join' ? "".concat(k === 1 ? n.to : "Players joining and leaving (".concat(k, ")")) : n.kind === 'heroic' ? "".concat(n.player, " gave Heroic Inspiration").concat(k > 1 ? " (".concat(k, " times)") : '') : n.kind === 'reroll' ? "".concat(n.player, " used the roll switch").concat(k > 1 ? " (".concat(k, " times)") : '') : n.kind === 'undo' ? "".concat(n.player, " took back ").concat(k === 1 ? 'an action' : "".concat(k, " actions")) : "".concat(n.player, ": ").concat(many);
       return {
         key: key,
         title: title,
@@ -17688,13 +17859,19 @@ function App() {
       })));
     }()));
   };
-  var _useState419 = useState({
+  var _useState427 = useState(function () {
+      return lsGet('hba-spell-sums') !== 'off';
+    }),
+    _useState428 = _slicedToArray(_useState427, 2),
+    spSums = _useState428[0],
+    setSpSums = _useState428[1]; // the Spells tab: a short line under each spell
+  var _useState429 = useState({
       text: '',
       act: 'free'
     }),
-    _useState420 = _slicedToArray(_useState419, 2),
-    quickAct = _useState420[0],
-    setQuickAct = _useState420[1]; // something done on the spot, typed in on the sheet
+    _useState430 = _slicedToArray(_useState429, 2),
+    quickAct = _useState430[0],
+    setQuickAct = _useState430[1]; // something done on the spot, typed in on the sheet
   var doQuick = function doQuick(c) {
     var text = quickAct.text.trim().slice(0, 300);
     if (!c || !text) return;
@@ -18132,38 +18309,38 @@ function App() {
       })]);
     });
   };
-  var _useState421 = useState(null),
-    _useState422 = _slicedToArray(_useState421, 2),
-    hdPick = _useState422[0],
-    setHdPick = _useState422[1];
-  var _useState423 = useState(null),
-    _useState424 = _slicedToArray(_useState423, 2),
-    fatePick = _useState424[0],
-    setFatePick = _useState424[1]; // the Improve Fate window: {cId, entryId}
-  var _useState425 = useState('fate'),
-    _useState426 = _slicedToArray(_useState425, 2),
-    rollWin = _useState426[0],
-    setRollWin = _useState426[1]; // the roll window is for Improve Fate or Heroic Inspiration
-  var _useState427 = useState(null),
-    _useState428 = _slicedToArray(_useState427, 2),
-    fateChoose = _useState428[0],
-    setFateChoose = _useState428[1]; // picking a roll in the Combat Log for Improve Fate: the character's id
-  var _useState429 = useState(false),
-    _useState430 = _slicedToArray(_useState429, 2),
-    flanked = _useState430[0],
-    setFlanked = _useState430[1]; // Flanking (an optional rule): Advantage on this attack
-  var _useState431 = useState([]),
+  var _useState431 = useState(null),
     _useState432 = _slicedToArray(_useState431, 2),
-    sculpt = _useState432[0],
-    setSculpt = _useState432[1]; // Sculpt Spells: creatures that automatically succeed
-  var _useState433 = useState({}),
+    hdPick = _useState432[0],
+    setHdPick = _useState432[1];
+  var _useState433 = useState(null),
     _useState434 = _slicedToArray(_useState433, 2),
-    coverSel = _useState434[0],
-    setCoverSel = _useState434[1]; // which recent attack the sheet's Cover line is set to
-  var _useState435 = useState({}),
+    fatePick = _useState434[0],
+    setFatePick = _useState434[1]; // the Improve Fate window: {cId, entryId}
+  var _useState435 = useState('fate'),
     _useState436 = _slicedToArray(_useState435, 2),
-    promptCover = _useState436[0],
-    setPromptCover = _useState436[1]; // cover the creature making a Dexterity save says it has, per prompt
+    rollWin = _useState436[0],
+    setRollWin = _useState436[1]; // the roll window is for Improve Fate or Heroic Inspiration
+  var _useState437 = useState(null),
+    _useState438 = _slicedToArray(_useState437, 2),
+    fateChoose = _useState438[0],
+    setFateChoose = _useState438[1]; // picking a roll in the Combat Log for Improve Fate: the character's id
+  var _useState439 = useState(false),
+    _useState440 = _slicedToArray(_useState439, 2),
+    flanked = _useState440[0],
+    setFlanked = _useState440[1]; // Flanking (an optional rule): Advantage on this attack
+  var _useState441 = useState([]),
+    _useState442 = _slicedToArray(_useState441, 2),
+    sculpt = _useState442[0],
+    setSculpt = _useState442[1]; // Sculpt Spells: creatures that automatically succeed
+  var _useState443 = useState({}),
+    _useState444 = _slicedToArray(_useState443, 2),
+    coverSel = _useState444[0],
+    setCoverSel = _useState444[1]; // which recent attack the sheet's Cover line is set to
+  var _useState445 = useState({}),
+    _useState446 = _slicedToArray(_useState445, 2),
+    promptCover = _useState446[0],
+    setPromptCover = _useState446[1]; // cover the creature making a Dexterity save says it has, per prompt
   var withCover = function withCover(q) {
     return promptCover[q.id] && q.action ? _objectSpread(_objectSpread({}, q), {}, {
       action: _objectSpread(_objectSpread({}, q.action), {}, {
@@ -18171,18 +18348,18 @@ function App() {
       })
     }) : q;
   };
-  var _useState437 = useState([]),
-    _useState438 = _slicedToArray(_useState437, 2),
-    reminders = _useState438[0],
-    setReminders = _useState438[1]; // what a feature lets a creature do right after an action: [{id, texts}]
-  var _useState439 = useState(null),
-    _useState440 = _slicedToArray(_useState439, 2),
-    blink = _useState440[0],
-    setBlink = _useState440[1]; // Blink Steps after the Attack or Magic action: {id, feet, key}
-  var _useState441 = useState({}),
-    _useState442 = _slicedToArray(_useState441, 2),
-    swapTo = _useState442[0],
-    setSwapTo = _useState442[1]; // Alert's Initiative Swap: {characterId: allyId}
+  var _useState447 = useState([]),
+    _useState448 = _slicedToArray(_useState447, 2),
+    reminders = _useState448[0],
+    setReminders = _useState448[1]; // what a feature lets a creature do right after an action: [{id, texts}]
+  var _useState449 = useState(null),
+    _useState450 = _slicedToArray(_useState449, 2),
+    blink = _useState450[0],
+    setBlink = _useState450[1]; // Blink Steps after the Attack or Magic action: {id, feet, key}
+  var _useState451 = useState({}),
+    _useState452 = _slicedToArray(_useState451, 2),
+    swapTo = _useState452[0],
+    setSwapTo = _useState452[1]; // Alert's Initiative Swap: {characterId: allyId}
   var INCAP = ['Incapacitated', 'Paralyzed', 'Petrified', 'Stunned', 'Unconscious'];
   var turnSeq = function turnSeq() {
     return combatStarted ? round * 1000 + Math.max(0, inPlay.findIndex(function (c) {
@@ -19185,14 +19362,17 @@ function App() {
         }
       }, open ? '▾' : '▸'), /*#__PURE__*/React.createElement("span", {
         className: "a-name"
-      }, s.n, a ? leftText(a) : ''), /*#__PURE__*/React.createElement("span", null, s.s), /*#__PURE__*/React.createElement("span", null, s.k || '-'), /*#__PURE__*/React.createElement("span", null, s.r), /*#__PURE__*/React.createElement("span", null, s.sv), cols.split(' ').length > 6 ? /*#__PURE__*/React.createElement("span", null, spIcons(s.d)) : null, /*#__PURE__*/React.createElement("span", null, spIcons(s.t))), open && /*#__PURE__*/React.createElement("div", {
+      }, s.n, a ? leftText(a) : ''), /*#__PURE__*/React.createElement("span", null, s.s), /*#__PURE__*/React.createElement("span", null, s.k || '-'), /*#__PURE__*/React.createElement("span", null, s.r), /*#__PURE__*/React.createElement("span", null, s.sv), cols.split(' ').length > 6 ? /*#__PURE__*/React.createElement("span", null, spIcons(s.d)) : null, /*#__PURE__*/React.createElement("span", null, spIcons(s.t))), spSums && !open && (SPELL_SUM[s.n.toLowerCase()] || s.sum) && /*#__PURE__*/React.createElement("div", {
+        className: "pp-spsum",
+        "data-testid": "spell-sum"
+      }, SPELL_SUM[s.n.toLowerCase()] || s.sum), open && /*#__PURE__*/React.createElement("div", {
         className: "pp-details",
         "data-testid": "spell-details"
-      }, s.sum && /*#__PURE__*/React.createElement("div", {
+      }, (SPELL_SUM[s.n.toLowerCase()] || s.sum) && /*#__PURE__*/React.createElement("div", {
         className: "pp-sum"
-      }, s.sum), s.up && s.l > 0 && /*#__PURE__*/React.createElement("div", {
+      }, SPELL_SUM[s.n.toLowerCase()] || s.sum), (SPELL_SUM2[s.n.toLowerCase()] || s.up) && /*#__PURE__*/React.createElement("div", {
         className: "pp-sum"
-      }, /*#__PURE__*/React.createElement("strong", null, "Upcast."), " ", s.up), a && a.mat && /*#__PURE__*/React.createElement("div", {
+      }, /*#__PURE__*/React.createElement("strong", null, "Upcast."), " ", SPELL_SUM2[s.n.toLowerCase()] || s.up), a && a.mat && /*#__PURE__*/React.createElement("div", {
         className: "pp-sum"
       }, /*#__PURE__*/React.createElement("strong", null, "Material."), " ", a.mat), a && a.desc && /*#__PURE__*/React.createElement("div", {
         className: "pp-sum pp-full"
@@ -20029,6 +20209,7 @@ function App() {
       "aria-pressed": !!c.heroic,
       title: c.heroic ? 'Remove Heroic Inspiration' : 'Add Heroic Inspiration',
       onClick: function onClick() {
+        if (!isDM && !c.heroic) noticeDM('heroic', "gave ".concat(c.name, " Heroic Inspiration"), c);
         setCombatants(function (prev) {
           return prev.map(function (x) {
             return x.id === c.id ? _objectSpread(_objectSpread({}, x), {}, {
@@ -20836,7 +21017,21 @@ function App() {
             level: e.target.checked
           }));
         }
-      }), " By level"), menu('school', 'School', allSchools, spf.schools, function (v) {
+      }), " By level"), /*#__PURE__*/React.createElement("label", {
+        className: "rule-label",
+        style: {
+          margin: 0
+        },
+        title: "A short line under each spell saying what it does"
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        "data-testid": "spf-sums",
+        checked: spSums,
+        onChange: function onChange(e) {
+          setSpSums(e.target.checked);
+          lsSet('hba-spell-sums', e.target.checked ? 'on' : 'off');
+        }
+      }), " Short descriptions"), menu('school', 'School', allSchools, spf.schools, function (v) {
         return setSpf(_objectSpread(_objectSpread({}, spf), {}, {
           schools: v
         }));
@@ -21331,7 +21526,9 @@ function App() {
         var _Dexterity3;
         var lead = mem[0],
           one = mem.length === 1,
-          open = !palOpen.includes(key),
+          view = palView[key] || 'mid',
+          open = view === 'full',
+          minV = view === 'min',
           m = monOf(lead),
           nowOk = nowOkT,
           acting = combatStarted && mem.some(function (x) {
@@ -21395,14 +21592,21 @@ function App() {
           role: "button",
           "data-testid": "pal-fold",
           "aria-expanded": open,
+          title: open ? 'Show less' : 'Show the whole stat block',
           onClick: function onClick() {
-            return setPalOpen(open ? [].concat(_toConsumableArray(palOpen), [key]) : palOpen.filter(function (k) {
-              return k !== key;
-            }));
+            return setPalView(_objectSpread(_objectSpread({}, palView), {}, _defineProperty({}, key, open ? 'mid' : 'full')));
           }
         }, /*#__PURE__*/React.createElement("span", {
           className: "pal-arrow"
-        }, open ? '▾' : '▸'), /*#__PURE__*/React.createElement("span", {
+        }, open ? '▾' : '▸'), /*#__PURE__*/React.createElement("button", {
+          className: "pal-min",
+          "data-testid": "pal-min",
+          title: minV ? 'Show its numbers and a line for each' : 'Fold it to its name only',
+          onClick: function onClick(e) {
+            e.stopPropagation();
+            setPalView(_objectSpread(_objectSpread({}, palView), {}, _defineProperty({}, key, minV ? 'mid' : 'min')));
+          }
+        }, minV ? '+' : '–'), /*#__PURE__*/React.createElement("span", {
           className: "pp-ename",
           style: {
             margin: 0
@@ -21441,7 +21645,7 @@ function App() {
             e.stopPropagation();
             setPalHidden([].concat(_toConsumableArray(palHidden), [lead.id]));
           }
-        }, "\u2715")), /*#__PURE__*/React.createElement("div", {
+        }, "\u2715")), !minV && /*#__PURE__*/React.createElement("div", {
           className: "pal-block",
           "data-testid": "pal-stats"
         }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "AC"), " ", effectiveAC(lead)), /*#__PURE__*/React.createElement("span", {
@@ -21460,10 +21664,7 @@ function App() {
           style: {
             color: '#ff8a80'
           }
-        }, lead.conditions.join(', '))), open && /*#__PURE__*/React.createElement("div", {
-          className: "pal-sheet",
-          "data-testid": "pal-sheet"
-        }, !one && /*#__PURE__*/React.createElement("table", {
+        }, lead.conditions.join(', '))), !minV && !one && /*#__PURE__*/React.createElement("table", {
           className: "pal-table",
           "data-testid": "pal-members"
         }, /*#__PURE__*/React.createElement("tbody", null, mem.map(function (x) {
@@ -21506,7 +21707,10 @@ function App() {
               return setPalHidden([].concat(_toConsumableArray(palHidden), [x.id]));
             }
           }, "\u2715")));
-        }))), !one && ctl && /*#__PURE__*/React.createElement("div", {
+        }))), open && /*#__PURE__*/React.createElement("div", {
+          className: "pal-sheet",
+          "data-testid": "pal-sheet"
+        }, !one && ctl && /*#__PURE__*/React.createElement("div", {
           className: "pp-filter",
           style: {
             flexWrap: 'wrap',
@@ -21686,6 +21890,33 @@ function App() {
       });
       return /*#__PURE__*/React.createElement("div", {
         "data-testid": "paper-companions"
+      }, all.length > 0 && /*#__PURE__*/React.createElement("div", {
+        className: "pp-card pal-mass",
+        "data-testid": "pal-opts"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "pal-top",
+        role: "button",
+        "data-testid": "pal-opts-fold",
+        "aria-expanded": palOptsOpen,
+        onClick: function onClick() {
+          return setPalOptsOpen(!palOptsOpen);
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "pal-arrow"
+      }, palOptsOpen ? '▾' : '▸'), /*#__PURE__*/React.createElement("span", {
+        className: "pp-ename",
+        style: {
+          margin: 0
+        }
+      }, "Options"), /*#__PURE__*/React.createElement("span", {
+        className: "pp-muted",
+        style: {
+          fontSize: 13
+        }
+      }, "turns, sorting, combining stat blocks")), palOptsOpen && /*#__PURE__*/React.createElement("div", {
+        style: {
+          marginTop: 6
+        }
       }, all.some(function (x) {
         return x.palOf === c.id && !x.summonOf;
       }) && function () {
@@ -21752,7 +21983,43 @@ function App() {
             });
           }
         }, "Let the player choose again"));
-      }(), all.length === 0 && /*#__PURE__*/React.createElement("div", {
+      }(), /*#__PURE__*/React.createElement("div", {
+        className: "pp-filter",
+        style: {
+          flexWrap: 'wrap'
+        }
+      }, /*#__PURE__*/React.createElement("label", {
+        className: "rule-label",
+        style: {
+          margin: 0
+        }
+      }, "Sort ", /*#__PURE__*/React.createElement("select", {
+        "aria-label": "Sort companions",
+        "data-testid": "pal-sort",
+        value: palSort,
+        onChange: function onChange(e) {
+          return setPalSort(e.target.value);
+        }
+      }, /*#__PURE__*/React.createElement("option", {
+        value: "name"
+      }, "by name"), /*#__PURE__*/React.createElement("option", {
+        value: "cr"
+      }, "by Challenge Rating"), /*#__PURE__*/React.createElement("option", {
+        value: "hp"
+      }, "by Hit Points left"))), /*#__PURE__*/React.createElement("label", {
+        className: "rule-label",
+        style: {
+          margin: 0
+        },
+        title: "One stat block for creatures of the same kind, with a row for each"
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        "data-testid": "pal-combine",
+        checked: palCombine,
+        onChange: function onChange(e) {
+          return setPalCombine(e.target.checked);
+        }
+      }), " Combine similar stat blocks")))), all.length === 0 && /*#__PURE__*/React.createElement("div", {
         className: "pp-note"
       }, "No companions yet. Companions from your features join with you, and creatures you summon or forms you take show here too."), everyone.length > 0 && /*#__PURE__*/React.createElement("div", {
         className: "pp-card pal-mass",
@@ -21958,59 +22225,42 @@ function App() {
         style: {
           flexWrap: 'wrap'
         }
-      }, /*#__PURE__*/React.createElement("label", {
-        className: "rule-label",
-        style: {
-          margin: 0
-        }
-      }, "Sort ", /*#__PURE__*/React.createElement("select", {
-        "aria-label": "Sort companions",
-        "data-testid": "pal-sort",
-        value: palSort,
-        onChange: function onChange(e) {
-          return setPalSort(e.target.value);
-        }
-      }, /*#__PURE__*/React.createElement("option", {
-        value: "name"
-      }, "by name"), /*#__PURE__*/React.createElement("option", {
-        value: "cr"
-      }, "by Challenge Rating"), /*#__PURE__*/React.createElement("option", {
-        value: "hp"
-      }, "by Hit Points left"))), /*#__PURE__*/React.createElement("label", {
-        className: "rule-label",
-        style: {
-          margin: 0
-        },
-        title: "One stat block for creatures of the same kind, with a row for each"
-      }, /*#__PURE__*/React.createElement("input", {
-        type: "checkbox",
-        "data-testid": "pal-combine",
-        checked: palCombine,
-        onChange: function onChange(e) {
-          return setPalCombine(e.target.checked);
-        }
-      }), " Combine similar stat blocks"), /*#__PURE__*/React.createElement("button", {
+      }, /*#__PURE__*/React.createElement("button", {
         className: "pp-chip",
         "data-testid": "pal-open-all",
         onClick: function onClick() {
-          return setPalOpen(palOpen.length ? [] : shownKinds.flatMap(function (k) {
-            return blocksOf(k).map(function (_ref153) {
-              var _ref154 = _slicedToArray(_ref153, 1),
-                key = _ref154[0];
-              return key;
+          var keys = shownKinds.flatMap(function (k) {
+              return blocksOf(k).map(function (_ref153) {
+                var _ref154 = _slicedToArray(_ref153, 1),
+                  key = _ref154[0];
+                return key;
+              });
+            }),
+            allFull = keys.every(function (k) {
+              return palView[k] === 'full';
             });
-          }));
+          setPalView(Object.fromEntries(keys.map(function (k) {
+            return [k, allFull ? 'mid' : 'full'];
+          })));
         }
-      }, palOpen.length ? 'Expand all' : 'Collapse all'), hiddenN > 0 && /*#__PURE__*/React.createElement("button", {
+      }, shownKinds.flatMap(function (k) {
+        return blocksOf(k).map(function (_ref155) {
+          var _ref156 = _slicedToArray(_ref155, 1),
+            key = _ref156[0];
+          return key;
+        });
+      }).every(function (k) {
+        return palView[k] === 'full';
+      }) ? 'Collapse all' : 'Expand all'), hiddenN > 0 && /*#__PURE__*/React.createElement("button", {
         className: "pp-chip on",
         "data-testid": "pal-restore",
         onClick: function onClick() {
           return setPalHidden([]);
         }
-      }, "Restore all (", hiddenN, " taken off)")), shownKinds.flatMap(blocksOf).map(function (_ref155) {
-        var _ref156 = _slicedToArray(_ref155, 2),
-          key = _ref156[0],
-          mem = _ref156[1];
+      }, "Restore all (", hiddenN, " taken off)")), shownKinds.flatMap(blocksOf).map(function (_ref157) {
+        var _ref158 = _slicedToArray(_ref157, 2),
+          key = _ref158[0],
+          mem = _ref158[1];
         return block(key, mem);
       }), !pals.length && /*#__PURE__*/React.createElement("div", {
         className: "pp-muted"
@@ -22121,10 +22371,10 @@ function App() {
       "data-testid": "paper-journal"
     }, [['Alignment', jr.alignment], ['Faith', jr.deity], ['Personality Traits', jr.traits], ['Ideals', jr.ideals], ['Bonds', jr.bonds], ['Flaws', jr.flaws], ['Appearance', jr.appearance], ['Backstory', jr.backstory], ['Allies & Organizations', jr.allies], ['Enemies & Rivals', jr.enemies], ['Quests & Goals', jr.quests], ['Languages', (sh.languages || []).join(', ')], ['Tool Proficiencies', (sh.tools || []).join(', ')]].filter(function (x) {
       return x[1];
-    }).map(function (_ref157) {
-      var _ref158 = _slicedToArray(_ref157, 2),
-        hd = _ref158[0],
-        t = _ref158[1];
+    }).map(function (_ref159) {
+      var _ref160 = _slicedToArray(_ref159, 2),
+        hd = _ref160[0],
+        t = _ref160[1];
       return /*#__PURE__*/React.createElement("div", {
         key: hd,
         className: "pp-entry"
@@ -22205,9 +22455,9 @@ function App() {
         }
       }, "Dismiss"))), m ? /*#__PURE__*/React.createElement("div", {
         className: "pp-etext"
-      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, m.t), " \xB7 CR ", m.cr, " \xB7 AC ", m.ac, " \xB7 ", m.hp, " HP", m.sp ? " \xB7 Speed ".concat(m.sp) : ''), /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref159, i) {
-        var _ref160 = _slicedToArray(_ref159, 1),
-          k = _ref160[0];
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, m.t), " \xB7 CR ", m.cr, " \xB7 AC ", m.ac, " \xB7 ", m.hp, " HP", m.sp ? " \xB7 Speed ".concat(m.sp) : ''), /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref161, i) {
+        var _ref162 = _slicedToArray(_ref161, 1),
+          k = _ref162[0];
         return "".concat(k.toUpperCase(), " ").concat(m.s[i], " (").concat(modStr(m.s[i]), ")");
       }).join(' · ')), (m.tr || []).map(function (t, i) {
         return /*#__PURE__*/React.createElement("div", {
@@ -22875,14 +23125,14 @@ function App() {
     return x.c;
   });
   // What is waiting on this person: Reactions they can take, and rolls they are asked to make. These pop up in the middle of the screen.
-  var myAskIds = [].concat(_toConsumableArray(flowPrompts.filter(function (_ref161) {
-    var q = _ref161.q,
-      c = _ref161.c;
+  var myAskIds = [].concat(_toConsumableArray(flowPrompts.filter(function (_ref163) {
+    var q = _ref163.q,
+      c = _ref163.c;
     return canControl(c) && (q.kind === 'incoming' && q.react && !q.answer || q.kind === 'confirm' && !q.answer || q.kind === 'offer' && reactionsFor(c, q.ev).length > 0);
   }).map(function (x) {
     return x.q.id;
-  })), _toConsumableArray(openPrompts.filter(function (_ref162) {
-    var c = _ref162.c;
+  })), _toConsumableArray(openPrompts.filter(function (_ref164) {
+    var c = _ref164.c;
     return canControl(c);
   }).map(function (x) {
     return x.q.id;
@@ -22899,9 +23149,9 @@ function App() {
   }).filter(function (x) {
     return x.c;
   });
-  sidePrompts.forEach(function (_ref163) {
-    var q = _ref163.q,
-      c = _ref163.c;
+  sidePrompts.forEach(function (_ref165) {
+    var q = _ref165.q,
+      c = _ref165.c;
     if ((q.kind === 'askdm' || q.kind === 'time') && isDM || (q.kind === 'form' || q.kind === 'escape' || q.kind === 'death' || q.kind === 'dawn') && canControl(c)) myAskIds.push(q.id);
   });
   var askKey = myAskIds.join(','),
@@ -23054,7 +23304,30 @@ function App() {
     "data-testid": "session-code"
   }, room)), /*#__PURE__*/React.createElement("span", {
     className: "role-badge"
-  }, isDM ? 'DM' : 'Player'), /*#__PURE__*/React.createElement("button", {
+  }, isDM ? 'DM' : 'Player'), !isDM && /*#__PURE__*/React.createElement("input", {
+    "data-testid": "player-name",
+    "aria-label": "Your name",
+    value: playerName,
+    placeholder: "Your name",
+    maxLength: 40,
+    title: "Your name, so the DM knows who is who",
+    onChange: function onChange(e) {
+      setPlayerName(e.target.value);
+      lsSet('hba-player-name', e.target.value);
+    },
+    onBlur: function onBlur() {
+      return setCombatants(function (prev) {
+        return prev.map(function (x) {
+          return x.owner === myId ? _objectSpread(_objectSpread({}, x), {}, {
+            ownerName: playerName.trim().slice(0, 40)
+          }) : x;
+        });
+      });
+    },
+    style: {
+      width: 120
+    }
+  }), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost btn-sm",
     onClick: copyInvite
   }, copied ? 'Copied!' : 'Copy Invite Link'), /*#__PURE__*/React.createElement("button", {
@@ -23068,6 +23341,19 @@ function App() {
       color: '#ff8a80'
     }
   }, syncMsg || 'Could not connect'), syncStatus === 'connecting' && /*#__PURE__*/React.createElement("span", null, "Connecting..."), /*#__PURE__*/React.createElement("input", {
+    "data-testid": "player-name",
+    "aria-label": "Your name",
+    value: playerName,
+    placeholder: "Your name (player)",
+    maxLength: 40,
+    onChange: function onChange(e) {
+      setPlayerName(e.target.value);
+      lsSet('hba-player-name', e.target.value);
+    },
+    style: {
+      width: 150
+    }
+  }), /*#__PURE__*/React.createElement("input", {
     value: roomInput,
     placeholder: "Session code",
     maxLength: 12,
@@ -23190,10 +23476,10 @@ function App() {
     className: "modal-header"
   }, "Clear the table"), /*#__PURE__*/React.createElement("div", {
     className: "modal-body"
-  }, [['log', 'The Combat Log'], ['monsters', 'Monsters and the turn order (ends combat)'], ['players', 'Player characters (their sheets leave the session; players keep their files)'], ['world', 'The World Tracker (time, weather, trackers, timers)'], ['notes', 'My notes']].map(function (_ref164) {
-    var _ref165 = _slicedToArray(_ref164, 2),
-      k = _ref165[0],
-      t = _ref165[1];
+  }, [['log', 'The Combat Log'], ['monsters', 'Monsters and the turn order (ends combat)'], ['players', 'Player characters (their sheets leave the session; players keep their files)'], ['world', 'The World Tracker (time, weather, trackers, timers)'], ['notes', 'My notes']].map(function (_ref166) {
+    var _ref167 = _slicedToArray(_ref166, 2),
+      k = _ref167[0],
+      t = _ref167[1];
     return /*#__PURE__*/React.createElement("label", {
       key: k,
       className: "rule-label",
@@ -23857,10 +24143,10 @@ function App() {
     className: "modal-body"
   }, explained.lines.filter(function (l) {
     return l && l[1] !== '' && l[1] != null;
-  }).map(function (_ref166, i) {
-    var _ref167 = _slicedToArray(_ref166, 2),
-      n = _ref167[0],
-      v = _ref167[1];
+  }).map(function (_ref168, i) {
+    var _ref169 = _slicedToArray(_ref168, 2),
+      n = _ref169[0],
+      v = _ref169[1];
     return /*#__PURE__*/React.createElement("div", {
       key: i,
       className: "explain-line"
@@ -24145,11 +24431,11 @@ function App() {
       onClick: function onClick() {
         setCombatants(function (prev) {
           return reorder(prev.map(function (x) {
-            return x.id !== c.id ? x : function (_ref168) {
-              var together = _ref168.together,
-                shareTurn = _ref168.shareTurn,
-                after = _ref168.after,
-                rest = _objectWithoutProperties(_ref168, _excluded22);
+            return x.id !== c.id ? x : function (_ref170) {
+              var together = _ref170.together,
+                shareTurn = _ref170.shareTurn,
+                after = _ref170.after,
+                rest = _objectWithoutProperties(_ref170, _excluded22);
               return rest;
             }(x);
           }));
@@ -24280,10 +24566,10 @@ function App() {
           });
         }
       }, "No swap"));
-    }), dropped.map(function (_ref169) {
-      var x = _ref169.x,
-        e = _ref169.e,
-        caster = _ref169.caster;
+    }), dropped.map(function (_ref171) {
+      var x = _ref171.x,
+        e = _ref171.e,
+        caster = _ref171.caster;
       return /*#__PURE__*/React.createElement("span", {
         key: e.id,
         className: "p-btns",
@@ -24378,9 +24664,9 @@ function App() {
     "data-testid": "prompt-bar"
   }, askPop && /*#__PURE__*/React.createElement("div", {
     className: "pop-title"
-  }, /*#__PURE__*/React.createElement("span", null, myAskIds.length > 1 ? 'These need you' : 'This needs you')), flowPrompts.map(function (_ref170) {
-    var q = _ref170.q,
-      c = _ref170.c;
+  }, /*#__PURE__*/React.createElement("span", null, myAskIds.length > 1 ? 'These need you' : 'This needs you')), flowPrompts.map(function (_ref172) {
+    var q = _ref172.q,
+      c = _ref172.c;
     var mine = canControl(c),
       reactions = mine ? reactionsFor(c, q.kind === 'incoming' ? 'targeted' : q.kind === 'offer' ? q.ev : q.hit ? 'hit' : 'miss') : [];
     var react = reactions.length > 0 && /*#__PURE__*/React.createElement("span", {
@@ -24443,9 +24729,9 @@ function App() {
     }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, q.actorName), "'s ", q.what, " ", /*#__PURE__*/React.createElement("strong", null, q.hit ? q.crit ? 'is a Critical Hit on' : 'hits' : 'misses'), " ", /*#__PURE__*/React.createElement("strong", null, c.name), q.total != null ? " (".concat(q.total, " to hit)") : '', ". ", mine ? "You have a Reaction: about ".concat(secs, " seconds to use it before this is resolved.") : "".concat(c.name, " has a moment to use a Reaction before this is resolved.")), /*#__PURE__*/React.createElement("span", {
       className: "p-btns"
     }, react, noR));
-  }), sidePrompts.map(function (_ref171) {
-    var q = _ref171.q,
-      c = _ref171.c;
+  }), sidePrompts.map(function (_ref173) {
+    var q = _ref173.q,
+      c = _ref173.c;
     return q.kind === 'tell' ? canControl(c) ? /*#__PURE__*/React.createElement("div", {
       key: q.id,
       className: "prompt-item yours",
@@ -24677,11 +24963,11 @@ function App() {
     }, "Choose the form")) : /*#__PURE__*/React.createElement("span", {
       className: "prompt-wait"
     }, "Waiting for ", c.name));
-  }), openPrompts.map(function (_ref172) {
-    var q = _ref172.q,
-      c = _ref172.c,
-      text = _ref172.text,
-      dc = _ref172.dc;
+  }), openPrompts.map(function (_ref174) {
+    var q = _ref174.q,
+      c = _ref174.c,
+      text = _ref174.text,
+      dc = _ref174.dc;
     return /*#__PURE__*/React.createElement("div", {
       key: q.id,
       className: "prompt-item ".concat(canControl(c) ? 'yours' : '')
@@ -24759,10 +25045,10 @@ function App() {
   }, "Later"))), /*#__PURE__*/React.createElement("div", {
     className: "pane-tabs",
     role: "tablist"
-  }, [['order', 'Order'], ['sheet', 'Sheet'], ['log', 'Log']].map(function (_ref173) {
-    var _ref174 = _slicedToArray(_ref173, 2),
-      k = _ref174[0],
-      l = _ref174[1];
+  }, [['order', 'Order'], ['sheet', 'Sheet'], ['log', 'Log']].map(function (_ref175) {
+    var _ref176 = _slicedToArray(_ref175, 2),
+      k = _ref176[0],
+      l = _ref176[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       role: "tab",
@@ -25116,7 +25402,7 @@ function App() {
   }, isDM ? 'Add combatants to begin' : 'Add your character to join the fight'), (!rest || restCards || targeting || massRun) && visible.map(function (c) {
     var isActive = combatStarted && c.id === activeId;
     var ctl = canControl(c);
-    var more = cardsFull || cardMore.includes(c.id);
+    var more = cardMore.includes(c.id) ? !(cardsFull && !isPal(c)) : cardsFull && !isPal(c); // cards start open, companions' cards start folded
     return /*#__PURE__*/React.createElement("div", {
       key: c.id,
       className: "combatant-card ".concat(folded.includes(c.id) ? 'folded' : '', " ").concat(isActive ? 'active' : '', " ").concat(targetIds.includes(c.id) ? 'targeted' : '', " ").concat(c.currentHP <= 0 ? 'dead' : '', " ").concat(c.type === 'monster' && c.currentHP <= 0 && !openDown[c.id] ? 'down' : '', " ").concat(c.pending ? 'pending' : '', " ").concat(c.owner === myId ? 'mine' : '', " rel-").concat(relOf(c), " ").concat(c.summonOf && c.currentHP > 0 && !openDown[c.id] ? 'folded' : '', " ").concat(massRun && massRun.ids[massRun.i] === c.id ? 'mass-now' : '', " ").concat(massRun && massRun.i < massRun.ids.length && massRun.ids[massRun.i] !== c.id ? 'mass-pickable' : ''),
@@ -25301,7 +25587,7 @@ function App() {
         e.stopPropagation();
         if (window.confirm("Remove ".concat(c.name, " from combat?"))) removeCombatant(c.id);
       }
-    }, "\xD7")), (seeOf(c).bar || seeOf(c).hp) && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    }, "\xD7")), (isDM || !c.owner || c.owner === myId || c.owner === dmId) && (seeOf(c).bar || seeOf(c).hp) && /*#__PURE__*/React.createElement(React.Fragment, null, " ", /*#__PURE__*/React.createElement("div", {
       className: "hp-bar-wrap"
     }, /*#__PURE__*/React.createElement("div", {
       className: "hp-bar",
@@ -25801,9 +26087,9 @@ function App() {
         b: b
       };
     });
-  }).map(function (_ref175) {
-    var c = _ref175.c,
-      b = _ref175.b;
+  }).map(function (_ref177) {
+    var c = _ref177.c,
+      b = _ref177.b;
     return /*#__PURE__*/React.createElement("div", {
       key: b.id,
       className: "buff-note",
@@ -25885,10 +26171,10 @@ function App() {
         skill: ''
       }));
     }
-  }, ABILITY_KEYS.map(function (_ref176) {
-    var _ref177 = _slicedToArray(_ref176, 2),
-      k = _ref177[0],
-      full = _ref177[1];
+  }, ABILITY_KEYS.map(function (_ref178) {
+    var _ref179 = _slicedToArray(_ref178, 2),
+      k = _ref179[0],
+      full = _ref179[1];
     return /*#__PURE__*/React.createElement("option", {
       key: full,
       value: full
@@ -26396,11 +26682,11 @@ function App() {
         className: "mon-stats"
       }, /*#__PURE__*/React.createElement("span", null, "AC ", effectiveAC(c)), /*#__PURE__*/React.createElement("span", null, c.currentHP, "/", totalHP(c), " HP"), /*#__PURE__*/React.createElement("span", null, effectiveSpeed(c), " ft.", c.speedExtra ? ", ".concat(c.speedExtra) : ''), /*#__PURE__*/React.createElement("span", null, "Init ", effectiveInit(c))), !shut && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
         className: "mon-abil"
-      }, ABILITY_KEYS.map(function (_ref178) {
+      }, ABILITY_KEYS.map(function (_ref180) {
         var _ab8;
-        var _ref179 = _slicedToArray(_ref178, 2),
-          k = _ref179[0],
-          ab = _ref179[1];
+        var _ref181 = _slicedToArray(_ref180, 2),
+          k = _ref181[0],
+          ab = _ref181[1];
         return /*#__PURE__*/React.createElement("span", {
           key: ab
         }, /*#__PURE__*/React.createElement("em", null, k.toUpperCase()), modStr((_ab8 = (c.scores || {})[ab]) !== null && _ab8 !== void 0 ? _ab8 : 10));
@@ -26410,10 +26696,10 @@ function App() {
           className: "mon-sec"
         }, /*#__PURE__*/React.createElement("div", {
           className: "mon-h"
-        }, sec.h), (sec.items || []).map(function (_ref180, j) {
-          var _ref181 = _slicedToArray(_ref180, 2),
-            n = _ref181[0],
-            t = _ref181[1];
+        }, sec.h), (sec.items || []).map(function (_ref182, j) {
+          var _ref183 = _slicedToArray(_ref182, 2),
+            n = _ref183[0],
+            t = _ref183[1];
           return /*#__PURE__*/React.createElement("div", {
             key: j
           }, /*#__PURE__*/React.createElement("strong", null, n, "."), " ", Array.isArray(t) ? t.join(', ') : t);
@@ -26544,11 +26830,11 @@ function App() {
     }, ch.lbl, ch.src ? ' ✦' : ''));
   })), /*#__PURE__*/React.createElement("div", {
     className: "abil-row"
-  }, ABILITY_KEYS.map(function (_ref182) {
+  }, ABILITY_KEYS.map(function (_ref184) {
     var _ab9, _ab0;
-    var _ref183 = _slicedToArray(_ref182, 2),
-      k = _ref183[0],
-      ab = _ref183[1];
+    var _ref185 = _slicedToArray(_ref184, 2),
+      k = _ref185[0],
+      ab = _ref185[1];
     var score = (_ab9 = (viewed.scores || {})[ab]) !== null && _ab9 !== void 0 ? _ab9 : 10;
     return /*#__PURE__*/React.createElement("div", {
       className: "abil",
@@ -26705,9 +26991,9 @@ function App() {
       className: "pp-chip ".concat(cur && cur.length === SEE_KEYS.length ? 'on' : ''),
       "data-testid": "see-all",
       onClick: function onClick() {
-        return set(SEE_KEYS.map(function (_ref184) {
-          var _ref185 = _slicedToArray(_ref184, 1),
-            k = _ref185[0];
+        return set(SEE_KEYS.map(function (_ref186) {
+          var _ref187 = _slicedToArray(_ref186, 1),
+            k = _ref187[0];
           return k;
         }));
       }
@@ -26719,10 +27005,10 @@ function App() {
       onClick: function onClick() {
         return set(['none']);
       }
-    }, "Nothing"), SEE_KEYS.map(function (_ref186) {
-      var _ref187 = _slicedToArray(_ref186, 2),
-        k = _ref187[0],
-        label = _ref187[1];
+    }, "Nothing"), SEE_KEYS.map(function (_ref188) {
+      var _ref189 = _slicedToArray(_ref188, 2),
+        k = _ref189[0],
+        label = _ref189[1];
       var on = cur ? cur.includes(k) : seeOfTable(k);
       return /*#__PURE__*/React.createElement("label", {
         key: k,
@@ -26735,9 +27021,9 @@ function App() {
         "data-testid": "see-".concat(k),
         checked: on,
         onChange: function onChange() {
-          var base = (cur || SEE_KEYS.map(function (_ref188) {
-              var _ref189 = _slicedToArray(_ref188, 1),
-                x = _ref189[0];
+          var base = (cur || SEE_KEYS.map(function (_ref190) {
+              var _ref191 = _slicedToArray(_ref190, 1),
+                x = _ref191[0];
               return x;
             }).filter(seeOfTable)).filter(function (x) {
               return x !== 'none';
@@ -27420,10 +27706,10 @@ function App() {
     "data-testid": "pool-row"
   }, /*#__PURE__*/React.createElement("span", {
     className: "opt-label"
-  }, "Resources"), Object.entries(viewed.sheet.pools).map(function (_ref190) {
-    var _ref191 = _slicedToArray(_ref190, 2),
-      n = _ref191[0],
-      q = _ref191[1];
+  }, "Resources"), Object.entries(viewed.sheet.pools).map(function (_ref192) {
+    var _ref193 = _slicedToArray(_ref192, 2),
+      n = _ref193[0],
+      q = _ref193[1];
     return /*#__PURE__*/React.createElement("span", {
       key: n,
       className: "slot-chip ".concat(poolLeft(viewed, n) ? '' : 'spent')
@@ -27672,13 +27958,13 @@ function App() {
     };
     var reacts = [['r', 'reaction', 'Reaction', 'econ-reaction']].concat(_toConsumableArray(ex('extraReaction') ? [['xr', 'xreaction', 'Extra Reaction', 'econ-xreaction', ex('extraReaction')]] : []));
     var filt = {};
-    var tile = function tile(_ref192) {
-      var _ref193 = _slicedToArray(_ref192, 5),
-        k = _ref193[0],
-        kind = _ref193[1],
-        lbl = _ref193[2],
-        tid = _ref193[3],
-        why = _ref193[4];
+    var tile = function tile(_ref194) {
+      var _ref195 = _slicedToArray(_ref194, 5),
+        k = _ref195[0],
+        kind = _ref195[1],
+        lbl = _ref195[2],
+        tid = _ref195[3],
+        why = _ref195[4];
       return /*#__PURE__*/React.createElement("span", {
         key: k,
         role: "button",
@@ -27884,10 +28170,10 @@ function App() {
     } : undefined
   }, activeConditions.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "cond-empty"
-  }, "No active effects"), activeConditions.map(function (_ref194) {
-    var c = _ref194.c,
-      cond = _ref194.cond,
-      info = _ref194.info;
+  }, "No active effects"), activeConditions.map(function (_ref196) {
+    var c = _ref196.c,
+      cond = _ref196.cond,
+      info = _ref196.info;
     return /*#__PURE__*/React.createElement("div", {
       key: c.id + cond,
       className: "cond-item",
@@ -28247,10 +28533,10 @@ function App() {
     }, /*#__PURE__*/React.createElement("div", {
       className: "end-tabs",
       role: "tablist"
-    }, [].concat(_toConsumableArray(isDM ? [['xp', 'Experience']] : []), [['do', 'What you can do'], ['summary', 'Summary'], ['starred', "Starred log (".concat(stars.length, ")")]]).map(function (_ref195) {
-      var _ref196 = _slicedToArray(_ref195, 2),
-        k = _ref196[0],
-        l = _ref196[1];
+    }, [].concat(_toConsumableArray(isDM ? [['xp', 'Experience']] : []), [['do', 'What you can do'], ['summary', 'Summary'], ['starred', "Starred log (".concat(stars.length, ")")]]).map(function (_ref197) {
+      var _ref198 = _slicedToArray(_ref197, 2),
+        k = _ref198[0],
+        l = _ref198[1];
       return /*#__PURE__*/React.createElement("button", {
         key: k,
         role: "tab",
@@ -28659,19 +28945,19 @@ function App() {
         // a summoned creature joins the order, straight after its summoner
         var scores = {},
           saves = {};
-        ABILITY_KEYS.forEach(function (_ref197, i) {
-          var _ref198 = _slicedToArray(_ref197, 2),
-            k = _ref198[0],
-            full = _ref198[1];
+        ABILITY_KEYS.forEach(function (_ref199, i) {
+          var _ref200 = _slicedToArray(_ref199, 2),
+            k = _ref200[0],
+            full = _ref200[1];
           scores[full] = m ? m.s[i] : 10;
           saves[full] = m ? m.sv && m.sv[full] != null ? m.sv[full] : mod(m.s[i]) : 0;
         });
         var g = !m && blockPick.gen && blockPick.gen.name === n ? genBlock(blockPick.gen) : null;
         var hp = m ? m.hp : g ? g.hp : Math.max(1, parseInt(blockPick.hp, 10) || 10);
-        if (g) ABILITY_KEYS.forEach(function (_ref199, i) {
-          var _ref200 = _slicedToArray(_ref199, 2),
-            k = _ref200[0],
-            full = _ref200[1];
+        if (g) ABILITY_KEYS.forEach(function (_ref201, i) {
+          var _ref202 = _slicedToArray(_ref201, 2),
+            k = _ref202[0],
+            full = _ref202[1];
           scores[full] = g.s[i];
           saves[full] = mod(g.s[i]);
         });
@@ -28994,9 +29280,9 @@ function App() {
       });
     }
   }, canEndConc(notices[0]) ? 'Keep concentrating' : 'OK')))), function () {
-    var mine = openPrompts.find(function (_ref201) {
-      var q = _ref201.q,
-        c = _ref201.c;
+    var mine = openPrompts.find(function (_ref203) {
+      var q = _ref203.q,
+        c = _ref203.c;
       return canControl(c);
     });
     if (!mine) return null;
@@ -29140,7 +29426,16 @@ function App() {
         width: '100%'
       }
     }, "Pick the targets and use it; the targets stay chosen for the next one."));
-  }(), turnPop && /*#__PURE__*/React.createElement("div", {
+  }(), timeUp && /*#__PURE__*/React.createElement("div", {
+    className: "turn-pop time-up",
+    "data-testid": "time-up",
+    key: timeUp.key
+  }, /*#__PURE__*/React.createElement("span", null, "\u23F1 Time is up", timeUp.mine ? '' : " for ".concat(timeUp.name), "!"), /*#__PURE__*/React.createElement("button", {
+    "aria-label": "Close",
+    onClick: function onClick() {
+      return setTimeUp(null);
+    }
+  }, "\xD7")), turnPop && /*#__PURE__*/React.createElement("div", {
     className: "turn-pop",
     "data-testid": "turn-pop",
     key: turnPop.key
@@ -29299,10 +29594,10 @@ function App() {
   }), /*#__PURE__*/React.createElement("div", {
     className: "roster-filters",
     "data-testid": "roster-init"
-  }, /*#__PURE__*/React.createElement("span", null, "Initiative for each one added:"), [['roll', 'Roll it'], ['avg', 'Use the average (10 + Dex)'], ['type', 'Type it']].map(function (_ref202) {
-    var _ref203 = _slicedToArray(_ref202, 2),
-      k = _ref203[0],
-      t = _ref203[1];
+  }, /*#__PURE__*/React.createElement("span", null, "Initiative for each one added:"), [['roll', 'Roll it'], ['avg', 'Use the average (10 + Dex)'], ['type', 'Type it']].map(function (_ref204) {
+    var _ref205 = _slicedToArray(_ref204, 2),
+      k = _ref205[0],
+      t = _ref205[1];
     return /*#__PURE__*/React.createElement("label", {
       key: k,
       className: "rule-label",
@@ -29458,11 +29753,90 @@ function App() {
       onClick: function onClick() {
         return addMonster(m);
       }
-    }, "Add")), rosterOpen === m.n && /*#__PURE__*/React.createElement("div", {
+    }, "Add"), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-ghost btn-sm",
+      "data-testid": "roster-addas",
+      title: "Name it and choose what players see before adding it",
+      onClick: function onClick() {
+        return setAddAs(addAs && addAs.n === m.n ? null : {
+          n: m.n,
+          name: '',
+          see: null
+        });
+      }
+    }, "Add as\u2026")), addAs && addAs.n === m.n && /*#__PURE__*/React.createElement("div", {
+      className: "roster-detail",
+      "data-testid": "addas-box"
+    }, /*#__PURE__*/React.createElement("label", {
+      className: "rule-label",
+      style: {
+        margin: 0
+      }
+    }, "Name ", /*#__PURE__*/React.createElement("input", {
+      "data-testid": "addas-name",
+      autoFocus: true,
+      placeholder: m.n,
+      value: addAs.name,
+      maxLength: 40,
+      onChange: function onChange(e) {
+        return setAddAs(_objectSpread(_objectSpread({}, addAs), {}, {
+          name: e.target.value
+        }));
+      },
+      style: {
+        width: 180
+      }
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        margin: '6px 0'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "pp-muted"
+    }, "Players see (name and size always): "), /*#__PURE__*/React.createElement("button", {
+      className: "pp-chip ".concat(!addAs.see ? 'on' : ''),
+      onClick: function onClick() {
+        return setAddAs(_objectSpread(_objectSpread({}, addAs), {}, {
+          see: null
+        }));
+      }
+    }, "Table setting"), SEE_KEYS.map(function (_ref206) {
+      var _ref207 = _slicedToArray(_ref206, 2),
+        k = _ref207[0],
+        t = _ref207[1];
+      var cur = addAs.see || [];
+      return /*#__PURE__*/React.createElement("label", {
+        key: k,
+        className: "rule-label",
+        style: {
+          margin: '0 0 0 8px'
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        "data-testid": "addas-see-".concat(k),
+        checked: !!addAs.see && cur.includes(k),
+        onChange: function onChange(e) {
+          return setAddAs(_objectSpread(_objectSpread({}, addAs), {}, {
+            see: e.target.checked ? [].concat(_toConsumableArray(cur), [k]) : cur.filter(function (x) {
+              return x !== k;
+            })
+          }));
+        }
+      }), " ", t);
+    })), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-primary btn-sm",
+      "data-testid": "addas-go",
+      onClick: function onClick() {
+        addMonster(m, {
+          name: addAs.name,
+          see: addAs.see
+        });
+        setAddAs(null);
+      }
+    }, "Add ", addAs.name.trim() || m.n)), rosterOpen === m.n && /*#__PURE__*/React.createElement("div", {
       className: "roster-detail"
-    }, /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref204, i) {
-      var _ref205 = _slicedToArray(_ref204, 1),
-        k = _ref205[0];
+    }, /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref208, i) {
+      var _ref209 = _slicedToArray(_ref208, 1),
+        k = _ref209[0];
       return "".concat(k.toUpperCase(), " ").concat(m.s[i], " (").concat(modStr(m.s[i]), ")");
     }).join(' · ')), m.sp && /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Speed."), " ", m.sp), (m.tr || []).map(function (t, i) {
       return /*#__PURE__*/React.createElement("p", {
@@ -29743,9 +30117,9 @@ function App() {
       gridTemplateColumns: 'repeat(6,1fr)',
       gap: 6
     }
-  }, ABILITY_KEYS.map(function (_ref206) {
-    var _ref207 = _slicedToArray(_ref206, 1),
-      k = _ref207[0];
+  }, ABILITY_KEYS.map(function (_ref210) {
+    var _ref211 = _slicedToArray(_ref210, 1),
+      k = _ref211[0];
     return /*#__PURE__*/React.createElement("div", {
       className: "form-group",
       key: k
