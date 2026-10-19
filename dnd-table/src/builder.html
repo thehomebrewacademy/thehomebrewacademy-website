@@ -200,6 +200,7 @@ SPELLS AND ITEMS
 ]
 components is the letters V (Verbal), S (Somatic) and M (Material) the spell needs, such as "V", "VS" or "VSM". material is the Material component exactly as the spell words it, including "worth 50+ GP" and "which the spell consumes" when it says so. The Combat Resolver reads these when the DM turns on spell components: a Verbal spell cannot be cast while Silenced, a Somatic or Material component needs a free hand, a Component Pouch or Spellcasting Focus stands in for any Material component that has no cost, and a component with a cost has to be owned (and is used up if the spell consumes it).
 Every spell also gets "summary": one line of at most 100 characters that says what it does in play, most useful numbers first (damage dice and type, the save and what failing or succeeding does, conditions, area, number of targets), such as "8d6 Fire in a 20-ft Sphere; DEX save, half on success". Give "summaryHigher" in at most 80 characters for its higher-level effect ("+1d6 damage per slot level above 3"), or leave it out. The character sheet and the Combat Resolver's Spells tab show these under the spell's name.
+Every ability and every feat whose rules text is longer than about 200 characters also gets "summary": a shortened version of at most 160 characters for the printed character sheet, keeping what a player needs at the table (action type, uses and when they come back, dice, DCs, range, duration), such as "Bonus Action: Dash and gain Temp HP equal to PROF; PROF uses, back on a Short or Long Rest". Leave it out when the text is already short. The sheet adds "Refer to" and the pack's name after it.
 level 0 is a cantrip. A spell a character casts in a fight needs a "record" (see SPELL RECORDS below) so the Combat Resolver can run it.
 
 SPELL RECORDS: HOW A SPELL RUNS IN THE COMBAT RESOLVER
@@ -987,11 +988,12 @@ function sheetHtml(d) {
 ${cantrips.length ? `<div class="can"><h2>Cantrips</h2>${spTable(cantrips.map((x, i) => spellRow(x).replace('<tbody class="fb sp"', `<tbody class="fb sp" data-ci="${i}"${x.sv && x.sv !== "-" ? ' data-atk="1"' : ""}`)).join(""))}</div>` : ""}`]);
   // Spells, by level and then by name, as many as fit on a page
   if (leveled.length || extras.length || cantrips.length) { // cantrips that do not fit at the bottom of the Character page continue here (the extra ones are taken off when the page is shown)
-    const head = `<div class="sphead"><span class="spt">Spells</span><span>Attack: ${sg(+sp.attack || 0)}</span><span>Save DC: ${e(sp.dc || "")}</span>${sp.ability ? `<span>${e(sp.ability)}</span>` : ""}</div>`;
+    const sl = arr(sp.slotList), slotRow = (a, b) => `<tr><th>Spell Slot Level</th>${[...Array(b - a + 1)].map((_, i) => `<td><b>${a + i}</b><span>${+sl[a + i - 1] || "-"}</span></td>`).join("")}</tr>`;
+    const head = `<div class="sphead"><span class="spt">Spells</span><span>Attack: ${sg(+sp.attack || 0)}</span><span>Save DC: ${e(sp.dc || "")}</span>${sp.ability ? `<span>${e(sp.ability)}</span>` : ""}</div>${sl.some(n => +n > 0) ? `<table class="slotsum">${slotRow(1, 5)}${slotRow(6, 9)}</table>` : ""}`;
     const lvls = Array.from(new Set(leveled.map(x => +x.l)));
-    const cont = cantrips.length ? `<div class="fb lvh cch">Cantrips (continued)</div>${cantrips.map((r, i) => `<div class="fb cx" data-ci="${i}">${spTable(spellRow(r))}</div>`).join("")}` : "";
+    const cont = cantrips.length ? `<div class="fb lvh cch" data-h="Cantrips">Cantrips (continued)</div>${cantrips.map((r, i) => `<div class="fb cx" data-ci="${i}">${spTable(spellRow(r))}</div>`).join("")}` : "";
     const blocks = cont + lvls.map(l => { const n = l ? (arr(sp.slotList)[l - 1] || 0) : 0, rows = leveled.filter(x => +x.l === l);
-      return `<div class="fb lvh">${`Level ${l}`}${n ? ` &nbsp; <span class="slots">Slots ${circles(n)}</span>` : ""}</div>${rows.map(r => `<div class="fb">${spTable(spellRow(r))}</div>`).join("")}`; }).join("") + (extras.length ? `<div class="fb lvh">Additional Spells <span class="slots">beyond the rules: always available, not prepared</span></div>${extras.map(r => `<div class="fb">${spTable(spellRow(r))}</div>`).join("")}` : "");
+      return `<div class="fb lvh" data-h="Level ${l} Spells">${`Level ${l}`}${n ? ` &nbsp; <span class="slots"><span class="circ big">${"○ ".repeat(Math.min(n, 9)).trim()}</span> ${n} ${n === 1 ? "slot" : "slots"}</span>` : ""}</div>${rows.map(r => `<div class="fb">${spTable(spellRow(r))}</div>`).join("")}`; }).join("") + (extras.length ? `<div class="fb lvh" data-h="Additional Spells">Additional Spells <span class="slots">beyond the rules: always available, not prepared</span></div>${extras.map(r => `<div class="fb">${spTable(spellRow(r))}</div>`).join("")}` : "");
     pages.push(["Spells", `${banner("Spells")}${head}<div class="flow">${blocks}</div>`, true]);
   }
   // The character: personality, looks, story
@@ -1006,14 +1008,18 @@ ${arr(j.notes).map(n => line(n.title || "Notes", n.text)).join("")}
   const items = arr(((d.builder || {}).characterItems)).filter(i => i && i.name);
   const str = +sc.Strength || 10, sMod = md(str), cn = (o, k) => +((o || {})[k]) || 0;
   const coinCol = (name, get, custom) => `<div class="mcol"><b>${e(name)}</b>${["CP", "SP", "EP", "GP", "PP"].map(k => `<div>${k} <u>${get(k) || ""}</u></div>`).join("")}${arr(custom).map(x => `<div>${e(x.name)} <u>${x.n || ""}</u></div>`).join("")}</div>`;
-  const purses = [coinCol("Money", k => k === "GP" ? +d.gold || 0 : cn(d.coins, k.toLowerCase()), arr(d.moneyX).map(x => ({ name: x.name, n: cn(d.coins, "c:" + x.id) }))), ...arr(d.funds).slice(0, 1).map(f => coinCol(f.name, k => cn(f.coins, k.toLowerCase()), f.custom))];
+  const purses = [coinCol("Money", k => k === "GP" ? +d.gold || 0 : cn(d.coins, k.toLowerCase()), arr(d.moneyX).map(x => ({ name: x.name, n: cn(d.coins, "c:" + x.id) }))), ...arr(d.funds).slice(0, 3).map(f => coinCol(f.name, k => cn(f.coins, k.toLowerCase()), f.custom))];
   const hj = Math.max(0, 3 + sMod);
   pages.push(["Inventory", `${banner("Inventory")}<div class="invtop">${purses.join("")}<div class="mcol"><b>Jumping</b><div>High Jump ${hj} ft.<br><span class="muted">${Math.floor(hj / 2)} ft. standing</span></div><div>Long Jump ${str} ft.<br><span class="muted">${Math.floor(str / 2)} ft. standing</span></div></div><div class="mcol"><div class="carry"><b>Carrying Capacity</b><div class="cv">${str * 15} lb.</div></div><div style="margin-top:6px"><b>Push, Drag or Lift</b><div>${str * 30} lb.</div></div></div></div>
 <div class="flow"><table class="inv fb"><tr><th>Item</th><th>Type</th><th>Weight</th></tr>${(items.length ? items : arr(d.items).map(n => ({ name: n }))).map(i => `<tr><td>${e(i.name)}${i.qty > 1 ? ` × ${e(i.qty)}` : ""}</td><td>${e(i.type || "")}</td><td>${e(i.weight || "")}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">Nothing yet.</td></tr>`}</table>
 </div>`, true]);
   // Features and traits, with the levels of each class
+  // a feature longer than two lines: its short version (or as much as fits), then where to read the rest
+  const featShort = f => { const t = String(f.d || ""); if (t.length <= 210) return t; const where = f.src === "Class" ? cls[0].name : f.src === "Subclass" ? (cls[0].sub || "the subclass") : f.src;
+    const ref = ` Refer to ${f.ref || "SRD 5.2.1"}${where && !/^(Feat|Background|Species)$/.test(where) ? `, ${where}` : ""}.`;
+    let s0 = String(f.su || ""); if (!s0) { s0 = t.slice(0, 200 - ref.length); s0 = s0.slice(0, Math.max(40, s0.lastIndexOf(" "))) + "…"; } return s0 + ref; };
   const feats = arr(d.featureList).length ? arr(d.featureList) : arr(d.features).map(t => ({ n: t, d: "" }));
-  pages.push(["Features & Traits", `${banner("Features & Traits")}<div class="classes">${cls.map(x => `${e(x.name)} ${x.level}${x.sub ? ` (${e(x.sub)})` : ""}`).join(" · ")}${d.background ? ` · Background: ${e(d.background)}` : ""}</div><div class="flow">${feats.map(f => `<div class="fb ft"><b>${e(f.n)}</b>${f.src ? ` <span class="muted">${e(f.src)}${f.lv ? `, level ${e(f.lv)}` : ""}</span>` : ""}${f.d ? `<div>${e(f.d)}</div>` : ""}</div>`).join("") || "<div class='fb muted'>None yet.</div>"}</div>`, true]);
+  pages.push(["Features & Traits", `${banner("Features & Traits")}<div class="classes">${cls.map(x => `${e(x.name)} ${x.level}${x.sub ? ` (${e(x.sub)})` : ""}`).join(" · ")}${d.background ? ` · Background: ${e(d.background)}` : ""}</div><div class="flow">${feats.map(f => `<div class="fb ft"><b>${e(f.n)}</b>${f.src ? ` <span class="muted">${e(f.src)}${f.lv ? `, level ${e(f.lv)}` : ""}</span>` : ""}${f.d ? `<div>${e(featShort(f))}</div>` : ""}</div>`).join("") || "<div class='fb muted'>None yet.</div>"}</div>`, true]);
   // Stat blocks of the creatures that come with the character (a beast companion, a familiar, a steed)
   const mons = Array.isArray(window.HBA_MONSTERS) ? window.HBA_MONSTERS : [];
   const blocks = arr(d.companions).map(p => { const m = p.base && !/^sheet:/.test(p.base) ? mons.find(x => x.n === p.base) : null, st = p.stats || {};
@@ -1057,6 +1063,7 @@ ${m ? [["Traits", m.tr], ["Actions", (m.a || []).map(a => [a.n, a.d])], ["Bonus 
   .act { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 2px 0; } .act b { min-width: 40px; text-align: center; } .circ { letter-spacing: 1px; white-space: nowrap; }
   .write { border: 1.5px solid var(--line); border-radius: 8px; min-height: 120px; margin-top: 4px; } .write.tall { min-height: 300px; }
   .ft { font-size: 13.5px; margin: 0 0 8px; } .ft div { margin-top: 2px; line-height: 1.4; } .classes { text-align: center; font-weight: 700; margin-bottom: 8px; }
+  .slotsum { width: auto; margin: 4px 0 2px; border-collapse: collapse; } .slotsum th { font-size: 11.5px; text-align: left; padding: 1px 8px 1px 0; font-weight: 600; } .slotsum td { text-align: center; padding: 0 6px; font-size: 12px; min-width: 34px; } .slotsum td b { display: block; font-size: 10.5px; color: var(--soft); font-weight: 600; } .slotsum td span { font-size: 15px; } .circ.big { font-size: 19px; letter-spacing: 2px; vertical-align: -2px; }
   .sphead { display: flex; gap: 26px; align-items: baseline; font-size: 15px; } .spt { font-size: 24px; font-weight: 300; } .lvh { font-size: 18px; font-weight: 700; margin: 10px 0 2px; } .slots { font-weight: 400; font-size: 14px; }
   .spl { table-layout: fixed; } .spl th { text-align: left; font-size: 12.5px; padding: 3px 4px 1px; } .spl td { font-size: 13px; padding: 3px 4px 0; vertical-align: top; overflow-wrap: anywhere; } .spl td.sum { padding: 0 4px 6px 18px; color: var(--soft); font-size: 12.5px; }
   .spl th:nth-child(1), .spl td:nth-child(1) { width: 34%; } .spl td.sum { width: auto; } .flow .spl thead { display: none; } .flow .fb:first-child .spl thead, .flow .lvh + .fb .spl thead { display: table-header-group; } .flow .fb.cch + .fb .spl thead { display: table-header-group; }
@@ -1077,7 +1084,8 @@ if(can){var rows=[].slice.call(can.querySelectorAll('tbody[data-ci]'));var drop=
   var fl0=spg.querySelector('.flow');if(fl0&&!fl0.children.length)spg.parentNode.removeChild(spg);}}
 [].slice.call(document.querySelectorAll('.page[data-flow]')).forEach(function(pg){var fl=pg.querySelector('.flow');if(!fl)return;var bl=[].slice.call(fl.children);fl.innerHTML='';var cur=pg,body=fl,k=1;
  
- bl.forEach(function(b){body.appendChild(b);if(full(cur)&&body.children.length>1){body.removeChild(b);var np=cur.cloneNode(true);k++;np.setAttribute('data-name',pg.getAttribute('data-name')+' ('+k+')');var pn=np.querySelector('.pname');if(pn)pn.textContent=np.getAttribute('data-name');np.querySelector('.flow').innerHTML='';cur.parentNode.insertBefore(np,cur.nextSibling);cur=np;body=np.querySelector('.flow');body.appendChild(b);}});});
+ var lastH=null;bl.forEach(function(b){if(b.classList&&b.classList.contains('lvh'))lastH=b;body.appendChild(b);if(full(cur)&&body.children.length>1){body.removeChild(b);var np=cur.cloneNode(true);k++;np.setAttribute('data-name',pg.getAttribute('data-name')+' ('+k+')');var pn=np.querySelector('.pname');if(pn)pn.textContent=np.getAttribute('data-name');np.querySelector('.flow').innerHTML='';[].slice.call(np.querySelectorAll('.slotsum')).forEach(function(x){x.parentNode.removeChild(x);});cur.parentNode.insertBefore(np,cur.nextSibling);cur=np;body=np.querySelector('.flow');
+ if(lastH&&b!==lastH&&lastH.getAttribute('data-h')){var h=document.createElement('div');h.className='fb lvh';h.textContent=lastH.getAttribute('data-h')+' (continued)';body.appendChild(h);}body.appendChild(b);}});});
 var p=[].slice.call(document.querySelectorAll('.page')),i=0,pn=document.getElementById('pn');document.body.classList.add('one');
 function go(k){i=Math.max(0,Math.min(p.length-1,k));p.forEach(function(x,j){x.classList.toggle('on',j===i);});pn.textContent=(i+1)+' of '+p.length+': '+p[i].getAttribute('data-name');document.getElementById('prev').disabled=i===0;document.getElementById('next').disabled=i===p.length-1;window.scrollTo(0,0);}
 document.getElementById('prev').onclick=function(){go(i-1);};document.getElementById('next').onclick=function(){go(i+1);};document.addEventListener('keydown',function(ev){if(ev.key==='ArrowLeft')go(i-1);if(ev.key==='ArrowRight')go(i+1);});
@@ -1439,9 +1447,9 @@ function getFeaturesUpToLevel(className, subclassName, level) {
       if (f === "—") return;
       if (f === "Subclass feature" && subclassName) {
         const subFeats = (cls.subclasses[subclassName] || {})[l];
-        if (subFeats) subFeats.forEach(sf => out.push({ level: l, text: sf, source: "Subclass", detail: featureText(className, subclassName, sf, l) }));
+        if (subFeats) subFeats.forEach(sf => out.push({ level: l, text: sf, source: "Subclass", detail: featureText(className, subclassName, sf, l), su: featureSu(className, subclassName, sf, l) }));
       } else if (f !== "Subclass feature") {
-        out.push({ level: l, text: f, source: "Class", detail: featureText(className, "", f, l) });
+        out.push({ level: l, text: f, source: "Class", detail: featureText(className, "", f, l), su: featureSu(className, "", f, l) });
       }
     });
   }
@@ -1920,6 +1928,7 @@ function checkPack(raw) {
     const def = { category: FEAT_CATEGORIES.includes(v.category) ? v.category : "Any", text: pStr(v.text, 3000) };
     if (v.prerequisite) def.prereq = pStr(v.prerequisite, 120);
     if (v.repeatable) def.repeatable = true;
+    if (v.summary) def.summary = pStr(v.summary, 200);
     const nd = pObj(v.needs), needs = {};
     if (parseInt(nd.level, 10) > 0) needs.level = Math.min(20, parseInt(nd.level, 10));
     const sc = pObj(nd.score), sa = pArr(sc.abilities).filter((a) => ABILITIES.includes(a));
@@ -2276,6 +2285,15 @@ function weaponOf(name) {
   const base = WEAPONS.find(w => w.name === g.base);
   return { ...base, name: g.label, plain: base.name, bonus: g.bonus, magic: g.item };
 }
+// A short version of a long feature for the printed sheet: the built-in ones in rules.js, a pack's own "summary"
+function featureSu(className, subName, name, level) {
+  const su = (RULES && RULES.su) || {}, k = `R:${className}|${subName || ""}|${name}|${level}`;
+  if (su[k]) return su[k];
+  const key = Object.keys(su).find(x => x.startsWith(`R:${className}|${subName || ""}|${name}|`));
+  if (key) return su[key];
+  const ab = (typeof PACK_ABILITIES !== "undefined" ? PACK_ABILITIES : []).find(a => a && a.name === name && a.summary);
+  return ab ? String(ab.summary).slice(0, 200) : "";
+}
 function featureText(className, subName, name, level) {
   if (!RULES) return "";
   const exact = RULES.text[`${className}|${subName || ""}|${name}|${level}`];
@@ -2516,6 +2534,10 @@ function GearSection({ inventory, armor, setArmor, shield, setShield, weapons, s
 }
 
 /* ============ MAIN COMPONENT ============ */
+const CR_STEPS_B = ["0", "1/8", "1/4", "1/2", ...Array.from({ length: 30 }, (_, i) => String(i + 1))];
+const crNumB = cr => { const t = String(cr || "0"); return t.includes("/") ? (+t.split("/")[0]) / (+t.split("/")[1] || 1) : +t || 0; };
+const MON_TYPES = ["Aberration", "Beast", "Celestial", "Construct", "Dragon", "Elemental", "Fey", "Fiend", "Giant", "Humanoid", "Monstrosity", "Ooze", "Plant", "Undead"];
+const monTypeB = m => { const t = String(m.t || ""); const sw = /Swarm of \w+ (\w+?)s?\b/.exec(t); return MON_TYPES.find(x => (sw ? sw[1] : t).toLowerCase().includes(x.toLowerCase())) || ""; };
 function CharacterSheet() {
   const [tab, setTab] = useState(() => { // after a pack is added or removed the page reloads and comes back to the same tab
     try { const t = window.sessionStorage.getItem("hba-tab"); window.sessionStorage.removeItem("hba-tab"); return t || "identity"; } catch (e) { return "identity"; }
@@ -2536,6 +2558,7 @@ function CharacterSheet() {
   const [rosterTick, setRosterTick] = useState(0);
   const picInputRef = useRef(null);
   const [playerName, setPlayerName] = useState("");
+  const [palF, setPalF] = useState({}); // the Companions tab: stat block search, per companion
   const nameHint = useMemo(() => { const k = "hba-name-sample"; try { const had = window.localStorage.getItem(k); if (had) return had; } catch (e) {} // a sample name in the Player name field (the same one the Combat Resolver shows)
     const L = ["Aldric", "Brenna", "Corvin", "Dessa", "Eamon", "Fenna", "Garrick", "Hesper", "Ilsa", "Joren", "Kestrel", "Lysa", "Maddoc", "Nerys", "Orrin", "Pell", "Quinlan", "Rowan", "Sable", "Tamsin", "Ulric", "Vesna", "Wren", "Yara", "Zara", "Bram", "Tilda", "Odo", "Cormac", "Mirela"];
     const n = L[Math.floor(Math.random() * L.length)]; try { window.localStorage.setItem(k, n); } catch (e) {} return n; }, []);
@@ -2836,7 +2859,8 @@ function CharacterSheet() {
       if (c.skills && c.skills.filter(Boolean).length) picked.push(c.skills.filter(Boolean).map(v => v.startsWith("tool:") ? v.slice(5) : v).join(", "));
       if (f.def && f.def.grants && f.def.grants.magic) picked.push([c.list || featPreset(f.name), c.castAbility, c.cantrip1, c.cantrip2, c.spell].filter(Boolean).join(", "));
       const text = (f.def && f.def.text) || ORIGIN_FEATS[f.name] || "";
-      entries.push({ level: f.key.startsWith("extra") ? 1 : lvl, source: f.key === "origin" ? "Background" : f.key === "species" ? "Species" : "Feat",
+      const baseName = String(f.name).replace(/ \(.*\)$/, ""), fsu = ((RULES && RULES.su) || {})["F:" + f.name] || ((RULES && RULES.su) || {})["F:" + baseName] || (f.def && f.def.summary) || "";
+      entries.push({ level: f.key.startsWith("extra") ? 1 : lvl, su: fsu, source: f.key === "origin" ? "Background" : f.key === "species" ? "Species" : "Feat",
         text: `${f.key === "origin" ? "Origin Feat" : "Feat"}: ${f.name}${picked.filter(Boolean).length ? ` (${picked.filter(Boolean).join("; ")})` : ""}${text ? ". " + text : ""}` });
     });
     featSkills.tools.forEach(t => entries.push({ level: 1, text: `Tool Proficiency: ${t.tool}`, source: t.source }));
@@ -3256,7 +3280,9 @@ function CharacterSheet() {
       journal: { ...journal, alignment },
       components: components.filter(n => spellActions.some(a => a.name === n)),
       // for the character sheet in the Combat Resolver
-      featureList: featureLedger.map(f => { const cut = f.detail ? -1 : String(f.text).indexOf(": "); return { lv: f.level, src: f.source, n: cut > 0 ? f.text.slice(0, cut) : f.text, d: String(f.detail || (cut > 0 ? f.text.slice(cut + 2) : "")).slice(0, 2500) }; }).slice(0, 120),
+      featureList: featureLedger.map(f => { const cut = f.detail ? -1 : String(f.text).indexOf(": "), cls0 = f.mc || className, hb = HB_SRC["subclass:" + f.source] || HB_SRC["class:" + cls0] || (f.source === "Feat" || f.source === "Background" ? "" : ""); const nm = cut > 0 ? f.text.slice(0, cut) : f.text;
+        const fsrc = /^(Origin )?Feat$/.test(nm) ? (HB_SRC["feat:" + String(f.text).replace(/^(Origin )?Feat: /, "").split(/[.(]/)[0].trim()] || "") : hb;
+        return { lv: f.level, src: f.source, n: nm, d: String(f.detail || (cut > 0 ? f.text.slice(cut + 2) : "")).slice(0, 2500), ...(f.su ? { su: f.su } : {}), ref: fsrc || "SRD 5.2.1" }; }).slice(0, 120),
       saveProfs: ABILITIES.filter(a => saveInfo[a] === "class" || saveInfo[a] === "added"),
       spellList: Array.from(new Set([...spells.filter(Boolean), ...mcSpellNames, ...featSpells, ...derived.spells.map(g => g.name), ...derived.spellPicks.filter(q => q.cast !== "book").flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)), ...derived.spellUses.map(u => u.spell)].map(x => spellOf(x)).filter(Boolean))).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n)).slice(0, 120).map(sheetSpell).map(x => spellExtra.includes(x.n) ? { ...x, extra: 1 } : x),
       ...(spellbook ? { spellbook: spellbook.slice(0, 200) } : {}),
@@ -3742,8 +3768,17 @@ function CharacterSheet() {
                 <select aria-label="Companion kind" value={p.kind} onChange={e => upd({ kind: e.target.value })} style={field}>{["", "Familiar", "Beast Companion", "Steed", "Sidekick", "Pet", "Hireling", "Other"].map(k => <option key={k} value={k}>{k || "Kind..."}</option>)}</select>}
               {!auto && <select aria-label="What it is" data-testid="companion-what" value={what} onChange={e => upd({ base: e.target.value === "own" ? "" : e.target.value === "sheet" ? (mine[0] ? "sheet:" + mine[0].id : "") : (mons.find(x => /^Owl$/.test(x.n)) || mons[0] || {}).n || "" })} style={field}>
                 <option value="block">A stat block</option><option value="sheet" disabled={!mine.length}>One of my characters (its own sheet)</option><option value="own">Its own numbers</option></select>}
-              {!auto && what === "block" && <select aria-label="Companion stat block" data-testid="companion-base" value={p.base} onChange={e => upd({ base: e.target.value })} style={{ ...field, width: 220 }}>
-                {mons.slice().sort((a, b) => a.n.localeCompare(b.n)).map(x => <option key={x.n + (x.src || "")} value={x.n}>{x.n} (CR {x.cr})</option>)}</select>}
+              {!auto && what === "block" && (() => { const f = palF[p.id] || {}, setF = o => setPalF({ ...palF, [p.id]: { ...f, ...o } }), q = String(f.q || "").trim().toLowerCase(), lo = f.crMin ? crNumB(f.crMin) : -1, hi = f.crMax ? crNumB(f.crMax) : 99;
+                const list = mons.filter(x => x.n === p.base || ((!q || x.n.toLowerCase().includes(q)) && (!f.type || monTypeB(x) === f.type) && (!f.size || String(x.t).includes(f.size)) && crNumB(x.cr) >= lo && crNumB(x.cr) <= hi)).sort((a, b) => f.sort === "cr" ? crNumB(a.cr) - crNumB(b.cr) || a.n.localeCompare(b.n) : a.n.localeCompare(b.n));
+                return <span data-testid="companion-find" style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                  <input aria-label="Search stat blocks" data-testid="companion-find-q" placeholder="Search by name" value={f.q || ""} onChange={e => setF({ q: e.target.value })} style={{ ...field, width: 130 }} />
+                  <select aria-label="Creature type" data-testid="companion-find-type" value={f.type || ""} onChange={e => setF({ type: e.target.value })} style={field}><option value="">Any type</option>{MON_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                  <select aria-label="Size" data-testid="companion-find-size" value={f.size || ""} onChange={e => setF({ size: e.target.value })} style={field}><option value="">Any size</option>{["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"].map(t => <option key={t} value={t}>{t}</option>)}</select>
+                  <label style={{ fontSize: 13 }}>CR <select aria-label="Lowest CR" data-testid="companion-find-crmin" value={f.crMin || ""} onChange={e => setF({ crMin: e.target.value })} style={field}><option value="">any</option>{CR_STEPS_B.map(x => <option key={x} value={x}>{x}</option>)}</select> to <select aria-label="Highest CR" data-testid="companion-find-crmax" value={f.crMax || ""} onChange={e => setF({ crMax: e.target.value })} style={field}><option value="">any</option>{CR_STEPS_B.map(x => <option key={x} value={x}>{x}</option>)}</select></label>
+                  <select aria-label="Sort stat blocks" value={f.sort || "name"} onChange={e => setF({ sort: e.target.value })} style={field}><option value="name">A to Z</option><option value="cr">by CR</option></select>
+                  <select aria-label="Companion stat block" data-testid="companion-base" value={p.base} onChange={e => upd({ base: e.target.value })} style={{ ...field, width: 220 }}>
+                    {list.map(x => <option key={x.n + (x.src || "")} value={x.n}>{x.n} (CR {x.cr}, {x.t})</option>)}</select>
+                  <span style={{ fontSize: 12, opacity: 0.7 }}>{list.length} match{list.length === 1 ? "" : "es"}</span></span>; })()}
               {!auto && what === "sheet" && <select aria-label="Which character" data-testid="companion-sheet" value={p.base} onChange={e => upd({ base: e.target.value })} style={{ ...field, width: 220 }}>
                 {mine.map(x => <option key={x.id} value={"sheet:" + x.id}>{x.d.name || "Unnamed"} (Level {x.d.level || 1} {x.d.className || ""})</option>)}</select>}
               {m ? <span style={{ fontSize: 13, opacity: 0.85 }}>{m.t} · AC {(p.stats && p.stats.ac) || m.ac} · {(p.stats && p.stats.hp) || m.hp} HP · {m.sp}</span>
