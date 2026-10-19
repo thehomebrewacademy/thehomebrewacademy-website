@@ -2762,6 +2762,7 @@ function CharacterSheet() {
   // Multiclassing: each other class that casts spells keeps its own list, with its own ability; slots are shared (2024 rules)
   const mcCasters = mcList.filter(x => CLASSES[x.name].casterType);
   const mcSpellInfo = mcCasters.map(x => ({ x, info: sortSpells(CLASSES[x.name], x.name, x.level, (x.spells && x.spells.length ? x.spells : [""]), 0, [], null) }));
+  const casterRows = [...(cls && cls.casterType ? [{ name: className, level, cls, info: spellInfo }] : []), ...mcSpellInfo.map(m => ({ name: m.x.name, level: m.x.level, cls: CLASSES[m.x.name], info: m.info }))].filter(r => r.cls && r.cls.spellAbility); // every class that casts, for the Spellcasting overview
   const sharedSlots = (() => { const cs = allClasses.filter(x => CLASSES[x.name] && ["full", "half"].includes(CLASSES[x.name].casterType)); if (cs.length < 2) return null;
     const n = cs.reduce((t, x) => t + (CLASSES[x.name].casterType === "full" ? x.level : Math.ceil(x.level / 2)), 0); return FULL_CASTER_SLOTS[Math.min(20, n)] || []; })();
   const setMcSpells = (name, list) => setExtraClasses(prev => prev.map(x => x.name === name ? { ...x, spells: list } : x));
@@ -3635,7 +3636,7 @@ function CharacterSheet() {
           <IdentityTab {...{ mcCustom: custom, extraClasses, setExtraClasses, totalLevel, mcScores: finalScores, mcChoices: featureChoices, setMcChoices: setFeatureChoices, attnEdge, gold, setGold, xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
         )}
         {tab === "abilities" && (
-          <AbilitiesTab {...{ featBonuses, pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay, custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }} />
+          <AbilitiesTab {...{ featBonuses, pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay, custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj, bgName: originCustom ? "customized" : background, bgAbilities: bgEff.abilityScores || [], bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, reachedAsiLevels, asiChoices, setAsiType, setAsiAbilities, asiLabel: (k) => (asiOf(k) || { label: `Level ${k}` }).label }} />
         )}
         {tab === "skills" && (
           <SkillsTab {...{ expertiseMax, expertiseList, expertiseCustom, cls, skillInfo, toggleSkill, addSkill, removeSkill, skillExpertise, toggleExpertise, skillMods, savingThrows, saveInfo, toggleSave, custom, colors, fontDisplay }} />
@@ -3654,8 +3655,8 @@ function CharacterSheet() {
               {sharedSlots && <span style={{ fontSize: 13, opacity: 0.85, alignSelf: "center" }}>Spell slots are shared by your classes (multiclass spellcaster).</span>}
             </div>)}
           {(() => { const sel = spellClass && mcSpellInfo.find(m => m.x.name === spellClass && spellClass !== className) || (!(cls && cls.casterType) && mcSpellInfo[0]); if (!sel) return (
-          <SpellsTab {...{ attnEdge, bookInfo: derived.spellbook || null, spellbook, picks: derived.spellPicks, featureChoices, setFeatureChoices, glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary, sharedSlots }} />);
-            return <SpellsTab key={sel.x.name} {...{ attnEdge, bookInfo: null, spellbook: [], picks: [], featureChoices, setFeatureChoices, glow: "", grantedSpells: [], cls: CLASSES[sel.x.name], className: sel.x.name, level: sel.x.level, finalMods, profBonus, colors, fontDisplay, spells: sel.x.spells && sel.x.spells.length ? sel.x.spells : [""], setSpells: (l) => setMcSpells(sel.x.name, l), spellInfo: sel.info, custom, spellSummary, sharedSlots }} />; })()}</>
+          <SpellsTab {...{ casterRows, attnEdge, bookInfo: derived.spellbook || null, spellbook, picks: derived.spellPicks, featureChoices, setFeatureChoices, glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary, sharedSlots }} />);
+            return <SpellsTab key={sel.x.name} {...{ casterRows, attnEdge, bookInfo: null, spellbook: [], picks: [], featureChoices, setFeatureChoices, glow: "", grantedSpells: [], cls: CLASSES[sel.x.name], className: sel.x.name, level: sel.x.level, finalMods, profBonus, colors, fontDisplay, spells: sel.x.spells && sel.x.spells.length ? sel.x.spells : [""], setSpells: (l) => setMcSpells(sel.x.name, l), spellInfo: sel.info, custom, spellSummary, sharedSlots }} />; })()}</>
         )}
         {tab === "journal" && (
           <JournalTab {...{ journal, setJournal, alignment, setAlignment, knownTools, colors, fontDisplay }} />
@@ -3941,7 +3942,8 @@ function SourceTag({ text, custom, colors }) {
 }
 
 function AbilitiesTab({ featBonuses, pointBuy, updatePointBuy, pointBuyRemaining, finalScores, finalMods, bgBonuses, asiBonuses, colors, fontDisplay,
-  custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj }) {
+  custom, abilityMode, setAbilityMode, customScores, setCustomScores, abilityAdj, setAbilityAdj,
+  bgName = "", bgAbilities = [], bgBonusMode = "2-1", setBgBonusMode = () => {}, bgBonusChoices = [], setBgBonusChoices = () => {}, reachedAsiLevels = [], asiChoices = {}, setAsiType = () => {}, setAsiAbilities = () => {}, asiLabel = (k) => `Level ${k}` }) {
   const [editing, setEditing] = useState(false);     // custom scores are being set
   const [adjOpen, setAdjOpen] = useState(null);      // which ability's additional modifier is open
   const isCustom = abilityMode === "custom";
@@ -4008,6 +4010,31 @@ function AbilitiesTab({ featBonuses, pointBuy, updatePointBuy, pointBuyRemaining
             ? "Custom scores have no point limit: set each score from 1 to 30, then press Accept. Background increases, Ability Score Improvements and additional modifiers are added on top."
             : "Standard point buy: scores range 8 to 15 before bonuses. Cost: 9=1pt, 10=2, 11=3, 12=4, 13=5, 14=7, 15=9. Background increases and Ability Score Improvements are added automatically above."}
           {!custom && " Turn on Further Customization to set scores freely or add modifiers."}
+        <div data-testid="abil-increases" style={{ marginTop: 16, borderTop: `1px solid ${colors.brass}44`, paddingTop: 12 }}>
+          <div style={{ fontFamily: fontDisplay, color: colors.brassLight, fontSize: 14, marginBottom: 8 }}>Ability Score Increases</div>
+          <div data-testid="abil-bg" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10, fontSize: 13 }}>
+            <strong style={{ minWidth: 150 }}>Background{bgName ? ` (${bgName})` : ""}</strong>
+            <label><input type="radio" checked={bgBonusMode === "2-1"} onChange={() => { setBgBonusMode("2-1"); setBgBonusChoices([]); }} /> +2 / +1</label>
+            <label><input type="radio" checked={bgBonusMode === "1-1-1"} onChange={() => { setBgBonusMode("1-1-1"); setBgBonusChoices([]); }} /> +1 / +1 / +1</label>
+            {Array.from({ length: bgBonusMode === "2-1" ? 2 : 3 }).map((_, idx) => (
+              <select key={idx} aria-label={`Background increase ${idx + 1}`} value={bgBonusChoices[idx] || ""} onChange={e => { const v = e.target.value; setBgBonusChoices(prev => { const next = [...prev]; next[idx] = v; return next; }); }} style={{ ...fieldStyle(colors), width: 150, ...(bgBonusChoices[idx] ? {} : { borderColor: "#e8590c" }) }}>
+                <option value="">{bgBonusMode === "2-1" && idx === 0 ? "+2 to..." : "+1 to..."}</option>
+                {bgAbilities.map(x => <option key={x} value={x}>{x}</option>)}
+              </select>))}
+          </div>
+          {reachedAsiLevels.map(lvl => { const ch = asiChoices[lvl] || { type: "asi", abilities: [null, null] }; return (
+            <div key={lvl} data-testid={`abil-asi-${lvl}`} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 8, fontSize: 13 }}>
+              <strong style={{ minWidth: 150 }}>{asiLabel(lvl)}</strong>
+              <label><input type="radio" checked={ch.type === "asi"} onChange={() => setAsiType(lvl, "asi")} /> Ability Score Improvement</label>
+              <label><input type="radio" checked={ch.type === "feat"} onChange={() => setAsiType(lvl, "feat")} /> Feat</label>
+              {ch.type === "asi" ? [0, 1].map(idx => (
+                <select key={idx} aria-label={`${asiLabel(lvl)} increase ${idx + 1}`} value={(ch.abilities && ch.abilities[idx]) || ""} onChange={e => setAsiAbilities(lvl, idx, e.target.value)} style={{ ...fieldStyle(colors), width: 150, ...((ch.abilities && ch.abilities[idx]) ? {} : { borderColor: "#e8590c" }) }}>
+                  <option value="">+1 to...</option>
+                  {ABILITIES.map(x => <option key={x} value={x}>{x}</option>)}
+                </select>)) : <span style={{ opacity: 0.85 }}>{ch.name ? `${ch.name} (its choices are in the Features tab)` : "Choose the feat in the Features tab."}</span>}
+            </div>); })}
+          {reachedAsiLevels.length === 0 && <div style={{ fontSize: 12, opacity: 0.7 }}>Ability Score Improvements come at level 4 and later. Picking the same ability twice gives it +2.</div>}
+        </div>
         </div>
       </Section>
     </div>
@@ -4854,8 +4881,9 @@ function SpellRow({ entry, onRemove, colors, fontDisplay, summary }) {
   );
 }
 
-function SpellsTab({ sharedSlots = null, attnEdge = () => ({}), bookInfo, spellbook, picks, featureChoices, setFeatureChoices, glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
+function SpellsTab({ casterRows = [], sharedSlots = null, attnEdge = () => ({}), bookInfo, spellbook, picks, featureChoices, setFeatureChoices, glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
   const [levelsOff, setLevelsOff] = useState([]);     // spell levels switched off in the Add Spells list (none: every level shows)
+  const [bookTab, setBookTab] = useState("prepared"); // a Wizard: Prepared Spells or the Spellbook
   const [sortBy, setSortBy] = useState("level");      // "level" (alphabetical inside each level) or "name"
   const [search, setSearch] = useState("");
   const [anyList, setAnyList] = useState(false);     // customization: spells from every class list
@@ -4919,6 +4947,15 @@ function SpellsTab({ sharedSlots = null, attnEdge = () => ({}), bookInfo, spellb
             {stat("Prepared Spells", `${spellInfo.prepared} / ${prepMax == null ? "no limit" : prepMax}`)}
             {stat("Highest Spell Level", maxLevel || "none yet")}
           </div>
+          {casterRows.length > 1 && <div data-testid="caster-rows" style={{ marginTop: 12, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead><tr style={{ fontFamily: fontDisplay, color: colors.brassLight, textAlign: "left" }}>{["Class", "Ability", "Save DC", "Attack", "Cantrips", "Prepared", "Highest"].map(h => <th key={h} style={{ padding: "4px 8px", borderBottom: `1px solid ${colors.brass}55` }}>{h}</th>)}</tr></thead>
+              <tbody>{casterRows.map(r => <tr key={r.name} data-testid="caster-row" style={{ fontWeight: r.name === className ? 700 : 400 }}>
+                <td style={{ padding: "4px 8px" }}>{r.name} {r.level}</td><td style={{ padding: "4px 8px" }}>{r.cls.spellAbility}</td>
+                <td style={{ padding: "4px 8px" }}>{8 + profBonus + finalMods[r.cls.spellAbility]}</td><td style={{ padding: "4px 8px" }}>{fmt(profBonus + finalMods[r.cls.spellAbility])}</td>
+                <td style={{ padding: "4px 8px" }}>{r.info.cantrips} / {r.info.cantripMax}</td><td style={{ padding: "4px 8px" }}>{r.info.prepared} / {r.info.prepMax == null ? "no limit" : r.info.prepMax}</td>
+                <td style={{ padding: "4px 8px" }}>{r.info.maxLevel ? `Level ${r.info.maxLevel}` : "none yet"}</td></tr>)}</tbody>
+            </table></div>}
         </Section>
         {cls.spellPoints
           ? <Section title={`Casting with ${cls.spellPoints.pool}`} colors={colors} fontDisplay={fontDisplay}><div style={{ fontSize: 14 }} data-testid="points-note">This class spends {cls.spellPoints.pool} to cast, not spell slots. A spell costs {cls.spellPoints.costs.slice(0, Math.max(1, maxLevel)).map((n, i) => `${n} at Level ${i + 1}`).join(", ")}.</div></Section>
@@ -4929,19 +4966,26 @@ function SpellsTab({ sharedSlots = null, attnEdge = () => ({}), bookInfo, spellb
         </Section>
       )}
 
-      {bookInfo && <Section title="Your Spellbook" colors={colors} fontDisplay={fontDisplay}>
+      {bookInfo && <div data-testid="book-tabs" role="tablist" style={{ display: "flex", gap: 4, borderBottom: `1px solid ${colors.brass}`, margin: "4px 0 12px" }}>
+        {[["prepared", `Prepared Spells (${spellInfo.prepared}${prepMax == null ? "" : ` of ${prepMax}`})`], ["book", `Spellbook (${(spellbook || []).length})`]].map(([k, t]) => <button key={k} role="tab" data-testid={`book-tab-${k}`} aria-selected={bookTab === k} onClick={() => setBookTab(k)}
+          style={{ background: bookTab === k ? colors.brass : "transparent", color: bookTab === k ? colors.ink : colors.parchment, border: `1px solid ${colors.brass}`, borderBottom: "none", borderRadius: "8px 8px 0 0", padding: "6px 16px", fontFamily: fontDisplay, fontWeight: 700, cursor: "pointer" }}>{t}</button>)}
+      </div>}
+      {bookInfo && bookTab === "prepared" && <div data-testid="book-note" style={{ fontSize: 13, opacity: 0.85, marginBottom: 10 }}>You prepare spells from your spellbook. Write new spells into it, or prepare them straight from the list, in the Spellbook tab.</div>}
+      {bookInfo && bookTab === "book" && <Section title="Your Spellbook" colors={colors} fontDisplay={fontDisplay}>
         {(() => { const own = String(featureChoices.spellbook || "").split("|").filter(Boolean), extra = (spellbook || []).filter(n => !own.includes(n));
           const setBook = (list) => setFeatureChoices(prev => ({ ...prev, spellbook: list.join("|") }));
           const opts = ALL_SPELLS.filter(sp => sp.l > 0 && sp.l <= maxLevel && (bookInfo.lists.length ? bookInfo.lists : [className]).some(l => sp.c.includes(l)) && !(spellbook || []).includes(sp.n)).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n));
           return <div data-testid="spellbook">
             <div style={{ fontSize: 13, marginBottom: 6 }}>Your prepared spells come from this book. <strong data-testid="spellbook-count">{own.length} of {bookInfo.free}</strong> spells from your Wizard levels{extra.length ? `, plus ${extra.length} added free by features` : ""}.{own.length > bookInfo.free ? <span style={{ color: CUSTOM_RED }}> The rest were copied from scrolls or other books (2 hours and 50 GP per spell level).</span> : null}</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-              {(spellbook || []).map(n => { const sp = spellOf(n); return <span key={n} data-testid="spellbook-item" style={{ border: `1px solid ${colors.brass}77`, borderRadius: 6, padding: "2px 8px", fontSize: 13 }}>{n}{sp ? ` (Level ${sp.l}${sp.rit ? ", Ritual" : ""})` : ""}{own.includes(n) ? <button aria-label={`Remove ${n} from the spellbook`} onClick={() => setBook(own.filter(x => x !== n))} style={{ marginLeft: 6, background: "none", border: "none", color: colors.brassLight, cursor: "pointer" }}>×</button> : <span style={{ opacity: 0.6 }}> · free</span>}</span>; })}
+              {(spellbook || []).map(n => { const sp = spellOf(n), on = spells.includes(n); return <span key={n} data-testid="spellbook-item" style={{ border: `1px solid ${on ? colors.brassLight : colors.brass + "77"}`, background: on ? colors.brass + "33" : "transparent", borderRadius: 6, padding: "2px 8px", fontSize: 13 }}>
+                <button data-testid="book-prepare" title={on ? "Prepared: click to unprepare" : "Prepare this spell"} onClick={() => on ? setSpells(spells.filter(x => x !== n).length ? spells.filter(x => x !== n) : [""]) : setSpells([...spells.filter(Boolean), n])} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 10, width: 20, height: 20, lineHeight: "16px", padding: 0, marginRight: 6, cursor: "pointer", fontSize: 11 }}>{on ? "✓" : "+"}</button>{n}{sp ? ` (Level ${sp.l}${sp.rit ? ", Ritual" : ""})` : ""}{own.includes(n) ? <button aria-label={`Remove ${n} from the spellbook`} onClick={() => setBook(own.filter(x => x !== n))} style={{ marginLeft: 6, background: "none", border: "none", color: colors.brassLight, cursor: "pointer" }}>×</button> : <span style={{ opacity: 0.6 }}> · free</span>}</span>; })}
             </div>
             <select aria-label="Add a spell to the spellbook" data-testid="spellbook-add" value="" onChange={e => e.target.value && setBook([...own, e.target.value])} style={{ ...fieldStyle(colors), width: 300 }}>
               <option value="">Write a spell in the book...</option>{opts.map(sp => <option key={sp.n} value={sp.n}>{sp.n} (Level {sp.l})</option>)}</select>
           </div>; })()}
       </Section>}
+      {(!bookInfo || bookTab === "prepared") && <>
       {(picks || []).length > 0 && <Section title="Spells Your Features Let You Choose" colors={colors} fontDisplay={fontDisplay}>
         {picks.map(q => { const k = "spells:" + q.key, cur = String(featureChoices[k] || "").split("|"), top = q.level === "slot" ? maxLevel : q.level;
           const ok = (sp) => (q.lists === "any" || q.lists.some(l => sp.c.includes(l))) && (q.level === "slot" ? sp.l <= maxLevel && (q.cast !== "book" || sp.l > 0) : q.upTo ? sp.l <= top && sp.l > 0 : sp.l === top) && (!q.ritual || sp.rit) && (!q.school || sp.s === q.school) && (!q.fromBook || !spellbook || spellbook.includes(sp.n)) && (!q.castingTime || String(sp.t || "").toLowerCase().startsWith(q.castingTime.toLowerCase())) && (q.cast !== "book" || !spellbook || !String(featureChoices.spellbook || "").split("|").includes(sp.n));
@@ -5019,6 +5063,7 @@ function SpellsTab({ sharedSlots = null, attnEdge = () => ({}), bookInfo, spellb
           )}
         </Section>
       )}
+      </>}
     </div>
   );
 }
