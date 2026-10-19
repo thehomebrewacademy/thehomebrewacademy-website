@@ -89,7 +89,8 @@ FILE SHAPE
   "spells": [ ],
   "items": [ ],
   "abilities": [ ],
-  "monsters": [ ]
+  "monsters": [ ],
+  "rules": [ ]
 }
 
 Leave out any section you have nothing for. Names are the keys. A pack entry with the same name as a built-in option replaces it.
@@ -836,12 +837,20 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 - Every feat is an object with a category, and every "choose a cantrip" or "choose a spell" in a feat is a spellChoices entry with the exact level, lists and schools the text allows.
 - Rules text is copied as written, and spell levels read "Level X School".
 
+---------------------------------------------------------------------
+RULES
+---------------------------------------------------------------------
+
+Every rule the source adds or changes goes in "rules", one entry per rule: its "name" and its "text". They show in the Combat Resolver's Rules Index. A rule with a new name is marked Homebrew. A rule with the same name as a rule in the SRD Rules Glossary (for example "Grappled" or "Help Action") replaces it there and is marked as changed, with the original kept underneath.
+{ "name": "Flanking", "text": "When you and an ally are on opposite sides of an enemy, you have Advantage on melee attack rolls against it." }
+Write the text the way the source words it. Use *italic* and **bold** if you need them, and a blank line between paragraphs.
+
   </script>
   <script>
 var _excluded = ["versions", "hitPointBands", "uses", "name", "atLevel", "choices"],
   _excluded2 = ["versions", "hitPointBands", "uses", "atLevel"],
   _excluded3 = ["name", "desc", "activation"],
-  _excluded4 = ["feats", "spells", "items", "abilities", "monsters"],
+  _excluded4 = ["feats", "spells", "items", "abilities", "monsters", "rules"],
   _excluded5 = ["options"],
   _excluded6 = ["options"],
   _excluded7 = ["gold"],
@@ -4610,7 +4619,8 @@ var PACK_LIMITS = {
   spells: 600,
   items: 600,
   abilities: 800,
-  monsters: 400
+  monsters: 400,
+  rules: 300
 };
 function splitPack(raw) {
   if (!raw || _typeof(raw) !== "object" || raw.format !== "homebrew-academy-content") return [raw];
@@ -4626,7 +4636,8 @@ function splitPack(raw) {
       spells: pArr(raw.spells),
       items: pArr(raw.items),
       abilities: pArr(raw.abilities),
-      monsters: pArr(raw.monsters)
+      monsters: pArr(raw.monsters),
+      rules: pArr(raw.rules)
     };
   var fits = Object.keys(lists).every(function (k) {
     return lists[k].length <= PACK_LIMITS[k];
@@ -4637,13 +4648,15 @@ function splitPack(raw) {
     items = raw.items,
     abilities = raw.abilities,
     monsters = raw.monsters,
+    rules = raw.rules,
     core = _objectWithoutProperties(raw, _excluded4);
   var parts = [_objectSpread(_objectSpread({}, core), {}, {
     feats: {},
     spells: [],
     items: [],
     abilities: [],
-    monsters: []
+    monsters: [],
+    rules: []
   })];
   var sizes = [size(parts[0])],
     blank = function blank() {
@@ -4656,7 +4669,8 @@ function splitPack(raw) {
         spells: [],
         items: [],
         abilities: [],
-        monsters: []
+        monsters: [],
+        rules: []
       };
     };
   Object.keys(lists).forEach(function (k) {
@@ -5182,7 +5196,22 @@ function checkPack(raw) {
     });
     (pack.monsters = pack.monsters || []).push(out);
   });
+  // Rules for the Rules Index: a new rule, or a homebrew version of an SRD rule with the same name (the Rules Index marks it as changed)
+  pArr(raw.rules).slice(0, 300).forEach(function (r0, i) {
+    var r = pObj(r0),
+      n = pStr(r.name, 80).trim(),
+      t = pStr(r.text, 8000).trim();
+    if (!n || !t) {
+      errors.push("Rule ".concat(n || "#" + (i + 1), ": it needs a \"name\" and a \"text\". It was skipped."));
+      return;
+    }
+    (pack.rules = pack.rules || []).push({
+      n: n,
+      t: t
+    });
+  });
   var counts = {
+    rules: (pack.rules || []).length,
     classes: Object.keys(pack.classes).length,
     subclasses: Object.values(pack.subclasses).reduce(function (t, o) {
       return t + Object.keys(o).length;
@@ -7268,20 +7297,24 @@ function CharacterSheet() {
     _useState156 = _slicedToArray(_useState155, 2),
     spells = _useState156[0],
     setSpells = _useState156[1];
+  var _useState157 = useState([]),
+    _useState158 = _slicedToArray(_useState157, 2),
+    spellExtra = _useState158[0],
+    setSpellExtra = _useState158[1]; // spells added on top of the rules: they do not count against the number you know or prepare
 
   // Player code + saving on this computer
-  var _useState157 = useState(currentPlayerCode),
-    _useState158 = _slicedToArray(_useState157, 2),
-    playerCode = _useState158[0],
-    setPlayerCode = _useState158[1];
-  var _useState159 = useState(""),
+  var _useState159 = useState(currentPlayerCode),
     _useState160 = _slicedToArray(_useState159, 2),
-    codeInput = _useState160[0],
-    setCodeInput = _useState160[1];
-  var _useState161 = useState(false),
+    playerCode = _useState160[0],
+    setPlayerCode = _useState160[1];
+  var _useState161 = useState(""),
     _useState162 = _slicedToArray(_useState161, 2),
-    ready = _useState162[0],
-    setReady = _useState162[1];
+    codeInput = _useState162[0],
+    setCodeInput = _useState162[1];
+  var _useState163 = useState(false),
+    _useState164 = _slicedToArray(_useState163, 2),
+    ready = _useState164[0],
+    setReady = _useState164[1];
   // Starred Combat Log entries saved from the Combat Resolver arrive here as a Session Notes entry.
   useEffect(function () {
     var onNote = function onNote(e) {
@@ -7843,8 +7876,8 @@ function CharacterSheet() {
   }) : [];
   var spellbook = derived.spellbook ? Array.from(new Set([].concat(_toConsumableArray(String(featureChoices.spellbook || "").split("|").filter(Boolean)), _toConsumableArray(bookFree)))) : null;
   var spellInfo = useMemo(function () {
-    return sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists, spellbook);
-  }, [cls, className, level, spells, derived, featureChoices]);
+    return sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists, spellbook, spellExtra);
+  }, [cls, className, level, spells, derived, featureChoices, spellExtra]);
   // Multiclassing: each other class that casts spells keeps its own list, with its own ability; slots are shared (2024 rules)
   var mcCasters = mcList.filter(function (x) {
     return CLASSES[x.name].casterType;
@@ -7852,7 +7885,7 @@ function CharacterSheet() {
   var mcSpellInfo = mcCasters.map(function (x) {
     return {
       x: x,
-      info: sortSpells(CLASSES[x.name], x.name, x.level, x.spells && x.spells.length ? x.spells : [""], 0, [], null)
+      info: sortSpells(CLASSES[x.name], x.name, x.level, x.spells && x.spells.length ? x.spells : [""], 0, [], null, spellExtra)
     };
   });
   var casterRows = [].concat(_toConsumableArray(cls && cls.casterType ? [{
@@ -8984,6 +9017,9 @@ function CharacterSheet() {
         return allSkillProfs.includes(k);
       }),
       customizations: customizations,
+      extraSpells: spellExtra.filter(function (n) {
+        return spells.includes(n) || mcSpellNames.includes(n);
+      }),
       journal: _objectSpread(_objectSpread({}, journal), {}, {
         alignment: alignment
       }),
@@ -9137,10 +9173,19 @@ function CharacterSheet() {
         components: components,
         characterItems: characterItems,
         pinnedItems: pinnedItems,
-        spells: spells
+        spells: spells,
+        spellExtra: spellExtra
       }
     });
   }
+
+  // The sheet preview reloads when anything on the character changes
+  var sheetKey = function sheetKey(d) {
+    var t = JSON.stringify(d);
+    var h = 0;
+    for (var i = 0; i < t.length; i++) h = h * 31 + t.charCodeAt(i) | 0;
+    return String(h);
+  };
   function saveCharacterFile(_x) {
     return _saveCharacterFile.apply(this, arguments);
   }
@@ -9246,7 +9291,18 @@ function CharacterSheet() {
         hp: parseInt(p.hp) || 0,
         speed: parseInt(p.speed) || 0,
         init: ["after", "shared", "roll"].includes(p.init) ? p.init : "after",
-        count: Math.max(1, Math.min(12, parseInt(p.count) || 1))
+        count: Math.max(1, Math.min(12, parseInt(p.count) || 1)),
+        acts: (Array.isArray(p.acts) ? p.acts : []).filter(function (a) {
+          return a && a.name;
+        }).slice(0, 8).map(function (a) {
+          return {
+            name: String(a.name).slice(0, 40),
+            hit: parseInt(a.hit) || 0,
+            dice: String(a.dice || "").replace(/\s/g, "").slice(0, 20),
+            type: String(a.type || "").slice(0, 20),
+            text: String(a.text || "").slice(0, 300)
+          };
+        })
       };
     }) : []);
     setPalEdits(data.palEdits && _typeof(data.palEdits) === "object" ? data.palEdits : {});
@@ -9391,6 +9447,9 @@ function CharacterSheet() {
       return String(x);
     });
     setSpells(sp.length ? sp : [""]);
+    setSpellExtra(arr(s.spellExtra).map(function (x) {
+      return String(x).slice(0, 60);
+    }).slice(0, 40));
   }
   function onPickFile(e) {
     var file = e.target.files && e.target.files[0];
@@ -10621,7 +10680,146 @@ function CharacterSheet() {
           padding: "3px 10px",
           cursor: "pointer"
         }
-      }, "Remove"));
+      }, "Remove"), !auto && what === "own" && /*#__PURE__*/React.createElement("div", {
+        "data-testid": "companion-acts",
+        style: {
+          flexBasis: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          marginTop: 4
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 12,
+          fontFamily: fontDisplay,
+          color: colors.brassLight
+        }
+      }, "ITS ACTIONS"), (p.acts || []).map(function (a, i) {
+        var put = function put(patch) {
+          return upd({
+            acts: (p.acts || []).map(function (x, j) {
+              return j === i ? _objectSpread(_objectSpread({}, x), patch) : x;
+            })
+          });
+        };
+        return /*#__PURE__*/React.createElement("div", {
+          key: i,
+          "data-testid": "companion-act",
+          style: {
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+            alignItems: "center"
+          }
+        }, /*#__PURE__*/React.createElement("input", {
+          "aria-label": "Action name",
+          placeholder: "Name (Bite)",
+          value: a.name,
+          onChange: function onChange(e) {
+            return put({
+              name: e.target.value.slice(0, 40)
+            });
+          },
+          style: _objectSpread(_objectSpread({}, field), {}, {
+            width: 130
+          })
+        }), /*#__PURE__*/React.createElement("label", {
+          style: {
+            fontSize: 13
+          }
+        }, "To hit ", /*#__PURE__*/React.createElement("input", {
+          type: "number",
+          "aria-label": "Attack bonus",
+          value: a.hit,
+          onChange: function onChange(e) {
+            return put({
+              hit: parseInt(e.target.value) || 0
+            });
+          },
+          style: _objectSpread(_objectSpread({}, field), {}, {
+            width: 56
+          })
+        })), /*#__PURE__*/React.createElement("input", {
+          "aria-label": "Damage dice",
+          placeholder: "Damage (1d6+2)",
+          value: a.dice,
+          onChange: function onChange(e) {
+            return put({
+              dice: e.target.value.replace(/\s/g, "").slice(0, 20)
+            });
+          },
+          style: _objectSpread(_objectSpread({}, field), {}, {
+            width: 110
+          })
+        }), /*#__PURE__*/React.createElement("select", {
+          "aria-label": "Damage type",
+          value: a.type,
+          onChange: function onChange(e) {
+            return put({
+              type: e.target.value
+            });
+          },
+          style: field
+        }, ["", "Acid", "Bludgeoning", "Cold", "Fire", "Force", "Lightning", "Necrotic", "Piercing", "Poison", "Psychic", "Radiant", "Slashing", "Thunder"].map(function (t) {
+          return /*#__PURE__*/React.createElement("option", {
+            key: t,
+            value: t
+          }, t || "Type...");
+        })), /*#__PURE__*/React.createElement("input", {
+          "aria-label": "What else it does",
+          placeholder: "What else it does (optional)",
+          value: a.text || "",
+          onChange: function onChange(e) {
+            return put({
+              text: e.target.value.slice(0, 300)
+            });
+          },
+          style: _objectSpread(_objectSpread({}, field), {}, {
+            flex: 1,
+            minWidth: 160
+          })
+        }), /*#__PURE__*/React.createElement("button", {
+          "aria-label": "Remove this action",
+          onClick: function onClick() {
+            return upd({
+              acts: (p.acts || []).filter(function (_, j) {
+                return j !== i;
+              })
+            });
+          },
+          style: {
+            background: "transparent",
+            color: CUSTOM_RED,
+            border: "none",
+            cursor: "pointer",
+            fontSize: 16
+          }
+        }, "\xD7"));
+      }), (p.acts || []).length < 8 && /*#__PURE__*/React.createElement("button", {
+        "data-testid": "companion-act-add",
+        onClick: function onClick() {
+          return upd({
+            acts: [].concat(_toConsumableArray(p.acts || []), [{
+              name: "",
+              hit: 0,
+              dice: "",
+              type: "",
+              text: ""
+            }])
+          });
+        },
+        style: {
+          alignSelf: "flex-start",
+          background: "transparent",
+          color: colors.brassLight,
+          border: "1px dashed ".concat(colors.brass),
+          borderRadius: 6,
+          padding: "3px 10px",
+          cursor: "pointer",
+          fontSize: 13
+        }
+      }, "+ Add an action")));
     };
     return /*#__PURE__*/React.createElement(Section, {
       title: "Companions",
@@ -10707,7 +10905,7 @@ function CharacterSheet() {
     }, "Download the sheet"), /*#__PURE__*/React.createElement("button", {
       "data-testid": "sheet-print",
       onClick: function onClick() {
-        var f = document.querySelector("[data-testid=sheet-frame]");
+        var f = document.querySelector("[data-testid=sheet-print-frame]");
         if (f && f.contentWindow) f.contentWindow.print();
       },
       style: {
@@ -10724,16 +10922,29 @@ function CharacterSheet() {
         fontSize: 13,
         opacity: 0.8
       }
-    }, "The download is one file that opens in any web browser, picture included.")), /*#__PURE__*/React.createElement("iframe", {
+    }, "This is the sheet as it looks in the Combat Resolver, page by page. The download and the printout are one long page that opens in any web browser, picture included.")), /*#__PURE__*/React.createElement("iframe", {
       title: "Character sheet",
       "data-testid": "sheet-frame",
-      srcDoc: html,
+      key: sheetKey(d),
+      src: "resolver.html#sheet",
       style: {
         width: "100%",
-        height: "80vh",
+        height: "82vh",
         border: "1px solid ".concat(colors.brass),
         borderRadius: 8,
-        background: "#e9dfc9"
+        background: colors.ink
+      }
+    }), /*#__PURE__*/React.createElement("iframe", {
+      title: "Character sheet to print",
+      "data-testid": "sheet-print-frame",
+      srcDoc: html,
+      style: {
+        position: "absolute",
+        width: 1,
+        height: 1,
+        left: -9999,
+        top: 0,
+        border: 0
       }
     }));
   }(), tab === "identity" && /*#__PURE__*/React.createElement(IdentityTab, {
@@ -10951,6 +11162,8 @@ function CharacterSheet() {
       return m.x.name === spellClass && spellClass !== className;
     }) || !(cls && cls.casterType) && mcSpellInfo[0];
     if (!sel) return /*#__PURE__*/React.createElement(SpellsTab, {
+      spellExtra: spellExtra,
+      setSpellExtra: setSpellExtra,
       casterRows: casterRows,
       attnEdge: attnEdge,
       bookInfo: derived.spellbook || null,
@@ -10976,6 +11189,8 @@ function CharacterSheet() {
     });
     return /*#__PURE__*/React.createElement(SpellsTab, {
       key: sel.x.name,
+      spellExtra: spellExtra,
+      setSpellExtra: setSpellExtra,
       casterRows: casterRows,
       attnEdge: attnEdge,
       bookInfo: null,
@@ -11191,10 +11406,10 @@ function IdentityTab(_ref75) {
     lineage = _ref75.lineage,
     setLineage = _ref75.setLineage;
   var bg = bgEff;
-  var _useState163 = useState(false),
-    _useState164 = _slicedToArray(_useState163, 2),
-    originOpen = _useState164[0],
-    setOriginOpen = _useState164[1];
+  var _useState165 = useState(false),
+    _useState166 = _slicedToArray(_useState165, 2),
+    originOpen = _useState166[0],
+    setOriginOpen = _useState166[1];
   var baseBg = BACKGROUNDS[background] || bgEff;
   var startOrigin = function startOrigin() {
     if (!originCustom) setOriginCustom({
@@ -11982,14 +12197,14 @@ function AbilitiesTab(_ref78) {
     asiLabel = _ref78$asiLabel === void 0 ? function (k) {
       return "Level ".concat(k);
     } : _ref78$asiLabel;
-  var _useState165 = useState(false),
-    _useState166 = _slicedToArray(_useState165, 2),
-    editing = _useState166[0],
-    setEditing = _useState166[1]; // custom scores are being set
-  var _useState167 = useState(null),
+  var _useState167 = useState(false),
     _useState168 = _slicedToArray(_useState167, 2),
-    adjOpen = _useState168[0],
-    setAdjOpen = _useState168[1]; // which ability's additional modifier is open
+    editing = _useState168[0],
+    setEditing = _useState168[1]; // custom scores are being set
+  var _useState169 = useState(null),
+    _useState170 = _slicedToArray(_useState169, 2),
+    adjOpen = _useState170[0],
+    setAdjOpen = _useState170[1]; // which ability's additional modifier is open
   var isCustom = abilityMode === "custom";
   var base = function base(a) {
     return isCustom ? customScores[a] : pointBuy[a];
@@ -14091,7 +14306,7 @@ function maxSpellLevel(cls, className, level) {
   return (getSpellSlots(className, level) || []).length;
 }
 // Sorts a character's spells into what the rules allow and what goes past them.
-function sortSpells(cls, className, level, names, cantripBonus, extraLists, book) {
+function sortSpells(cls, className, level, names, cantripBonus, extraLists, book, extra) {
   var onList = function onList(sp) {
     return sp.c.includes(className) || sp.l > 0 && (extraLists || []).some(function (l) {
       return sp.c.includes(l);
@@ -14103,7 +14318,8 @@ function sortSpells(cls, className, level, names, cantripBonus, extraLists, book
   var prepTable = PREPARED_SPELLS[className];
   var prepMax = !caster ? 0 : prepTable ? prepTable[level - 1] : null; // null: a Content Pack class with no table, so no limit
   var cantrips = 0,
-    prepared = 0;
+    prepared = 0,
+    additional = 0;
   var list = names.map(function (raw, index) {
     var sp = spellOf(raw);
     if (!sp) return {
@@ -14113,6 +14329,16 @@ function sortSpells(cls, className, level, names, cantripBonus, extraLists, book
       problem: ""
     };
     var problem = "";
+    if ((extra || []).includes(sp.n)) {
+      additional++;
+      return {
+        raw: raw,
+        index: index,
+        sp: sp,
+        problem: "",
+        extra: true
+      };
+    } // an additional spell: on top of the rules, not counted
     if (sp.l === 0) cantrips++;else prepared++;
     if (!caster) problem = "".concat(className, " has no Spellcasting feature");else if (!onList(sp)) problem = "not on the ".concat(className, " spell list");else if (sp.l > maxLevel) problem = "Level ".concat(sp.l, " is higher than a level ").concat(level, " ").concat(className, " can cast");else if (book && sp.l > 0 && !book.includes(sp.n)) problem = "not in your spellbook";else if (sp.l === 0 && cantrips > cantripMax) problem = "more cantrips than a level ".concat(level, " ").concat(className, " knows");else if (sp.l > 0 && prepMax != null && prepared > prepMax) problem = "more prepared spells than a level ".concat(level, " ").concat(className, " has");
     return {
@@ -14130,6 +14356,7 @@ function sortSpells(cls, className, level, names, cantripBonus, extraLists, book
     prepMax: prepMax,
     cantrips: cantrips,
     prepared: prepared,
+    additional: additional,
     extraLists: extraLists || [],
     book: book || null
   };
@@ -14893,13 +15120,15 @@ function fullSpellAction(sp, ctx, opts) {
 function SpellRow(_ref97) {
   var entry = _ref97.entry,
     onRemove = _ref97.onRemove,
+    _ref97$onExtra = _ref97.onExtra,
+    onExtra = _ref97$onExtra === void 0 ? null : _ref97$onExtra,
     colors = _ref97.colors,
     fontDisplay = _ref97.fontDisplay,
     summary = _ref97.summary;
-  var _useState169 = useState(false),
-    _useState170 = _slicedToArray(_useState169, 2),
-    open = _useState170[0],
-    setOpen = _useState170[1];
+  var _useState171 = useState(false),
+    _useState172 = _slicedToArray(_useState171, 2),
+    open = _useState172[0],
+    setOpen = _useState172[1];
   var sp = entry.sp,
     red = !!entry.problem;
   return /*#__PURE__*/React.createElement("div", {
@@ -14945,7 +15174,20 @@ function SpellRow(_ref97) {
       opacity: 0.6,
       marginLeft: 8
     }
-  }, "typed in by hand, not in the spell list")), /*#__PURE__*/React.createElement("button", {
+  }, "typed in by hand, not in the spell list")), sp && onExtra && /*#__PURE__*/React.createElement("button", {
+    "data-testid": "spell-extra",
+    onClick: onExtra,
+    title: entry.extra ? "An additional spell: it does not count against your limits. Click to count it again." : "Make this an additional spell that does not count against your limits (the DM is told)",
+    style: {
+      background: entry.extra ? "#5c7cfa33" : "transparent",
+      border: "1px solid ".concat(entry.extra ? "#5c7cfa" : colors.brass + "66"),
+      color: entry.extra ? "#bac8ff" : colors.parchment,
+      borderRadius: 10,
+      fontSize: 11,
+      padding: "1px 8px",
+      cursor: "pointer"
+    }
+  }, entry.extra ? "Additional" : "Counts"), /*#__PURE__*/React.createElement("button", {
     onClick: onRemove,
     "aria-label": "Remove ".concat(sp ? sp.n : entry.raw),
     style: {
@@ -14986,7 +15228,11 @@ function SpellRow(_ref97) {
   }, /*#__PURE__*/React.createElement("strong", null, "Using a Higher-Level Spell Slot."), " ", sp.h) : null));
 }
 function SpellsTab(_ref98) {
-  var _ref98$casterRows = _ref98.casterRows,
+  var _ref98$spellExtra = _ref98.spellExtra,
+    spellExtra = _ref98$spellExtra === void 0 ? [] : _ref98$spellExtra,
+    _ref98$setSpellExtra = _ref98.setSpellExtra,
+    setSpellExtra = _ref98$setSpellExtra === void 0 ? function () {} : _ref98$setSpellExtra,
+    _ref98$casterRows = _ref98.casterRows,
     casterRows = _ref98$casterRows === void 0 ? [] : _ref98$casterRows,
     _ref98$sharedSlots = _ref98.sharedSlots,
     sharedSlots = _ref98$sharedSlots === void 0 ? null : _ref98$sharedSlots,
@@ -15013,34 +15259,38 @@ function SpellsTab(_ref98) {
     spellInfo = _ref98.spellInfo,
     custom = _ref98.custom,
     spellSummary = _ref98.spellSummary;
-  var _useState171 = useState([]),
-    _useState172 = _slicedToArray(_useState171, 2),
-    levelsOff = _useState172[0],
-    setLevelsOff = _useState172[1]; // spell levels switched off in the Add Spells list (none: every level shows)
-  var _useState173 = useState("prepared"),
+  var _useState173 = useState([]),
     _useState174 = _slicedToArray(_useState173, 2),
-    bookTab = _useState174[0],
-    setBookTab = _useState174[1]; // a Wizard: Prepared Spells or the Spellbook
-  var _useState175 = useState("level"),
+    levelsOff = _useState174[0],
+    setLevelsOff = _useState174[1]; // spell levels switched off in the Add Spells list (none: every level shows)
+  var _useState175 = useState("prepared"),
     _useState176 = _slicedToArray(_useState175, 2),
-    sortBy = _useState176[0],
-    setSortBy = _useState176[1]; // "level" (alphabetical inside each level) or "name"
-  var _useState177 = useState(""),
+    bookTab = _useState176[0],
+    setBookTab = _useState176[1]; // a Wizard: Prepared Spells or the Spellbook
+  var _useState177 = useState(false),
     _useState178 = _slicedToArray(_useState177, 2),
-    search = _useState178[0],
-    setSearch = _useState178[1];
-  var _useState179 = useState(false),
+    addExtra = _useState178[0],
+    setAddExtra = _useState178[1]; // the next spells added are additional: they do not count against your limits
+  var _useState179 = useState("level"),
     _useState180 = _slicedToArray(_useState179, 2),
-    anyList = _useState180[0],
-    setAnyList = _useState180[1]; // customization: spells from every class list
-  var _useState181 = useState(false),
+    sortBy = _useState180[0],
+    setSortBy = _useState180[1]; // "level" (alphabetical inside each level) or "name"
+  var _useState181 = useState(""),
     _useState182 = _slicedToArray(_useState181, 2),
-    allLevels = _useState182[0],
-    setAllLevels = _useState182[1]; // customization: spells above the level you can cast
-  var _useState183 = useState(""),
+    search = _useState182[0],
+    setSearch = _useState182[1];
+  var _useState183 = useState(false),
     _useState184 = _slicedToArray(_useState183, 2),
-    typed = _useState184[0],
-    setTyped = _useState184[1];
+    anyList = _useState184[0],
+    setAnyList = _useState184[1]; // customization: spells from every class list
+  var _useState185 = useState(false),
+    _useState186 = _slicedToArray(_useState185, 2),
+    allLevels = _useState186[0],
+    setAllLevels = _useState186[1]; // customization: spells above the level you can cast
+  var _useState187 = useState(""),
+    _useState188 = _slicedToArray(_useState187, 2),
+    typed = _useState188[0],
+    setTyped = _useState188[1];
   var caster = spellInfo.caster,
     maxLevel = spellInfo.maxLevel,
     cantripMax = spellInfo.cantripMax,
@@ -15061,7 +15311,7 @@ function SpellsTab(_ref98) {
   var pool = ALL_SPELLS.filter(function (sp) {
     return !chosen.has(sp.n) && (wideList || caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(function (l) {
       return sp.c.includes(l) && sp.l > 0;
-    }))) && (sp.l === 0 || sp.l <= topLevel) && (!spellInfo.book || wideList || wideLevel && sp.l > maxLevel || sp.l === 0 || spellInfo.book.includes(sp.n)) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q));
+    }))) && (sp.l === 0 || sp.l <= topLevel) && (!spellInfo.book || wideList || addExtra || wideLevel && sp.l > maxLevel || sp.l === 0 || spellInfo.book.includes(sp.n)) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q));
   }).sort(function (a, b) {
     return (sortBy === "level" ? a.l - b.l : 0) || a.n.localeCompare(b.n);
   });
@@ -15091,13 +15341,23 @@ function SpellsTab(_ref98) {
     })) && sp.l <= maxLevel && room(sp);
   };
   var add = function add(name) {
-    return setSpells([].concat(_toConsumableArray(spells.filter(Boolean)), [name]));
+    setSpells([].concat(_toConsumableArray(spells.filter(Boolean)), [name]));
+    if (addExtra) setSpellExtra(Array.from(new Set([].concat(_toConsumableArray(spellExtra), [name]))));
   };
   var remove = function remove(index) {
-    var next = spells.filter(function (_, i) {
-      return i !== index;
-    });
+    var gone = spells[index],
+      next = spells.filter(function (_, i) {
+        return i !== index;
+      });
     setSpells(next.length ? next : [""]);
+    if (gone && !next.includes(gone)) setSpellExtra(spellExtra.filter(function (n) {
+      return n !== gone;
+    }));
+  };
+  var flipExtra = function flipExtra(name) {
+    return setSpellExtra(spellExtra.includes(name) ? spellExtra.filter(function (n) {
+      return n !== name;
+    }) : [].concat(_toConsumableArray(spellExtra), [name]));
   };
   var rows = spellInfo.list.filter(function (e) {
     return e.raw;
@@ -15131,9 +15391,11 @@ function SpellsTab(_ref98) {
     }, label), /*#__PURE__*/React.createElement("div", {
       style: {
         fontFamily: fontDisplay,
-        fontSize: 20,
+        fontSize: String(val).length > 9 ? 16 : 20,
         fontWeight: 700,
-        color: colors.brassLight
+        color: colors.brassLight,
+        overflowWrap: "anywhere",
+        lineHeight: 1.25
       }
     }, val));
   };
@@ -15205,7 +15467,9 @@ function SpellsTab(_ref98) {
       gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
       gap: 12
     }
-  }, stat("Spellcasting Ability", cls.spellAbility), stat("Spell Save DC", 8 + profBonus + finalMods[cls.spellAbility]), stat("Spell Attack Bonus", fmt(profBonus + finalMods[cls.spellAbility])), stat("Cantrips", "".concat(spellInfo.cantrips, " / ").concat(cantripMax)), stat("Prepared Spells", "".concat(spellInfo.prepared, " / ").concat(prepMax == null ? "no limit" : prepMax)), stat("Highest Spell Level", maxLevel || "none yet")), casterRows.length > 1 && /*#__PURE__*/React.createElement("div", {
+  }, stat("Spellcasting Ability", cls.spellAbility), stat("Spell Save DC", 8 + profBonus + finalMods[cls.spellAbility]), stat("Spell Attack Bonus", fmt(profBonus + finalMods[cls.spellAbility])), stat("Cantrips", "".concat(spellInfo.cantrips, " / ").concat(cantripMax)), stat("Prepared Spells", "".concat(spellInfo.prepared, " / ").concat(prepMax == null ? "no limit" : prepMax)), spellInfo.additional > 0 && /*#__PURE__*/React.createElement("div", {
+    "data-testid": "extra-tally"
+  }, stat("Additional Spells", spellInfo.additional)), stat("Highest Spell Level", maxLevel || "none yet")), casterRows.length > 1 && /*#__PURE__*/React.createElement("div", {
     "data-testid": "caster-rows",
     style: {
       marginTop: 12,
@@ -15410,7 +15674,7 @@ function SpellsTab(_ref98) {
           cursor: "pointer",
           fontSize: 11
         }
-      }, on ? "✓" : "+"), n, sp ? " (Level ".concat(sp.l).concat(sp.rit ? ", Ritual" : "", ")") : "", own.includes(n) ? /*#__PURE__*/React.createElement("button", {
+      }, on ? "✓" : "+"), n, sp ? " (Level ".concat(sp.l).concat(sp.rit ? ", Ritual" : "").concat(sp.conc ? ", Concentration" : "", ")") : "", own.includes(n) ? /*#__PURE__*/React.createElement("button", {
         "aria-label": "Remove ".concat(n, " from the spellbook"),
         onClick: function onClick() {
           return setBook(own.filter(function (x) {
@@ -15445,7 +15709,7 @@ function SpellsTab(_ref98) {
       return /*#__PURE__*/React.createElement("option", {
         key: sp.n,
         value: sp.n
-      }, sp.n, " (Level ", sp.l, ")");
+      }, sp.n, " (Level ", sp.l, sp.rit ? ", Ritual" : "", sp.conc ? ", Concentration" : "", ")");
     })));
   }()), (!bookInfo || bookTab === "prepared") && /*#__PURE__*/React.createElement(React.Fragment, null, (picks || []).length > 0 && /*#__PURE__*/React.createElement(Section, {
     title: "Spells Your Features Let You Choose",
@@ -15513,7 +15777,7 @@ function SpellsTab(_ref98) {
         return /*#__PURE__*/React.createElement("option", {
           key: sp.n,
           value: sp.n
-        }, sp.n, " (", sp.l ? "Level ".concat(sp.l) : "cantrip", ")");
+        }, sp.n, " (", sp.l ? "Level ".concat(sp.l) : "cantrip", sp.rit ? ", Ritual" : "", sp.conc ? ", Concentration" : "", ")");
       }));
     }));
   })), /*#__PURE__*/React.createElement(Section, {
@@ -15550,6 +15814,9 @@ function SpellsTab(_ref98) {
       onRemove: function onRemove() {
         return remove(e.index);
       },
+      onExtra: function onExtra() {
+        return flipExtra(e.sp.n);
+      },
       colors: colors,
       fontDisplay: fontDisplay,
       summary: spellSummary(e.sp)
@@ -15567,6 +15834,9 @@ function SpellsTab(_ref98) {
       entry: e,
       onRemove: function onRemove() {
         return remove(e.index);
+      },
+      onExtra: function onExtra() {
+        return flipExtra(e.sp.n);
       },
       colors: colors,
       fontDisplay: fontDisplay,
@@ -15622,7 +15892,7 @@ function SpellsTab(_ref98) {
       }
     }, "In combat: ", spellSummary(sp)));
   })), (caster || custom) && /*#__PURE__*/React.createElement(Section, {
-    title: caster ? "Add Spells \xB7 Cantrips ".concat(spellInfo.cantrips, " of ").concat(cantripMax, " \xB7 Prepared ").concat(spellInfo.prepared, " of ").concat(prepMax == null ? "no limit" : prepMax) : "Add Spells",
+    title: caster ? "Add Spells \xB7 Cantrips ".concat(spellInfo.cantrips, " of ").concat(cantripMax, " \xB7 Prepared ").concat(spellInfo.prepared, " of ").concat(prepMax == null ? "no limit" : prepMax).concat(spellInfo.additional ? " \xB7 Additional ".concat(spellInfo.additional) : "") : "Add Spells",
     colors: colors,
     fontDisplay: fontDisplay
   }, /*#__PURE__*/React.createElement("div", {
@@ -15700,7 +15970,27 @@ function SpellsTab(_ref98) {
     style: _objectSpread(_objectSpread({}, fieldStyle(colors)), {}, {
       width: 240
     })
-  }), custom && /*#__PURE__*/React.createElement("label", {
+  }), /*#__PURE__*/React.createElement("label", {
+    "data-testid": "add-extra",
+    title: "Spells you add while this is ticked do not count against the number you know or prepare. They show as Additional, and the DM is told.",
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      cursor: "pointer",
+      fontSize: 13,
+      color: "#bac8ff",
+      border: "1px solid #5c7cfa",
+      borderRadius: 6,
+      padding: "4px 10px"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: addExtra,
+    onChange: function onChange(e) {
+      return setAddExtra(e.target.checked);
+    }
+  }), " Add as an additional spell (does not count)"), custom && /*#__PURE__*/React.createElement("label", {
     style: check
   }, /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
@@ -15771,11 +16061,11 @@ function SpellsTab(_ref98) {
         marginLeft: 8
       }
     }, spellLine(sp), sp.conc ? " · Concentration" : "", sp.rit ? " · Ritual" : "", " \xB7 ", sp.c.join(", "))), /*#__PURE__*/React.createElement("button", {
-      disabled: !ok && !custom,
+      disabled: !ok && !custom && !addExtra,
       onClick: function onClick() {
         return add(sp.n);
       },
-      title: ok ? "" : custom ? "Past your limits: it will show in red" : "Past your limits",
+      title: addExtra ? "Added as an additional spell" : ok ? "" : custom ? "Past your limits: it will show in red" : "Past your limits",
       style: {
         background: "transparent",
         border: "1px solid ".concat(ok ? colors.brass : CUSTOM_RED),
