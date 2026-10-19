@@ -949,9 +949,9 @@ function sheetHtml(d) {
   const total = cls.reduce((t, x) => t + x.level, 0) || +d.level || 1;
   const banner = (page, img) => `<div class="banner"><div class="bn">${img ? `<img class="pic" src="${img}" alt="">` : ""}<div class="bt"><div><span class="nm">${e(d.name || "__________")}</span> <span class="the">the</span> <span class="nm">${e(d.species || "")} ${e(cls[0].name)}</span>${cls[0].sub ? ` <span class="sub">(${e(cls[0].sub)})</span>` : ""}</div>${cls.slice(1).map(x => `<div class="mc">${e(x.name)} ${x.level}${x.sub ? ` (${e(x.sub)})` : ""}</div>`).join("")}</div></div><div class="lvl"><span>Level</span><b>${total}</b></div></div><div class="pname">${e(page)}</div>`;
   const spellRow = (x) => { const s0 = typeof spellOf === "function" ? spellOf(x.n) : null, conc = x.conc || (s0 && s0.conc), rit = x.rit || (s0 && s0.rit);
-    return `<tbody class="fb sp"><tr class="sn"><td><b>${e(x.n)}</b>${conc ? ' <i class="mk" title="Concentration">C</i>' : ""}${rit ? ' <i class="mk" title="Ritual">R</i>' : ""}</td><td>${e(x.s)}</td><td>${e(x.k)}</td><td>${e(x.r)}</td><td>${e(x.sv)}</td><td>${e(String(x.d || "").replace("<*>", ""))}</td><td>${e(String(x.t || "").replace(" (R*)", ""))}</td></tr><tr><td colspan="7" class="sum">${e(x.sum)}${x.up ? `<div><span class="up">Upcast.</span> ${e(x.up)}</div>` : ""}</td></tr></tbody>`; };
+    return `<tbody class="fb sp"><tr class="sn"><td><b>${e(x.n)}</b>${conc ? ' <i class="mk" title="Concentration">C</i>' : ""}${rit ? ' <i class="mk r" title="Ritual">R</i>' : ""}</td><td>${e(x.s)}</td><td>${e(x.k)}</td><td>${e(x.r)}</td><td>${e(x.sv)}</td><td>${e(String(x.d || "").replace("<*>", ""))}</td><td>${e(String(x.t || "").replace(" (R*)", ""))}</td></tr><tr><td colspan="7" class="sum">${e(x.sum)}${x.up ? `<div><span class="up">Upcast.</span> ${e(x.up)}</div>` : ""}</td></tr></tbody>`; };
   const sp = d.spellcasting || {}, list = arr(d.spellList).slice().sort((a, b) => (+a.l || 0) - (+b.l || 0) || String(a.n).localeCompare(String(b.n)));
-  const cantrips = list.filter(x => !(+x.l)), leveled = list.filter(x => +x.l);
+  const cantrips = list.filter(x => !(+x.l) && !x.extra), leveled = list.filter(x => +x.l && !x.extra), extras = list.filter(x => x.extra);
   const spTable = (rows) => `<table class="spl"><thead><tr><th>Name</th><th>School</th><th>Comps</th><th>Range</th><th>Save</th><th>Duration</th><th>C Time</th></tr></thead>${rows}</table>`;
   const pages = [];
   // Page 1: the character in play
@@ -959,7 +959,7 @@ function sheetHtml(d) {
 <div class="top">
   ${AB.map(([k, f]) => `<div class="ab"><div class="sv"><span>${sg(+(sv[f] ?? md(sc[f])))}</span><i class="${saveP.includes(f) ? "on" : ""}"></i></div><div class="k">${k}</div><div class="v">${e(sc[f] ?? 10)}</div><div class="m">${sg(md(sc[f]))}</div></div>`).join("")}
   <div class="hpbox"><div class="hprow"><div class="heart"><svg viewBox="0 0 100 92"><path d="M50 88 C20 62 4 46 4 27 C4 13 15 4 27 4 C37 4 45 9 50 18 C55 9 63 4 73 4 C85 4 96 13 96 27 C96 46 80 62 50 88 Z"/></svg><div><b>${e(d.maxHP)}</b><span>MAX</span></div></div><div class="pill"><span class="sl">/</span><span class="l1">HP</span><span class="l2">TEMP</span></div></div>
-    <div class="hit">Hit Dice${d.hitDie ? ` (d${e(d.hitDie)})` : ""} <b>&nbsp;&nbsp;&nbsp;&nbsp; / ${total}</b></div></div>
+    <div class="hit"><span>Hit Dice${d.hitDie ? ` (d${e(d.hitDie)})` : ""}</span><b>&nbsp;&nbsp;&nbsp;&nbsp; / ${total}</b></div></div>
 </div>
 <div class="cols">
   <div class="left">
@@ -984,15 +984,12 @@ function sheetHtml(d) {
     ${cantrips.length ? `<div class="can"><h2>Cantrips</h2>${spTable(cantrips.map(spellRow).join(""))}</div>` : ""}
   </div>
 </div>`]);
-  // Features and traits, with the levels of each class
-  const feats = arr(d.featureList).length ? arr(d.featureList) : arr(d.features).map(t => ({ n: t, d: "" }));
-  pages.push(["Features & Traits", `${banner("Features & Traits")}<div class="classes">${cls.map(x => `${e(x.name)} ${x.level}${x.sub ? ` (${e(x.sub)})` : ""}`).join(" · ")}${d.background ? ` · Background: ${e(d.background)}` : ""}</div><div class="flow">${feats.map(f => `<div class="fb ft"><b>${e(f.n)}</b>${f.src ? ` <span class="muted">${e(f.src)}${f.lv ? `, level ${e(f.lv)}` : ""}</span>` : ""}${f.d ? `<div>${e(f.d)}</div>` : ""}</div>`).join("") || "<div class='fb muted'>None yet.</div>"}</div>`, true]);
   // Spells, by level and then by name, as many as fit on a page
-  if (list.length) {
+  if (leveled.length || extras.length) {
     const head = `<div class="sphead"><span class="spt">Spells</span><span>Attack: ${sg(+sp.attack || 0)}</span><span>Save DC: ${e(sp.dc || "")}</span>${sp.ability ? `<span>${e(sp.ability)}</span>` : ""}</div>`;
-    const lvls = Array.from(new Set(list.map(x => +x.l || 0)));
-    const blocks = lvls.map(l => { const n = l ? (arr(sp.slotList)[l - 1] || 0) : 0, rows = list.filter(x => (+x.l || 0) === l);
-      return `<div class="fb lvh ${l ? "" : "dupcan"}">${l ? `Level ${l}` : "Cantrips"}${n ? ` &nbsp; <span class="slots">Slots ${circles(n)}</span>` : ""}</div>${rows.map(r => `<div class="fb ${l ? "" : "dupcan"}">${spTable(spellRow(r))}</div>`).join("")}`; }).join("");
+    const lvls = Array.from(new Set(leveled.map(x => +x.l)));
+    const blocks = lvls.map(l => { const n = l ? (arr(sp.slotList)[l - 1] || 0) : 0, rows = leveled.filter(x => +x.l === l);
+      return `<div class="fb lvh">${`Level ${l}`}${n ? ` &nbsp; <span class="slots">Slots ${circles(n)}</span>` : ""}</div>${rows.map(r => `<div class="fb">${spTable(spellRow(r))}</div>`).join("")}`; }).join("") + (extras.length ? `<div class="fb lvh">Additional Spells <span class="slots">beyond the rules: always available, not prepared</span></div>${extras.map(r => `<div class="fb">${spTable(spellRow(r))}</div>`).join("")}` : "");
     pages.push(["Spells", `${banner("Spells")}${head}<div class="flow">${blocks}</div>`, true]);
   }
   // The character: personality, looks, story
@@ -1008,6 +1005,9 @@ ${arr(j.notes).map(n => line(n.title || "Notes", n.text)).join("")}
   pages.push(["Inventory", `${banner("Inventory")}<div class="money">${["CP", "SP", "EP", "GP", "PP"].map(k => `<div><span>${k}</span><b>${k === "GP" ? e(d.gold || "") : e(((d.coins || {})[k.toLowerCase()]) || "")}</b></div>`).join("")}</div>
 <div class="flow"><table class="inv fb"><tr><th>Item</th><th>Type</th><th>Weight</th></tr>${(items.length ? items : arr(d.items).map(n => ({ name: n }))).map(i => `<tr><td>${e(i.name)}${i.qty > 1 ? ` × ${e(i.qty)}` : ""}</td><td>${e(i.type || "")}</td><td>${e(i.weight || "")}</td></tr>`).join("") || `<tr><td colspan="3" class="muted">Nothing yet.</td></tr>`}</table>
 <div class="fb small"><b>Carrying capacity</b> ${Math.floor((sc.Strength || 10) * 15)} lb.</div></div>`, true]);
+  // Features and traits, with the levels of each class
+  const feats = arr(d.featureList).length ? arr(d.featureList) : arr(d.features).map(t => ({ n: t, d: "" }));
+  pages.push(["Features & Traits", `${banner("Features & Traits")}<div class="classes">${cls.map(x => `${e(x.name)} ${x.level}${x.sub ? ` (${e(x.sub)})` : ""}`).join(" · ")}${d.background ? ` · Background: ${e(d.background)}` : ""}</div><div class="flow">${feats.map(f => `<div class="fb ft"><b>${e(f.n)}</b>${f.src ? ` <span class="muted">${e(f.src)}${f.lv ? `, level ${e(f.lv)}` : ""}</span>` : ""}${f.d ? `<div>${e(f.d)}</div>` : ""}</div>`).join("") || "<div class='fb muted'>None yet.</div>"}</div>`, true]);
   // Stat blocks of the creatures that come with the character (a beast companion, a familiar, a steed)
   const mons = Array.isArray(window.HBA_MONSTERS) ? window.HBA_MONSTERS : [];
   const blocks = arr(d.companions).map(p => { const m = p.base && !/^sheet:/.test(p.base) ? mons.find(x => x.n === p.base) : null, st = p.stats || {};
@@ -1019,14 +1019,15 @@ ${m ? [["Traits", m.tr], ["Actions", (m.a || []).map(a => [a.n, a.d])], ["Bonus 
   if (blocks.length) pages.push(["Stat Blocks", `${banner("Stat Blocks")}<div class="flow">${blocks.join("")}</div>`, true]);
   // Muted color: this computer's sheet colors from the Combat Resolver, lightened
   const SCH = { Default: ["#1a2535", "#b8860b"], Parchment: ["#f1e7d0", "#6b4423"], Crimson: ["#3a1216", "#d4a017"], Forest: ["#142a1f", "#b08d57"], Arcane: ["#241a3a", "#b9a7e6"], Frost: ["#1c2f3f", "#8fd3f4"], Ember: ["#221c1a", "#e8742a"], Ink: ["#ffffff", "#000000"] };
-  let main = "#1a2535", bord = "#b8860b"; try { const t = JSON.parse(window.localStorage.getItem("hba-sheet-theme") || "null") || {}; if (t.custom && t.custom.main) { main = t.custom.main; bord = t.custom.border || bord; } else if (SCH[t.scheme]) [main, bord] = SCH[t.scheme]; } catch (x) {}
+  let main = "#1a2535", bord = "#b8860b", fm = "", main2 = ""; try { const t = JSON.parse(window.localStorage.getItem("hba-sheet-theme") || "null") || {}; if (t.custom && t.custom.main) { main = t.custom.main; bord = t.custom.border || bord; } else if (SCH[t.scheme]) [main, bord] = SCH[t.scheme]; fm = t.fm || ""; main2 = t.main2 || ""; } catch (x) {}
   const mix = (h, w, k) => { try { const p = (x) => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16)), a = p(h), b = p(w); return "#" + a.map((v, i) => Math.round(v + (b[i] - v) * k).toString(16).padStart(2, "0")).join(""); } catch (x) { return h; } };
-  const mFill = mix(main, "#ffffff", 0.88), mLine = mix(bord, "#000000", 0.25), mSoft = mix(bord, "#ffffff", 0.55);
+  const mFill = mix(main, "#ffffff", 0.9), mFill2 = mix(main2 || mix(main, bord, 0.35), "#ffffff", 0.88), mLine = bord, mSoft = mix(bord, "#ffffff", 0.6);
+  const mBg = fm === "two" ? `linear-gradient(180deg, ${mFill}, ${mFill2})` : fm === "diag" ? `linear-gradient(135deg, ${mFill} 15%, ${mFill2})` : fm === "radial" ? `radial-gradient(ellipse at 50% 15%, ${mFill2}, ${mFill} 75%)` : mFill;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${e(d.name || "Character")} - Character Sheet</title>
 <style>
   @page { size: letter; margin: 0; }
   :root { --ink: #111; --line: #111; --soft: #666; --fill: #fff; --tint: #e3e3e3; }
-  body.tinted { --ink: #222; --line: ${mLine}; --soft: ${mix(mLine, "#ffffff", 0.35)}; --fill: ${mFill}; --tint: ${mSoft}; }
+  body.tinted { --ink: #1d1d1d; --line: ${mLine}; --soft: #555; --fill: ${mFill}; --tint: ${mSoft}; } body.tinted .page { background: ${mBg}; }
   body { margin: 0; background: #d9d9d9; color: var(--ink); font-family: 'Helvetica Neue', Arial, sans-serif; }
   .bar { position: sticky; top: 0; z-index: 3; display: flex; gap: 10px; align-items: center; justify-content: center; padding: 8px; background: #333; color: #fff; font-size: 14px; }
   .bar button { background: #fff; border: none; border-radius: 6px; padding: 4px 12px; font-size: 16px; cursor: pointer; } .bar button:disabled { opacity: .35; } .bar label { cursor: pointer; }
@@ -1044,14 +1045,14 @@ ${m ? [["Traits", m.tr], ["Actions", (m.a || []).map(a => [a.n, a.d])], ["Bonus 
   .hpbox { width: 230px; } .hprow { display: flex; align-items: center; } .heart { position: relative; width: 92px; height: 86px; margin-right: -14px; z-index: 1; flex: none; } .heart svg { width: 100%; height: 100%; } .heart path { fill: var(--fill); stroke: var(--line); stroke-width: 3; }
   .heart div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 10px; } .heart b { font-size: 26px; } .heart span { font-size: 11px; }
   .pill { flex: 1; height: 60px; background: var(--tint); border-radius: 0 34px 34px 0; position: relative; } .pill .sl { position: absolute; left: 52%; top: 6px; font-size: 28px; } .pill .l1, .pill .l2 { position: absolute; bottom: 3px; font-size: 12px; } .pill .l1 { left: 30%; } .pill .l2 { left: 66%; }
-  .hit { margin: 6px 0 0 70px; border: 1.5px solid var(--line); border-radius: 8px; padding: 3px 10px; font-size: 13px; } .hit b { font-weight: 400; font-size: 15px; }
+  .hit { margin: -2px 0 0 78px; border: 1.5px solid var(--line); border-top: none; border-radius: 0 0 10px 10px; padding: 3px 12px; font-size: 13px; display: flex; justify-content: space-between; background: var(--fill); } .hit b { font-weight: 400; font-size: 15px; }
   .cols { display: grid; grid-template-columns: 236px 1fr; gap: 18px; margin-top: 12px; } .skills { border: 1.5px solid var(--line); padding: 5px 8px; }
   .sk { display: grid; grid-template-columns: 19px 32px 1fr 34px; align-items: center; font-size: 13.5px; padding: 1.5px 0; } .sk u { text-decoration: none; border-bottom: 1px solid var(--line); text-align: center; margin-right: 6px; } .sk em { color: var(--soft); font-style: normal; font-size: 11.5px; text-align: right; }
   h2 { font-size: 17px; margin: 10px 0 3px; text-align: center; letter-spacing: .5px; } h2 .tcol { float: right; font-size: 12.5px; font-weight: 400; } h3 { font-size: 14.5px; margin: 10px 0 2px; text-align: center; }
   .small { font-size: 13px; } .c { text-align: center; } .muted { color: var(--soft); font-size: 12px; }
-  .row4 { display: flex; gap: 8px; align-items: center; } .shield, .star { position: relative; width: 56px; height: 66px; text-align: center; } .shield svg, .star svg { height: 58px; } .shield path, .star polygon { fill: var(--fill); stroke: var(--line); stroke-width: 3; }
-  .shield div, .star div { position: absolute; left: 0; right: 0; top: 10px; } .shield b, .star b { display: block; font-size: 19px; } .shield span { font-size: 10px; } .star div { top: 17px; } .star span { position: absolute; bottom: -1px; left: 0; right: 0; font-size: 10px; }
-  .sq { border: 2px solid var(--line); text-align: center; padding: 2px 0; width: 54px; } .sq b { display: block; font-size: 19px; } .sq span { font-size: 10px; }
+  .row4 { display: flex; gap: 14px; align-items: center; justify-content: space-around; } .shield, .star { position: relative; width: 72px; height: 84px; text-align: center; } .shield svg, .star svg { height: 74px; } .shield path, .star polygon { fill: var(--fill); stroke: var(--line); stroke-width: 3; }
+  .shield div, .star div { position: absolute; left: 0; right: 0; top: 13px; } .shield b, .star b { display: block; font-size: 25px; } .shield span { font-size: 11px; } .star div { top: 20px; } .star span { position: absolute; bottom: -2px; left: 0; right: 0; font-size: 11px; }
+  .sq { border: 2px solid var(--line); text-align: center; padding: 4px 0; width: 72px; } .sq b { display: block; font-size: 25px; } .sq span { font-size: 11px; }
   .cond { border: 1.5px solid var(--line); border-radius: 24px; min-height: 92px; padding: 6px 14px; margin: 8px 0 6px; text-align: center; font-size: 13px; }
   table { width: 100%; border-collapse: collapse; } .atk th, .atk td { font-size: 13px; padding: 2px 4px; text-align: left; } .atk td.blank { height: 50px; }
   .act { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 2px 0; } .act b { min-width: 40px; text-align: center; } .circ { letter-spacing: 1px; white-space: nowrap; }
@@ -1060,7 +1061,7 @@ ${m ? [["Traits", m.tr], ["Actions", (m.a || []).map(a => [a.n, a.d])], ["Bonus 
   .sphead { display: flex; gap: 26px; align-items: baseline; font-size: 15px; } .spt { font-size: 24px; font-weight: 300; } .lvh { font-size: 18px; font-weight: 700; margin: 10px 0 2px; } .slots { font-weight: 400; font-size: 14px; }
   .spl { table-layout: fixed; } .spl th { text-align: left; font-size: 12.5px; padding: 3px 4px 1px; } .spl td { font-size: 13px; padding: 3px 4px 0; vertical-align: top; } .spl td.sum { padding: 0 4px 6px 18px; color: var(--soft); font-size: 12.5px; }
   .spl th:nth-child(1), .spl td:nth-child(1) { width: 34%; } .spl td.sum { width: auto; } .flow .spl thead { display: none; } .flow .fb:first-child .spl thead, .flow .lvh + .fb .spl thead { display: table-header-group; }
-  .up { font-weight: 700; } .mk { display: inline-block; font-style: normal; font-size: 9.5px; font-weight: 700; border: 1px solid var(--line); border-radius: 50%; width: 13px; height: 13px; line-height: 12px; text-align: center; margin-left: 3px; vertical-align: middle; }
+  .up { font-weight: 700; } .mk { display: inline-block; font-style: normal; font-size: 9.5px; font-weight: 700; border: 1px solid var(--line); border-radius: 50%; width: 13px; height: 13px; line-height: 12px; text-align: center; margin-left: 3px; vertical-align: middle; } .mk.r { border-radius: 2px; }
   .money { display: flex; gap: 8px; width: 60%; } .money div { flex: 1; border: 1.5px solid var(--line); border-radius: 8px; text-align: center; padding: 2px; } .money span { display: block; font-size: 11px; } .money b { font-size: 15px; display: block; min-height: 18px; }
   .inv { margin-top: 10px; } .inv th, .inv td { text-align: left; font-size: 13px; padding: 3px 4px; border-bottom: 1px solid var(--tint); }
   .block { border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 13px; } .block .bh { font-size: 16px; margin-bottom: 2px; } .bsec { margin-top: 6px; } .bsec i { display: block; font-style: normal; font-weight: 700; border-bottom: 1px solid var(--line); margin-bottom: 2px; } .bsec div { margin: 2px 0; }
@@ -1070,9 +1071,9 @@ ${pages.map(([n, h, flow]) => `<section class="page" data-name="${e(n)}"${flow ?
 <script>(function(){
 var full=function(p){return p.scrollHeight>p.clientHeight+1;};
 var one=document.querySelector('.page'),can=one&&one.querySelector('.can');
-if(can&&full(one)){can.parentNode.removeChild(can);}else{[].slice.call(document.querySelectorAll('.dupcan')).forEach(function(x){x.parentNode.removeChild(x);});}
+if(can&&full(one)){var cp=one.cloneNode(false);cp.setAttribute('data-name','Cantrips');var bn=one.querySelector('.banner').cloneNode(true),pn0=one.querySelector('.pname').cloneNode(true);pn0.textContent='Cantrips';cp.appendChild(bn);cp.appendChild(pn0);can.parentNode.removeChild(can);cp.appendChild(can);one.parentNode.insertBefore(cp,one.nextSibling);}
 [].slice.call(document.querySelectorAll('.page[data-flow]')).forEach(function(pg){var fl=pg.querySelector('.flow');if(!fl)return;var bl=[].slice.call(fl.children);fl.innerHTML='';var cur=pg,body=fl,k=1;
- if(!bl.length&&pg.querySelector('.sphead')){pg.parentNode.removeChild(pg);return;}
+ 
  bl.forEach(function(b){body.appendChild(b);if(full(cur)&&body.children.length>1){body.removeChild(b);var np=cur.cloneNode(true);k++;np.setAttribute('data-name',pg.getAttribute('data-name')+' ('+k+')');var pn=np.querySelector('.pname');if(pn)pn.textContent=np.getAttribute('data-name');np.querySelector('.flow').innerHTML='';cur.parentNode.insertBefore(np,cur.nextSibling);cur=np;body=np.querySelector('.flow');body.appendChild(b);}});});
 var p=[].slice.call(document.querySelectorAll('.page')),i=0,pn=document.getElementById('pn');document.body.classList.add('one');
 function go(k){i=Math.max(0,Math.min(p.length-1,k));p.forEach(function(x,j){x.classList.toggle('on',j===i);});pn.textContent=(i+1)+' of '+p.length+': '+p[i].getAttribute('data-name');document.getElementById('prev').disabled=i===0;document.getElementById('next').disabled=i===p.length-1;window.scrollTo(0,0);}
@@ -3251,7 +3252,7 @@ function CharacterSheet() {
       // for the character sheet in the Combat Resolver
       featureList: featureLedger.map(f => { const cut = f.detail ? -1 : String(f.text).indexOf(": "); return { lv: f.level, src: f.source, n: cut > 0 ? f.text.slice(0, cut) : f.text, d: String(f.detail || (cut > 0 ? f.text.slice(cut + 2) : "")).slice(0, 2500) }; }).slice(0, 120),
       saveProfs: ABILITIES.filter(a => saveInfo[a] === "class" || saveInfo[a] === "added"),
-      spellList: Array.from(new Set([...spells.filter(Boolean), ...mcSpellNames, ...featSpells, ...derived.spells.map(g => g.name), ...derived.spellPicks.filter(q => q.cast !== "book").flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)), ...derived.spellUses.map(u => u.spell)].map(x => spellOf(x)).filter(Boolean))).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n)).slice(0, 120).map(sheetSpell),
+      spellList: Array.from(new Set([...spells.filter(Boolean), ...mcSpellNames, ...featSpells, ...derived.spells.map(g => g.name), ...derived.spellPicks.filter(q => q.cast !== "book").flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)), ...derived.spellUses.map(u => u.spell)].map(x => spellOf(x)).filter(Boolean))).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n)).slice(0, 120).map(sheetSpell).map(x => spellExtra.includes(x.n) ? { ...x, extra: 1 } : x),
       ...(spellbook ? { spellbook: spellbook.slice(0, 200) } : {}),
       languages: Array.from(new Set([...journal.languages, ...derived.languages])), tools: Array.from(new Set([...knownTools.map(t => t.name), ...journal.tools])),
       importantItems: pinnedItems.map(i => i && i.name).filter(Boolean),
@@ -5006,7 +5007,7 @@ function fullSpellAction(sp, ctx, opts) {
 // Concentration and Ritual marks, as on D&D Beyond: a C and an R in small boxes
 function SpellMarks({ sp, colors }) {
   if (!sp || !(sp.conc || sp.rit)) return null;
-  const box = (t, title) => <span key={t} title={title} aria-label={title} data-mark={t} style={{ display: "inline-block", minWidth: 16, height: 16, lineHeight: "14px", textAlign: "center", fontSize: 10.5, fontWeight: 700, border: `1px solid ${colors.brassLight}`, color: colors.brassLight, borderRadius: 8, marginLeft: 5, verticalAlign: "middle" }}>{t}</span>;
+  const box = (t, title) => <span key={t} title={title} aria-label={title} data-mark={t} style={{ display: "inline-block", minWidth: 16, height: 16, lineHeight: "14px", textAlign: "center", fontSize: 10.5, fontWeight: 700, border: `1px solid ${colors.brassLight}`, color: colors.brassLight, borderRadius: t === "C" ? 8 : 3, marginLeft: 5, verticalAlign: "middle" }}>{t}</span>;
   return <>{sp.conc && box("C", "Concentration")}{sp.rit && box("R", "Ritual")}</>;
 }
 function SpellRow({ entry, onRemove, onExtra = null, colors, fontDisplay, summary }) {
@@ -5023,8 +5024,8 @@ function SpellRow({ entry, onRemove, onExtra = null, colors, fontDisplay, summar
         {sp && onExtra && <button data-testid="spell-extra" onClick={onExtra} title={entry.extra ? "An additional spell: it does not count against your limits. Click to count it again." : "Make this an additional spell that does not count against your limits (the DM is told)"} style={{ background: entry.extra ? "#5c7cfa33" : "transparent", border: `1px solid ${entry.extra ? "#5c7cfa" : colors.brass + "66"}`, color: entry.extra ? "#bac8ff" : colors.parchment, borderRadius: 10, fontSize: 11, padding: "1px 8px", cursor: "pointer" }}>{entry.extra ? "Additional" : "Counts"}</button>}
         <button onClick={onRemove} aria-label={`Remove ${sp ? sp.n : entry.raw}`} style={{ background: "transparent", border: "none", color: colors.parchment, opacity: 0.7, cursor: "pointer", fontSize: 16 }}>×</button>
       </div>
-      {sp && sp.su && <div data-testid="spell-su" style={{ fontSize: 12.5, opacity: 0.75, paddingLeft: 12 }}>{sp.su}{sp.su2 ? <span style={{ opacity: 0.85 }}> · Upcast: {sp.su2}</span> : null}</div>}
-      {summary && <div style={{ fontSize: 12, color: colors.brassLight }}>In combat: {summary}</div>}
+      {sp && sp.su && <div data-testid="spell-su" style={{ fontSize: 12.5, opacity: 0.75, paddingLeft: 12 }}>{sp.su}</div>}
+      {(summary || (sp && sp.su2)) && <div data-testid="spell-gold" style={{ fontSize: 12, color: colors.brassLight }}>{summary ? `In combat: ${summary}` : ""}{summary && sp && sp.su2 ? " · " : ""}{sp && sp.su2 ? `Upcast: ${sp.su2}` : ""}</div>}
       {red && <div style={{ fontSize: 12, color: CUSTOM_RED }}>Beyond the rules: {entry.problem}.</div>}
       {open && sp && (
         <div style={{ fontSize: 13, lineHeight: 1.5, marginTop: 6, opacity: 0.92 }}>
@@ -5039,7 +5040,8 @@ function SpellRow({ entry, onRemove, onExtra = null, colors, fontDisplay, summar
 function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [], sharedSlots = null, attnEdge = () => ({}), bookInfo, spellbook, picks, featureChoices, setFeatureChoices, glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
   const [levelsOff, setLevelsOff] = useState([]);     // spell levels switched off in the Add Spells list (none: every level shows)
   const [bookTab, setBookTab] = useState("prepared"); // a Wizard: Prepared Spells or the Spellbook
-  const [addExtra, setAddExtra] = useState(false); // the next spells added are additional: they do not count against your limits
+  const [extraQ, setExtraQ] = useState(""); // searching for an additional spell
+  const addExtra = false;
   const [sortBy, setSortBy] = useState("level");      // "level" (alphabetical inside each level) or "name"
   const [search, setSearch] = useState("");
   const [anyList, setAnyList] = useState(false);     // customization: spells from every class list
@@ -5161,14 +5163,10 @@ function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [],
         {["Cleric", "Druid", "Paladin", "Wizard"].includes(className) && spellRows.some(e => !e.extra) && <button data-testid="clear-prepared" title="These classes can change their whole list of prepared spells after a Long Rest. Cantrips and additional spells stay." onClick={() => { const n = spellRows.filter(e => !e.extra).length; if (!window.confirm(`Remove all ${n} prepared ${n === 1 ? "spell" : "spells"} so you can choose again? Cantrips and additional spells stay.`)) return; const drop = new Set(spellRows.filter(e => !e.extra).map(e => e.index)); const next = spells.filter((_, i) => !drop.has(i)); setSpells(next.length ? next : [""]); }}
           style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 6, padding: "4px 12px", fontSize: 13, cursor: "pointer", marginBottom: 8 }}>Remove all prepared spells (keeps cantrips)</button>}
         {cantripRows.some(e => !e.extra) && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "4px 0 6px" }}>CANTRIPS</div>}
-        {cantripRows.filter(e => !e.extra).map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} onExtra={() => flipExtra(e.sp.n)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
+        {cantripRows.filter(e => !e.extra).map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
         {spellRows.some(e => !e.extra) && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "10px 0 6px" }}>PREPARED SPELLS</div>}
-        {spellRows.filter(e => !e.extra).map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} onExtra={() => flipExtra(e.sp.n)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
+        {spellRows.filter(e => !e.extra).map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
         {handRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} />)}
-        {rows.some(e => e.extra) && <div data-testid="extra-section" style={{ marginTop: 12, borderTop: `1px dashed #5c7cfa`, paddingTop: 8 }}>
-          <div style={{ fontFamily: fontDisplay, fontSize: 12, color: "#bac8ff", margin: "0 0 6px" }}>ADDITIONAL SPELLS (on top of the rules; they do not count, and the DM is told)</div>
-          {[...cantripRows, ...spellRows].filter(e => e.extra).map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} onExtra={() => flipExtra(e.sp.n)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
-        </div>}
         {grantedSpells.length > 0 && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "10px 0 6px" }}>ALWAYS PREPARED (these do not count against your limits)</div>}
         {grantedSpells.map((g, i) => {
           const sp = spellOf(g.name);
@@ -5177,6 +5175,15 @@ function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [],
             {sp && spellSummary(sp) && <div style={{ fontSize: 12, color: colors.brassLight }}>In combat: {spellSummary(sp)}</div>}
           </div>;
         })}
+      </Section>
+
+      <Section title={`Beyond the Rules: Additional Spells${spellInfo.additional ? ` (${spellInfo.additional})` : ""}`} colors={colors} fontDisplay={fontDisplay}>
+        <div data-testid="extra-section" style={{ fontSize: 13, opacity: 0.9, marginBottom: 8 }}>Spells you always have available on top of the rules, such as one an NPC taught you or one the DM gave you. They are not prepared spells and do not count against your limits. The DM is told.</div>
+        {!custom && <div data-testid="extra-locked" style={{ fontSize: 13, color: CUSTOM_RED, border: `1px dashed ${CUSTOM_RED}`, borderRadius: 6, padding: "6px 10px", marginBottom: 8 }}>Further Customization must be on to add additional spells.</div>}
+        {rows.filter(e => e.extra).map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
+        {custom && (() => { const q2 = extraQ.trim().toLowerCase(), opts = q2.length < 2 ? [] : ALL_SPELLS.filter(sp => !spells.includes(sp.n) && sp.n.toLowerCase().includes(q2)).slice(0, 12);
+          return <div style={{ position: "relative", maxWidth: 360 }}><input aria-label="Add an additional spell" data-testid="extra-search" value={extraQ} onChange={e => setExtraQ(e.target.value)} placeholder="Add an additional spell: type its name" style={fieldStyle(colors)} />
+            {opts.length > 0 && <div data-testid="extra-options" style={{ border: `1px solid ${colors.brass}`, borderRadius: 6, background: colors.inkLight, marginTop: 4 }}>{opts.map(sp => <button key={sp.n} data-testid="extra-add" onClick={() => { setSpells([...spells.filter(Boolean), sp.n]); setSpellExtra(Array.from(new Set([...spellExtra, sp.n]))); setExtraQ(""); }} style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: colors.parchment, padding: "4px 10px", cursor: "pointer" }}>{sp.n} <span style={{ opacity: 0.7, fontSize: 12 }}>{spellLine(sp)}</span><SpellMarks sp={sp} colors={colors} /></button>)}</div>}</div>; })()}
       </Section>
 
       {(caster || custom) && (
@@ -5194,7 +5201,6 @@ function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [],
               <option value="name">Sort A to Z</option>
             </select>
             <input aria-label="Search spells" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or school" style={{ ...fieldStyle(colors), width: 240 }} />
-            <label data-testid="add-extra" title="Spells you add while this is ticked do not count against the number you know or prepare. They show as Additional, and the DM is told." style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "#bac8ff", border: "1px solid #5c7cfa", borderRadius: 6, padding: "4px 10px" }}><input type="checkbox" checked={addExtra} onChange={e => setAddExtra(e.target.checked)} /> Add as an additional spell (does not count)</label>
             {custom && <label style={check}><input type="checkbox" checked={anyList} onChange={e => setAnyList(e.target.checked)} data-testid="any-list" /> Any spell list</label>}
             {custom && <label style={check}><input type="checkbox" checked={allLevels} onChange={e => setAllLevels(e.target.checked)} data-testid="all-levels" /> All spell levels</label>}
           </div>

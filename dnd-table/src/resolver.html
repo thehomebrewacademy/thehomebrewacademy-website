@@ -140,10 +140,12 @@
     .tracker-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 6px; font-size: 13px; }
     .card-more { position: absolute; right: 52px; top: 6px; background: transparent; border: 1px solid var(--panel-light); color: var(--text-muted); border-radius: 6px; padding: 0 6px; cursor: pointer; font-size: 13px; line-height: 18px; }
     .turn-pop { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 90; background: var(--gold); color: #1a2535; border-radius: 12px; padding: 10px 14px 10px 18px; font-size: 18px; font-family: 'Cinzel', serif; box-shadow: 0 6px 22px rgba(0,0,0,.5); display: flex; gap: 12px; align-items: center; animation: turnpop .35s ease-out; pointer-events: none; }
+    .dm-pops { position: fixed; top: 64px; right: 14px; z-index: 91; display: flex; flex-direction: column; gap: 6px; max-width: 320px; } .dm-pop { background: var(--panel-light); border: 1px solid var(--gold); border-radius: 10px; padding: 8px 10px; display: flex; gap: 8px; align-items: flex-start; box-shadow: 0 4px 14px rgba(0,0,0,.45); font-size: 14px; } .dm-pop button { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; }
     .turn-pop.time-up { top: 120px; background: #c92a2a; color: #fff; } .turn-pop.time-up button { color: #fff; border-color: #fff; }
     .turn-pop button { pointer-events: auto; background: transparent; border: 1px solid #1a2535; border-radius: 6px; color: #1a2535; cursor: pointer; font-size: 16px; padding: 0 8px; }
     @keyframes turnpop { from { transform: translate(-50%, -16px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
     .pal-group.acting { box-shadow: 0 0 0 2px var(--gold), 0 0 18px rgba(212,160,23,.55); }
+    .pal-group.mass-cur { box-shadow: 0 0 0 3px var(--gold), 0 0 20px rgba(212,160,23,.6); }
     .pal-now { background: var(--gold); color: #1a2535; border-radius: 10px; padding: 0 8px; font-size: 12px; font-weight: 700; }
     .pal-mass-who .now { font-weight: 700; }
     .pal-mode { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 0 0 8px; font-size: 13.5px; }
@@ -152,6 +154,7 @@
     .inbox-new { background: var(--gold); color: #1a2535; border-radius: 10px; padding: 0 8px; font-size: 12px; font-weight: 700; }
     .inbox-items { padding: 0 10px 8px 30px; font-size: 13.5px; } .inbox-item { padding: 3px 0; border-top: 1px dashed var(--panel-light); }
     .mass-run { position: sticky; top: 0; z-index: 6; background: var(--panel); border: 2px solid var(--gold); border-radius: 10px; padding: 8px 10px; margin: 0 0 8px; font-size: 13.5px; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+    .mass-adv, .mass-atks { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
     .mass-run .do-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
     .combatant-card.mass-now { outline: 3px solid var(--gold); outline-offset: 2px; box-shadow: 0 0 14px rgba(212,160,23,.6); }
     .combatant-card.mass-pickable { cursor: crosshair; }
@@ -1957,7 +1960,7 @@ function d20Test(c, kind, ctx) {
     }
   } else if (kind === 'save') {
     dice = effectDice(c, 'save');
-    es.forEach(e => { if (e.saveAdv === ctx.ability) adv.push(e.name); if (e.saveDis === ctx.ability) dis.push(e.name); if (e.saveAbil === ctx.ability) addFlat(e.saveAbilMod, e.name); });
+    es.forEach(e => { if (e.saveAdv === ctx.ability || e.saveAdv === 'all') adv.push(e.name); if (e.saveDis === ctx.ability || e.saveDis === 'all') dis.push(e.name); if (e.saveAbil === ctx.ability) addFlat(e.saveAbilMod, e.name); });
     const pas = (c && c.passives) || {};
     if ((pas.saveAdv || []).includes(ctx.ability)) adv.push('a feature'); // Danger Sense, Gnomish Cunning
     if ((ctx.conditions || []).some(n => (pas.condAdv || []).includes(n))) adv.push('a trait'); // Fey Ancestry, Brave, Dwarven Resilience
@@ -2574,6 +2577,7 @@ function App() {
   const [freeAsk, setFreeAsk] = useState(null);      // typing that name
   const [moveT, setMoveT] = useState(null);          // moving an effect to another creature: {fromId, effId, name, casterId}
   const [confirmT, setConfirmT] = useState('');      // the creature clicked, waiting for Yes or No
+  const [roundPick, setRoundPick] = useState(null); // the DM's round effect on a creature: what and until when
   const [cardMenu, setCardMenu] = useState(null);    // the right-click menu on a tracker card: {id, x, y}
   const [followTurn, setFollowTurn] = useState(() => { try { return window.localStorage.getItem('hba-follow-turn') === 'on'; } catch (e) { return false; } }); // open each creature's sheet when its turn starts
   const [targetIds, setTargetIds] = useState([]); // creatures picked as targets, in the order they were picked
@@ -2679,6 +2683,11 @@ function App() {
   const [showGlossary, setShowGlossary] = useState(false);
   const [showNotes, setShowNotes] = useState(false); const [notesVer, setNotesVer] = useState(0);
   const [playerName, setPlayerName] = useState(() => lsGet('hba-player-name') || ''); // the player's own name, shown to the DM
+  const nameHint = useMemo(() => { const k = 'hba-name-suggest', had = lsGet(k); if (had) return had; // a made-up fantasy name, used until you type your own
+    const A = ['Ara', 'Bel', 'Bram', 'Cael', 'Cor', 'Dar', 'Dorn', 'El', 'Fen', 'Ferr', 'Gar', 'Gwen', 'Hal', 'Hask', 'Ivo', 'Jor', 'Kel', 'Kest', 'Lio', 'Lor', 'Mar', 'Mira', 'Nor', 'Nym', 'Oss', 'Pel', 'Quen', 'Riv', 'Ros', 'Syl', 'Tam', 'Thal', 'Tor', 'Ul', 'Val', 'Vey', 'Wyn', 'Yor', 'Zan'];
+    const B = ['a', 'an', 'ar', 'ard', 'bel', 'dor', 'drin', 'enne', 'eth', 'ia', 'iel', 'ik', 'in', 'ion', 'is', 'ith', 'mir', 'nor', 'on', 'or', 'os', 'ra', 'ric', 'ryn', 'sa', 'wen', 'wyn', 'ys'];
+    const pick = l => l[Math.floor(Math.random() * l.length)], n = pick(A) + pick(B); lsSet(k, n); return n; }, []);
+  const myName = (playerName.trim() || nameHint).slice(0, 40);
   const [inbox, setInbox] = useState([]), [inboxOpen, setInboxOpen] = useState(false), [inboxSeen, setInboxSeen] = useState(0), [inboxGroup, setInboxGroup] = useState(''); // the DM's notification center
   const combatKey = useRef(''); // the DM's Rules Glossary
   const [restSummary, setRestSummary] = useState(null); // what a player's rest just gave back
@@ -2780,6 +2789,23 @@ function App() {
   const [revealAC, setRevealAC] = useState(true);
   const [trackerDraft, setTrackerDraft] = useState('');
   const [newTracker, setNewTracker] = useState(''); // a counter a creature keeps on its sheet
+  const [trkEdit, setTrkEdit] = useState(''); // the tracker whose automatic rules are open
+  const TRACKER_EVENTS = [['turnStart','Start of its turn'],['turnEnd','End of its turn'],['round','Each new round'],['combatStart','Combat starts'],['combatEnd','Combat ends'],
+    ['hit','It hits with an attack'],['miss','It misses with an attack'],['crit','It scores a Critical Hit'],['nat20','It rolls a 20 on an attack'],['nat1','It rolls a 1 on an attack'],
+    ['hitBy','An attack hits it'],['missedBy','An attack misses it'],['dealt','It deals damage'],['damaged','It takes damage'],['healed','It regains Hit Points'],
+    ['kill','It drops a creature to 0'],['down','It drops to 0 Hit Points'],['spell','It casts a spell'],['short','Short Rest'],['long','Long Rest']];
+  const TRACKER_OPS = [['add','add'],['sub','subtract'],['set','set to'],['reset','reset to start'],['addAmt','add the amount'],['subAmt','subtract the amount']];
+  const clampT = (t, v) => { let x = v; if (t.min !== undefined && t.min !== '' && x < +t.min) x = +t.min; if (t.max !== undefined && t.max !== '' && x > +t.max) x = +t.max; return x; };
+  const stepT = (t, op, n, amt) => { const k = +n || 0, a = +amt || 0; const v = op === 'add' ? t.val + k : op === 'sub' ? t.val - k : op === 'set' ? k : op === 'reset' ? (+t.start || 0) : op === 'addAmt' ? t.val + a : op === 'subAmt' ? t.val - a : t.val; return clampT(t, v); };
+  // Moves every tracker whose rules listen for this event, on these creatures ('*' = everyone). amt: the damage or healing, for the amount rules.
+  const trackerEvent = (ids, ev, amt) => { const want = ids === '*' ? null : [].concat(ids).filter(Boolean); if (want && !want.length) return;
+    const hits = (combatants || []).filter(c => (!want || want.includes(c.id)) && (c.trackers || []).some(t => (t.rules || []).some(r => r.ev === ev)));
+    if (!hits.length) return;
+    const alerts = [];
+    hits.forEach(c => (c.trackers || []).forEach(t => { let v = t.val; (t.rules || []).filter(r => r.ev === ev).forEach(r => { v = stepT({...t, val: v}, r.op, r.n, amt); }); if (v !== t.val && t.alert && ((t.max !== undefined && t.max !== '' && v === +t.max) || (t.min !== undefined && t.min !== '' && v === +t.min))) alerts.push(`${c.name}: ${t.name} is at ${v}`); }));
+    setCombatants(prev => prev.map(c => (want && !want.includes(c.id)) || !(c.trackers || []).some(t => (t.rules || []).some(r => r.ev === ev)) ? c : {...c, trackers: c.trackers.map(t => { let v = t.val; (t.rules || []).filter(r => r.ev === ev).forEach(r => { v = stepT({...t, val: v}, r.op, r.n, amt); }); return v === t.val ? t : {...t, val: v}; })}));
+    if (alerts.length) setTimeout(() => setLog(prev => [...prev, stamp({type: 'roll', html: `<strong>Trackers</strong>${alerts.map(l => `<div class="log-detail">${esc(l)}</div>`).join('')}`})]), 0); };
+  const setTrk = (cid, tid, fn) => setCombatants(prev => prev.map(x => x.id !== cid ? x : {...x, trackers: (x.trackers || []).map(y => y.id === tid ? fn(y) : y)}));
   const addTracker = (c) => { const n = newTracker.trim().slice(0, 40); if (!n) return; setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: [...(x.trackers || []), {id: newId(), name: n, val: 0}].slice(0, 20)})); setNewTracker(''); };
   const [dmWide, setDmWide] = useState(false); // the DM controls widened to the right
   const [trackPage, setTrackPage] = useState(''); // the DM's Trackers page: '' closed, 'open' full screen, 'min' folded to a bar
@@ -2819,7 +2845,7 @@ function App() {
   const setRosterInit = v => { setRosterInitRaw(v); try { window.localStorage.setItem('hba-roster-init', JSON.stringify({mode: v.mode})); } catch (e) {} };
   const [toolOpen, setToolOpen] = useState('');
   const [palHidden, setPalHidden] = useState([]), [groupRun, setGroupRun] = useState(null); // companions taken off the list; one action done by several companions in turn
-  const [palTab, setPalTab] = useState('all'), [palSort, setPalSort] = useState('name'), [palSel, setPalSel] = useState([]), [palAmt, setPalAmt] = useState(''); const [palCombine, setPalCombine] = useState(true), [palView, setPalView] = useState({}) /* each stat block: 'min' (its name), 'mid' (the default: its numbers and a line for each one), 'full' (everything) */, [palOptsOpen, setPalOptsOpen] = useState(false), [massPick, setMassPick] = useState({}), [massRun, setMassRun] = useState(null), [massOpen, setMassOpen] = useState(false), [massSel, setMassSel] = useState([]); // the Companions tab // the tool opened on the sheet
+  const [palTab, setPalTab] = useState('all'), [palSort, setPalSort] = useState('name'), [palSel, setPalSel] = useState([]), [palAmt, setPalAmt] = useState(''); const [palCombine, setPalCombine] = useState(true), [palView, setPalView] = useState({}) /* each stat block: 'min' (its name), 'mid' (the default: its numbers and a line for each one), 'full' (everything) */, [palOptsOpen, setPalOptsOpen] = useState(true), [massPick, setMassPick] = useState({}), [massRun, setMassRun] = useState(null), [massOpen, setMassOpen] = useState(false), [massSel, setMassSel] = useState([]); // the Companions tab // the tool opened on the sheet
   const [logOpen, setLogOpen] = useState([]);
   const toggleLogOpen = id => setLogOpen(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id].slice(-200)); // Combat Log entries opened to show all their details
   const [pics, setPics] = useState({}); // pictures of creatures in this session: {creature id: {big, thumb, show, at}}
@@ -2931,7 +2957,7 @@ function App() {
     if (form.sheetData) {
       // A real character sheet: everything on it comes along.
       newC = {...sheetToFields(form.sheetData), id: newId(), initiative: +form.initiative || 0, conditions: [], effects: []};
-      if (asPlayer || form.fromSheet) { newC.owner = myId; if (playerName.trim()) newC.ownerName = playerName.trim().slice(0, 40); }
+      if (asPlayer || form.fromSheet) { newC.owner = myId; newC.ownerName = myName; }
       if (form.fromSheet) newC.main = true;
     } else {
       const type = asPlayer && form.type !== 'player' ? 'companion' : form.type === 'npc' ? 'monster' : form.type;
@@ -3166,7 +3192,7 @@ function App() {
     if (regainLog.length) setTimeout(() => setLog(prev => [...prev, stamp({type: 'roll', html: `<strong>Rolling Initiative</strong>${regainLog.map(l => `<div class="log-detail">${esc(l)}</div>`).join('')}`})]), 0);
     setCombatants(sorted.map(c => ({...c, turn: {}, reflexDone: false, reflexNow: false, fateUsed: false, swapDone: false, fight: {dealt: 0, taken: 0}, recovered: null, fightStart: plain({slotsUsed: c.slotsUsed || {}, poolUsed: c.poolUsed || {}, used: c.used || {}})})));
     setActiveId(first ? first.id : '');
-    setCombatStarted(true);
+    setCombatStarted(true); setTimeout(() => trackerEvent('*', 'combatStart'), 0);
     setLog([stamp({type:'round',text:`Round 1`})]);
     setRound(1);
   };
@@ -3186,7 +3212,8 @@ function App() {
     // Saves that fall at the end of the turn that is finishing
     if (inPlay.some(c => c.id === activeId)) due.push(...dueCondSaves(work, activeId, 'end'));
     { const ending = c => c.id === activeId || (c.shareTurn && (c.after === activeId || c.palOf === activeId)); // what lasts until the end of the turn ends (Dash, Disengage), for the creature and the companions sharing its turn
-      work = work.map(c => ending(c) && (c.effects || []).some(e => e.endTurn) ? {...c, effects: c.effects.filter(e => !e.endTurn)} : c); }
+      work = work.map(c => ending(c) && (c.effects || []).some(e => e.endTurn) ? {...c, effects: c.effects.filter(e => !e.endTurn)} : c);
+      work = work.map(c => (c.effects || []).some(e => e.untilEndOf === activeId) ? {...c, effects: c.effects.filter(e => e.untilEndOf !== activeId)} : c); }
     let idx = inPlay.findIndex(c => c.id === (((combatants.find(x => x.id === activeId) || {}).reflexNow && (combatants.find(x => x.id === activeId) || {}).reflexFrom) || activeId));
     let safety = 0;
     let wrapped = false;
@@ -3241,8 +3268,10 @@ function App() {
       entries.push(stamp({type:'heal', html:`<strong>${esc(up.name)}</strong> has ${n} Temporary Hit Points from <span class="log-result">${esc(hero[0].name)}</span>`}));
     }
     { const starts = c => c.id === up.id || (c.shareTurn && (c.after === up.id || c.palOf === up.id)); // a new turn: its own and its companions' actions come back, and what lasts until the start of its next turn ends (Dodge)
+      work = work.map(c => (c.effects || []).some(e => e.untilStartOf === up.id) ? {...c, effects: c.effects.filter(e => e.untilStartOf !== up.id)} : c);
       work = work.map(c => !starts(c) ? c : {...c, ...(c.turn && Object.keys(c.turn).length ? {turn: {}} : {}), ...((c.effects || []).some(e => e.endStart) ? {effects: c.effects.filter(e => !e.endStart)} : {})}); }
     if (work !== combatants) setCombatants(reorder(work));
+    trackerEvent(activeId, 'turnEnd'); trackerEvent(up.id, 'turnStart'); if (wrapped) trackerEvent('*', 'round');
     if (entries.length) setLog(prev => [...prev, ...entries]);
     undoRef.current = null; setArmed(null);
     setActiveId(up.id);
@@ -3257,7 +3286,7 @@ function App() {
   const atkRef = useRef(0); // an attack is one roll: its d20 and its damage together use the roll switch, then it turns off
   // The roll switch: the next roll of any kind is rolled twice and the higher or lower is kept, then it goes back to Normal.
   const setRollSwitch = v => { setAdvantage(v); dmgTwiceRef.current = v; };
-  const toggleRollMod = k => { if (!isDM && !rollMods[k]) noticeDM('reroll', `turned on "${{hi: 'Roll twice, keep the higher', lo: 'Roll twice, keep the lower', r1: 'Reroll 1s', low3: '1s and 2s count as 3s'}[k]}" for their next roll, with no feature giving it`, null); const m = {...rollMods, [k]: !rollMods[k]}; setRollMods(m); ROLL_R1 = m.r1; ROLL_LOW3 = m.low3; if (k === 'hi' || k === 'lo') setRollSwitch((m.hi ? 1 : 0) - (m.lo ? 1 : 0)); };
+  const toggleRollMod = k => { const m = {...rollMods, [k]: !rollMods[k]}; setRollMods(m); ROLL_R1 = m.r1; ROLL_LOW3 = m.low3; if (k === 'hi' || k === 'lo') setRollSwitch((m.hi ? 1 : 0) - (m.lo ? 1 : 0)); };
   const clearRollMods = () => { setRollMods({hi: false, lo: false, r1: false, low3: false}); ROLL_R1 = false; ROLL_LOW3 = false; setRollSwitch(0); setDmgTwice(0); };
   const d20Spent = r => { ROLL_R1 = false; ROLL_LOW3 = false; return r; }; // the next roll was this d20; what follows it (the attack's damage) is not changed
   const withPrompt = (key, fn) => { const m = promptMods[key] || {}, keep = [ROLL_R1, ROLL_LOW3];
@@ -3304,6 +3333,8 @@ function App() {
         if (ok && act.onKill.summon && by) { adj.notes.push(`${tgt.name} rises as a ${act.onKill.summon} under ${by.name}'s control at the start of ${by.name}'s next turn`); setTimeout(() => raiseAs(by, act.onKill.summon, tgt), 300); } }
       if (real > 0 && !act.bondHit) (tgt.effects || []).filter(e => e.bondTo && e.casterId && e.casterId !== tgt.id).forEach(e => { const cst = combatants.find(c => c.id === e.casterId); if (cst && cst.currentHP > 0) { adj.notes.push(`${e.name}: ${cst.name} takes ${real} too`); const keepAct = actionRef.current; actionRef.current = {bondHit: true}; setTimeout(() => { updateHP(cst.id, -real); }, 0); actionRef.current = keepAct; } });
       if (drops) { const gone = (tgt.effects || []).filter(e => e.endsAt0); gone.forEach(e => removeEffect(tgt.id, e.id)); }
+      if (adj.total > 0) { trackerEvent(tgt.id, 'damaged', adj.total); if (by && by.id !== tgt.id) trackerEvent(by.id, 'dealt', adj.total); }
+      if (drops) { trackerEvent(tgt.id, 'down'); if (by && by.id !== tgt.id) trackerEvent(by.id, 'kill'); }
       if (real > 0 && tgt.summonOf && effs(tgt).some(e => e.name === 'Summoned' && e.endsOnDamage)) setCombatants(prev => prev.map(c => c.id !== tgt.summonOf ? c : {...c, blocks: (c.blocks || []).filter(b => b.id !== tgt.blockId)}));
     }
     if (adj.total > 0) { const by = combatants.find(c => c.id === actingRef.current), mine = x => by && x && (x === by.id || (combatants.find(c => c.id === x) && sideOf(combatants.find(c => c.id === x)) === sideOf(by)));
@@ -3547,11 +3578,16 @@ function App() {
   const massChoice = x => massPick[x.id] || (multiList(x).length > 1 ? 'multi' : (attackActs(x)[0] || {}).id || '');
   const massActs = x => { const ch = massChoice(x); return ch === 'multi' ? multiList(x) : attackActs(x).filter(a => a.id === ch); };
   // Mass attack: each chosen creature picks a target in turn (or is skipped), then every attack is rolled at once
-  const startMass = (list, actsOf) => { const ids = [], acts = {}; list.forEach(x => { const a = actsOf(x); if (a.length) { ids.push(x.id); acts[x.id] = a; } }); if (!ids.length) return; setGroupRun(null); setSelectedAction(null); setMassRun({ids, acts, tgt: {}, i: 0}); if (isDM) setLeftTab('order'); };
+  useEffect(() => { if (!massRun || massRun.mode !== 'diff') return; const el = document.querySelector('[data-mass-cur="1"]'); if (el && el.scrollIntoView) el.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }, [massRun && massRun.i, massRun && massRun.mode]);
+  const startMass = (list, actsOf) => { const ids = [], acts = {}; list.forEach(x => { const a = actsOf(x); if (a.length) { ids.push(x.id); acts[x.id] = a; } }); if (!ids.length) return; setGroupRun(null); setSelectedAction(null);
+    setMassRun({ids, acts, tgt: {}, i: 0, mode: ids.length > 1 ? '' : 'diff', adv: 0}); if (isDM) setLeftTab('order'); }; // more than one: same target for all, or one each?
+  const massSwap = (id, choice) => { const x = combatants.find(y => y.id === id); if (!x || !massRun) return; const a = choice === 'multi' ? multiList(x) : attackActs(x).filter(y => y.id === choice); if (a.length) setMassRun({...massRun, acts: {...massRun.acts, [id]: a}}); };
+  const massPickTarget = c => { if (!massRun) return; if (massRun.mode === 'same') { const tgt = {}; massRun.ids.forEach(id => { tgt[id] = c.id; }); setMassRun({...massRun, tgt, i: massRun.ids.length, askAll: massRun.ids.some(id => { const x = combatants.find(y => y.id === id); return x && (massRun.acts[id] || []).length < multiList(x).length; })}); return; }
+    setMassRun({...massRun, tgt: {...massRun.tgt, [massRun.ids[massRun.i]]: c.id}, i: massRun.i + 1}); };
   const rollMass = async () => { const run = massRun; if (!run) return; setMassRun(null);
     for (const id of run.ids) { const t = run.tgt[id]; if (!t) continue;
       setCombatants(prev => prev.map(y => y.id !== id ? y : {...y, turn: {...(y.turn || {}), a: true, atk: Math.max(+((y.turn || {}).atk) || 0, attacksAllowed(y))}}));
-      for (const a of (run.acts[id] || [])) { if (resolveRef.current) resolveRef.current({replay: true, actorId: id, action: a, pickedIds: [t], adv: 0, sneak: false}); await new Promise(r => setTimeout(r, 450)); } } };
+      for (const a of (run.acts[id] || [])) { if (resolveRef.current) resolveRef.current({replay: true, actorId: id, action: a, pickedIds: [t], adv: run.adv || 0, sneak: false}); await new Promise(r => setTimeout(r, 450)); } } };
   const attacksLeft = c => { const t = (c && c.turn) || {}, n = +t.atk || 0; if (!c || !n) return 0; return Math.max(0, attacksAllowed(c) - n); };
   const spendEconomy = (c, action, quiet) => { // false when the player decides not to go over
     if (c && ['action', 'bonus', 'reaction'].includes(action.activation)) endByFlag(c, 'endsOnAnyAct', 'It took an action, a Bonus Action or a Reaction.');
@@ -3828,6 +3864,7 @@ function App() {
     { const ce0 = (((action.onUse || {}).effs) || []).find(e => e.conc), nm0 = action.concAs || (ce0 && ce0.name) || String(action.name || '').replace(/ \(Level \d slot\)$/, ''); // only one Concentration at a time: ask first
       if ((action.conc || ce0) && active.conc && canControl(active) && !window.confirm(`${active.name} is concentrating on ${active.conc.name}. Stop concentrating on ${active.conc.name} to concentrate on ${nm0} instead?`)) return; }
     if (!spendEconomy(active, action, !!re)) return;
+    if (!re && action.spell) trackerEvent(active.id, 'spell');
     undoRef.current = {combatants, logIds: new Set(log.map(e => e.id)), promptIds: new Set(prompts.map(q => q.id)), name: action.name, actorId: active.id, key: `${round}:${activeId}`}; setUndoTick(n => n + 1);
     { const cf = !re && action.spell && effs(active).find(e => e.castFail && String(action.comp || '').includes(e.castFail.comp));
       if (cf) { const r = rollD(20); if (r < cf.castFail.dc) { setLog(prev => [...prev, stamp({type:'save-fail', html:`<strong>${esc(active.name)}</strong> tries to cast ${esc(action.name)}<br/><span class="log-result">🎲 ${r}</span> The spell fails (${esc(cf.name)}).<div class="log-detail">Needed ${cf.castFail.dc} or higher.</div>`})]); setSelectedAction(null); return; } } }
@@ -4007,6 +4044,7 @@ function App() {
       const critWard = target && hit && (nat20 || !!autoCrit) && ((target.passives || {}).critImmune && !critArmorOff ? 'its armor' : (effs(target).find(e => e.critImmune) || {}).name);
       if (critWard) featNotes.push(`Critical Hit reduced: ${critWard === 'its armor' ? (target.passives.critImmuneFrom || 'an item') : critWard} turns it into a normal hit`);
       const isCrit = hit && (nat20 || !!autoCrit) && !critWard;
+      if (!(re && re.dmgStep)) { trackerEvent(active.id, hit ? 'hit' : 'miss'); if (isCrit) trackerEvent(active.id, 'crit'); if (nat20) trackerEvent(active.id, 'nat20'); if (nat1) trackerEvent(active.id, 'nat1'); if (target) trackerEvent(target.id, hit ? 'hitBy' : 'missedBy'); }
       if (!stepInfo) stepInfo = {hit, crit: hit && isCrit, total, roll, vs: targetAC, nat: nat20 ? 20 : nat1 ? 1 : 0, notes: featNotes.slice()};
       if (hit && !action.ranged && (action.weapon || action.unarmed)) setCombatants(prev => prev.map(c => c.id === active.id ? {...c, turn: {...(c.turn || {}), meleeHit: true}} : c));
       // one-shot effects used up by this attack roll: Sap on the attacker, Vex on the target
@@ -4245,6 +4283,7 @@ function App() {
   const giverOf = e => e.casterId || e.src || '';
   const wakeWards = (list, ids) => list.map(c => (c.effects || []).some(e => e.dormant && (!ids || ids.includes(giverOf(e)))) ? {...c, effects: c.effects.map(e => e.dormant && (!ids || ids.includes(giverOf(e))) ? (({dormant, ...rest}) => rest)(e) : e)} : c); // a shared ward works again after its giver's Long Rest
   const updateHP = (id, delta, isHeal=false) => {
+    if (isHeal && delta > 0) trackerEvent(id, 'healed', delta);
     let shared = null; // a ward shared by several creatures (Gift of the Protectors): once it works for one, it sleeps for all
     setCombatants(prev => { const next = prev.map(c => {
       if (c.id !== id) return c;
@@ -4496,7 +4535,7 @@ function App() {
     const restore = c0 => {
       if (!rest) return c0;
       let r = restoreUses(c0, longRest); if (regainLines.current.length && !perC[c0.id]) perC[c0.id] = regainLines.current.slice(); // charges rolled back at dawn (the Long Rest stands in for it)
-      if (longRest && r.currentHP > 0 && r.currentHP < totalHP(r)) r = {...r, currentHP: totalHP(r)}; // a Long Rest gives back all lost Hit Points (it needs at least 1 to begin)
+      if (longRest && r.currentHP > 0 && r.currentHP < totalHP(r) && !(r.palOf && (combatants.find(o => o.id === r.palOf) || {}).palRest === false)) r = {...r, currentHP: totalHP(r)}; // a Long Rest gives back all lost Hit Points (it needs at least 1 to begin)
       return r;
     };
     let worldLines = [], dawnFor = [], w2 = world;
@@ -4512,6 +4551,7 @@ function App() {
       c = {...c, poolUsed: pUsed, poolAt: pAt, used, usedAt: uAt}; if (lines.length) perC[c.id] = [...(perC[c.id] || []), ...lines]; return c; };
     const after = reorder(passTime(combatants, seconds, longRest).list.map(restore).map(onClock));
     setCombatants(prev => reorder((longRest ? wakeWards : (l => l))(passTime(prev, seconds, longRest).list.map(restore)).map(c => { const a = after.find(x => x.id === c.id); return a ? {...c, poolUsed: a.poolUsed, poolAt: a.poolAt, used: a.used, usedAt: a.usedAt, ...(longRest ? {hitDiceUsed: 0} : {})} : c; })));
+    if (rest) trackerEvent('*', longRest ? 'long' : 'short');
     const md = manualDawn.current; manualDawn.current = {};
     Object.entries(md).forEach(([id, pools]) => setPrompts(prev => [...prev.filter(q => !(q.kind === 'dawn' && q.targetId === id)), plain({id: newId(), kind: 'dawn', targetId: id, by: myId, pools})]));
     setLog(prev => [...prev, stamp({type:'round', text: label + (clockOn ? ` · now ${clockText(t2, w2 && w2.cal)}` : '')}), ...endedEntries(t.ended),
@@ -4542,6 +4582,7 @@ function App() {
   const endEncounter = () => {
     if (!isDM) return;
     if (!window.confirm('End combat? Monsters, the turn order and the combat log are cleared. Players and their active effects stay. Everyone gets the end of combat panel.')) return;
+    setTimeout(() => trackerEvent('*', 'combatEnd'), 0);
     const gone = combatants.filter(c => c.type === 'monster');
     const stableNames = [], ammoRows = [];
     const spent = (c) => { // spell slots and limited uses spent during this fight
@@ -4914,12 +4955,14 @@ function App() {
     setTurnPop(mine.length ? {key: activeId + ':' + round, names: mine.map(c => c.name), lead: a.owner === myId ? a.name : ''} : null); }, [activeId, round, combatStarted, isDM]);
   // Companions: during their owner's turn, or right after it. The DM can set it for one character or for every player, and lock it.
   const setPalMode = (owners, mode, lock) => { const ids = owners.map(o => o.id);
-    setCombatants(prev => reorder(prev.map(x => ids.includes(x.id) ? {...x, palMode: mode, ...(lock != null ? {palLock: lock} : {})} : x.palOf && ids.includes(x.palOf) && !x.summonOf ? {...x, after: x.palOf, shareTurn: mode === 'during'} : x)));
+    setCombatants(prev => reorder(prev.map(x => ids.includes(x.id) ? {...x, palMode: mode, ...(lock != null ? {palLock: lock} : {})} : (x.palOf && ids.includes(x.palOf)) || (x.summonOf && ids.includes(x.summonOf)) ? {...x, after: x.palOf || x.summonOf, shareTurn: mode === 'during'} : x)));
     setLog(prev => [...prev, stamp({type: 'info', sys: true, html: `<strong>${isDM ? 'The DM' : esc(owners[0].name)}</strong>: ${owners.length > 1 ? 'every player\'s companions' : esc(owners[0].name) + '\'s companions'} now act ${mode === 'during' ? 'during their turn' : 'right after their turn'}${lock ? ' (set by the DM)' : ''}`})]); };
 
   // ── NOTIFICATION CENTER (the DM's): changes to what players cannot normally change in play, grouped by player and kind ──
   useEffect(() => { if (!isDM || !room) return; try { const a = JSON.parse(lsGet('hba-inbox-' + room) || '[]'); if (Array.isArray(a)) { setInbox(a); setInboxSeen(+lsGet('hba-inbox-seen-' + room) || 0); } } catch (e) {} }, [isDM, room]);
-  const noticeDM = (kind, text, c) => { if (isDM || !room) return; setLog(prev => [...prev, stamp({type: 'info', sys: true, dmOnly: true, by: myId, notice: {kind, text: String(text).slice(0, 200), cId: c ? c.id : '', cName: c ? c.name : '', player: playerName || ''}, html: `<strong>${esc(playerName || 'A player')}</strong>: ${esc(text)}`})]); };
+  const noticeDM = (kind, text, c) => { if (isDM || !room) return; setLog(prev => [...prev, stamp({type: 'info', sys: true, dmOnly: true, by: myId, notice: {kind, text: String(text).slice(0, 200), cId: c ? c.id : '', cName: c ? c.name : '', player: myName}, html: `<strong>${esc(myName)}</strong>: ${esc(text)}`})]); };
+  const [pops, setPops] = useState([]); // the DM's short pop-up messages
+  const addPop = text => { const id = newId(); setPops(p => [...p.slice(-3), {id, text}]); setTimeout(() => setPops(p => p.filter(x => x.id !== id)), 9000); };
   const pushInbox = items => { if (!items.length) return; setInbox(prev => { const fresh = items.filter(n => !n.src || !prev.some(x => x.src === n.src)); if (!fresh.length) return prev; const next = [...prev, ...fresh].slice(-400); lsSet('hba-inbox-' + room, JSON.stringify(next)); return next; }); };
   const sigRef = useRef({}), joinRef = useRef({}), seenNotice = useRef(new Set());
   const playerOf = c => { const mine = combatants.filter(x => x.owner === c.owner), main = mine.find(x => x.main) || mine.find(x => x.sheet); return c.ownerName || (mine.find(x => x.ownerName) || {}).ownerName || (main && main.sheet && main.sheet.player) || (main ? main.name + "'s player" : 'A player'); };
@@ -4939,12 +4982,13 @@ function App() {
         items.push({id: newId(), t, kind, owner: c.owner, player: playerOf(c), cId: c.id, cName: c.name, what: k + since, from: String(was[k] ?? '').slice(0, 300), to: String(now[k] ?? '').slice(0, 300)}); }); });
     // joining and leaving: a player's character comes in, or every one of theirs is gone
     const owners = Array.from(new Set(combatants.filter(c => c.owner && c.owner !== myId).map(c => c.owner))); if (!joinRef.loaded) { try { joinRef.current = JSON.parse(lsGet('hba-known-' + room) || '{}') || {}; } catch (e) { joinRef.current = {}; } joinRef.loaded = true; } const known = joinRef.current;
-    owners.filter(o => !known[o]).forEach(o => { const c = combatants.find(x => x.owner === o && (x.main || x.sheet)) || combatants.find(x => x.owner === o); known[o] = c ? c.name : '?'; items.push({id: newId(), t, kind: 'join', owner: o, player: playerOf(c), cId: c.id, cName: c.name, what: 'Joined', from: '', to: `${playerOf(c)} joined with ${c.name}`}); });
+    owners.filter(o => !known[o]).forEach(o => { const c = combatants.find(x => x.owner === o && (x.main || x.sheet)) || combatants.find(x => x.owner === o); known[o] = c ? c.name : '?'; items.push({id: newId(), t, kind: 'join', owner: o, player: playerOf(c), cId: c.id, cName: c.name, what: 'Joined', from: '', to: `${playerOf(c)} joined with ${c.name}`}); addPop(`${playerOf(c)} joined with ${c.name}`); });
     Object.keys(known).filter(o => !owners.includes(o) && combatants.length).forEach(o => { items.push({id: newId(), t, kind: 'join', owner: o, player: known[o] + "'s player", cId: '', cName: known[o], what: 'Left', from: '', to: `${known[o]} left the table`}); delete known[o]; });
     if (combatants.length) lsSet('hba-known-' + room, JSON.stringify(known));
     // what players did that the DM should know about (Heroic Inspiration they gave themselves, the roll switch, taking an action back)
     log.filter(e => e && e.notice && !seenNotice.current.has(e.id)).forEach(e => { seenNotice.current.add(e.id); const n = e.notice, c = combatants.find(x => x.id === n.cId) || combatants.find(x => x.owner === e.by);
-      items.push({id: newId(), src: e.id, t, kind: n.kind, owner: e.by || '', player: n.player || (c ? playerOf(c) : 'A player'), cId: n.cId, cName: n.cName || (c ? c.name : ''), what: {heroic: 'Heroic Inspiration', reroll: 'Roll switch', undo: 'Took an action back'}[n.kind] || 'Note', from: '', to: n.text}); });
+      if (['heroic', 'undo', 'reroll'].includes(n.kind)) { if (Date.now() - idTime(e.id) < 60000) addPop(`${n.player || (c ? playerOf(c) : 'A player')} ${n.text}`); return; } // things that happen at the table: a pop-up for the DM, not the bell
+      items.push({id: newId(), src: e.id, t, kind: n.kind, owner: e.by || '', player: n.player || (c ? playerOf(c) : 'A player'), cId: n.cId, cName: n.cName || (c ? c.name : ''), what: 'Note', from: '', to: n.text}); });
     pushInbox(items); }, [isDM, room, combatants, log]);
   useEffect(() => { if (!isDM || !room) return; const items = [];
     combatants.filter(c => c.sheet && !c.pending && c.owner && c.owner !== myId).forEach(c => { const sh = c.sheet, n = (sh.customizations || []).length + (sh.homebrew || []).length, key = 'hba-hb-' + (sh.charId || room + '-' + c.id), sig = JSON.stringify([sh.customizations || [], (sh.homebrew || []).map(h => h.kind + h.name)]); if (!n || lsGet(key) === sig) return; lsSet(key, sig);
@@ -5834,13 +5878,14 @@ function App() {
           const order = (list) => list.slice().sort((a, b) => palSort === 'hp' ? (a.currentHP / totalHP(a)) - (b.currentHP / totalHP(b)) : palSort === 'cr' ? ((palCr(b) ?? -1) - (palCr(a) ?? -1)) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name, undefined, {numeric: true}));
           const shownKinds = palTab === 'all' || !kinds.includes(palTab) ? order(kinds.map(k => pals.find(x => kindOf(x) === k))).map(kindOf) : [palTab];
           const n = Math.abs(parseInt(palAmt, 10) || 0);
+          const massCurId = massRun && massRun.mode === 'diff' && massRun.i < massRun.ids.length ? massRun.ids[massRun.i] : ''; // a mass attack choosing targets one by one: that creature's stat block opens at the top, the rest fold
           const acted = x => !!(combatStarted && x.turn && x.turn.a && !attacksLeft(x)); // its Action is spent this turn
           const nowOkT = x => !combatStarted || !!(active && (x.id === active.id || sharesTurn(x))); // it is its turn (or it shares the turn going on)
           const ppOf = x => { const sh0 = x.sheet || {}; return sh0.pp != null ? +sh0.pp : 10 + (((sh0.skills || {}).Perception) ?? mod((x.scores || {}).Wisdom ?? 10)); };
           const monOf = x => MONSTERS.find(m => m.n === (x.base || kindOf(x))) || MONSTERS.find(m => m.n === kindOf(x)) || null;
           const massDo = (ids, fn) => ids.map(id => combatants.find(y => y.id === id)).filter(y => y && canControl(y)).forEach(fn);
           // One stat block: a kind of companion with every member (combined) or a single creature
-          const block = (key, mem) => { const lead = mem[0], one = mem.length === 1, view = palView[key] || 'mid', open = view === 'full', minV = view === 'min', m = monOf(lead), nowOk = nowOkT, acting = combatStarted && mem.some(x => x.id === activeId || sharesTurn(x));
+          const block = (key, mem) => { const lead = mem[0], one = mem.length === 1, hasCur = !!massCurId && mem.some(x => x.id === massCurId), view = massCurId ? (hasCur ? 'full' : 'min') : (palView[key] || 'mid'), open = view === 'full', minV = view === 'min', m = monOf(lead), nowOk = nowOkT, acting = combatStarted && mem.some(x => x.id === activeId || sharesTurn(x));
             const sel = palSel.filter(id => mem.some(x => x.id === id)), who = (sel.length ? mem.filter(x => sel.includes(x.id)) : mem).filter(canControl), ready = who.filter(x => !acted(x) && nowOk(x));
             const acts = buildActions(lead).filter(a => !/^multiattack/i.test(a.name || ''));
             const multi = buildActions(lead).find(a => /^multiattack/i.test(a.name || ''));
@@ -5848,7 +5893,7 @@ function App() {
             const go = a => { if (a.type === 'attack') { startMass(one ? [lead] : ready, x => attackActs(x).filter(y => y.name === a.name)); return; } if (one) { setViewId(lead.id); setSelectedAction(a.id); return; } startGroupRun(ready.map(x => x.id), a.name); }; // an attack keeps you on this page: pick the target on the tracker, then roll
             const hpSum = mem.reduce((t, x) => t + Math.max(0, x.currentHP), 0), hpMax = mem.reduce((t, x) => t + totalHP(x), 0);
             return (
-            <div key={key} className={`pp-card pal-group ${open ? 'open' : ''} ${acting ? 'acting' : ''}`} data-testid="pal-group">
+            <div key={key} className={`pp-card pal-group ${open ? 'open' : ''} ${acting ? 'acting' : ''} ${hasCur ? 'mass-cur' : ''}`} data-testid="pal-group" data-mass-cur={hasCur ? '1' : undefined}>
               <div className="pal-top" role="button" data-testid="pal-fold" aria-expanded={open} title={open ? 'Show less' : 'Show the whole stat block'} onClick={() => setPalView({...palView, [key]: open ? 'mid' : 'full'})}>
                 <span className="pal-arrow">{open ? '▾' : '▸'}</span>
                 <button className="pal-min" data-testid="pal-min" title={minV ? 'Show its numbers and a line for each' : 'Fold it to its name only'} onClick={e => { e.stopPropagation(); setPalView({...palView, [key]: minV ? 'mid' : 'min'}); }}>{minV ? '+' : '–'}</button>
@@ -5915,12 +5960,18 @@ function App() {
             {all.length > 0 && <div className="pp-card pal-mass" data-testid="pal-opts">
               <div className="pal-top" role="button" data-testid="pal-opts-fold" aria-expanded={palOptsOpen} onClick={() => setPalOptsOpen(!palOptsOpen)}><span className="pal-arrow">{palOptsOpen ? '▾' : '▸'}</span><span className="pp-ename" style={{margin: 0}}>Options</span><span className="pp-muted" style={{fontSize: 13}}>turns, sorting, combining stat blocks</span></div>
               {palOptsOpen && <div style={{marginTop: 6}}>
-                {all.some(x => x.palOf === c.id && !x.summonOf) && (() => { const mode = c.palMode || (all.filter(x => x.palOf === c.id && !x.summonOf).every(x => x.shareTurn) ? 'during' : 'after'), locked = !!c.palLock && !isDM;
+                {all.length > 0 && (() => { const mode = c.palMode || (all.filter(x => x.palOf === c.id && !x.summonOf).length && all.filter(x => x.palOf === c.id && !x.summonOf).every(x => x.shareTurn) ? 'during' : 'after'), locked = !!c.palLock && !isDM;
               const pick = m => { if (isDM) { const owners = combatants.filter(o => o.type === 'player' && o.sheet && combatants.some(x => x.palOf === o.id)); const all2 = owners.length > 1 && window.confirm('Apply this to every player\'s companions?'); setPalMode(all2 ? owners : [c], m, true); } else setPalMode([c], m); };
               return <div className="pal-mode" data-testid="pal-mode"><strong>Companions' turns:</strong>
                 <label className="rule-label" style={{margin: 0}}><input type="radio" name={'palmode' + c.id} data-testid="pal-mode-during" disabled={locked} checked={mode === 'during'} onChange={() => pick('during')}/> All companions go during your turn</label>
                 <label className="rule-label" style={{margin: 0}}><input type="radio" name={'palmode' + c.id} data-testid="pal-mode-after" disabled={locked} checked={mode === 'after'} onChange={() => pick('after')}/> All companions go after your turn</label>
                 {locked && <span className="pp-muted">The DM set this.</span>}{isDM && c.palLock && <button className="link-btn" data-testid="pal-unlock" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, palLock: false}))}>Let the player choose again</button>}</div>; })()}
+                {ctl && <label className="rule-label" style={{margin: '4px 0'}} title="On a Long Rest, your companions get back all their Hit Points"><input type="checkbox" data-testid="pal-rest" checked={c.palRest !== false} onChange={e => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, palRest: e.target.checked}))}/> Companions regain their Hit Points when you rest</label>}
+                {(() => { const others = combatants.filter(o => o.type === 'player' && o.sheet && o.owner && !o.pending && o.owner !== c.owner && !o.palOf), mineP = all.filter(x => canControl(x) && x.owner === (c.owner || myId)), lent = all.filter(x => x.lentFrom && (x.lentFrom === myId || isDM));
+                  return (others.length > 0 && mineP.length > 0) || lent.length > 0 ? <div className="pal-mode" data-testid="pal-give"><strong>Hand a companion to another player:</strong>
+                    {mineP.length > 0 && others.length > 0 && <select aria-label="Hand a companion to another player" data-testid="pal-give-pick" value="" onChange={e => { const [pid, oid] = e.target.value.split('|'); const x = all.find(y => y.id === pid), o = others.find(y => y.owner === oid); if (!x || !o) return; setCombatants(prev => prev.map(y => y.id !== x.id ? y : {...y, owner: o.owner, lentFrom: y.lentFrom || y.owner})); setLog(prev => [...prev, stamp({type: 'info', html: `<strong>${esc(c.name)}</strong> hands <strong>${esc(x.name)}</strong> over to <strong>${esc(o.name)}</strong>'s player to control`})]); }}>
+                      <option value="">Choose…</option>{mineP.flatMap(x => others.map(o => <option key={x.id + o.id} value={x.id + '|' + o.owner}>{x.name} → {o.name}</option>))}</select>}
+                    {lent.map(x => <button key={x.id} className="pp-chip" data-testid="pal-take-back" onClick={() => { setCombatants(prev => prev.map(y => y.id !== x.id ? y : (({lentFrom, ...rest}) => ({...rest, owner: lentFrom}))(y))); setLog(prev => [...prev, stamp({type: 'info', html: `<strong>${esc(c.name)}</strong> takes back <strong>${esc(x.name)}</strong>`})]); }}>Take back {x.name}</button>)}</div> : null; })()}
                 <div className="pp-filter" style={{flexWrap: 'wrap'}}>
               <label className="rule-label" style={{margin: 0}}>Sort <select aria-label="Sort companions" data-testid="pal-sort" value={palSort} onChange={e => setPalSort(e.target.value)}><option value="name">by name</option><option value="cr">by Challenge Rating</option><option value="hp">by Hit Points left</option></select></label>
               <label className="rule-label" style={{margin: 0}} title="One stat block for creatures of the same kind, with a row for each"><input type="checkbox" data-testid="pal-combine" checked={palCombine} onChange={e => setPalCombine(e.target.checked)}/> Combine similar stat blocks</label>
@@ -5960,7 +6011,7 @@ function App() {
               <button className="pp-chip" data-testid="pal-open-all" onClick={() => { const keys = shownKinds.flatMap(k => blocksOf(k).map(([key]) => key)), allFull = keys.every(k => palView[k] === 'full'); setPalView(Object.fromEntries(keys.map(k => [k, allFull ? 'mid' : 'full']))); }}>{shownKinds.flatMap(k => blocksOf(k).map(([key]) => key)).every(k => palView[k] === 'full') ? 'Collapse all' : 'Expand all'}</button>
               {hiddenN > 0 && <button className="pp-chip on" data-testid="pal-restore" onClick={() => setPalHidden([])}>Restore all ({hiddenN} taken off)</button>}
             </div>
-            {shownKinds.flatMap(blocksOf).map(([key, mem]) => block(key, mem))}
+            {shownKinds.flatMap(blocksOf).sort((a, b) => (b[1].some(x => x.id === massCurId) ? 1 : 0) - (a[1].some(x => x.id === massCurId) ? 1 : 0)).map(([key, mem]) => block(key, mem))}
             {!pals.length && <div className="pp-muted">Every companion is taken off the list. Restore brings them back.</div>}
             </>}
           </div>); })()}
@@ -5970,12 +6021,35 @@ function App() {
             <div className="pp-card pp-trackers" data-testid="pp-trackers">
               <div className="pp-ename">Trackers</div>
               <div className="pp-muted" style={{fontSize: 13.5, marginBottom: 4}}>Your own bookkeeping: count anything, a stack, a charge, arrows, rounds, uses of something.</div>
-              {(c.trackers || []).map(t => (
-                <div key={t.id} className="pp-arow" data-testid="tracker"><span><strong>{t.name}</strong> <span className="pp-muted">{t.val}</span></span>
+              {(c.trackers || []).map(t => (<React.Fragment key={t.id}>
+                <div className="pp-arow" data-testid="tracker"><span><strong>{t.name}</strong> <span className="pp-muted" data-testid="tracker-val">{t.val}{t.max !== undefined && t.max !== '' ? ` / ${t.max}` : ''}</span>{(t.rules || []).length > 0 && <span className="pp-muted" title="Moves by itself" style={{fontSize: 12}}> ⚡{t.rules.length}</span>}</span>
                   {ctl && <span style={{display: 'inline-flex', gap: 6}}>
-                    <button className="pp-chip on" aria-label={`Lower ${t.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.map(y => y.id === t.id ? {...y, val: y.val - 1} : y)}))}>−</button>
-                    <button className="pp-chip on" aria-label={`Raise ${t.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.map(y => y.id === t.id ? {...y, val: y.val + 1} : y)}))}>+</button>
-                    <button className="pp-chip" aria-label={`Remove ${t.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.filter(y => y.id !== t.id)}))}>×</button></span>}</div>))}
+                    <button className="pp-chip on" aria-label={`Lower ${t.name}`} onClick={() => setTrk(c.id, t.id, y => ({...y, val: clampT(y, y.val - 1)}))}>−</button>
+                    <button className="pp-chip on" aria-label={`Raise ${t.name}`} onClick={() => setTrk(c.id, t.id, y => ({...y, val: clampT(y, y.val + 1)}))}>+</button>
+                    <button className={`pp-chip${trkEdit === t.id ? ' on' : ''}`} aria-label={`Rules for ${t.name}`} data-testid="tracker-gear" onClick={() => setTrkEdit(trkEdit === t.id ? '' : t.id)}>⚙</button>
+                    <button className="pp-chip" aria-label={`Remove ${t.name}`} onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, trackers: x.trackers.filter(y => y.id !== t.id)}))}>×</button></span>}</div>
+                {ctl && trkEdit === t.id && <div className="pp-trk-rules" data-testid="tracker-rules" style={{padding: '6px 0 10px', borderBottom: '1px solid rgba(0,0,0,.08)', fontSize: 13.5}}>
+                  <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6}}>
+                    <label>Start <input type="number" className="pp-input" style={{width: 64}} data-testid="tracker-start" value={t.start ?? 0} onChange={e => setTrk(c.id, t.id, y => ({...y, start: e.target.value === '' ? 0 : +e.target.value}))}/></label>
+                    <label>Lowest <input type="number" className="pp-input" style={{width: 64}} data-testid="tracker-min" placeholder="none" value={t.min ?? ''} onChange={e => setTrk(c.id, t.id, y => { const m = e.target.value === '' ? '' : +e.target.value; const z = {...y, min: m}; return {...z, val: clampT(z, z.val)}; })}/></label>
+                    <label>Highest <input type="number" className="pp-input" style={{width: 64}} data-testid="tracker-max" placeholder="none" value={t.max ?? ''} onChange={e => setTrk(c.id, t.id, y => { const m = e.target.value === '' ? '' : +e.target.value; const z = {...y, max: m}; return {...z, val: clampT(z, z.val)}; })}/></label>
+                    <label><input type="checkbox" data-testid="tracker-alert" checked={!!t.alert} onChange={e => setTrk(c.id, t.id, y => ({...y, alert: e.target.checked}))}/> Note it in the log when it reaches its lowest or highest</label>
+                    <button className="pp-chip" data-testid="tracker-reset" onClick={() => setTrk(c.id, t.id, y => ({...y, val: clampT(y, +y.start || 0)}))}>Reset now</button>
+                  </div>
+                  <div className="pp-muted" style={{marginBottom: 4}}>Moves by itself when:</div>
+                  {(t.rules || []).map((r, ri) => <div key={ri} data-testid="tracker-rule" style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4}}>
+                    <select className="pp-input" aria-label="When" data-testid="rule-ev" value={r.ev} onChange={e => setTrk(c.id, t.id, y => ({...y, rules: y.rules.map((q, k) => k === ri ? {...q, ev: e.target.value} : q)}))}>{TRACKER_EVENTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+                    <select className="pp-input" aria-label="Do" data-testid="rule-op" value={r.op} onChange={e => setTrk(c.id, t.id, y => ({...y, rules: y.rules.map((q, k) => k === ri ? {...q, op: e.target.value} : q)}))}>{TRACKER_OPS.filter(([k]) => !k.endsWith('Amt') || ['dealt','damaged','healed'].includes(r.ev)).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+                    {['add','sub','set'].includes(r.op) && <input type="number" className="pp-input" style={{width: 60}} aria-label="Amount" data-testid="rule-n" value={r.n} onChange={e => setTrk(c.id, t.id, y => ({...y, rules: y.rules.map((q, k) => k === ri ? {...q, n: +e.target.value || 0} : q)}))}/>}
+                    <button className="pp-chip" aria-label="Remove rule" onClick={() => setTrk(c.id, t.id, y => ({...y, rules: y.rules.filter((q, k) => k !== ri)}))}>×</button></div>)}
+                  <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                    <button className="pp-chip on" data-testid="rule-add" onClick={() => setTrk(c.id, t.id, y => ({...y, rules: [...(y.rules || []), {ev: 'turnStart', op: 'add', n: 1}].slice(0, 12)}))}>+ Add a rule</button>
+                    {[['Counts rounds', [{ev: 'round', op: 'add', n: 1}], {}], ['Counts hits', [{ev: 'hit', op: 'add', n: 1}, {ev: 'combatEnd', op: 'reset'}], {}], ['Damage taken', [{ev: 'damaged', op: 'addAmt'}, {ev: 'long', op: 'reset'}], {}],
+                      ['Stacks, lost if it misses', [{ev: 'hit', op: 'add', n: 1}, {ev: 'miss', op: 'reset'}], {}], ['Uses back on a Long Rest', [{ev: 'long', op: 'reset'}], {}], ['Countdown each turn', [{ev: 'turnStart', op: 'sub', n: 1}], {min: 0, alert: true}]].map(([lbl, rules, extra]) =>
+                      <button key={lbl} className="pp-chip" data-testid="rule-preset" onClick={() => setTrk(c.id, t.id, y => ({...y, ...extra, rules: [...(y.rules || []), ...rules].slice(0, 12)}))}>{lbl}</button>)}
+                  </div>
+                </div>}
+              </React.Fragment>))}
               {ctl && <div className="pp-arow" style={{borderBottom: 'none', paddingTop: 6}}><span style={{display: 'inline-flex', gap: 6, flexWrap: 'wrap'}}>
                 <input aria-label="New tracker name" data-testid="tracker-input" className="pp-input" placeholder="Name a tracker" value={newTracker} onChange={e => setNewTracker(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addTracker(c); }}/>
                 <button className="pp-chip on" data-testid="add-tracker" onClick={() => addTracker(c)}>Add tracker</button></span></div>}
@@ -6261,7 +6335,7 @@ function App() {
               <span className={`room-dot ${syncStatus}`} title={syncStatus}/>
               <span>Session {sessName ? <strong data-testid="session-name">{sessName} </strong> : null}<span className="room-code" data-testid="session-code">{room}</span></span>
               <span className="role-badge">{isDM ? 'DM' : 'Player'}</span>
-              {!isDM && <input data-testid="player-name" aria-label="Your name" value={playerName} placeholder="Your name" maxLength={40} title="Your name, so the DM knows who is who" onChange={e => { setPlayerName(e.target.value); lsSet('hba-player-name', e.target.value); }} onBlur={() => setCombatants(prev => prev.map(x => x.owner === myId ? {...x, ownerName: playerName.trim().slice(0, 40)} : x))} style={{width: 120}}/>}
+              {<input data-testid="player-name" aria-label="Your name" value={playerName} placeholder={nameHint} maxLength={40} title="Your name, so the DM knows who is who" onChange={e => { setPlayerName(e.target.value); lsSet('hba-player-name', e.target.value); }} onBlur={() => !isDM && setCombatants(prev => prev.map(x => x.owner === myId ? {...x, ownerName: myName} : x))} style={{width: 120}}/>}
               <button className="btn btn-ghost btn-sm" onClick={copyInvite}>{copied ? 'Copied!' : 'Copy Invite Link'}</button>
               <button className="btn btn-ghost btn-sm" onClick={leaveSession}>Leave</button>
               {dmId === myId && <button className="btn btn-danger btn-sm" onClick={deleteSession}>Delete Session</button>}
@@ -6270,7 +6344,7 @@ function App() {
             <>
               {syncStatus === 'error' && <span style={{color:'#ff8a80'}}>{syncMsg || 'Could not connect'}</span>}
               {syncStatus === 'connecting' && <span>Connecting...</span>}
-              <input data-testid="player-name" aria-label="Your name" value={playerName} placeholder="Your name (player)" maxLength={40} onChange={e => { setPlayerName(e.target.value); lsSet('hba-player-name', e.target.value); }} style={{width: 150}}/>
+              <input data-testid="player-name" aria-label="Your name" value={playerName} placeholder={nameHint} title="Your name at the table" maxLength={40} onChange={e => { setPlayerName(e.target.value); lsSet('hba-player-name', e.target.value); }} style={{width: 150}}/>
               <input value={roomInput} placeholder="Session code" maxLength={12}
                 onChange={e=>setRoomInput(cleanCode(e.target.value))}
                 onKeyDown={e=>{ if (e.key==='Enter') joinSession(roomInput); }} />
@@ -6465,7 +6539,9 @@ function App() {
       {cardMenu && (() => { const c = combatants.find(x => x.id === cardMenu.id); if (!c) return null; const ctl = canControl(c), close = () => setCardMenu(null), fold = c.summonOf || (c.type === 'monster' && c.currentHP <= 0); return (
         <div style={{position:'fixed', inset:0, zIndex:69}} onClick={close} onContextMenu={e => { e.preventDefault(); close(); }}>
           <div className="card-menu" data-testid="card-menu" style={{left: cardMenu.x, top: cardMenu.y}} onClick={e => e.stopPropagation()}>
+            <button data-testid="menu-more" onClick={() => { setCardMore(cardMore.includes(c.id) ? cardMore.filter(x => x !== c.id) : [...cardMore, c.id]); close(); }}>{(cardMore.includes(c.id) ? !(cardsFull && !isPal(c)) : (cardsFull && !isPal(c))) ? 'Show less' : 'Show more'}</button>
             {ctl && <button data-testid="menu-view" onClick={() => { setViewId(c.id); setSelectedAction(null); setPane('sheet'); close(); }}>View {c.name}</button>}
+            {isDM && <button data-testid="menu-round" onClick={() => { setRoundPick({id: c.id, what: 'atkDis', ability: 'Dexterity', until: 'startOwn'}); close(); }}>Add a round effect…</button>}
             {selAction && needsTarget && viewed && c.id !== viewed.id && <button data-testid="menu-target" onClick={() => { if (selMax > 1) toggleTarget(c.id); else setTargetIds([c.id]); endTargeting(); close(); }}>Target with {selAction.name}</button>}
             {fold && ctl && <button onClick={() => { setOpenDown(p => ({...p, [c.id]: !p[c.id]})); close(); }}>{openDown[c.id] ? 'Fold away' : 'Open up'}</button>}
             {isDM && !c.owner && <button data-testid="menu-card-all" onClick={() => { showCard(c, null); close(); }}>Show its card to everyone</button>}
@@ -6608,11 +6684,20 @@ function App() {
           <div className="panel-body">
             {(!isDM || leftTab === 'order') && <>
             {massRun && (() => { const cur = massRun.ids[massRun.i], cx = combatants.find(y => y.id === cur), nm = id => (combatants.find(y => y.id === id) || {}).name || '?', n = Object.keys(massRun.tgt).filter(k => massRun.ids.includes(k)).length, rolls = massRun.ids.reduce((t, id) => t + (massRun.tgt[id] ? (massRun.acts[id] || []).length : 0), 0);
+              const advRow = <span className="mass-adv">{[[1, 'Advantage'], [0, 'Normal'], [-1, 'Disadvantage']].map(([v, t]) => <button key={v} className={`pp-chip ${massRun.adv === v ? 'on' : ''}`} data-testid={`mass-adv-${v}`} onClick={() => setMassRun({...massRun, adv: v})}>{t}</button>)}</span>;
+              const cancel = <button className="btn btn-ghost btn-sm" data-testid="mass-cancel" onClick={() => setMassRun(null)}>Cancel</button>;
+              const pickAtk = id => { const x = combatants.find(y => y.id === id); if (!x) return null; const ml = multiList(x), cur0 = massRun.acts[id] || [], curKey = cur0.length > 1 ? 'multi' : (cur0[0] || {}).id;
+                return <span className="mass-atks" data-testid="mass-atk-choice">{attackActs(x).map(a => <button key={a.id} className={`pp-chip ${curKey === a.id ? 'on' : ''}`} onClick={() => massSwap(id, a.id)}>{a.name}</button>)}{ml.length > 1 && <button className={`pp-chip ${curKey === 'multi' ? 'on' : ''}`} onClick={() => massSwap(id, 'multi')}>All attacks ({ml.length})</button>}</span>; };
               return <div className="mass-run" data-testid="mass-run">
-                {cx ? <><div><strong>Mass attack, {massRun.i + 1} of {massRun.ids.length}:</strong> choose a target for <strong>{cx.name}</strong> ({(massRun.acts[cur] || []).map(a => a.name).join(', ')}). Click a creature below.</div>
-                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-skip" onClick={() => setMassRun({...massRun, i: massRun.i + 1})}>Skip this attack</button>{massRun.i > 0 && <button className="btn btn-ghost btn-sm" data-testid="mass-back" onClick={() => setMassRun({...massRun, i: massRun.i - 1})}>Back</button>}<button className="btn btn-ghost btn-sm" data-testid="mass-cancel" onClick={() => setMassRun(null)}>Cancel</button></div></>
-                : <><div><strong>Targets chosen.</strong></div><div data-testid="mass-list">{massRun.ids.map(id => <div key={id}>{nm(id)} → {massRun.tgt[id] ? `${nm(massRun.tgt[id])} (${(massRun.acts[id] || []).map(a => a.name).join(', ')})` : 'skipped'}</div>)}</div>
-                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-roll" disabled={!n} onClick={rollMass}>🎲 Roll all {rolls} {rolls === 1 ? 'attack' : 'attacks'}</button><button className="btn btn-ghost btn-sm" data-testid="mass-back" onClick={() => setMassRun({...massRun, i: massRun.i - 1})}>Back</button><button className="btn btn-ghost btn-sm" data-testid="mass-cancel" onClick={() => setMassRun(null)}>Cancel</button></div></>}
+                {!massRun.mode ? <><div><strong>Attack with {massRun.ids.length}:</strong> the same target for all, or a target for each?</div>
+                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-same" onClick={() => setMassRun({...massRun, mode: 'same', acts: Object.fromEntries(massRun.ids.map(id => [id, (massRun.acts[id] || []).slice(0, 1)]))})}>Same target</button><button className="btn btn-primary btn-sm" data-testid="mass-diff" onClick={() => setMassRun({...massRun, mode: 'diff'})}>Different targets</button>{cancel}</div></>
+                : cx && massRun.mode === 'diff' ? <><div><strong>Attack {massRun.i + 1} of {massRun.ids.length}:</strong> choose a target for <strong>{cx.name}</strong>. Click a creature below.</div>{pickAtk(cur)}
+                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-skip" onClick={() => setMassRun({...massRun, i: massRun.i + 1})}>Skip this attack</button>{massRun.i > 0 && <button className="btn btn-ghost btn-sm" data-testid="mass-back" onClick={() => setMassRun({...massRun, i: massRun.i - 1})}>Back</button>}{cancel}</div>{advRow}</>
+                : cx ? <><div><strong>Choose one target</strong> for all {massRun.ids.length} (they are lit up on the tracker).</div><div className="do-row">{cancel}</div>{advRow}</>
+                : <><div><strong>Targets chosen.</strong></div>
+                  {massRun.askAll && <div className="do-row" data-testid="mass-askall"><span>Use all their attacks (Multiattack)?</span><button className="btn btn-primary btn-sm" data-testid="mass-all-yes" onClick={() => setMassRun({...massRun, askAll: false, acts: Object.fromEntries(massRun.ids.map(id => { const x = combatants.find(y => y.id === id), ml = x ? multiList(x) : []; return [id, ml.length > 1 ? ml : massRun.acts[id]]; }))})}>Yes, all attacks</button><button className="btn btn-ghost btn-sm" data-testid="mass-all-no" onClick={() => setMassRun({...massRun, askAll: false})}>One each</button></div>}
+                  <div data-testid="mass-list">{massRun.ids.map(id => <div key={id}>{nm(id)} → {massRun.tgt[id] ? `${nm(massRun.tgt[id])} (${(massRun.acts[id] || []).map(a => a.name).join(', ')})` : 'skipped'}</div>)}</div>{advRow}
+                  <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-roll" disabled={!n} onClick={rollMass}>🎲 Roll all {rolls} {rolls === 1 ? 'attack' : 'attacks'}</button>{massRun.mode === 'diff' && <button className="btn btn-ghost btn-sm" data-testid="mass-back" onClick={() => setMassRun({...massRun, i: massRun.i - 1})}>Back</button>}{cancel}</div></>}
               </div>; })()}
             <div className="who-am-i" data-testid="who-am-i">{!room ? <>You are running this alone, with <strong>DM</strong> controls.</> : isDM ? <>You are the <strong>DM</strong>{myOwn.length ? <> and also play <strong>{myOwn.map(c => c.name).join(', ')}</strong></> : null}.</> : myOwn.length ? <>You are playing <strong>{myOwn.map(c => c.name).join(', ')}</strong>.</> : <>You are a <strong>player</strong> with no character here yet.</>}</div>
             {isDM && <label className="rule-label" style={{margin:'0 0 4px'}} title="On: your screen opens whichever creature's turn it is. Off: the sheet you are looking at stays until you press View on another."><input type="checkbox" data-testid="rule-follow" checked={followTurn} onChange={e=>{ setFollowTurn(e.target.checked); try { window.localStorage.setItem('hba-follow-turn', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> Follow the turn</label>}
@@ -6663,10 +6748,10 @@ function App() {
               return (
               <div
                 key={c.id}
-                className={`combatant-card ${folded.includes(c.id) ? 'folded' : ''} ${isActive?'active':''} ${targetIds.includes(c.id)?'targeted':''} ${c.currentHP<=0?'dead':''} ${c.type==='monster' && c.currentHP<=0 && !openDown[c.id]?'down':''} ${c.pending?'pending':''} ${c.owner===myId?'mine':''} rel-${relOf(c)} ${c.summonOf && c.currentHP > 0 && !openDown[c.id] ? 'folded' : ''} ${massRun && massRun.ids[massRun.i] === c.id ? 'mass-now' : ''} ${massRun && massRun.i < massRun.ids.length && massRun.ids[massRun.i] !== c.id ? 'mass-pickable' : ''}`}
+                className={`combatant-card ${folded.includes(c.id) ? 'folded' : ''} ${isActive?'active':''} ${targetIds.includes(c.id)?'targeted':''} ${c.currentHP<=0?'dead':''} ${c.type==='monster' && c.currentHP<=0 && !openDown[c.id]?'down':''} ${c.pending?'pending':''} ${c.owner===myId?'mine':''} rel-${relOf(c)} ${c.summonOf && c.currentHP > 0 && !openDown[c.id] ? 'folded' : ''} ${massRun && massRun.mode && massRun.i < massRun.ids.length && (massRun.mode === 'same' ? massRun.ids.includes(c.id) : massRun.ids[massRun.i] === c.id) ? 'mass-now' : ''} ${massRun && massRun.mode && massRun.i < massRun.ids.length && !massRun.ids.includes(c.id) ? 'mass-pickable' : ''}`}
                 data-rel={relOf(c)} data-ex="card" data-exc={c.id}
                 onContextMenu={e=>{ e.preventDefault(); setCardMenu({id: c.id, x: Math.min(e.clientX, window.innerWidth - 190), y: Math.min(e.clientY, window.innerHeight - 170)}); }}
-                onClick={()=>{ if (c.pending) return; if (massRun && massRun.i < massRun.ids.length) { setMassRun({...massRun, tgt: {...massRun.tgt, [massRun.ids[massRun.i]]: c.id}, i: massRun.i + 1}); return; } if (condPick) { setCondTargets(t => t.includes(c.id) ? t.filter(x => x !== c.id) : [...t, c.id]); return; } if (targeting) { pickCard(c); return; } if (canControl(c)) { setViewId(c.id); setSelectedAction(null); } else if (!viewed || c.id!==viewed.id) toggleTarget(c.id); }}
+                onClick={()=>{ if (c.pending) return; if (massRun && massRun.mode && massRun.i < massRun.ids.length) { massPickTarget(c); return; } if (condPick) { setCondTargets(t => t.includes(c.id) ? t.filter(x => x !== c.id) : [...t, c.id]); return; } if (targeting) { pickCard(c); return; } if (canControl(c)) { setViewId(c.id); setSelectedAction(null); } else if (!viewed || c.id!==viewed.id) toggleTarget(c.id); }}
                 title={canControl(c) ? 'Click to open this sheet' : 'Click to target'}
               >
                 {isActive && <div className="turn-marker"/>}
@@ -6684,12 +6769,12 @@ function App() {
                   </div>
                   {c.summonOf && c.currentHP > 0 && ctl && <button className="card-remove" style={{right: 30}} data-testid="fold-toggle" title={openDown[c.id] ? 'Fold this summoned creature away' : 'Open this summoned creature up'} onClick={e=>{e.stopPropagation(); setOpenDown(p => ({...p, [c.id]: !p[c.id]}));}}>{openDown[c.id] ? '▾' : '▸'}</button>}
                   {isDM && c.type==='monster' && c.currentHP<=0 && <button className="card-remove" style={{right: 30}} data-testid="down-toggle" title={openDown[c.id] ? 'Fold this defeated creature away' : 'Open this defeated creature up'} onClick={e=>{e.stopPropagation(); setOpenDown(p => ({...p, [c.id]: !p[c.id]}));}}>{openDown[c.id] ? '▾' : '▸'}</button>}
-                    <button className="card-more" data-testid="card-more" aria-expanded={more} title={more ? 'Show less' : 'Show more: numbers, conditions and buttons'} onClick={e => { e.stopPropagation(); setCardMore(cardMore.includes(c.id) ? cardMore.filter(x => x !== c.id) : [...cardMore, c.id]); }}>{more ? '−' : '⋯'}</button>
+                    <button className="card-more" data-testid="card-more" aria-label={`Menu for ${c.name}`} title="More: show more or less, and other options" onClick={e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setCardMenu({id: c.id, x: Math.min(r.left, window.innerWidth - 230), y: Math.min(r.bottom + 2, window.innerHeight - 260)}); }}>⋯</button>
                 <button className="card-fold" data-testid="card-fold" aria-expanded={!folded.includes(c.id)} title={folded.includes(c.id) ? 'Open this card' : 'Fold this card to one line'} onClick={e => { e.stopPropagation(); toggleFold(c.id); }}>{folded.includes(c.id) ? '▸' : '▾'}</button>
                   {folded.includes(c.id) && seeOf(c).hp && <span className="fold-hp">{c.currentHP}/{totalHP(c)}</span>}
                   {ctl && <button className="card-remove" title="Remove from combat" onClick={e=>{e.stopPropagation(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id);}}>×</button>}
                 </div>
-                {(isDM || !c.owner || c.owner === myId || c.owner === dmId) && (seeOf(c).bar || seeOf(c).hp) && <> {/* another player's creatures show no Hit Points; the DM's creatures follow what the DM lets players see */}
+                {(seeOf(c).bar || seeOf(c).hp) && <> {/* the DM's creatures follow what the DM lets players see */}
                 <div className="hp-bar-wrap">
                   <div className="hp-bar" style={{width:`${Math.max(0,Math.min(100,(c.currentHP/totalHP(c))*100))}%`,background:hpColor(c.currentHP,totalHP(c))}}/>
                 </div>
@@ -7568,6 +7653,23 @@ function App() {
                 {groupRun.i < groupRun.ids.length - 1 ? <button className="btn btn-primary btn-sm" data-testid="group-next" onClick={() => { const i = groupRun.i + 1; setGroupRun({...groupRun, i}); openRunStep(groupRun.ids[i], (groupRun.names || {})[groupRun.ids[i]] || groupRun.name); }}>Next: {names[groupRun.i + 1]}</button> : null}
                 <button className="btn btn-ghost btn-sm" data-testid="group-stop" onClick={() => { setGroupRun(null); if (armed) cancelArmed(); setSelectedAction(null); endTargeting(); }}>{groupRun.i >= groupRun.ids.length - 1 ? 'Done' : 'Stop'}</button>
                 <div className="pp-muted" style={{fontSize: 12.5, width: '100%'}}>Pick the targets and use it; the targets stay chosen for the next one.</div></div>); })()}
+      {roundPick && (() => { const t = combatants.find(x => x.id === roundPick.id); if (!t) return null; const cur = combatants.find(x => x.id === activeId);
+        const WHAT = [['atkAdv', 'Advantage on its attack rolls'], ['atkDis', 'Disadvantage on its attack rolls'], ['advAgainst', 'Attack rolls against it have Advantage'], ['disAgainst', 'Attack rolls against it have Disadvantage'], ['saveAdv', 'Advantage on saving throws'], ['saveDis', 'Disadvantage on saving throws']];
+        const UNTIL = [['startOwn', `Until the start of ${t.name}'s next turn`], ['endOwn', `Until the end of ${t.name}'s turn`], ...(cur && cur.id !== t.id ? [['startCur', `Until the start of ${cur.name}'s next turn`], ['endCur', `Until the end of ${cur.name}'s turn`]] : [])];
+        const go = () => { const w = WHAT.find(x => x[0] === roundPick.what), u = roundPick.until, sv = roundPick.what === 'saveAdv' || roundPick.what === 'saveDis';
+          const e = {id: newId(), name: w[1].replace(' its ', ' ').replace(/^Attack rolls against it have /, 'Attacked with '), by: myId, byName: 'the DM', act: true, [roundPick.what]: sv ? roundPick.ability : true,
+            ...(u === 'startOwn' ? {endStart: true} : u === 'endOwn' ? {untilEndOf: t.id} : u === 'startCur' ? {untilStartOf: cur.id} : {untilEndOf: cur.id})};
+          if (sv) e.name = `${roundPick.what === 'saveAdv' ? 'Advantage' : 'Disadvantage'} on ${roundPick.ability === 'all' ? 'all' : roundPick.ability} saves`;
+          setCombatants(prev => prev.map(x => x.id !== t.id ? x : {...x, effects: [...(x.effects || []), e]}));
+          setLog(prev => [...prev, stamp({type: 'roll', forId: t.id, html: `<strong>The DM</strong> gives <strong>${esc(t.name)}</strong> <span class="log-result">${esc(e.name)}</span><div class="log-detail">${esc(UNTIL.find(x => x[0] === u)[1])}.</div>`})]); setRoundPick(null); };
+        return <div className="modal-overlay" onClick={() => setRoundPick(null)}><div className="modal" data-testid="round-pick" onClick={e => e.stopPropagation()} style={{maxWidth: 440}}>
+          <div className="modal-header"><h2>A round effect on {t.name}</h2><button className="modal-close" onClick={() => setRoundPick(null)}>×</button></div>
+          <div className="modal-body">{WHAT.map(([k, txt]) => <label key={k} className="rule-label" style={{display: 'block', margin: '3px 0'}}><input type="radio" name="rp-what" data-testid={`round-${k}`} checked={roundPick.what === k} onChange={() => setRoundPick({...roundPick, what: k})}/> {txt}</label>)}
+            {(roundPick.what === 'saveAdv' || roundPick.what === 'saveDis') && <select aria-label="Which saving throws" data-testid="round-ability" value={roundPick.ability} onChange={e => setRoundPick({...roundPick, ability: e.target.value})}><option value="all">All saving throws</option>{ABILITY_KEYS.map(([k, f]) => <option key={f} value={f}>{f}</option>)}</select>}
+            <div className="section-title" style={{marginTop: 10}}>How long</div>
+            {UNTIL.map(([k, txt]) => <label key={k} className="rule-label" style={{display: 'block', margin: '3px 0'}}><input type="radio" name="rp-until" data-testid={`round-until-${k}`} checked={roundPick.until === k} onChange={() => setRoundPick({...roundPick, until: k})}/> {txt}</label>)}
+            <div className="do-row" style={{marginTop: 10}}><button className="btn btn-primary btn-sm" data-testid="round-go" onClick={go}>Give it</button><button className="btn btn-ghost btn-sm" onClick={() => setRoundPick(null)}>Cancel</button></div></div></div></div>; })()}
+      {pops.length > 0 && <div className="dm-pops" data-testid="dm-pops">{pops.map(p0 => <div key={p0.id} className="dm-pop" data-testid="dm-pop"><span>{p0.text}</span><button aria-label="Close" onClick={() => setPops(p => p.filter(x => x.id !== p0.id))}>×</button></div>)}</div>}
       {timeUp && <div className="turn-pop time-up" data-testid="time-up" key={timeUp.key}><span>⏱ Time is up{timeUp.mine ? '' : ` for ${timeUp.name}`}!</span><button aria-label="Close" onClick={() => setTimeUp(null)}>×</button></div>}
       {turnPop && <div className="turn-pop" data-testid="turn-pop" key={turnPop.key}><span>⚔ {turnPop.lead ? <>It's your turn, <strong>{turnPop.lead}</strong>{turnPop.names.length > 1 ? <> (with {turnPop.names.filter(n => n !== turnPop.lead).join(', ')})</> : null}!</> : <>It's <strong>{turnPop.names.join(', ')}</strong>'s turn!</>}</span><button aria-label="Close" data-testid="turn-pop-close" onClick={() => setTurnPop(null)}>×</button></div>}
       {inboxOpen && (() => { const groups = inboxGroups(), when = t => new Date(t).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}); return (
