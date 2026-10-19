@@ -90,7 +90,8 @@ FILE SHAPE
   "spells": [ ],
   "items": [ ],
   "abilities": [ ],
-  "monsters": [ ]
+  "monsters": [ ],
+  "rules": [ ]
 }
 
 Leave out any section you have nothing for. Names are the keys. A pack entry with the same name as a built-in option replaces it.
@@ -836,6 +837,14 @@ CHECK YOUR WORK BEFORE YOU ANSWER
 - Every magic armor, shield and weapon has a type in the exact "Armor (...)" or "Weapon (...)" form, and a "bonus" when it has one.
 - Every feat is an object with a category, and every "choose a cantrip" or "choose a spell" in a feat is a spellChoices entry with the exact level, lists and schools the text allows.
 - Rules text is copied as written, and spell levels read "Level X School".
+
+---------------------------------------------------------------------
+RULES
+---------------------------------------------------------------------
+
+Every rule the source adds or changes goes in "rules", one entry per rule: its "name" and its "text". They show in the Combat Resolver's Rules Index. A rule with a new name is marked Homebrew. A rule with the same name as a rule in the SRD Rules Glossary (for example "Grappled" or "Help Action") replaces it there and is marked as changed, with the original kept underneath.
+{ "name": "Flanking", "text": "When you and an ally are on opposite sides of an enemy, you have Advantage on melee attack rolls against it." }
+Write the text the way the source words it. Use *italic* and **bold** if you need them, and a blank line between paragraphs.
 
   </script>
   <script type="text/babel">
@@ -1705,16 +1714,16 @@ const spellLabel = (s) => (s.level ? `${s.name} (Level ${s.level}${s.school ? " 
 // Reads a pack file, keeps what is usable and says what was wrong with the rest.
 // A pack larger than one part can hold is cut into parts by type: the classes with their subclasses, species, backgrounds and slot kinds stay in the first part;
 // feats, spells, items and abilities fill each part up to its limits (and about 2 MB of text), smaller kinds sharing a part. Each part is its own pack, named "Name (1 of 3)".
-const PACK_LIMITS = { feats: 300, spells: 600, items: 600, abilities: 800, monsters: 400 };
+const PACK_LIMITS = { feats: 300, spells: 600, items: 600, abilities: 800, monsters: 400, rules: 300 };
 function splitPack(raw) {
   if (!raw || typeof raw !== "object" || raw.format !== "homebrew-academy-content") return [raw];
   const size = (x) => JSON.stringify(x).length, BYTES = 2000000;
-  const featKeys = Object.keys(pObj(raw.feats)), lists = { feats: featKeys.map((k) => [k, raw.feats[k]]), spells: pArr(raw.spells), items: pArr(raw.items), abilities: pArr(raw.abilities), monsters: pArr(raw.monsters) };
+  const featKeys = Object.keys(pObj(raw.feats)), lists = { feats: featKeys.map((k) => [k, raw.feats[k]]), spells: pArr(raw.spells), items: pArr(raw.items), abilities: pArr(raw.abilities), monsters: pArr(raw.monsters), rules: pArr(raw.rules) };
   const fits = Object.keys(lists).every((k) => lists[k].length <= PACK_LIMITS[k]) && size(raw) <= BYTES;
   if (fits) return [raw];
-  const { feats, spells, items, abilities, monsters, ...core } = raw;
-  const parts = [{ ...core, feats: {}, spells: [], items: [], abilities: [], monsters: [] }];
-  const sizes = [size(parts[0])], blank = () => ({ format: raw.format, version: raw.version, name: raw.name, author: raw.author, feats: {}, spells: [], items: [], abilities: [], monsters: [] });
+  const { feats, spells, items, abilities, monsters, rules, ...core } = raw;
+  const parts = [{ ...core, feats: {}, spells: [], items: [], abilities: [], monsters: [], rules: [] }];
+  const sizes = [size(parts[0])], blank = () => ({ format: raw.format, version: raw.version, name: raw.name, author: raw.author, feats: {}, spells: [], items: [], abilities: [], monsters: [], rules: [] });
   Object.keys(lists).forEach((k) => lists[k].forEach((x) => { // each kind goes in the first part that still has room for it, so kinds share parts
     const add = size(x) + 2, count = (p) => k === "feats" ? Object.keys(p.feats).length : p[k].length;
     let i = parts.findIndex((p, j) => count(p) < PACK_LIMITS[k] && sizes[j] + add <= BYTES);
@@ -1880,7 +1889,11 @@ function checkPack(raw) {
     [["traits", "tr"], ["bonusActions", "ba"], ["reactions", "re"], ["legendaryActions", "la"]].forEach(([k, j]) => { const v = named(m[k]); if (v.length) out[j] = v; });
     (pack.monsters = pack.monsters || []).push(out);
   });
-  const counts = { classes: Object.keys(pack.classes).length, subclasses: Object.values(pack.subclasses).reduce((t, o) => t + Object.keys(o).length, 0) + Object.values(pack.classes).reduce((t, c) => t + Object.keys(c.subclasses).length, 0),
+  // Rules for the Rules Index: a new rule, or a homebrew version of an SRD rule with the same name (the Rules Index marks it as changed)
+  pArr(raw.rules).slice(0, 300).forEach((r0, i) => { const r = pObj(r0), n = pStr(r.name, 80).trim(), t = pStr(r.text, 8000).trim();
+    if (!n || !t) { errors.push(`Rule ${n || "#" + (i + 1)}: it needs a "name" and a "text". It was skipped.`); return; }
+    (pack.rules = pack.rules || []).push({ n, t }); });
+  const counts = { rules: (pack.rules || []).length, classes: Object.keys(pack.classes).length, subclasses: Object.values(pack.subclasses).reduce((t, o) => t + Object.keys(o).length, 0) + Object.values(pack.classes).reduce((t, c) => t + Object.keys(c.subclasses).length, 0),
     species: Object.keys(pack.species).length, backgrounds: Object.keys(pack.backgrounds).length, feats: Object.keys(pack.feats).length, spells: pack.spells.length, items: pack.items.length, abilities: pack.abilities.length, monsters: (pack.monsters || []).length, "slot kinds": (pack.slotTypes || []).length };
   if (!Object.values(counts).some(Boolean)) errors.push("Nothing usable was found in this file.");
   return { pack, errors, warnings, counts };
@@ -2496,6 +2509,7 @@ function CharacterSheet() {
 
   // Spell list (kept here so it is saved with the character)
   const [spells, setSpells] = useState([""]);
+  const [spellExtra, setSpellExtra] = useState([]); // spells added on top of the rules: they do not count against the number you know or prepare
 
   // Player code + saving on this computer
   const [playerCode, setPlayerCode] = useState(currentPlayerCode);
@@ -2758,10 +2772,10 @@ function CharacterSheet() {
   // The spellbook (Wizard): spells written in it by the player, plus the ones features add for free (Evocation Savant)
   const bookFree = derived.spellbook ? derived.spellPicks.filter(q => q.cast === "book").flatMap(q => String(featureChoices["spells:" + q.key] || "").split("|").filter(Boolean)) : [];
   const spellbook = derived.spellbook ? Array.from(new Set([...String(featureChoices.spellbook || "").split("|").filter(Boolean), ...bookFree])) : null;
-  const spellInfo = useMemo(() => sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists, spellbook), [cls, className, level, spells, derived, featureChoices]);
+  const spellInfo = useMemo(() => sortSpells(cls, className, level, spells, derived.cantripBonus, derived.extraLists, spellbook, spellExtra), [cls, className, level, spells, derived, featureChoices, spellExtra]);
   // Multiclassing: each other class that casts spells keeps its own list, with its own ability; slots are shared (2024 rules)
   const mcCasters = mcList.filter(x => CLASSES[x.name].casterType);
-  const mcSpellInfo = mcCasters.map(x => ({ x, info: sortSpells(CLASSES[x.name], x.name, x.level, (x.spells && x.spells.length ? x.spells : [""]), 0, [], null) }));
+  const mcSpellInfo = mcCasters.map(x => ({ x, info: sortSpells(CLASSES[x.name], x.name, x.level, (x.spells && x.spells.length ? x.spells : [""]), 0, [], null, spellExtra) }));
   const casterRows = [...(cls && cls.casterType ? [{ name: className, level, cls, info: spellInfo }] : []), ...mcSpellInfo.map(m => ({ name: m.x.name, level: m.x.level, cls: CLASSES[m.x.name], info: m.info }))].filter(r => r.cls && r.cls.spellAbility); // every class that casts, for the Spellcasting overview
   const sharedSlots = (() => { const cs = allClasses.filter(x => CLASSES[x.name] && ["full", "half"].includes(CLASSES[x.name].casterType)); if (cs.length < 2) return null;
     const n = cs.reduce((t, x) => t + (CLASSES[x.name].casterType === "full" ? x.level : Math.ceil(x.level / 2)), 0); return FULL_CASTER_SLOTS[Math.min(20, n)] || []; })();
@@ -3116,6 +3130,7 @@ function CharacterSheet() {
       senses: ((SPECIES[species] || {}).traits || []).map(t => { const m = /^(Darkvision|Blindsight|Tremorsense|Truesight) \((\d+) ft\.\)/.exec(t); return null; }).filter(Boolean).concat(derived.senses),
       skills: skillMods, skillProfs: allSkillProfs, skillExpertise: skillExpertise.filter(k => allSkillProfs.includes(k)),
       customizations,
+      extraSpells: spellExtra.filter(n => spells.includes(n) || mcSpellNames.includes(n)),
       journal: { ...journal, alignment },
       components: components.filter(n => spellActions.some(a => a.name === n)),
       // for the character sheet in the Combat Resolver
@@ -3142,10 +3157,12 @@ function CharacterSheet() {
       items: Array.from(new Set(characterItems.map(i => i && i.name).filter(Boolean))),
       origin: originCustom ? { custom: true, ...originCustom } : null,
       builder: { hpDelta, hpClass, hdUsedBy, statAdj, lineage, armor, shield, weapons, masteries, featureChoices, featPicks, extraFeats, originCustom, custom, skillRemove, saveAdd, saveRemove, abilityMode, customScores, abilityAdj,
-        pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, journal, components, characterItems, pinnedItems, spells }
+        pointBuy, bgBonusMode, bgBonusChoices, skillProfs, skillExpertise, asiChoices, currentHp, tempHp, hitDiceUsed, equipment, notes, journal, components, characterItems, pinnedItems, spells, spellExtra }
     };
   }
 
+  // The sheet preview reloads when anything on the character changes
+  const sheetKey = (d) => { const t = JSON.stringify(d); let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return String(h); };
   async function saveCharacterFile(given) {
     const data = given && given.format ? given : buildCharacterFile();
     const json = JSON.stringify(data, null, 2);
@@ -3183,7 +3200,7 @@ function CharacterSheet() {
     setCharId(typeof data.charId === "string" && /^[a-z0-9]{4,20}$/.test(data.charId) ? data.charId : newCharId());
     setPortrait(isPic(data.portrait) ? data.portrait : "");
     setPortraitThumb(isPic(data.portraitThumb) ? data.portraitThumb : "");
-    setCompanions(Array.isArray(data.companions) ? data.companions.filter(p => p && typeof p === "object" && String(p.name || "").trim() && !/^f:/.test(String(p.id || ""))).slice(0, 6).map(p => ({ id: String(p.id || newCharId()), name: String(p.name).slice(0, 60), base: String(p.base || "").slice(0, 80), kind: String(p.kind || "").slice(0, 30), ac: parseInt(p.ac) || 0, hp: parseInt(p.hp) || 0, speed: parseInt(p.speed) || 0, init: ["after", "shared", "roll"].includes(p.init) ? p.init : "after", count: Math.max(1, Math.min(12, parseInt(p.count) || 1)) })) : []);
+    setCompanions(Array.isArray(data.companions) ? data.companions.filter(p => p && typeof p === "object" && String(p.name || "").trim() && !/^f:/.test(String(p.id || ""))).slice(0, 6).map(p => ({ id: String(p.id || newCharId()), name: String(p.name).slice(0, 60), base: String(p.base || "").slice(0, 80), kind: String(p.kind || "").slice(0, 30), ac: parseInt(p.ac) || 0, hp: parseInt(p.hp) || 0, speed: parseInt(p.speed) || 0, init: ["after", "shared", "roll"].includes(p.init) ? p.init : "after", count: Math.max(1, Math.min(12, parseInt(p.count) || 1)), acts: (Array.isArray(p.acts) ? p.acts : []).filter(a => a && a.name).slice(0, 8).map(a => ({ name: String(a.name).slice(0, 40), hit: parseInt(a.hit) || 0, dice: String(a.dice || "").replace(/\s/g, "").slice(0, 20), type: String(a.type || "").slice(0, 20), text: String(a.text || "").slice(0, 300) })) })) : []);
     setPalEdits(data.palEdits && typeof data.palEdits === "object" ? data.palEdits : {});
     setCharName(String(data.name || ""));
     setPlayerName(String(data.player || ""));
@@ -3245,6 +3262,7 @@ function CharacterSheet() {
     setPinnedItems(arr(s.pinnedItems).filter(p => p && p.name));
     const sp = arr(s.spells).map(x => String(x));
     setSpells(sp.length ? sp : [""]);
+    setSpellExtra(arr(s.spellExtra).map(x => String(x).slice(0, 60)).slice(0, 40));
   }
 
   function onPickFile(e) {
@@ -3612,6 +3630,19 @@ function CharacterSheet() {
               {!isSheet && <label style={{ fontSize: 13 }} title="Several of the same creature, each with its own Hit Points">How many <input type="number" min={1} max={12} aria-label="How many" data-testid="companion-count" value={p.count || 1} onChange={e => upd({ count: Math.max(1, Math.min(12, parseInt(e.target.value) || 1)) })} style={{ ...field, width: 56 }} /></label>}
               <label style={{ fontSize: 13 }}>Initiative <select aria-label="Companion Initiative" data-testid="companion-init" value={p.init || "after"} onChange={e => upd({ init: e.target.value })} style={field}>{INIT.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
               {!auto && <button onClick={() => setCompanions(prev => prev.filter(x => x.id !== p.id))} style={{ background: "transparent", color: CUSTOM_RED, border: `1px solid ${CUSTOM_RED}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer" }}>Remove</button>}
+              {!auto && what === "own" && <div data-testid="companion-acts" style={{ flexBasis: "100%", display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                <div style={{ fontSize: 12, fontFamily: fontDisplay, color: colors.brassLight }}>ITS ACTIONS</div>
+                {(p.acts || []).map((a, i) => { const put = (patch) => upd({ acts: (p.acts || []).map((x, j) => j === i ? { ...x, ...patch } : x) }); return (
+                  <div key={i} data-testid="companion-act" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                    <input aria-label="Action name" placeholder="Name (Bite)" value={a.name} onChange={e => put({ name: e.target.value.slice(0, 40) })} style={{ ...field, width: 130 }} />
+                    <label style={{ fontSize: 13 }}>To hit <input type="number" aria-label="Attack bonus" value={a.hit} onChange={e => put({ hit: parseInt(e.target.value) || 0 })} style={{ ...field, width: 56 }} /></label>
+                    <input aria-label="Damage dice" placeholder="Damage (1d6+2)" value={a.dice} onChange={e => put({ dice: e.target.value.replace(/\s/g, "").slice(0, 20) })} style={{ ...field, width: 110 }} />
+                    <select aria-label="Damage type" value={a.type} onChange={e => put({ type: e.target.value })} style={field}>{["", "Acid", "Bludgeoning", "Cold", "Fire", "Force", "Lightning", "Necrotic", "Piercing", "Poison", "Psychic", "Radiant", "Slashing", "Thunder"].map(t => <option key={t} value={t}>{t || "Type..."}</option>)}</select>
+                    <input aria-label="What else it does" placeholder="What else it does (optional)" value={a.text || ""} onChange={e => put({ text: e.target.value.slice(0, 300) })} style={{ ...field, flex: 1, minWidth: 160 }} />
+                    <button aria-label="Remove this action" onClick={() => upd({ acts: (p.acts || []).filter((_, j) => j !== i) })} style={{ background: "transparent", color: CUSTOM_RED, border: "none", cursor: "pointer", fontSize: 16 }}>×</button>
+                  </div>); })}
+                {(p.acts || []).length < 8 && <button data-testid="companion-act-add" onClick={() => upd({ acts: [...(p.acts || []), { name: "", hit: 0, dice: "", type: "", text: "" }] })} style={{ alignSelf: "flex-start", background: "transparent", color: colors.brassLight, border: `1px dashed ${colors.brass}`, borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontSize: 13 }}>+ Add an action</button>}
+              </div>}
             </div>); };
           return (
           <Section title="Companions" colors={colors} fontDisplay={fontDisplay}>
@@ -3626,11 +3657,12 @@ function CharacterSheet() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10, alignItems: "center" }}>
               <button data-testid="sheet-download" onClick={() => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([html], { type: "text/html" })); a.download = ((d.name || "character").trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || "character") + "-sheet.html"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000); }}
                 style={{ background: colors.brass, color: colors.ink, border: "none", borderRadius: 6, padding: "8px 14px", fontFamily: fontDisplay, fontWeight: 700, cursor: "pointer" }}>Download the sheet</button>
-              <button data-testid="sheet-print" onClick={() => { const f = document.querySelector("[data-testid=sheet-frame]"); if (f && f.contentWindow) f.contentWindow.print(); }}
+              <button data-testid="sheet-print" onClick={() => { const f = document.querySelector("[data-testid=sheet-print-frame]"); if (f && f.contentWindow) f.contentWindow.print(); }}
                 style={{ background: "transparent", color: colors.parchment, border: `1px solid ${colors.brass}`, borderRadius: 6, padding: "8px 14px", fontFamily: fontDisplay, cursor: "pointer" }}>Print or save as PDF</button>
-              <span style={{ fontSize: 13, opacity: 0.8 }}>The download is one file that opens in any web browser, picture included.</span>
+              <span style={{ fontSize: 13, opacity: 0.8 }}>This is the sheet as it looks in the Combat Resolver, page by page. The download and the printout are one long page that opens in any web browser, picture included.</span>
             </div>
-            <iframe title="Character sheet" data-testid="sheet-frame" srcDoc={html} style={{ width: "100%", height: "80vh", border: `1px solid ${colors.brass}`, borderRadius: 8, background: "#e9dfc9" }} />
+            <iframe title="Character sheet" data-testid="sheet-frame" key={sheetKey(d)} src="resolver.html#sheet" style={{ width: "100%", height: "82vh", border: `1px solid ${colors.brass}`, borderRadius: 8, background: colors.ink }} />
+            <iframe title="Character sheet to print" data-testid="sheet-print-frame" srcDoc={html} style={{ position: "absolute", width: 1, height: 1, left: -9999, top: 0, border: 0 }} />
           </div>); })()}
         {tab === "identity" && (
           <IdentityTab {...{ mcCustom: custom, extraClasses, setExtraClasses, totalLevel, mcScores: finalScores, mcChoices: featureChoices, setMcChoices: setFeatureChoices, attnEdge, gold, setGold, xp, setXp, className, setClassName, subclassName, setSubclassName, level, setLevel, species, setSpecies, background, setBackground, alignment, setAlignment, cls, colors, fontDisplay, bgBonusMode, setBgBonusMode, bgBonusChoices, setBgBonusChoices, pinnedItems, setPinnedItems, inv, bgEff, originCustom, setOriginCustom, lineage, setLineage }} />
@@ -3655,8 +3687,8 @@ function CharacterSheet() {
               {sharedSlots && <span style={{ fontSize: 13, opacity: 0.85, alignSelf: "center" }}>Spell slots are shared by your classes (multiclass spellcaster).</span>}
             </div>)}
           {(() => { const sel = spellClass && mcSpellInfo.find(m => m.x.name === spellClass && spellClass !== className) || (!(cls && cls.casterType) && mcSpellInfo[0]); if (!sel) return (
-          <SpellsTab {...{ casterRows, attnEdge, bookInfo: derived.spellbook || null, spellbook, picks: derived.spellPicks, featureChoices, setFeatureChoices, glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary, sharedSlots }} />);
-            return <SpellsTab key={sel.x.name} {...{ casterRows, attnEdge, bookInfo: null, spellbook: [], picks: [], featureChoices, setFeatureChoices, glow: "", grantedSpells: [], cls: CLASSES[sel.x.name], className: sel.x.name, level: sel.x.level, finalMods, profBonus, colors, fontDisplay, spells: sel.x.spells && sel.x.spells.length ? sel.x.spells : [""], setSpells: (l) => setMcSpells(sel.x.name, l), spellInfo: sel.info, custom, spellSummary, sharedSlots }} />; })()}</>
+          <SpellsTab {...{ spellExtra, setSpellExtra, casterRows, attnEdge, bookInfo: derived.spellbook || null, spellbook, picks: derived.spellPicks, featureChoices, setFeatureChoices, glow: glowOf("spells"), grantedSpells: derived.spells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary, sharedSlots }} />);
+            return <SpellsTab key={sel.x.name} {...{ spellExtra, setSpellExtra, casterRows, attnEdge, bookInfo: null, spellbook: [], picks: [], featureChoices, setFeatureChoices, glow: "", grantedSpells: [], cls: CLASSES[sel.x.name], className: sel.x.name, level: sel.x.level, finalMods, profBonus, colors, fontDisplay, spells: sel.x.spells && sel.x.spells.length ? sel.x.spells : [""], setSpells: (l) => setMcSpells(sel.x.name, l), spellInfo: sel.info, custom, spellSummary, sharedSlots }} />; })()}</>
         )}
         {tab === "journal" && (
           <JournalTab {...{ journal, setJournal, alignment, setAlignment, knownTools, colors, fontDisplay }} />
@@ -4565,18 +4597,19 @@ function maxSpellLevel(cls, className, level) {
   return (getSpellSlots(className, level) || []).length;
 }
 // Sorts a character's spells into what the rules allow and what goes past them.
-function sortSpells(cls, className, level, names, cantripBonus, extraLists, book) {
+function sortSpells(cls, className, level, names, cantripBonus, extraLists, book, extra) {
   const onList = (sp) => sp.c.includes(className) || (sp.l > 0 && (extraLists || []).some(l => sp.c.includes(l)));
   const caster = !!(cls && cls.casterType);
   const maxLevel = maxSpellLevel(cls, className, level);
   const cantripMax = caster ? cantripsKnown(className, level) + (cantripBonus || 0) : 0;
   const prepTable = PREPARED_SPELLS[className];
   const prepMax = !caster ? 0 : prepTable ? prepTable[level - 1] : null; // null: a Content Pack class with no table, so no limit
-  let cantrips = 0, prepared = 0;
+  let cantrips = 0, prepared = 0, additional = 0;
   const list = names.map((raw, index) => {
     const sp = spellOf(raw);
     if (!sp) return { raw, index, sp: null, problem: "" };
     let problem = "";
+    if ((extra || []).includes(sp.n)) { additional++; return { raw, index, sp, problem: "", extra: true }; } // an additional spell: on top of the rules, not counted
     if (sp.l === 0) cantrips++; else prepared++;
     if (!caster) problem = `${className} has no Spellcasting feature`;
     else if (!onList(sp)) problem = `not on the ${className} spell list`;
@@ -4586,7 +4619,7 @@ function sortSpells(cls, className, level, names, cantripBonus, extraLists, book
     else if (sp.l > 0 && prepMax != null && prepared > prepMax) problem = `more prepared spells than a level ${level} ${className} has`;
     return { raw, index, sp, problem };
   });
-  return { list, caster, maxLevel, cantripMax, prepMax, cantrips, prepared, extraLists: extraLists || [], book: book || null };
+  return { list, caster, maxLevel, cantripMax, prepMax, cantrips, prepared, additional, extraLists: extraLists || [], book: book || null };
 }
 // How a spell resolves in the Combat Resolver, worked out from this character's numbers. Returns null for a spell with no roll.
 // One line of a spell for the character sheet: short school, components, range, save, duration and casting time.
@@ -4856,7 +4889,7 @@ function fullSpellAction(sp, ctx, opts) {
   return out;
 }
 
-function SpellRow({ entry, onRemove, colors, fontDisplay, summary }) {
+function SpellRow({ entry, onRemove, onExtra = null, colors, fontDisplay, summary }) {
   const [open, setOpen] = useState(false);
   const sp = entry.sp, red = !!entry.problem;
   return (
@@ -4867,6 +4900,7 @@ function SpellRow({ entry, onRemove, colors, fontDisplay, summary }) {
           {sp && <span style={{ fontSize: 12, opacity: 0.75, marginLeft: 8 }}>{spellLine(sp)}{sp.conc ? " · Concentration" : ""}{sp.rit ? " · Ritual" : ""}</span>}
           {!sp && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 8 }}>typed in by hand, not in the spell list</span>}
         </span>
+        {sp && onExtra && <button data-testid="spell-extra" onClick={onExtra} title={entry.extra ? "An additional spell: it does not count against your limits. Click to count it again." : "Make this an additional spell that does not count against your limits (the DM is told)"} style={{ background: entry.extra ? "#5c7cfa33" : "transparent", border: `1px solid ${entry.extra ? "#5c7cfa" : colors.brass + "66"}`, color: entry.extra ? "#bac8ff" : colors.parchment, borderRadius: 10, fontSize: 11, padding: "1px 8px", cursor: "pointer" }}>{entry.extra ? "Additional" : "Counts"}</button>}
         <button onClick={onRemove} aria-label={`Remove ${sp ? sp.n : entry.raw}`} style={{ background: "transparent", border: "none", color: colors.parchment, opacity: 0.7, cursor: "pointer", fontSize: 16 }}>×</button>
       </div>
       {summary && <div style={{ fontSize: 12, color: colors.brassLight }}>In combat: {summary}</div>}
@@ -4881,9 +4915,10 @@ function SpellRow({ entry, onRemove, colors, fontDisplay, summary }) {
   );
 }
 
-function SpellsTab({ casterRows = [], sharedSlots = null, attnEdge = () => ({}), bookInfo, spellbook, picks, featureChoices, setFeatureChoices, glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
+function SpellsTab({ spellExtra = [], setSpellExtra = () => {}, casterRows = [], sharedSlots = null, attnEdge = () => ({}), bookInfo, spellbook, picks, featureChoices, setFeatureChoices, glow, grantedSpells, cls, className, level, finalMods, profBonus, colors, fontDisplay, spells, setSpells, spellInfo, custom, spellSummary }) {
   const [levelsOff, setLevelsOff] = useState([]);     // spell levels switched off in the Add Spells list (none: every level shows)
   const [bookTab, setBookTab] = useState("prepared"); // a Wizard: Prepared Spells or the Spellbook
+  const [addExtra, setAddExtra] = useState(false); // the next spells added are additional: they do not count against your limits
   const [sortBy, setSortBy] = useState("level");      // "level" (alphabetical inside each level) or "name"
   const [search, setSearch] = useState("");
   const [anyList, setAnyList] = useState(false);     // customization: spells from every class list
@@ -4897,7 +4932,7 @@ function SpellsTab({ casterRows = [], sharedSlots = null, attnEdge = () => ({}),
   const q = search.trim().toLowerCase();
   const pool = ALL_SPELLS.filter(sp =>
     !chosen.has(sp.n) && (wideList || (caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(l => sp.c.includes(l) && sp.l > 0)))) && (sp.l === 0 || sp.l <= topLevel)
-    && (!spellInfo.book || wideList || wideLevel && sp.l > maxLevel || sp.l === 0 || spellInfo.book.includes(sp.n)) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
+    && (!spellInfo.book || wideList || addExtra || wideLevel && sp.l > maxLevel || sp.l === 0 || spellInfo.book.includes(sp.n)) && !levelsOff.includes(sp.l) && (!q || sp.n.toLowerCase().includes(q) || sp.s.toLowerCase().includes(q)))
     .sort((a, b) => (sortBy === "level" ? a.l - b.l : 0) || a.n.localeCompare(b.n));
   const levelChoices = Array.from({ length: topLevel + 1 }).map((_, i) => i); // 0 is cantrips; only the levels this character can reach
   const shownLevels = levelChoices.filter(l => !levelsOff.includes(l));
@@ -4906,14 +4941,15 @@ function SpellsTab({ casterRows = [], sharedSlots = null, attnEdge = () => ({}),
   const levelName = (l) => (l === 0 ? "Cantrips" : `Level ${l}`);
   const room = (sp) => (sp.l === 0 ? spellInfo.cantrips < cantripMax : prepMax == null || spellInfo.prepared < prepMax);
   const legal = (sp) => caster && (sp.c.includes(className) || (spellInfo.extraLists || []).some(l => sp.c.includes(l) && sp.l > 0)) && sp.l <= maxLevel && room(sp);
-  const add = (name) => setSpells([...spells.filter(Boolean), name]);
-  const remove = (index) => { const next = spells.filter((_, i) => i !== index); setSpells(next.length ? next : [""]); };
+  const add = (name) => { setSpells([...spells.filter(Boolean), name]); if (addExtra) setSpellExtra(Array.from(new Set([...spellExtra, name]))); };
+  const remove = (index) => { const gone = spells[index], next = spells.filter((_, i) => i !== index); setSpells(next.length ? next : [""]); if (gone && !next.includes(gone)) setSpellExtra(spellExtra.filter(n => n !== gone)); };
+  const flipExtra = (name) => setSpellExtra(spellExtra.includes(name) ? spellExtra.filter(n => n !== name) : [...spellExtra, name]);
   const rows = spellInfo.list.filter(e => e.raw);
   const cantripRows = rows.filter(e => e.sp && e.sp.l === 0), spellRows = rows.filter(e => e.sp && e.sp.l > 0).sort((a, b) => a.sp.l - b.sp.l), handRows = rows.filter(e => !e.sp);
   const stat = (label, val) => (
     <div style={{ background: colors.inkLight, border: `1px solid ${colors.brass}55`, borderRadius: 8, padding: 12, textAlign: "center" }}>
       <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>{label}</div>
-      <div style={{ fontFamily: fontDisplay, fontSize: 20, fontWeight: 700, color: colors.brassLight }}>{val}</div>
+      <div style={{ fontFamily: fontDisplay, fontSize: String(val).length > 9 ? 16 : 20, fontWeight: 700, color: colors.brassLight, overflowWrap: "anywhere", lineHeight: 1.25 }}>{val}</div>
     </div>
   );
   const check = { display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: CUSTOM_RED, border: `1px solid ${CUSTOM_RED}`, borderRadius: 6, padding: "4px 10px" };
@@ -4945,6 +4981,7 @@ function SpellsTab({ casterRows = [], sharedSlots = null, attnEdge = () => ({}),
             {stat("Spell Attack Bonus", fmt(profBonus + finalMods[cls.spellAbility]))}
             {stat("Cantrips", `${spellInfo.cantrips} / ${cantripMax}`)}
             {stat("Prepared Spells", `${spellInfo.prepared} / ${prepMax == null ? "no limit" : prepMax}`)}
+            {spellInfo.additional > 0 && <div data-testid="extra-tally">{stat("Additional Spells", spellInfo.additional)}</div>}
             {stat("Highest Spell Level", maxLevel || "none yet")}
           </div>
           {casterRows.length > 1 && <div data-testid="caster-rows" style={{ marginTop: 12, overflowX: "auto" }}>
@@ -4979,10 +5016,10 @@ function SpellsTab({ casterRows = [], sharedSlots = null, attnEdge = () => ({}),
             <div style={{ fontSize: 13, marginBottom: 6 }}>Your prepared spells come from this book. <strong data-testid="spellbook-count">{own.length} of {bookInfo.free}</strong> spells from your Wizard levels{extra.length ? `, plus ${extra.length} added free by features` : ""}.{own.length > bookInfo.free ? <span style={{ color: CUSTOM_RED }}> The rest were copied from scrolls or other books (2 hours and 50 GP per spell level).</span> : null}</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
               {(spellbook || []).map(n => { const sp = spellOf(n), on = spells.includes(n); return <span key={n} data-testid="spellbook-item" style={{ border: `1px solid ${on ? colors.brassLight : colors.brass + "77"}`, background: on ? colors.brass + "33" : "transparent", borderRadius: 6, padding: "2px 8px", fontSize: 13 }}>
-                <button data-testid="book-prepare" title={on ? "Prepared: click to unprepare" : "Prepare this spell"} onClick={() => on ? setSpells(spells.filter(x => x !== n).length ? spells.filter(x => x !== n) : [""]) : setSpells([...spells.filter(Boolean), n])} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 10, width: 20, height: 20, lineHeight: "16px", padding: 0, marginRight: 6, cursor: "pointer", fontSize: 11 }}>{on ? "✓" : "+"}</button>{n}{sp ? ` (Level ${sp.l}${sp.rit ? ", Ritual" : ""})` : ""}{own.includes(n) ? <button aria-label={`Remove ${n} from the spellbook`} onClick={() => setBook(own.filter(x => x !== n))} style={{ marginLeft: 6, background: "none", border: "none", color: colors.brassLight, cursor: "pointer" }}>×</button> : <span style={{ opacity: 0.6 }}> · free</span>}</span>; })}
+                <button data-testid="book-prepare" title={on ? "Prepared: click to unprepare" : "Prepare this spell"} onClick={() => on ? setSpells(spells.filter(x => x !== n).length ? spells.filter(x => x !== n) : [""]) : setSpells([...spells.filter(Boolean), n])} style={{ background: "transparent", border: `1px solid ${colors.brass}`, color: colors.brassLight, borderRadius: 10, width: 20, height: 20, lineHeight: "16px", padding: 0, marginRight: 6, cursor: "pointer", fontSize: 11 }}>{on ? "✓" : "+"}</button>{n}{sp ? ` (Level ${sp.l}${sp.rit ? ", Ritual" : ""}${sp.conc ? ", Concentration" : ""})` : ""}{own.includes(n) ? <button aria-label={`Remove ${n} from the spellbook`} onClick={() => setBook(own.filter(x => x !== n))} style={{ marginLeft: 6, background: "none", border: "none", color: colors.brassLight, cursor: "pointer" }}>×</button> : <span style={{ opacity: 0.6 }}> · free</span>}</span>; })}
             </div>
             <select aria-label="Add a spell to the spellbook" data-testid="spellbook-add" value="" onChange={e => e.target.value && setBook([...own, e.target.value])} style={{ ...fieldStyle(colors), width: 300 }}>
-              <option value="">Write a spell in the book...</option>{opts.map(sp => <option key={sp.n} value={sp.n}>{sp.n} (Level {sp.l})</option>)}</select>
+              <option value="">Write a spell in the book...</option>{opts.map(sp => <option key={sp.n} value={sp.n}>{sp.n} (Level {sp.l}{sp.rit ? ", Ritual" : ""}{sp.conc ? ", Concentration" : ""})</option>)}</select>
           </div>; })()}
       </Section>}
       {(!bookInfo || bookTab === "prepared") && <>
@@ -4994,16 +5031,16 @@ function SpellsTab({ casterRows = [], sharedSlots = null, attnEdge = () => ({}),
           return <div key={q.key} data-testid="spell-pick" style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 13, color: colors.brassLight, marginBottom: 4 }}>{q.label} <span style={{ opacity: 0.7 }}>({q.count} · {q.level === "slot" ? "a cantrip or a level you have slots for" : q.level === 0 ? "cantrips" : `Level ${top}${q.upTo ? " or lower" : ""}`}{q.lists === "any" ? ", any spell list" : `, ${q.lists.join(" / ")} list`}{q.ritual ? ", Ritual" : ""} · {q.cast === "once" ? "cast once per Long Rest without a slot" : q.cast === "short" ? "cast once per Short Rest without a slot" : q.cast === "atWill" ? "cast at will" : "always prepared"})</span></div>
             {Array.from({ length: q.count }, (_, i) => <select key={i} aria-label={`${q.label} ${i + 1}`} value={cur[i] || ""} onChange={e => set(i, e.target.value)} style={{ ...fieldStyle(colors), width: 260, marginRight: 8, marginBottom: 4, ...(cur[i] ? {} : attnEdge("spells:" + q.key)) }}>
-              <option value="">Choose a spell...</option>{opts.filter(sp => sp.n === cur[i] || !cur.includes(sp.n)).map(sp => <option key={sp.n} value={sp.n}>{sp.n} ({sp.l ? `Level ${sp.l}` : "cantrip"})</option>)}</select>)}
+              <option value="">Choose a spell...</option>{opts.filter(sp => sp.n === cur[i] || !cur.includes(sp.n)).map(sp => <option key={sp.n} value={sp.n}>{sp.n} ({sp.l ? `Level ${sp.l}` : "cantrip"}{sp.rit ? ", Ritual" : ""}{sp.conc ? ", Concentration" : ""})</option>)}</select>)}
           </div>; })}
       </Section>}
       <Section title="Your Spells" colors={colors} fontDisplay={fontDisplay}>
         {glow && <div data-testid="spell-glow" data-glow={glow} style={{ border: `2px solid ${glow === "open" ? REST_PURPLE : colors.brassLight}`, color: glow === "open" ? REST_PURPLE : colors.brassLight, borderRadius: 6, padding: "6px 10px", marginBottom: 10, fontSize: 13 }}>{glow === "open" ? "Your rest lets you change spells here." : "Spells changed after your rest."}</div>}
         {rows.length === 0 && grantedSpells.length === 0 && <div style={{ fontSize: 13, opacity: 0.7 }}>No spells yet. Add them from the list below.</div>}
         {cantripRows.length > 0 && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "4px 0 6px" }}>CANTRIPS</div>}
-        {cantripRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
+        {cantripRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} onExtra={() => flipExtra(e.sp.n)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
         {spellRows.length > 0 && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "10px 0 6px" }}>PREPARED SPELLS</div>}
-        {spellRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
+        {spellRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} onExtra={() => flipExtra(e.sp.n)} colors={colors} fontDisplay={fontDisplay} summary={spellSummary(e.sp)} />)}
         {handRows.map(e => <SpellRow key={e.index} entry={e} onRemove={() => remove(e.index)} colors={colors} fontDisplay={fontDisplay} />)}
         {grantedSpells.length > 0 && <div style={{ fontFamily: fontDisplay, fontSize: 12, color: colors.brassLight, margin: "10px 0 6px" }}>ALWAYS PREPARED (these do not count against your limits)</div>}
         {grantedSpells.map((g, i) => {
@@ -5016,7 +5053,7 @@ function SpellsTab({ casterRows = [], sharedSlots = null, attnEdge = () => ({}),
       </Section>
 
       {(caster || custom) && (
-        <Section title={caster ? `Add Spells · Cantrips ${spellInfo.cantrips} of ${cantripMax} · Prepared ${spellInfo.prepared} of ${prepMax == null ? "no limit" : prepMax}` : "Add Spells"} colors={colors} fontDisplay={fontDisplay}>
+        <Section title={caster ? `Add Spells · Cantrips ${spellInfo.cantrips} of ${cantripMax} · Prepared ${spellInfo.prepared} of ${prepMax == null ? "no limit" : prepMax}${spellInfo.additional ? ` · Additional ${spellInfo.additional}` : ""}` : "Add Spells"} colors={colors} fontDisplay={fontDisplay}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
             <div role="group" aria-label="Spell levels shown" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", flexBasis: "100%" }}>
               <span style={{ fontSize: 12, opacity: 0.75 }}>Show:</span>
@@ -5030,6 +5067,7 @@ function SpellsTab({ casterRows = [], sharedSlots = null, attnEdge = () => ({}),
               <option value="name">Sort A to Z</option>
             </select>
             <input aria-label="Search spells" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or school" style={{ ...fieldStyle(colors), width: 240 }} />
+            <label data-testid="add-extra" title="Spells you add while this is ticked do not count against the number you know or prepare. They show as Additional, and the DM is told." style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "#bac8ff", border: "1px solid #5c7cfa", borderRadius: 6, padding: "4px 10px" }}><input type="checkbox" checked={addExtra} onChange={e => setAddExtra(e.target.checked)} /> Add as an additional spell (does not count)</label>
             {custom && <label style={check}><input type="checkbox" checked={anyList} onChange={e => setAnyList(e.target.checked)} data-testid="any-list" /> Any spell list</label>}
             {custom && <label style={check}><input type="checkbox" checked={allLevels} onChange={e => setAllLevels(e.target.checked)} data-testid="all-levels" /> All spell levels</label>}
           </div>
@@ -5048,7 +5086,7 @@ function SpellsTab({ casterRows = [], sharedSlots = null, attnEdge = () => ({}),
                     <strong style={{ fontSize: 14 }}>{sp.n}</strong>
                     <span style={{ fontSize: 12, opacity: 0.7, marginLeft: 8 }}>{spellLine(sp)}{sp.conc ? " · Concentration" : ""}{sp.rit ? " · Ritual" : ""} · {sp.c.join(", ")}</span>
                   </div>
-                  <button disabled={!ok && !custom} onClick={() => add(sp.n)} title={ok ? "" : custom ? "Past your limits: it will show in red" : "Past your limits"}
+                  <button disabled={!ok && !custom && !addExtra} onClick={() => add(sp.n)} title={addExtra ? "Added as an additional spell" : ok ? "" : custom ? "Past your limits: it will show in red" : "Past your limits"}
                     style={{ background: "transparent", border: `1px solid ${ok ? colors.brass : CUSTOM_RED}`, color: ok ? colors.brassLight : CUSTOM_RED, borderRadius: 6, padding: "3px 12px", fontSize: 12, cursor: ok || custom ? "pointer" : "default", opacity: ok || custom ? 1 : 0.35 }}>Add</button>
                 </div>
               </React.Fragment>);
