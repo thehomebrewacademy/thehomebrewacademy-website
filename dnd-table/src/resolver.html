@@ -135,6 +135,20 @@
     .pal-table tr.acted td { opacity: .6; }
     .pal-mass-atk { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 4px 0 6px; }
     .sheet-only { position: fixed; inset: 0; overflow: auto; background: var(--ink); padding: 12px; z-index: 100; }
+    .pp-quick { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 6px 0 10px; font-size: 13.5px; } .pp-quick input { flex: 1; min-width: 180px; }
+    .tracker-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 6px; font-size: 13px; }
+    .card-more { position: absolute; right: 52px; top: 6px; background: transparent; border: 1px solid var(--panel-light); color: var(--text-muted); border-radius: 6px; padding: 0 6px; cursor: pointer; font-size: 13px; line-height: 18px; }
+    .turn-pop { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 90; background: var(--gold); color: #1a2535; border-radius: 12px; padding: 10px 14px 10px 18px; font-size: 18px; font-family: 'Cinzel', serif; box-shadow: 0 6px 22px rgba(0,0,0,.5); display: flex; gap: 12px; align-items: center; animation: turnpop .35s ease-out; pointer-events: none; }
+    .turn-pop button { pointer-events: auto; background: transparent; border: 1px solid #1a2535; border-radius: 6px; color: #1a2535; cursor: pointer; font-size: 16px; padding: 0 8px; }
+    @keyframes turnpop { from { transform: translate(-50%, -16px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+    .pal-group.acting { box-shadow: 0 0 0 2px var(--gold), 0 0 18px rgba(212,160,23,.55); }
+    .pal-now { background: var(--gold); color: #1a2535; border-radius: 10px; padding: 0 8px; font-size: 12px; font-weight: 700; }
+    .pal-mass-who .now { font-weight: 700; }
+    .pal-mode { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 0 0 8px; font-size: 13.5px; }
+    .inbox-group { border: 1px solid var(--panel-light); border-radius: 8px; margin: 6px 0; }
+    .inbox-head { display: flex; gap: 8px; align-items: center; width: 100%; background: transparent; border: none; color: var(--text-light); padding: 8px 10px; cursor: pointer; font-family: inherit; font-size: 15px; }
+    .inbox-new { background: var(--gold); color: #1a2535; border-radius: 10px; padding: 0 8px; font-size: 12px; font-weight: 700; }
+    .inbox-items { padding: 0 10px 8px 30px; font-size: 13.5px; } .inbox-item { padding: 3px 0; border-top: 1px dashed var(--panel-light); }
     .mass-run { position: sticky; top: 0; z-index: 6; background: var(--panel); border: 2px solid var(--gold); border-radius: 10px; padding: 8px 10px; margin: 0 0 8px; font-size: 13.5px; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
     .mass-run .do-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
     .combatant-card.mass-now { outline: 3px solid var(--gold); outline-offset: 2px; box-shadow: 0 0 14px rgba(212,160,23,.6); }
@@ -284,6 +298,7 @@
     .pp-heart path, .pp-shape path, .pp-shape polygon { fill: var(--pp-main); stroke: var(--pp-border); stroke-width: 4; }
     .pp-heartval { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 14px; }
     .pp-heartval strong { font-family: 'Cinzel', serif; font-size: 32px; line-height: 1; }
+    .pp-hpnow { border: 2px solid var(--pp-border); border-radius: 22px; padding: 2px 14px; align-items: center; } .pp-slash { font-size: 26px; opacity: .7; }
     .pp-heartval span { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
     .pp-hpside { flex: 1; display: flex; flex-direction: column; gap: 4px; }
     .pp-hprow { display: flex; align-items: flex-end; justify-content: space-around; gap: 8px; }
@@ -1125,10 +1140,9 @@ const SPELL_NAMES = new Set((window.HBA_SPELLS || []).map(x => String(x.n || '')
 let ENC_TABLE = ''; // the DM's encumbrance rule for the table ('off', 'on', 'variant'); empty: each player chooses
 // Encumbrance: what a character carries, and the rule in use. On is the 2024 rule (over capacity: Speed at most 5 feet); Variant is the 2014 PHB variant.
 // Coins weigh something when the character tracks it: fifty coins of any kind weigh 1 pound; a kind of money of your own weighs what you set for it
-function coinLbOf(c) { if (!c || !c.coinWeight) return 0; const co = c.coins || {}, n = v => Math.max(0, +v || 0);
-  let coins = n(c.gold) + ['cp', 'sp', 'ep', 'pp'].reduce((t, k) => t + n(co[k]), 0), lb = 0;
-  (c.moneyX || []).forEach(d => { lb += n(co['c:' + d.id]) * n(d.wt); });
-  (Array.isArray(c.funds) ? c.funds : []).forEach(f => { coins += ['cp', 'sp', 'ep', 'gp', 'pp'].reduce((t, k) => t + n((f.coins || {})[k]), 0); (f.custom || []).forEach(d => { lb += n(d.n) * n(d.wt); }); });
+function coinLbOf(c, only) { if (!c) return 0; const co = c.coins || {}, n = v => Math.max(0, +v || 0); let coins = 0, lb = 0; // each money tab is weighed when its own switch is on (only: just that tab)
+  if (c.coinWeight && (!only || only === 'main')) { coins += n(c.gold) + ['cp', 'sp', 'ep', 'pp'].reduce((t, k) => t + n(co[k]), 0); (c.moneyX || []).forEach(d => { lb += n(co['c:' + d.id]) * n(d.wt); }); }
+  (Array.isArray(c.funds) ? c.funds : []).filter(f => f.coinWeight && (!only || only === f.id)).forEach(f => { coins += ['cp', 'sp', 'ep', 'gp', 'pp'].reduce((t, k) => t + n((f.coins || {})[k]), 0); (f.custom || []).forEach(d => { lb += n(d.n) * n(d.wt); }); });
   return Math.round((coins / 50 + lb) * 10) / 10; }
 function carriedOf(c) { return (((c && c.sheet) || {}).itemsFull || []).reduce((t, it) => t + (parseFloat(String(it.weight || '').replace(/[^\d.]/g, '')) || 0), 0) + coinLbOf(c); }
 function encOf(c) { if (!c || !c.sheet || c.type !== 'player') return null; const mode = ENC_TABLE || c.enc || 'off'; if (mode === 'off') return null;
@@ -2037,7 +2051,8 @@ function effectiveSenses(c) { return [...(c.senses || []), ...effs(c).map(e => e
 const byInit = list => { // highest first; a summoned creature goes straight after the one that summoned it
   const lead = list.filter(c => !c.after || !list.some(o => o.id === c.after));
   const sorted = lead.map((c, i) => [c, i]).sort((a, b) => (effectiveInit(b[0]) - effectiveInit(a[0])) || (a[1] - b[1])).map(x => x[0]);
-  return sorted.flatMap(c => [c, ...list.filter(f => f.after === c.id && !lead.includes(f))]);
+  const seen = new Set(), chain = c => { if (seen.has(c.id)) return []; seen.add(c.id); return [c, ...list.filter(f => f.after === c.id && !lead.includes(f)).flatMap(chain)]; }; // followers of followers too (a character acting with another, and its companions)
+  const out = sorted.flatMap(chain); return out.length === list.length ? out : [...out, ...list.filter(c => !seen.has(c.id))];
 };
 
 // ── CHARACTER SHEETS (files from the Character Builder) ──────────────────────
@@ -2046,7 +2061,7 @@ const byInit = list => { // highest first; a summoned creature goes straight aft
 function moneyFromFile(d) { const out = {}, n = v => Math.max(0, Math.floor(+v || 0)), coinsOf = o => { const r = {}; Object.keys(o && typeof o === 'object' ? o : {}).slice(0, 30).forEach(k => { if (/^[a-z]{2}$|^[cx]:[\w' -]{1,30}$/.test(k)) r[k] = n(o[k]); }); return r; };
   if (d.coins && typeof d.coins === 'object') out.coins = coinsOf(d.coins);
   if (Array.isArray(d.moneyX)) out.moneyX = d.moneyX.filter(x => x && x.id && x.name).slice(0, 12).map(x => ({id: String(x.id).slice(0, 12), name: String(x.name).slice(0, 30), value: Math.max(0, +x.value || 0), ...(+x.wt > 0 ? {wt: Math.min(100, +x.wt)} : {})}));
-  if (Array.isArray(d.funds)) out.funds = d.funds.filter(f => f && f.id && f.name).slice(0, 12).map(f => ({id: String(f.id).slice(0, 12), name: String(f.name).slice(0, 30), coins: coinsOf(f.coins), custom: (Array.isArray(f.custom) ? f.custom : []).filter(x => x && x.id && x.name).slice(0, 12).map(x => ({id: String(x.id).slice(0, 12), name: String(x.name).slice(0, 30), value: Math.max(0, +x.value || 0), n: n(x.n), ...(+x.wt > 0 ? {wt: Math.min(100, +x.wt)} : {})}))}));
+  if (Array.isArray(d.funds)) out.funds = d.funds.filter(f => f && f.id && f.name).slice(0, 12).map(f => ({id: String(f.id).slice(0, 12), name: String(f.name).slice(0, 30), coins: coinsOf(f.coins), custom: (Array.isArray(f.custom) ? f.custom : []).filter(x => x && x.id && x.name).slice(0, 12).map(x => ({id: String(x.id).slice(0, 12), name: String(x.name).slice(0, 30), value: Math.max(0, +x.value || 0), n: n(x.n), ...(+x.wt > 0 ? {wt: Math.min(100, +x.wt)} : {})})), ...(f.coinWeight ? {coinWeight: true} : {})}));
   if (d.coinWeight) out.coinWeight = true;
   return out; }
 function sheetToFields(data) {
@@ -2070,7 +2085,8 @@ function sheetToFields(data) {
       if (q.regain && DMG_RE.test(String(q.regain).replace(/\s/g, ''))) pools[str(k, 40)].regain = String(q.regain).replace(/\s/g, ''); if (q.item) pools[str(k, 40)].item = str(q.item, 80); }
   });
   const sheet = {
-    pools, extraSpells: list(data.extraSpells, 40, 60), species: str(data.species, 30), background: str(data.background, 30), subclass: str(data.subclassName, 40),
+    pools, extraSpells: list(data.extraSpells, 40, 60), customizations: list(data.customizations, 60, 200), packsUsed: list(data.packs, 20, 60),
+    homebrew: (Array.isArray(data.homebrew) ? data.homebrew : []).slice(0, 80).filter(h => h && h.name && h.pack).map(h => ({kind: str(h.kind, 20), name: str(h.name, 60), pack: str(h.pack, 48), ...(h.text ? {text: str(h.text, 600)} : {})})), species: str(data.species, 30), background: str(data.background, 30), subclass: str(data.subclassName, 40),
     player: str(data.player, 40), pp: num(data.passivePerception, 10 + mod(scores.Wisdom)),
     skills, skillProfs: list(data.skillProfs, 30, 30), skillExpertise: list(data.skillExpertise, 30, 30),
     hitDie: num(data.hitDie, 0), equipment: str(data.equipment, 2000), items: list(data.items, 60, 80),
@@ -2659,6 +2675,7 @@ function App() {
   const [blockPick, setBlockPick] = useState(null);  // choosing the creature for a form or a summon: {cId, kind, source, left, q}
   const [showGlossary, setShowGlossary] = useState(false);
   const [showNotes, setShowNotes] = useState(false); const [notesVer, setNotesVer] = useState(0);
+  const [inbox, setInbox] = useState([]), [inboxOpen, setInboxOpen] = useState(false), [inboxSeen, setInboxSeen] = useState(0), [inboxGroup, setInboxGroup] = useState(''); // the DM's notification center
   const combatKey = useRef(''); // the DM's Rules Glossary
   const [restSummary, setRestSummary] = useState(null); // what a player's rest just gave back
   const restRef = useRef(null);
@@ -2852,7 +2869,9 @@ function App() {
   useEffect(() => {
     if (combatants.some(c => canControl(c) && c.currentHP > totalHP(c))) setCombatants(prev => prev.map(c => canControl(c) && c.currentHP > totalHP(c) ? {...c, currentHP: totalHP(c)} : c));
   });
-  const visible = combatants.filter(c => !c.pending || isDM || c.owner === myId);
+  const [cardsFull, setCardsFull] = useState(() => lsGet('hba-cards') === 'full'), [cardMore, setCardMore] = useState([]), [hidePals, setHidePals] = useState(() => lsGet('hba-hide-pals') === 'on'); // the tracker: short cards (name, picture, Hit Point bar) unless opened
+  const isPal = c => !!(c.palOf || c.summonOf || c.type === 'companion');
+  const visible = combatants.filter(c => (!c.pending || isDM || c.owner === myId) && !(hidePals && isPal(c) && c.owner !== myId && c.id !== activeId));
   const inPlay = combatants.filter(c => !c.pending);
   const mine = visible.filter(c => c.owner === myId);
   const active = combatStarted ? (inPlay.find(c => c.id === activeId) || null) : null;
@@ -4701,8 +4720,8 @@ function App() {
   const hpColor = (cur, max) => {
     const pct = cur/max;
     if (pct > 0.5) return '#4CAF50';
-    if (pct > 0.25) return '#FF9800';
-    return '#E53935';
+    if (pct > 0.1) return '#E8590C'; // Bloodied: half or less
+    return '#C92A2A'; // a tenth or less
   };
 
   // ── LIVE SYNC ───────────────────────────────────────────────────────────────
@@ -4883,12 +4902,52 @@ function App() {
     loadCharacter(d, true);
   };
 
+  // "It's your turn": a player sees it when the turn of one of their creatures (or companions acting with it) begins; it goes when the turn moves on
+  const [turnPop, setTurnPop] = useState(null);
+  useEffect(() => { if (!combatStarted || isDM || !activeId) { setTurnPop(null); return; } const a = combatants.find(c => c.id === activeId); if (!a) { setTurnPop(null); return; }
+    const mine = [a, ...combatants.filter(c => c.id !== a.id && c.shareTurn && (c.after === a.id || c.palOf === a.id))].filter(c => c.owner === myId && !c.pending);
+    setTurnPop(mine.length ? {key: activeId + ':' + round, names: mine.map(c => c.name), lead: a.owner === myId ? a.name : ''} : null); }, [activeId, round, combatStarted, isDM]);
+  // Companions: during their owner's turn, or right after it. The DM can set it for one character or for every player, and lock it.
+  const setPalMode = (owners, mode, lock) => { const ids = owners.map(o => o.id);
+    setCombatants(prev => reorder(prev.map(x => ids.includes(x.id) ? {...x, palMode: mode, ...(lock != null ? {palLock: lock} : {})} : x.palOf && ids.includes(x.palOf) && !x.summonOf ? {...x, after: x.palOf, shareTurn: mode === 'during'} : x)));
+    setLog(prev => [...prev, stamp({type: 'info', sys: true, html: `<strong>${isDM ? 'The DM' : esc(owners[0].name)}</strong>: ${owners.length > 1 ? 'every player\'s companions' : esc(owners[0].name) + '\'s companions'} now act ${mode === 'during' ? 'during their turn' : 'right after their turn'}${lock ? ' (set by the DM)' : ''}`})]); };
+
+  // ── NOTIFICATION CENTER (the DM's): changes to what players cannot normally change in play, grouped by player and kind ──
+  useEffect(() => { if (!isDM || !room) return; try { const a = JSON.parse(lsGet('hba-inbox-' + room) || '[]'); if (Array.isArray(a)) { setInbox(a); setInboxSeen(+lsGet('hba-inbox-seen-' + room) || 0); } } catch (e) {} }, [isDM, room]);
+  const pushInbox = items => { if (!items.length) return; setInbox(prev => { const next = [...prev, ...items].slice(-400); lsSet('hba-inbox-' + room, JSON.stringify(next)); return next; }); };
+  const sigRef = useRef({});
+  const playerOf = c => { const main = combatants.find(x => x.owner === c.owner && x.main) || combatants.find(x => x.owner === c.owner && x.sheet); return (main && main.sheet && main.sheet.player) || (main ? main.name + "'s player" : 'A player'); };
+  const coreOf = c => { const sh = c.sheet || {}, out = {AC: c.ac, 'Hit Point maximum': c.maxHP, Level: c.level, Speed: c.speed};
+    ABILITY_KEYS.forEach(([k, f]) => { out[k.toUpperCase()] = (c.scores || {})[f]; });
+    out.Actions = buildActions(c).map(a => `${a.name}${a.atk != null ? ' ' + signed(a.atk) : ''}`).join(', ');
+    if (sh.spellList) { out.Cantrips = sh.spellList.filter(x => !x.l).map(x => x.n).sort().join(', '); out.Spells = sh.spellList.filter(x => x.l).map(x => x.n).sort().join(', '); }
+    if (sh.customizations) out.Customizations = sh.customizations.join(' · ');
+    return out; };
+  useEffect(() => { if (!isDM || !room) return; const items = [], t = Date.now();
+    combatants.filter(c => c.owner && c.owner !== myId && !c.pending).forEach(c => { const now = coreOf(c), was = sigRef.current[c.id]; sigRef.current[c.id] = now; if (!was) return;
+      Object.keys(now).forEach(k => { if (String(now[k] ?? '') === String(was[k] ?? '')) return;
+        const kind = k === 'Cantrips' ? 'cantrip' : c.sheet && c.type === 'player' ? 'sheet' : 'block';
+        items.push({id: newId(), t, kind, owner: c.owner, player: playerOf(c), cId: c.id, cName: c.name, what: k, from: String(was[k] ?? '').slice(0, 300), to: String(now[k] ?? '').slice(0, 300)}); }); });
+    pushInbox(items); }, [isDM, room, combatants]);
+  useEffect(() => { if (!isDM || !room) return; const items = [];
+    combatants.filter(c => c.sheet && !c.pending && c.owner && c.owner !== myId).forEach(c => { const sh = c.sheet, n = (sh.customizations || []).length + (sh.homebrew || []).length, key = 'hba-hb-' + room + '-' + c.id; if (!n || lsGet(key)) return; lsSet(key, '1');
+      items.push({id: newId(), t: Date.now(), kind: 'homebrew', owner: c.owner, player: playerOf(c), cId: c.id, cName: c.name, what: 'Homebrew', from: '', to: `${(sh.homebrew || []).length} from Content Packs, ${(sh.customizations || []).length} Further Customizations. See the Homebrew tab on the sheet.`}); });
+    pushInbox(items); }, [isDM, room, combatants]);
+  // How each kind of notice is grouped: one line per player (and per character for sheet changes)
+  const INBOX_KINDS = {sheet: 'changes to', block: 'stat block', cantrip: 'cantrip', extra: 'additional spells', homebrew: 'homebrew', join: 'joined'};
+  const inboxGroups = () => { const g = {}; inbox.forEach(n => { const key = n.kind + '|' + n.owner + (n.kind === 'sheet' || n.kind === 'homebrew' ? '|' + n.cId : ''); (g[key] = g[key] || []).push(n); });
+    return Object.entries(g).map(([key, list]) => { const n = list[0], k = list.length, many = k === 1 ? 'a change' : `${k} changes`, names = Array.from(new Set(list.map(x => x.cName)));
+      const title = n.kind === 'sheet' ? `${n.player} has made ${many} to ${n.cName}` : n.kind === 'block' ? (names.length === 1 ? `${n.player} has made ${many} to one of their stat blocks (${names[0]})` : `${n.player} has made ${many} to creature stat blocks`) : n.kind === 'cantrip' ? `${n.player} changed ${names.join(', ')}'s cantrips${k > 1 ? ` (${k} times)` : ''}` : n.kind === 'extra' ? `${n.player} changed additional spells${k > 1 ? ` (${k} times)` : ''}` : n.kind === 'homebrew' ? `${n.cName} uses homebrew` : `${n.player}: ${many}`;
+      return {key, title, list, last: Math.max(...list.map(x => x.t))}; }).sort((a, b) => b.last - a.last); };
+  const inboxNew = inbox.filter(n => n.t > inboxSeen).length;
+
   // The DM is told when a character has spells added on top of the rules (additional spells), and again whenever that list changes.
   useEffect(() => {
     if (!isDM || !room) return;
     combatants.filter(c => c.sheet && !c.pending).forEach(c => { const now = ((c.sheet || {}).extraSpells || []).slice().sort(), key = 'hba-xs-' + room + '-' + c.id, was = lsGet(key);
       const sig = now.join('|'); if (was === sig || (was == null && !now.length)) return; lsSet(key, sig);
       const old = was ? was.split('|').filter(Boolean) : [], added = now.filter(n => !old.includes(n)), gone = old.filter(n => !now.includes(n));
+      pushInbox([{id: newId(), t: Date.now(), kind: 'extra', owner: c.owner, player: playerOf(c), cId: c.id, cName: c.name, what: 'Additional spells', from: old.join(', '), to: now.join(', ')}]);
       setLog(prev => [...prev, stamp({type: 'roll', dmOnly: true, flag: `${c.name} has ${now.length ? `${now.length} additional ${now.length === 1 ? 'spell' : 'spells'} that do not count against the rules: ${now.join(', ')}` : 'no additional spells any more'}`, html: `<strong>${esc(c.name)}</strong> · <span class="log-result">Additional spells</span>${added.length ? `<div class="log-detail">Added: ${esc(added.join(', '))}</div>` : ''}${gone.length ? `<div class="log-detail">Taken off: ${esc(gone.join(', '))}</div>` : ''}`})]); });
   }, [isDM, room, combatants]);
 
@@ -5097,7 +5156,7 @@ function App() {
         </div>)}
         {ctl && <div className="fund-row">
           <button className="pp-chip" data-testid="fund-edit" onClick={() => setFundEdit(!fundEdit)}>{fundEdit ? 'Done' : '✎ Edit'}</button>
-          <button className={`pp-chip ${c.coinWeight ? 'on' : ''}`} data-testid="coin-weight" aria-pressed={!!c.coinWeight} title="Count the weight of your coins in what you carry: fifty coins weigh 1 pound" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, coinWeight: !x.coinWeight, moneyAt: Date.now()}))}>⚖ {c.coinWeight ? `Coin weight: ${coinLbOf(c)} lb.` : 'Track coin weight'}</button>
+          {(() => { const on = tab === 'main' ? !!c.coinWeight : !!(f && f.coinWeight); return <button className={`pp-chip ${on ? 'on' : ''}`} data-testid="coin-weight" aria-pressed={on} title="Count the weight of the money in this tab in what you carry: fifty coins weigh 1 pound" onClick={() => tab === 'main' ? setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, coinWeight: !x.coinWeight, moneyAt: Date.now()})) : setFunds(c, funds.map(y => y.id !== f.id ? y : {...y, coinWeight: !y.coinWeight}))}>⚖ {on ? `Weighed: ${coinLbOf(c, tab)} lb.` : 'Track its weight'}</button>; })()}
           {fundEdit && <><input aria-label="New kind of money" data-testid="denom-name" placeholder="A kind of money or resource" value={coinName} onChange={e => setCoinName(e.target.value)} style={{width: 170}}/>
             <input type="number" min="0" step="0.01" aria-label="Worth in GP" data-testid="denom-value" placeholder="worth (GP)" value={denomVal} onChange={e => setDenomVal(e.target.value)} style={{width: 90}}/>
             <input type="number" min="0" step="0.01" aria-label="Weight per unit (lb.)" data-testid="denom-weight" placeholder="lb. each" title="How much one of it weighs, for coin weight" value={denomWt} onChange={e => setDenomWt(e.target.value)} style={{width: 80}}/>
@@ -5127,6 +5186,9 @@ function App() {
                           : <label key={k}>{l} <input aria-label={l} className="pp-input" style={{width: k === 'note' ? 180 : 70}} placeholder={ph} value={giveCustom[k]} onChange={e => setGiveCustom({...giveCustom, [k]: e.target.value})}/></label>)}</span>}
                       </>; })()}</>
   </>;
+  const [quickAct, setQuickAct] = useState({text: '', act: 'free'}); // something done on the spot, typed in on the sheet
+  const doQuick = (c) => { const text = quickAct.text.trim().slice(0, 300); if (!c || !text) return; if (!spendEconomy(c, {activation: quickAct.act, name: text})) return;
+    setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> (${esc(ACTIVATIONS[quickAct.act] || 'No action')}): ${esc(text)}`})]); setQuickAct({...quickAct, text: ''}); };
   const doCustomAct = (c) => { const text = customAct.text.trim().slice(0, 300); if (!c || !text) return; if (!spendEconomy(c, {activation: customAct.act, name: text})) return;
     const ex = normExpr(customAct.dice), r = ex && DMG_RE.test(ex) ? parseDamage(ex) : null;
     setLog(prev => [...prev, stamp({type: 'roll', forId: c.id, html: `<strong>${esc(c.name)}</strong> (${esc(ACTIVATIONS[customAct.act] || 'Action')}): ${esc(text)}${r ? `<br/><span class="log-result">🎲 ${r.total}</span><div class="log-dice">${esc(ex)}: ${r.parts.join(' + ')}</div>` : ''}`})]);
@@ -5462,7 +5524,7 @@ function App() {
         </div>
         <div className="pp-sticky" data-testid="pp-sticky"><div className="pp-mini">{c.name} the {[sh.species, c.charClass].filter(Boolean).join(' ')} · Level {c.level}</div>
         <div className="pp-tabs">
-          {tabBtn('main', 'Main')}{(list.length > 0 || sh.spell) && tabBtn('spells', 'Spells')}{tabBtn('inventory', 'Inventory')}{tabBtn('character', 'Character')}{tabBtn('features', 'Features & Traits')}{tabBtn('companions', `Companions${palsOf(c).length + (c.blocks || []).length ? ` (${palsOf(c).length + (c.blocks || []).length})` : ''}`)}{tabBtn('trackers', `Trackers${(c.trackers || []).length ? ` (${c.trackers.length})` : ''}`)}
+          {tabBtn('main', 'Main')}{(list.length > 0 || sh.spell) && tabBtn('spells', 'Spells')}{tabBtn('inventory', 'Inventory')}{tabBtn('character', 'Character')}{tabBtn('features', 'Features & Traits')}{isDM && c.sheet && ((c.sheet.homebrew || []).length + (c.sheet.customizations || []).length + (c.sheet.extraSpells || []).length > 0) && !c.hbClosed && tabBtn('homebrew', `Homebrew (${(c.sheet.homebrew || []).filter(h => !(c.hbDone || []).includes('h:' + h.kind + ':' + h.name)).length + (c.sheet.customizations || []).filter(t => !(c.hbDone || []).includes('c:' + t)).length})`)}{tabBtn('companions', `Companions${palsOf(c).length + (c.blocks || []).length ? ` (${palsOf(c).length + (c.blocks || []).length})` : ''}`)}{tabBtn('trackers', `Trackers${(c.trackers || []).length ? ` (${c.trackers.length})` : ''}`)}
           <button className="pp-tab pp-colors" data-testid="sheet-colors" onClick={() => setShowTheme(v => !v)} title="Choose the colors of your sheet">Colors {showTheme ? '▲' : '▼'}</button>
         </div>
         </div>
@@ -5513,9 +5575,9 @@ function App() {
                 {ctl && !stable && <button className="pp-chip on" data-testid="death-roll" onClick={() => rollDeathSave(c)}>🎲 Roll a Death Saving Throw</button>}
               </div>); })() : c.dead ? <div className="pp-death" data-testid="death-dead"><div className="pp-h3" style={{margin: 0}}>Dead</div></div> :
               <div className="pp-heart"><svg viewBox="0 0 100 92" aria-hidden="true"><path d="M50 88 C20 62 4 46 4 27 C4 13 15 4 27 4 C37 4 45 9 50 18 C55 9 63 4 73 4 C85 4 96 13 96 27 C96 46 80 62 50 88 Z"/></svg>
-                <div className="pp-heartval"><strong>{c.currentHP}</strong><span>HP</span></div></div>}
+                <div className="pp-heartval"><strong>{totalHP(c)}</strong><span>MAX</span></div></div>}
               <div className="pp-hpside">
-                <div className="pp-hprow"><div><strong>{totalHP(c)}</strong><span>Total</span></div><div><strong>{+c.tempHP || 0}</strong><span>Temp</span></div></div>
+                <div className="pp-hprow pp-hpnow" data-testid="hp-now" title="Current and Temporary Hit Points"><div><strong>{c.currentHP}</strong><span>HP</span></div><div className="pp-slash">/</div><div><strong>{+c.tempHP || 0}</strong><span>Temp</span></div></div>
                 <div className="pp-hit" title="Hit Point Dice left">Hit Dice {hitLeft}/{c.level}</div>
               </div>
             </div>
@@ -5643,6 +5705,10 @@ function App() {
                   {STD_ACTIONS.filter(s => actOnly !== 'extra' || extraOk({name: s.n})).map(s => <button key={s.n} className="pp-stdbtn" disabled={!ctl} title={s.d} data-testid={`std-${s.n}`} onClick={() => setStdAct({name: s.n})}><strong>{s.n}</strong><span className="pp-type" title="Action">{ACT_ICON.action}</span></button>)}
                 {actOnly !== 'extra' && <button className="pp-stdbtn" disabled={!ctl} title="Do something that is not on your sheet" data-testid="std-Custom" onClick={() => setStdAct({name: 'Custom'})}><strong>✎ Custom</strong></button>}
                 </div>)}
+              {ctl && <div className="pp-quick" data-testid="quick-act" onClick={e => e.stopPropagation()}><span className="pp-muted">Do something:</span>
+                <input aria-label="What you do" data-testid="quick-act-text" placeholder="Turn the lock, move the chair..." value={quickAct.text} onChange={e => setQuickAct({...quickAct, text: e.target.value})} onKeyDown={e => { if (e.key === 'Enter') doQuick(c); }}/>
+                <select aria-label="What it takes" data-testid="quick-act-act" value={quickAct.act} onChange={e => setQuickAct({...quickAct, act: e.target.value})}><option value="free">Nothing (free)</option><option value="action">Action</option><option value="bonus">Bonus Action</option><option value="reaction">Reaction</option></select>
+                <button className="pp-chip on" data-testid="quick-act-go" disabled={!quickAct.text.trim()} onClick={() => doQuick(c)}>Do it</button></div>}
               {others.filter(shown).map(a => (
                 <div key={a.id} data-ex={`action:${a.id}`} className={rowCls(a, 'pp-action')} style={dim(a)} title={limited(a) ? 'Right-click to give back a use' : undefined} onClick={() => ctl && sel(a)} onContextMenu={back(a)}>
                   <span><strong className="a-name">{a.name}{leftText(a)}</strong>{a.detail ? <span className="a-detail"> {a.detail}</span> : null}</span>
@@ -5728,29 +5794,46 @@ function App() {
               </div>}
             </div>); })}</div>
         </div>); })()}
+        {sheetTab === 'homebrew' && isDM && c.sheet && (() => { const done = c.hbDone || [], mark = k => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, hbDone: [...(x.hbDone || []), k]}));
+          const hb = (c.sheet.homebrew || []).filter(h => !done.includes('h:' + h.kind + ':' + h.name)), cu = (c.sheet.customizations || []).filter(t => !done.includes('c:' + t)), packs = Array.from(new Set((c.sheet.homebrew || []).map(h => h.pack)));
+          return (
+          <div data-testid="paper-homebrew">
+            <div className="pp-note" style={{marginBottom: 8}}>Only you (the DM) see this tab. It lists what {c.name} uses beyond the SRD rules. ✕ takes an item off this list once you have looked at it.</div>
+            <div className="pp-card"><div className="pp-ename">Sources</div><div className="pp-etext" data-testid="hb-sources">System Reference Document 5.2.1{packs.map(p0 => <span key={p0}> · {p0} (Content Pack)</span>)}</div></div>
+            <div className="pp-card"><div className="pp-ename">Further Customization ({cu.length})</div>
+              {cu.length === 0 && <div className="pp-muted">Nothing left on the list.</div>}
+              {cu.map(t => <div key={t} className="pp-arow" data-testid="hb-custom"><span style={{color: '#ff8a80'}}>{t}</span><button className="item-star" data-testid="hb-remove" aria-label={`Take ${t} off the list`} onClick={() => mark('c:' + t)}>✕</button></div>)}</div>
+            {(c.sheet.extraSpells || []).length > 0 && <div className="pp-card"><div className="pp-ename">Additional spells (not counted against the rules)</div><div className="pp-etext" data-testid="hb-extra">{c.sheet.extraSpells.join(', ')}</div></div>}
+            <div className="pp-card"><div className="pp-ename">Homebrew from Content Packs ({hb.length})</div>
+              {hb.length === 0 && <div className="pp-muted">Nothing left on the list.</div>}
+              {hb.map(h => <div key={h.kind + h.name} className="pp-arow" data-testid="hb-item" style={{alignItems: 'flex-start'}}><span><strong>{h.name}</strong> <span className="pp-muted">{h.kind} · {h.pack}</span>{h.text ? <div style={{fontSize: 13.5, marginTop: 2}}>{h.text}</div> : null}</span><button className="item-star" data-testid="hb-remove" aria-label={`Take ${h.name} off the list`} onClick={() => mark('h:' + h.kind + ':' + h.name)}>✕</button></div>)}</div>
+            <button className="pp-chip" data-testid="hb-close" onClick={() => { if (window.confirm(`Close the Homebrew tab for ${c.name} for good?`)) { setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, hbClosed: true})); setSheetTab('main'); } }}>Close this tab for good</button>
+          </div>); })()}
         {sheetTab === 'companions' && (() => { const all = palsOf(c), pals = all.filter(x => !palHidden.includes(x.id)), hiddenN = all.length - pals.length;
           const kindOf = x => String(x.name).replace(/ \d+$/, ''), kinds = Array.from(new Set(pals.map(kindOf)));
           const order = (list) => list.slice().sort((a, b) => palSort === 'hp' ? (a.currentHP / totalHP(a)) - (b.currentHP / totalHP(b)) : palSort === 'cr' ? ((palCr(b) ?? -1) - (palCr(a) ?? -1)) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name, undefined, {numeric: true}));
           const shownKinds = palTab === 'all' || !kinds.includes(palTab) ? order(kinds.map(k => pals.find(x => kindOf(x) === k))).map(kindOf) : [palTab];
           const n = Math.abs(parseInt(palAmt, 10) || 0);
           const acted = x => !!(combatStarted && x.turn && x.turn.a && !attacksLeft(x)); // its Action is spent this turn
+          const nowOkT = x => !combatStarted || !!(active && (x.id === active.id || sharesTurn(x))); // it is its turn (or it shares the turn going on)
           const ppOf = x => { const sh0 = x.sheet || {}; return sh0.pp != null ? +sh0.pp : 10 + (((sh0.skills || {}).Perception) ?? mod((x.scores || {}).Wisdom ?? 10)); };
           const monOf = x => MONSTERS.find(m => m.n === (x.base || kindOf(x))) || MONSTERS.find(m => m.n === kindOf(x)) || null;
           const massDo = (ids, fn) => ids.map(id => combatants.find(y => y.id === id)).filter(y => y && canControl(y)).forEach(fn);
           // One stat block: a kind of companion with every member (combined) or a single creature
-          const block = (key, mem) => { const lead = mem[0], one = mem.length === 1, open = !palOpen.includes(key), m = monOf(lead), nowOk = x => !combatStarted || !!(active && (x.id === active.id || sharesTurn(x)));
-            const sel = palSel.filter(id => mem.some(x => x.id === id)), who = (sel.length ? mem.filter(x => sel.includes(x.id)) : mem).filter(canControl), ready = who.filter(x => !acted(x));
+          const block = (key, mem) => { const lead = mem[0], one = mem.length === 1, open = !palOpen.includes(key), m = monOf(lead), nowOk = nowOkT, acting = combatStarted && mem.some(x => x.id === activeId || sharesTurn(x));
+            const sel = palSel.filter(id => mem.some(x => x.id === id)), who = (sel.length ? mem.filter(x => sel.includes(x.id)) : mem).filter(canControl), ready = who.filter(x => !acted(x) && nowOk(x));
             const acts = buildActions(lead).filter(a => !/^multiattack/i.test(a.name || ''));
             const multi = buildActions(lead).find(a => /^multiattack/i.test(a.name || ''));
             const mass = (heal) => { if (!n) return; who.forEach(x => { updateHP(x.id, heal ? n : -n, !!heal); handLog(x, heal ? `regains ${n} Hit Points` : `takes ${n} damage`); }); setPalAmt(''); };
-            const go = a => { if (one) { setViewId(lead.id); setSelectedAction(a.id); return; } if (a.type === 'attack') { startMass(ready, x => attackActs(x).filter(y => y.name === a.name)); return; } startGroupRun(ready.map(x => x.id), a.name); };
+            const go = a => { if (a.type === 'attack') { startMass(one ? [lead] : ready, x => attackActs(x).filter(y => y.name === a.name)); return; } if (one) { setViewId(lead.id); setSelectedAction(a.id); return; } startGroupRun(ready.map(x => x.id), a.name); }; // an attack keeps you on this page: pick the target on the tracker, then roll
             const hpSum = mem.reduce((t, x) => t + Math.max(0, x.currentHP), 0), hpMax = mem.reduce((t, x) => t + totalHP(x), 0);
             return (
-            <div key={key} className={`pp-card pal-group ${open ? 'open' : ''}`} data-testid="pal-group">
+            <div key={key} className={`pp-card pal-group ${open ? 'open' : ''} ${acting ? 'acting' : ''}`} data-testid="pal-group">
               <div className="pal-top" role="button" data-testid="pal-fold" aria-expanded={open} onClick={() => setPalOpen(open ? [...palOpen, key] : palOpen.filter(k => k !== key))}>
                 <span className="pal-arrow">{open ? '▾' : '▸'}</span>
                 <span className="pp-ename" style={{margin: 0}}>{one ? lead.name : kindOf(lead)} {!one ? <span className="pp-muted" style={{fontSize: 13}}>× {mem.length}</span> : null}</span>
                 <span className="pp-muted" style={{fontSize: 13}}>{Array.from(new Set([m ? m.t : '', lead.base && lead.base !== kindOf(lead) ? lead.base : '', ...String(lead.sub || lead.classLine || '').split(' · ')].map((p0, i) => i > 0 && m && p0.startsWith(m.t) ? p0.slice(m.t.length).replace(/^,\s*/, '') : p0.trim()))).filter(Boolean).join(' · ')}</span>
+                {acting && <span className="pal-now" data-testid="pal-now">Acting now</span>}
                 {one && acted(lead) && <span className="pal-acted">acted</span>}
                 {one && canControl(lead) && <button className="pp-chip on" data-testid="pal-act" onClick={e => { e.stopPropagation(); setViewId(lead.id); setSelectedAction(null); }}>Act</button>}
                 {one && <button className="item-star" data-testid="pal-hide" aria-label={`Take ${lead.name} off this list`} title="Take it off this list (Restore brings it back)" onClick={e => { e.stopPropagation(); setPalHidden([...palHidden, lead.id]); }}>✕</button>}
@@ -5804,16 +5887,22 @@ function App() {
             </div>); };
           const blocksOf = k => { const mem = order(pals.filter(x => kindOf(x) === k)); return palCombine ? [[k, mem]] : mem.map(x => [x.id, [x]]); };
           const everyone = order(pals).filter(canControl), mSel = massSel.filter(id => everyone.some(x => x.id === id)), mWho = mSel.length ? everyone.filter(x => mSel.includes(x.id)) : [];
-          const mReady = mWho.filter(x => !acted(x));
+          const mReady = mWho.filter(x => !acted(x) && nowOkT(x));
           return (
           <div data-testid="paper-companions">
+            {all.some(x => x.palOf === c.id && !x.summonOf) && (() => { const mode = c.palMode || (all.filter(x => x.palOf === c.id && !x.summonOf).every(x => x.shareTurn) ? 'during' : 'after'), locked = !!c.palLock && !isDM;
+              const pick = m => { if (isDM) { const owners = combatants.filter(o => o.type === 'player' && o.sheet && combatants.some(x => x.palOf === o.id)); const all2 = owners.length > 1 && window.confirm('Apply this to every player\'s companions?'); setPalMode(all2 ? owners : [c], m, true); } else setPalMode([c], m); };
+              return <div className="pal-mode" data-testid="pal-mode"><strong>Companions' turns:</strong>
+                <label className="rule-label" style={{margin: 0}}><input type="radio" name={'palmode' + c.id} data-testid="pal-mode-during" disabled={locked} checked={mode === 'during'} onChange={() => pick('during')}/> All companions go during your turn</label>
+                <label className="rule-label" style={{margin: 0}}><input type="radio" name={'palmode' + c.id} data-testid="pal-mode-after" disabled={locked} checked={mode === 'after'} onChange={() => pick('after')}/> All companions go after your turn</label>
+                {locked && <span className="pp-muted">The DM set this.</span>}{isDM && c.palLock && <button className="link-btn" data-testid="pal-unlock" onClick={() => setCombatants(prev => prev.map(x => x.id !== c.id ? x : {...x, palLock: false}))}>Let the player choose again</button>}</div>; })()}
             {all.length === 0 && <div className="pp-note">No companions yet. Companions from your features join with you, and creatures you summon or forms you take show here too.</div>}
             {everyone.length > 0 && <div className="pp-card pal-mass" data-testid="pal-mass">
               <div className="pal-top" role="button" data-testid="pal-mass-fold" aria-expanded={massOpen} onClick={() => setMassOpen(!massOpen)}><span className="pal-arrow">{massOpen ? '▾' : '▸'}</span><span className="pp-ename" style={{margin: 0}}>Mass actions</span><span className="pp-muted" style={{fontSize: 13}}>every chosen companion, across stat blocks, does the same thing</span></div>
               {massOpen && <div style={{marginTop: 6}}>
                 <div className="pal-mass-who">
                   <button className="pp-chip" data-testid="mass-all" onClick={() => setMassSel(mSel.length === everyone.length ? [] : everyone.map(x => x.id))}>{mSel.length === everyone.length ? 'None' : 'All'}</button>
-                  {everyone.map(x => <label key={x.id} className={`rule-label ${acted(x) ? 'acted' : ''}`} style={{margin: 0}} title={acted(x) ? 'It has used its Action this turn' : ''}><input type="checkbox" data-testid="mass-pick" checked={mSel.includes(x.id)} onChange={e => setMassSel(e.target.checked ? [...mSel, x.id] : mSel.filter(y => y !== x.id))}/> {x.name}{acted(x) ? ' (acted)' : ''}</label>)}
+                  {everyone.map(x => <label key={x.id} className={`rule-label ${acted(x) || !nowOkT(x) ? 'acted' : ''} ${combatStarted && nowOkT(x) ? 'now' : ''}`} style={{margin: 0}} title={acted(x) ? 'It has used its Action this turn' : !nowOkT(x) ? 'Not its turn' : ''}><input type="checkbox" data-testid="mass-pick" checked={mSel.includes(x.id)} onChange={e => setMassSel(e.target.checked ? [...mSel, x.id] : mSel.filter(y => y !== x.id))}/> {x.name}{acted(x) ? ' (acted)' : !nowOkT(x) ? ' (not its turn)' : ''}</label>)}
                 </div>
                 {mReady.some(x => attackActs(x).length) && <div className="pal-mass-atk" data-testid="mass-picks"><span className="pp-muted">Each one's attack:</span>
                   {mReady.filter(x => attackActs(x).length).map(x => { const ml = multiList(x); return <label key={x.id} className="rule-label" style={{margin: 0}}>{x.name}
@@ -6128,6 +6217,7 @@ function App() {
       <div className="header">
         <h1>⚔ Combat Resolver <span className="app-ver" data-testid="app-version">v4.1</span></h1>
         <button className={`btn btn-sm ${explainOn ? 'btn-primary' : 'btn-ghost'}`} data-testid="explain-toggle" title="Explain: click anything to see where it comes from, instead of using it" onClick={() => { setExplainOn(!explainOn); setExplained(null); }}>❔ Explain{explainOn ? ': on' : ''}</button>
+        {isDM && room && <button className={`btn btn-sm ${inboxNew ? 'btn-primary' : 'btn-ghost'}`} data-testid="inbox-open" title="Notification center: what players changed that is not normally changed in play" onClick={() => { setInboxOpen(true); }}>🔔{inboxNew ? ` ${inboxNew}` : ''}</button>}
         <button className="btn btn-ghost btn-sm" data-testid="notes-open" title="Your notes" onClick={() => setShowNotes(true)}>📝 Notes</button>
         {isDM && <button className="btn btn-ghost btn-sm" data-testid="glossary-open" title="Rules Index: the rules and conditions (SRD 5.2.1), and homebrew rules from Content Packs. Send any of them to players." onClick={() => setShowGlossary(true)}>📖 Rules Index</button>}
         {combatStarted && <div className="round-badge">Round {round}</div>}
@@ -6350,6 +6440,8 @@ function App() {
             {isDM && !c.owner && <button data-testid="menu-card-all" onClick={() => { showCard(c, null); close(); }}>Show its card to everyone</button>}
             {isDM && !c.owner && combatants.filter(x => x.type === 'player' && x.owner && !x.pending).map(x => <button key={x.id} data-testid="menu-card-to" onClick={() => { showCard(c, x); close(); }}>Show its card to {x.name}</button>)}
             {isDM && <button data-testid="menu-rename" onClick={() => { close(); const nm = window.prompt(`New name for ${c.name}`, c.name); if (nm != null) renameCreature(c, nm); }}>Rename</button>}
+            {ctl && c.type === 'player' && c.sheet && (c.together ? <button data-testid="menu-alone" onClick={() => { setCombatants(prev => reorder(prev.map(x => x.id !== c.id ? x : (({together, shareTurn, after, ...rest}) => rest)(x)))); setLog(prev => [...prev, stamp({type: 'info', sys: true, html: `<strong>${esc(c.name)}</strong> takes its own turn again`})]); close(); }}>Take its own turn again</button>
+              : combatants.filter(x => x.id !== c.id && x.type === 'player' && x.sheet && !x.pending && !x.together && !x.palOf).map(x => <button key={x.id} data-testid="menu-together" onClick={() => { setCombatants(prev => reorder(prev.map(y => y.id !== c.id ? y : {...y, together: x.id, after: x.id, shareTurn: true}))); setLog(prev => [...prev, stamp({type: 'info', sys: true, html: `<strong>${esc(c.name)}</strong> acts together with <strong>${esc(x.name)}</strong>, on ${esc(x.name)}'s turn`})]); close(); }}>Act together with {x.name} (share a turn)</button>))}
             {ctl && <button onClick={() => { close(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id); }}>Remove from combat</button>}
             {!ctl && !(selAction && needsTarget) && <button onClick={close}>Nothing to do here</button>}
           </div>
@@ -6494,6 +6586,8 @@ function App() {
             <div className="who-am-i" data-testid="who-am-i">{!room ? <>You are running this alone, with <strong>DM</strong> controls.</> : isDM ? <>You are the <strong>DM</strong>{myOwn.length ? <> and also play <strong>{myOwn.map(c => c.name).join(', ')}</strong></> : null}.</> : myOwn.length ? <>You are playing <strong>{myOwn.map(c => c.name).join(', ')}</strong>.</> : <>You are a <strong>player</strong> with no character here yet.</>}</div>
             {isDM && <label className="rule-label" style={{margin:'0 0 4px'}} title="On: your screen opens whichever creature's turn it is. Off: the sheet you are looking at stays until you press View on another."><input type="checkbox" data-testid="rule-follow" checked={followTurn} onChange={e=>{ setFollowTurn(e.target.checked); try { window.localStorage.setItem('hba-follow-turn', e.target.checked ? 'on' : 'off'); } catch (err) {} }}/> Follow the turn</label>}
             <div className="rel-key" data-testid="rel-key"><span><i style={{background:'#4da3ff'}}/>Yours</span><span><i style={{background:'#4caf50'}}/>Ally</span><span><i style={{background:'#e05252'}}/>Hostile</span><span><i style={{background:'#e6c84a'}}/>Neutral</span><span><i style={{background:'#000', border:'1px solid #555'}}/>Defeated</span></div>
+            <div className="tracker-tools" data-testid="tracker-tools"><button className="link-btn" data-testid="cards-full" onClick={() => { const v = !cardsFull; setCardsFull(v); setCardMore([]); lsSet('hba-cards', v ? 'full' : 'short'); }}>{cardsFull ? 'Show less on the cards' : 'Show more on every card'}</button>
+              {combatants.some(c => isPal(c) && c.owner !== myId) && <label className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="hide-pals" checked={hidePals} onChange={e => { setHidePals(e.target.checked); lsSet('hba-hide-pals', e.target.checked ? 'on' : 'off'); }}/> Hide other players' companions</label>}</div>
             {!combatStarted && isDM && inPlay.length > 0 && (
               <div className="initiative-controls">
                 {initCall ? <div className="buff-note" data-testid="init-waiting">Initiative is being rolled. Waiting for: {needInit.map(c => c.name).join(', ') || 'nobody'}.</div>
@@ -6534,6 +6628,7 @@ function App() {
             {(!rest || restCards || targeting || massRun) && visible.map((c) => {
               const isActive = combatStarted && c.id === activeId;
               const ctl = canControl(c);
+              const more = cardsFull || cardMore.includes(c.id);
               return (
               <div
                 key={c.id}
@@ -6550,15 +6645,16 @@ function App() {
                   {(() => { const pc = picOf(c); return pc && pc.seen ? <img className={`card-pic ${pc.show ? '' : 'hidden-pic'}`} data-testid="card-pic" src={pc.thumb} alt="" title={pc.show ? 'Click to see it full size' : 'Hidden from players'} onClick={e => { e.stopPropagation(); setBigPic(pc.big); }}/> : null; })()}
                   <div>
                     <div className="combatant-name">{c.name} {c.currentHP<=0?'☠':''}{c.summonOf && c.currentHP > 0 && !openDown[c.id] ? <span style={{fontSize:'0.72rem', opacity:0.75}}> · {c.currentHP}/{totalHP(c)} HP · summoned</span> : null}</div>
-                    {isDM && c.type === 'monster' && c.currentHP > 0 && <select className="rel-select" aria-label={`What ${c.name} is to the party`} data-testid="rel-select" value={c.rel || 'hostile'} onClick={e=>e.stopPropagation()} onChange={e=>{ const v = e.target.value; setCombatants(prev => prev.map(x => x.id === c.id ? {...x, rel: v} : x)); }}>
+                    {more && isDM && c.type === 'monster' && c.currentHP > 0 && <select className="rel-select" aria-label={`What ${c.name} is to the party`} data-testid="rel-select" value={c.rel || 'hostile'} onClick={e=>e.stopPropagation()} onChange={e=>{ const v = e.target.value; setCombatants(prev => prev.map(x => x.id === c.id ? {...x, rel: v} : x)); }}>
                       <option value="hostile">Hostile</option><option value="neutral">Neutral</option><option value="ally">Ally</option><option value="none">No designation</option></select>}
-                    <div className="combatant-type">{seeOf(c).cr ? typeLine(c) : sizeOf(c)}{!seeOf(c).ac ? '' : ` · AC ${effectiveAC(c)} · ${effectiveSpeed(c)} ft.`} {c.owner===myId && <span className="owner-tag">· yours</span>}{ctl && !c.pending && !targeting && <button className={`card-view ${viewed && viewed.id === c.id && showSheet ? 'on' : ''}`} data-testid="card-view" title="Open this sheet" onClick={e=>{ e.stopPropagation(); setViewId(c.id); setSelectedAction(null); setPane('sheet'); }}>{viewed && viewed.id === c.id && showSheet ? 'Viewing' : 'View'}</button>}</div>
-                    {c.conc && <span className="conc-badge" data-testid={`conc-${c.name}`} title={`Concentrating on ${c.conc.name}${+c.conc.left > 0 ? `, ${timeText(c.conc.left)} left` : ''}${canControl(c) ? '. Click to stop concentrating.' : ''}`}
+                    {more && <div className="combatant-type">{seeOf(c).cr ? typeLine(c) : sizeOf(c)}{!seeOf(c).ac ? '' : ` · AC ${effectiveAC(c)} · ${effectiveSpeed(c)} ft.`} {c.owner===myId && <span className="owner-tag">· yours</span>}{ctl && !c.pending && !targeting && <button className={`card-view ${viewed && viewed.id === c.id && showSheet ? 'on' : ''}`} data-testid="card-view" title="Open this sheet" onClick={e=>{ e.stopPropagation(); setViewId(c.id); setSelectedAction(null); setPane('sheet'); }}>{viewed && viewed.id === c.id && showSheet ? 'Viewing' : 'View'}</button>}</div>}
+                    {more && c.conc && <span className="conc-badge" data-testid={`conc-${c.name}`} title={`Concentrating on ${c.conc.name}${+c.conc.left > 0 ? `, ${timeText(c.conc.left)} left` : ''}${canControl(c) ? '. Click to stop concentrating.' : ''}`}
                       onClick={e=>{ e.stopPropagation(); if (canControl(c)) { if (window.confirm(`Stop concentrating on ${c.conc.name}?`)) endConcentration(c.id); } else window.alert(`${c.name} is concentrating on ${c.conc.name}.`); }}>◈ {c.conc.name}{+c.conc.left > 0 ? ` · ${timeText(c.conc.left)}` : ''}</span>}
                   </div>
                   {c.summonOf && c.currentHP > 0 && ctl && <button className="card-remove" style={{right: 30}} data-testid="fold-toggle" title={openDown[c.id] ? 'Fold this summoned creature away' : 'Open this summoned creature up'} onClick={e=>{e.stopPropagation(); setOpenDown(p => ({...p, [c.id]: !p[c.id]}));}}>{openDown[c.id] ? '▾' : '▸'}</button>}
                   {isDM && c.type==='monster' && c.currentHP<=0 && <button className="card-remove" style={{right: 30}} data-testid="down-toggle" title={openDown[c.id] ? 'Fold this defeated creature away' : 'Open this defeated creature up'} onClick={e=>{e.stopPropagation(); setOpenDown(p => ({...p, [c.id]: !p[c.id]}));}}>{openDown[c.id] ? '▾' : '▸'}</button>}
-                  <button className="card-fold" data-testid="card-fold" aria-expanded={!folded.includes(c.id)} title={folded.includes(c.id) ? 'Open this card' : 'Fold this card to one line'} onClick={e => { e.stopPropagation(); toggleFold(c.id); }}>{folded.includes(c.id) ? '▸' : '▾'}</button>
+                    <button className="card-more" data-testid="card-more" aria-expanded={more} title={more ? 'Show less' : 'Show more: numbers, conditions and buttons'} onClick={e => { e.stopPropagation(); setCardMore(cardMore.includes(c.id) ? cardMore.filter(x => x !== c.id) : [...cardMore, c.id]); }}>{more ? '−' : '⋯'}</button>
+                <button className="card-fold" data-testid="card-fold" aria-expanded={!folded.includes(c.id)} title={folded.includes(c.id) ? 'Open this card' : 'Fold this card to one line'} onClick={e => { e.stopPropagation(); toggleFold(c.id); }}>{folded.includes(c.id) ? '▸' : '▾'}</button>
                   {folded.includes(c.id) && seeOf(c).hp && <span className="fold-hp">{c.currentHP}/{totalHP(c)}</span>}
                   {ctl && <button className="card-remove" title="Remove from combat" onClick={e=>{e.stopPropagation(); if (window.confirm(`Remove ${c.name} from combat?`)) removeCombatant(c.id);}}>×</button>}
                 </div>
@@ -6566,9 +6662,9 @@ function App() {
                 <div className="hp-bar-wrap">
                   <div className="hp-bar" style={{width:`${Math.max(0,Math.min(100,(c.currentHP/totalHP(c))*100))}%`,background:hpColor(c.currentHP,totalHP(c))}}/>
                 </div>
-                {!seeOf(c).hp ? <div className="hp-text"><span>{c.currentHP <= 0 ? 'Down' : c.currentHP >= totalHP(c) ? 'Unhurt' : c.currentHP * 2 > totalHP(c) ? 'Hurt' : 'Bloodied'}</span></div> : <div className="hp-text" data-testid={`hp-${c.name}`} title="Current Hit Points out of the total"><span>{c.currentHP} HP{+c.tempHP > 0 && <span className="temp-hp"> +{c.tempHP} temp</span>}</span><span style={{color:'var(--text-muted)'}}>of {totalHP(c)} total</span></div>}
+                {more && (!seeOf(c).hp ? <div className="hp-text"><span>{c.currentHP <= 0 ? 'Down' : c.currentHP >= totalHP(c) ? 'Unhurt' : c.currentHP * 2 > totalHP(c) ? 'Hurt' : 'Bloodied'}</span></div> : <div className="hp-text" data-testid={`hp-${c.name}`} title="Current Hit Points out of the total"><span>{c.currentHP} HP{+c.tempHP > 0 && <span className="temp-hp"> +{c.tempHP} temp</span>}</span><span style={{color:'var(--text-muted)'}}>of {totalHP(c)} total</span></div>)}
                 </>}
-                {seeOf(c).cond && (c.conditions.length > 0 || (c.effects||[]).length > 0) && (
+                {more && seeOf(c).cond && (c.conditions.length > 0 || (c.effects||[]).length > 0) && (
                   <div className="conditions">
                     {c.conditions.map(cond=>(
                       <span key={cond} className={`condition-tag bad ${isDM?'removable':''}`} data-ex={`cond:${cond}`} data-exc={c.id} onClick={e=>{e.stopPropagation(); if (isDM) removeCondition(c.id,cond);}} title={[condSaveText(condInfoOf(c,cond), inPlay, c), isDM?'Click to remove':''].filter(Boolean).join('. ') || cond}>{CONDITION_ICON[cond] ? CONDITION_ICON[cond] + ' ' : ''}{cond}{condInfoOf(c,cond) && +condInfoOf(c,cond).left > 0 ? ` · ${timeText(condInfoOf(c,cond).left)}` : ''}{isDM?' ×':''}</span>
@@ -6590,7 +6686,7 @@ function App() {
                   </div>
                 )}
                 {/* HP Quick Edit */}
-                {ctl && !c.pending && (
+                {more && ctl && !c.pending && (
                   <div className="hp-edit" onClick={e=>e.stopPropagation()}>
                     <input type="number" min="0" placeholder="amt" aria-label={`HP amount for ${c.name}`} id={'amt-'+c.id}/>
                     <button className="btn btn-sm btn-danger" title="Damage by the typed amount" onClick={()=>{ const el=document.getElementById('amt-'+c.id); const n=Math.abs(+el.value||0); if(n){updateHP(c.id,-n); el.value=''; handLog(c, `takes ${n} damage`); if (isDM && c.type !== 'monster') offerReactions('damage', [c.id], 'The DM dealt damage to', null);} }}>Dmg</button>
@@ -7441,6 +7537,22 @@ function App() {
                 {groupRun.i < groupRun.ids.length - 1 ? <button className="btn btn-primary btn-sm" data-testid="group-next" onClick={() => { const i = groupRun.i + 1; setGroupRun({...groupRun, i}); openRunStep(groupRun.ids[i], (groupRun.names || {})[groupRun.ids[i]] || groupRun.name); }}>Next: {names[groupRun.i + 1]}</button> : null}
                 <button className="btn btn-ghost btn-sm" data-testid="group-stop" onClick={() => { setGroupRun(null); if (armed) cancelArmed(); setSelectedAction(null); endTargeting(); }}>{groupRun.i >= groupRun.ids.length - 1 ? 'Done' : 'Stop'}</button>
                 <div className="pp-muted" style={{fontSize: 12.5, width: '100%'}}>Pick the targets and use it; the targets stay chosen for the next one.</div></div>); })()}
+      {turnPop && <div className="turn-pop" data-testid="turn-pop" key={turnPop.key}><span>⚔ {turnPop.lead ? <>It's your turn, <strong>{turnPop.lead}</strong>{turnPop.names.length > 1 ? <> (with {turnPop.names.filter(n => n !== turnPop.lead).join(', ')})</> : null}!</> : <>It's <strong>{turnPop.names.join(', ')}</strong>'s turn!</>}</span><button aria-label="Close" data-testid="turn-pop-close" onClick={() => setTurnPop(null)}>×</button></div>}
+      {inboxOpen && (() => { const groups = inboxGroups(), when = t => new Date(t).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}); return (
+        <div className="modal-overlay" onClick={() => { setInboxOpen(false); const t = Date.now(); setInboxSeen(t); lsSet('hba-inbox-seen-' + room, String(t)); }}>
+          <div className="modal" data-testid="inbox" onClick={e => e.stopPropagation()} style={{maxWidth: 620}}>
+            <div className="modal-header"><h2>🔔 Notifications</h2><button className="modal-close" onClick={() => { setInboxOpen(false); const t = Date.now(); setInboxSeen(t); lsSet('hba-inbox-seen-' + room, String(t)); }}>×</button></div>
+            <div className="modal-body">
+              {!groups.length && <div className="empty-state">Nothing yet. Changes players make to what is not normally changed in play show here, grouped by player.</div>}
+              {groups.map(g => { const open = inboxGroup === g.key, fresh = g.list.filter(n => n.t > inboxSeen).length; return (
+                <div key={g.key} className="inbox-group" data-testid="inbox-group">
+                  <button className="inbox-head" data-testid="inbox-head" aria-expanded={open} onClick={() => setInboxGroup(open ? '' : g.key)}><span>{open ? '▾' : '▸'}</span><span style={{flex: 1, textAlign: 'left'}}>{g.title}</span>{fresh ? <span className="inbox-new">{fresh} new</span> : null}<span className="pp-muted" style={{fontSize: 12}}>{when(g.last)}</span></button>
+                  {open && <div className="inbox-items" data-testid="inbox-items">{g.list.slice().reverse().map(n => <div key={n.id} className="inbox-item"><span className="pp-muted" style={{fontSize: 12}}>{when(n.t)}</span> <strong>{n.cName}</strong> · {n.what}: {n.from ? <><s>{n.from || 'none'}</s> → </> : null}{n.to || 'none'}</div>)}</div>}
+                </div>); })}
+              {groups.length > 0 && <div className="do-row" style={{marginTop: 10}}><button className="btn btn-ghost btn-sm" data-testid="inbox-clear" onClick={() => { if (window.confirm('Clear every notification?')) { setInbox([]); lsSet('hba-inbox-' + room, '[]'); } }}>Clear all</button></div>}
+            </div>
+          </div>
+        </div>); })()}
       {bigPic && <div className="modal-overlay" data-testid="pic-big" onClick={() => setBigPic('')} style={{cursor: 'zoom-out'}}><img className="pic-full" src={bigPic} alt=""/></div>}
       {showRoster && (
         <div className="modal-overlay" onClick={()=>setShowRoster(false)}>
