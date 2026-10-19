@@ -1148,6 +1148,8 @@ const SPELL_SUM = {}, SPELL_SUM2 = {}; (window.HBA_SPELLS || []).forEach(x => { 
 let ENC_TABLE = ''; // the DM's encumbrance rule for the table ('off', 'on', 'variant'); empty: each player chooses
 // Encumbrance: what a character carries, and the rule in use. On is the 2024 rule (over capacity: Speed at most 5 feet); Variant is the 2014 PHB variant.
 // Coins weigh something when the character tracks it: fifty coins of any kind weigh 1 pound; a kind of money of your own weighs what you set for it
+// Sample names for the name fields (players and the DM): our own, not characters from any book
+const NAME_IDEAS = ['Aldric', 'Brenna', 'Corvin', 'Dessa', 'Eamon', 'Fenna', 'Garrick', 'Hesper', 'Ilsa', 'Joren', 'Kestrel', 'Lysa', 'Maddoc', 'Nerys', 'Orrin', 'Pell', 'Quinlan', 'Rowan', 'Sable', 'Tamsin', 'Ulric', 'Vesna', 'Wren', 'Yara', 'Zara', 'Bram', 'Tilda', 'Odo', 'Cormac', 'Mirela'];
 function coinLbOf(c, only) { if (!c) return 0; const co = c.coins || {}, n = v => Math.max(0, +v || 0); let coins = 0, lb = 0; // each money tab is weighed when its own switch is on (only: just that tab)
   if (c.coinWeight && (!only || only === 'main')) { coins += n(c.gold) + ['cp', 'sp', 'ep', 'pp'].reduce((t, k) => t + n(co[k]), 0); (c.moneyX || []).forEach(d => { lb += n(co['c:' + d.id]) * n(d.wt); }); }
   (Array.isArray(c.funds) ? c.funds : []).filter(f => f.coinWeight && (!only || only === f.id)).forEach(f => { coins += ['cp', 'sp', 'ep', 'gp', 'pp'].reduce((t, k) => t + n((f.coins || {})[k]), 0); (f.custom || []).forEach(d => { lb += n(d.n) * n(d.wt); }); });
@@ -2685,10 +2687,8 @@ function App() {
   const [showGlossary, setShowGlossary] = useState(false);
   const [showNotes, setShowNotes] = useState(false); const [notesVer, setNotesVer] = useState(0);
   const [playerName, setPlayerName] = useState(() => lsGet('hba-player-name') || ''); // the player's own name, shown to the DM
-  const nameHint = useMemo(() => { const k = 'hba-name-suggest', had = lsGet(k); if (had) return had; // a made-up fantasy name, used until you type your own
-    const A = ['Ara', 'Bel', 'Bram', 'Cael', 'Cor', 'Dar', 'Dorn', 'El', 'Fen', 'Ferr', 'Gar', 'Gwen', 'Hal', 'Hask', 'Ivo', 'Jor', 'Kel', 'Kest', 'Lio', 'Lor', 'Mar', 'Mira', 'Nor', 'Nym', 'Oss', 'Pel', 'Quen', 'Riv', 'Ros', 'Syl', 'Tam', 'Thal', 'Tor', 'Ul', 'Val', 'Vey', 'Wyn', 'Yor', 'Zan'];
-    const B = ['a', 'an', 'ar', 'ard', 'bel', 'dor', 'drin', 'enne', 'eth', 'ia', 'iel', 'ik', 'in', 'ion', 'is', 'ith', 'mir', 'nor', 'on', 'or', 'os', 'ra', 'ric', 'ryn', 'sa', 'wen', 'wyn', 'ys'];
-    const pick = l => l[Math.floor(Math.random() * l.length)], n = pick(A) + pick(B); lsSet(k, n); return n; }, []);
+  const nameHint = useMemo(() => { const k = 'hba-name-sample', had = lsGet(k); if (had) return had; // a made-up fantasy name, used until you type your own
+    const n = NAME_IDEAS[Math.floor(Math.random() * NAME_IDEAS.length)]; lsSet(k, n); return n; }, []);
   const myName = (playerName.trim() || nameHint).slice(0, 40);
   const [inbox, setInbox] = useState([]), [inboxOpen, setInboxOpen] = useState(false), [inboxSeen, setInboxSeen] = useState(0), [inboxGroup, setInboxGroup] = useState(''); // the DM's notification center
   const combatKey = useRef(''); // the DM's Rules Glossary
@@ -2954,12 +2954,14 @@ function App() {
 
   const addCombatant = () => {
     if (!form.name.trim()) return;
-    const asPlayer = !isDM;
+    const asPlayer = !isDM, pn = (playerName.trim() || String((form.sheetData && form.sheetData.player) || '').trim()).slice(0, 40);
+    if (asPlayer && room && !pn) { alert('Type your name first, so the table knows who is playing.'); return; }
+    if (asPlayer && pn && pn !== playerName) { setPlayerName(pn); lsSet('hba-player-name', pn); }
     let newC;
     if (form.sheetData) {
       // A real character sheet: everything on it comes along.
       newC = {...sheetToFields(form.sheetData), id: newId(), initiative: +form.initiative || 0, conditions: [], effects: []};
-      if (asPlayer || form.fromSheet) { newC.owner = myId; newC.ownerName = myName; }
+      if (asPlayer || form.fromSheet) { newC.owner = myId; newC.ownerName = (asPlayer && pn) || myName; }
       if (form.fromSheet) newC.main = true;
     } else {
       const type = asPlayer && form.type !== 'player' ? 'companion' : form.type === 'npc' ? 'monster' : form.type;
@@ -3213,6 +3215,10 @@ function App() {
     if (i === 0) { if (round <= 1) return; setRound(round - 1); setLog(prev => [...prev, stamp({type: 'round', text: `Back to Round ${round - 1}`})]); i = elig.length; } setTurnTo(elig[i - 1].id, true); };
   const nextTurn = () => {
     if (!inPlay.some(c => c.currentHP > 0)) return;
+    { const cur = combatants.find(c => c.id === activeId); // ending a turn with an Action or Bonus Action unused: ask first (players and their companions)
+      if (cur && combatStarted && canControl(cur) && cur.owner && cur.currentHP > 0) { const who = [cur, ...combatants.filter(x => x.id !== cur.id && x.currentHP > 0 && !x.pending && x.shareTurn && (x.after === cur.id || x.palOf === cur.id))];
+        const lines = who.map(x => { const t = x.turn || {}, left = []; if (!t.a) left.push('Action'); if (!t.b && buildActions(x).some(a => a.activation === 'bonus')) left.push('Bonus Action'); return left.length ? `${x.name}: ${left.join(', ')}` : ''; }).filter(Boolean);
+        if (lines.length && !window.confirm(`Not used yet this turn:\n${lines.join('\n')}\n\n${who.length > 1 ? 'End the turn for all of them anyway?' : 'End the turn anyway?'}`)) return; } }
     { const cur = combatants.find(c => c.id === activeId); if (cur && +cur.extraTurns > 0) { // Time Stop: the same creature goes again
       setCombatants(prev => prev.map(c => c.id === cur.id ? {...c, extraTurns: +c.extraTurns - 1, turn: {}} : c)); setLog(prev => [...prev, stamp({type:'round', text:`${cur.name} takes another turn (${+cur.extraTurns - 1} more after this)`})]); setSelectedAction(null); setTargetIds([]); return; } }
     { const cur = combatants.find(c => c.id === activeId), base = cur && cur.reflexNow ? (combatants.find(c => c.id === cur.reflexFrom) || cur) : cur; // Thief's Reflexes: a second turn in the first round, at Initiative minus 10
@@ -4968,7 +4974,7 @@ function App() {
     setTurnPop(mine.length ? {key: activeId + ':' + round, names: mine.map(c => c.name), lead: a.owner === myId ? a.name : ''} : null); }, [activeId, round, combatStarted, isDM]);
   // Companions: during their owner's turn, or right after it. The DM can set it for one character or for every player, and lock it.
   // Companions' turns, for all of a character's companions: 'set' (each as the Character Builder set it), 'during' (with the owner), 'after' (right after the owner), 'roll' (each rolls its own Initiative)
-  const PAL_MODES = [['set', 'Each as set on the character sheet'], ['during', 'All companions go during your turn'], ['after', 'All companions go right after your turn'], ['roll', 'All companions roll their own Initiative']];
+  const PAL_MODES = [['set', 'Standard: each by its own rules'], ['during', 'All companions go during your turn'], ['after', 'All companions go right after your turn'], ['roll', 'All companions roll their own Initiative']];
   const palApply = (list, ids, mode, lock) => { const rolls = [];
     const out = list.map(x => { if (ids.includes(x.id)) return {...x, palMode: mode, ...(lock != null ? {palLock: lock} : {})};
       const o = x.palOf || x.summonOf; if (!o || !ids.includes(o)) return x;
@@ -4976,10 +4982,10 @@ function App() {
       if (!base) return x;
       if (base === 'roll') { if (!x.after) return x; let v = x.initRolled; if (v == null && combatStarted) { v = rollD(20) + effectiveInitBonus(x); rolls.push(`${x.name}: ${v}`); } const {after, ...r} = x; return {...r, shareTurn: false, ...(v != null ? {initiative: v, initRolled: v} : {})}; }
       const own = list.find(y => y.id === o); return {...x, after: o, shareTurn: base === 'shared', ...(!x.after && x.initRolled == null ? {initRolled: x.initiative} : {}), initiative: own ? own.initiative : x.initiative}; });
-    return {list: reorder(out), rolls}; };
+    return {list: byInit(out), rolls}; };
   const setPalMode = (owners, mode, lock) => { const ids = owners.map(o => o.id);
     const before = combatants, r = palApply(before, ids, mode, lock), ord = l => l.filter(x => !x.pending).map(x => x.id + (x.shareTurn ? '+' : '')).join(',');
-    if (ord(byInit(before)) !== ord(byInit(r.list)) && (combatStarted || before.some(x => x.initFor)) && !window.confirm('This changes the initiative order. Are you sure?')) return false;
+    if (ord(byInit(before)) !== ord(r.list) && !window.confirm('This changes the initiative order. Are you sure?')) return false;
     setCombatants(prev => palApply(prev, ids, mode, lock).list.map(x => { const y = r.list.find(z => z.id === x.id); return y && y.initRolled != null && x.initRolled == null ? {...x, initiative: y.initiative, initRolled: y.initRolled} : x; }));
     setLog(prev => [...prev, stamp({type: 'info', sys: true, html: `<strong>${isDM ? 'The DM' : esc(owners[0].name)}</strong>: ${owners.length > 1 ? 'every player\'s companions' : esc(owners[0].name) + '\'s companions'}: ${esc((PAL_MODES.find(m => m[0] === mode) || ['', mode])[1].replace(/^All companions /, '').replace(/your/, 'their'))}${lock ? ' (set by the DM)' : ''}${r.rolls.length ? `<div class="log-detail">Initiative: ${esc(r.rolls.join(', '))}</div>` : ''}`})]); return true; };
 
@@ -7898,6 +7904,7 @@ function App() {
                 ))}
               </div>
               </>)}
+              {!isDM && room && <div className="form-group" style={{marginTop: 8}}><label>Your name (the player)</label><input data-testid="add-player-name" aria-label="Your name" maxLength={40} value={playerName || String((form.sheetData && form.sheetData.player) || '')} placeholder={nameHint} onChange={e => { setPlayerName(e.target.value); lsSet('hba-player-name', e.target.value); }}/>{!(playerName.trim() || String((form.sheetData && form.sheetData.player) || '').trim()) && <div className="buff-note" data-testid="add-name-needed">Type your name to join.</div>}</div>}
               {!isDM && approval && <div className="buff-note">The DM has to accept this before it joins the fight.</div>}
             </div>
             <div className="modal-footer">
