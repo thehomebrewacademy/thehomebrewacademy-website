@@ -4651,8 +4651,13 @@ function App() {
     setLog(prev => [...prev, stamp({type:'roll', html:`<strong>${esc(c.name)}</strong> changes the ${esc(kind)} recovered from ${r.got} to ${got}<div class="log-detail" style="color:${got === r.half ? 'inherit' : 'var(--danger)'}">${got === r.half ? 'Back to half of what was used.' : `Half of the ${r.spent} used would be ${r.half}.`}</div>`})]);
   };
   // The DM hands out Experience Points: the pool chosen in the panel, shared equally between the player characters.
-  const giveXP = (total, names) => {
-    const pcs = combatants.filter(c => c.type !== 'monster' && !c.pending && (c.main || c.owner)); if (!isDM || !pcs.length || !(total > 0)) return;
+  const giveXP = (total, names, per) => {
+    const pcs = combatants.filter(c => c.type !== 'monster' && !c.pending && (c.main || c.owner)); if (!isDM || !pcs.length) return;
+    if (per) { const amt = c => Math.max(0, parseInt(per[c.id], 10) || 0), got = pcs.filter(c => amt(c) > 0); if (!got.length) return; const sumP = got.reduce((t, c) => t + amt(c), 0); // the DM set each player's amount
+      setCombatants(prev => prev.map(c => got.some(x => x.id === c.id) ? {...c, xp: (+c.xp || 0) + amt(c)} : c));
+      setLog(prev => [...prev, stamp({type: 'heal', forAll: true, html: `<strong>The DM awards Experience Points</strong>${got.map(c => `<div class="log-detail">${esc(c.name)}: ${amt(c)}</div>`).join('')}<div class="log-detail">${sumP} in total.</div>`})]);
+      setEnded(prev => prev ? {...prev, given: {total: sumP, each: 'set per player', players: got.length, at: Date.now()}} : prev); return; }
+    if (!(total > 0)) return;
     const each = Math.floor(total / pcs.length);
     setCombatants(prev => prev.map(c => pcs.some(x => x.id === c.id) ? {...c, xp: (+c.xp || 0) + each} : c));
     setLog(prev => [...prev, stamp({type:'heal', forAll: true, html:`<strong>The DM awards ${each} Experience Points each</strong> to ${pcs.map(c => esc(c.name)).join(', ')}<div class="log-detail">${total} in total${names.length ? ` for ${names.map(esc).join(', ')}` : ''}, shared between ${pcs.length} player character${pcs.length === 1 ? '' : 's'}.</div>`})]);
@@ -6623,6 +6628,8 @@ function App() {
       {(openPrompts.length > 0 || flowPrompts.length > 0 || sidePrompts.length > 0) && (
         <div className={`prompt-bar ${askPop ? 'pop' : ''}`} data-testid="prompt-bar">
           {askPop && <div className="pop-title"><span>{myAskIds.length > 1 ? 'These need you' : 'This needs you'}</span></div>}
+          {(() => { const skippable = [...flowPrompts.filter(({q, c}) => q.kind === 'offer' && canControl(c)), ...sidePrompts.filter(({q, c}) => ['tell', 'note', 'dawn', 'escape'].includes(q.kind) ? canControl(c) : ['time', 'askdm'].includes(q.kind) && isDM)];
+            return skippable.length > 1 ? <div className="do-row" style={{justifyContent: 'flex-end'}}><button className="btn btn-ghost btn-sm" data-testid="prompt-skip-all" title="Close every message here that can wait (saving throws and Death Saving Throws stay)" onClick={() => skippable.forEach(({q}) => removePrompt(q.id))}>Skip all {skippable.length}</button></div> : null; })()}
           {flowPrompts.map(({q, c}) => {
             const mine = canControl(c), reactions = mine ? reactionsFor(c, q.kind === 'incoming' ? 'targeted' : q.kind === 'offer' ? q.ev : q.hit ? 'hit' : 'miss') : [];
             const react = reactions.length > 0 && <span className="p-btns">{reactions.map(r => r.a
@@ -7519,9 +7526,16 @@ function App() {
                   <tr key={i}><td><label className="rule-label" style={{margin: 0}}><input type="checkbox" data-testid="xp-include" checked={!xpPick.off[i]} onChange={e => setXpPick({...xpPick, off: {...xpPick.off, [i]: !e.target.checked}})}/> {m.name}</label></td>
                     <td style={{color: m.dead ? 'var(--danger)' : 'var(--success)'}}>{m.dead ? 'Defeated' : 'Still up'}</td><td>{m.cr ? `CR ${m.cr}` : 'No Challenge Rating'}</td><td>{m.xp} XP</td></tr>))}</tbody></table>
                 <div className="log-ov"><span>Extra Experience Points</span><input type="number" min="0" aria-label="Extra Experience Points" data-testid="xp-extra" value={xpPick.extra} onChange={e => setXpPick({...xpPick, extra: e.target.value})} style={{width: 90}}/></div>
+                <div className="pp-filter" style={{margin: '6px 0'}}><label className="rule-label" style={{margin: 0}}><input type="radio" name="xpmode" data-testid="xp-mode-share" checked={xpPick.mode !== 'each'} onChange={() => setXpPick({...xpPick, mode: 'share'})}/> Share the total</label>
+                  <label className="rule-label" style={{margin: 0}}><input type="radio" name="xpmode" data-testid="xp-mode-each" checked={xpPick.mode === 'each'} onChange={() => setXpPick({...xpPick, mode: 'each', per: Object.fromEntries(pcs.map(c => [c.id, (xpPick.per || {})[c.id] ?? String(xpEach)]))})}/> Set each player's amount</label></div>
+                {xpPick.mode !== 'each' ? <>
                 <div className="buff-note" data-testid="xp-total"><strong>{xpTotal} Experience Points</strong> shared between {pcs.length} player character{pcs.length === 1 ? '' : 's'} is <strong>{xpEach} each</strong>.</div>
-                <button className="btn btn-primary btn-full" data-testid="xp-give" disabled={!(xpEach > 0) || !pcs.length} onClick={() => giveXP(xpTotal, inPool.map(m => m.name))}>Give {xpEach} Experience Points to each player</button>
-                {sum.given && <div className="buff-note" data-testid="xp-given">Given: {sum.given.each} each, {sum.given.total} in total. Giving again adds more.</div>}
+                <button className="btn btn-primary btn-full" data-testid="xp-give" disabled={!(xpEach > 0) || !pcs.length} onClick={() => giveXP(xpTotal, inPool.map(m => m.name))}>Give {xpEach} Experience Points to each player</button></>
+                : (() => { const per = xpPick.per || {}, sumP = pcs.reduce((t, c) => t + Math.max(0, parseInt(per[c.id], 10) || 0), 0); return <div data-testid="xp-each">
+                  <table className="end-table"><tbody>{pcs.map(c => <tr key={c.id}><td>{c.name}</td><td><input type="number" min="0" aria-label={`Experience Points for ${c.name}`} data-testid="xp-per" value={per[c.id] ?? ''} onChange={e => setXpPick({...xpPick, per: {...per, [c.id]: e.target.value}})} style={{width: 90}}/> XP</td></tr>)}</tbody></table>
+                  <div className="buff-note">{sumP} in total{xpTotal ? ` (the fight was worth ${xpTotal})` : ''}.</div>
+                  <button className="btn btn-primary btn-full" data-testid="xp-give-each" disabled={!(sumP > 0)} onClick={() => giveXP(0, inPool.map(m => m.name), per)}>Give these Experience Points</button></div>; })()}
+                {sum.given && <div className="buff-note" data-testid="xp-given">Given: {typeof sum.given.each === 'number' ? `${sum.given.each} each, ` : ''}{sum.given.total} in total. Giving again adds more.</div>}
               </div>}
               {endTab === 'do' && <div data-testid="end-do">
                 <div className="buff-note" data-testid="end-auto"><strong>Done already.</strong> Actions, Bonus Actions, Reactions and Movement are reset.{sum.stable.length ? ` ${sum.stable.join(', ')} ${sum.stable.length > 1 ? 'are' : 'is'} Stable.` : ' Nobody was making Death Saving Throws.'}{sum.ammo.length ? ` Half of the ammunition used was recovered: ${sum.ammo.map(r => `${r.name} ${r.got} of ${r.spent} ${r.kind}`).join(', ')}.` : ''}</div>
@@ -7540,7 +7554,7 @@ function App() {
                 {isDM && combatants.some(c => (c.conditions || []).length) && <button className="btn btn-ghost btn-full" data-testid="end-cond-everyone" onClick={() => combatants.forEach(c => (c.conditions || []).forEach(k => removeCondition(c.id, k)))}>Remove all conditions from everyone</button>}
               </div>}
               {endTab === 'summary' && <div data-testid="end-summary">
-                <div className="buff-note">{sum.rounds} round{sum.rounds === 1 ? '' : 's'}, about {timeText(sum.rounds * 6)}.{sum.given ? ` Experience Points: the DM gave ${sum.given.each} each (${sum.given.total} in total).` : ' Experience Points: pending. The DM has not given them out yet.'}</div>
+                <div className="buff-note">{sum.rounds} round{sum.rounds === 1 ? '' : 's'}, about {timeText(sum.rounds * 6)}.{sum.given ? ` Experience Points: the DM gave ${typeof sum.given.each === 'number' ? sum.given.each + ' each' : 'a set amount to each player'} (${sum.given.total} in total).` : ' Experience Points: pending. The DM has not given them out yet.'}</div>
                 <table className="end-table"><thead><tr><th>Who</th><th>Damage dealt</th><th>Damage taken</th><th>Hit Points now</th><th>Hit Point Dice left</th><th>Spent this fight</th></tr></thead>
                   <tbody>{sum.rows.map(r => { const c = combatants.find(x => x.id === r.id); return (
                     <tr key={r.id}><td>{r.name}{r.monster ? ' (monster)' : ''}{c && +c.xp > 0 ? ` · ${c.xp} XP` : ''}</td><td>{r.dealt}</td><td>{r.taken}</td><td>{c ? `${c.currentHP} of ${totalHP(c)}` : ''}</td><td>{c && c.sheet ? Math.max(0, c.level - (+c.hitDiceUsed || 0)) : ''}</td><td>{r.spent || (r.monster ? '' : 'Nothing')}</td></tr>); })}</tbody></table>
@@ -7705,7 +7719,7 @@ function App() {
                   <div data-testid="mass-list">{massRun.ids.map(id => <div key={id}>{nm(id)} → {massRun.tgt[id] ? `${nm(massRun.tgt[id])} (${(massRun.acts[id] || []).map(a => a.name).join(', ')})` : 'skipped'}{massRun.mode === 'same' && massRun.tgt[id] && !massRun.askAll ? <div style={{margin: '2px 0 4px 12px'}}>{pickAtk(id)}</div> : null}</div>)}</div>{advRow}
                   <div className="do-row"><button className="btn btn-primary btn-sm" data-testid="mass-roll" disabled={!n} onClick={rollMass}>🎲 Roll all {rolls} {rolls === 1 ? 'attack' : 'attacks'}</button>{massRun.mode === 'diff' && <button className="btn btn-ghost btn-sm" data-testid="mass-back" onClick={() => setMassRun({...massRun, i: massRun.i - 1})}>Back</button>}{cancel}</div></>}
               </div>; })()}
-      {pops.length > 0 && <div className="dm-pops" data-testid="dm-pops">{pops.map(p0 => <div key={p0.id} className="dm-pop" data-testid="dm-pop"><span>{p0.text}</span><button aria-label="Close" onClick={() => setPops(p => p.filter(x => x.id !== p0.id))}>×</button></div>)}</div>}
+      {pops.length > 0 && <div className="dm-pops" data-testid="dm-pops">{pops.length > 1 && <button className="btn btn-ghost btn-sm" data-testid="pops-close-all" onClick={() => setPops([])}>Close all {pops.length}</button>}{pops.map(p0 => <div key={p0.id} className="dm-pop" data-testid="dm-pop"><span>{p0.text}</span><button aria-label="Close" onClick={() => setPops(p => p.filter(x => x.id !== p0.id))}>×</button></div>)}</div>}
       {timeUp && <div className="turn-pop time-up" data-testid="time-up" key={timeUp.key}><span>⏱ Time is up{timeUp.mine ? '' : ` for ${timeUp.name}`}!</span><button aria-label="Close" onClick={() => setTimeUp(null)}>×</button></div>}
       {turnPop && <div className="turn-pop" data-testid="turn-pop" key={turnPop.key}><span>⚔ {turnPop.lead ? <>It's your turn, <strong>{turnPop.lead}</strong>{turnPop.names.length > 1 ? <> (with {turnPop.names.filter(n => n !== turnPop.lead).join(', ')})</> : null}!</> : <>It's <strong>{turnPop.names.join(', ')}</strong>'s turn!</>}</span><button aria-label="Close" data-testid="turn-pop-close" onClick={() => setTurnPop(null)}>×</button></div>}
       {inboxOpen && (() => { const groups = inboxGroups(), when = t => new Date(t).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}); return (
