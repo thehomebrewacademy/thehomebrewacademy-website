@@ -15453,11 +15453,53 @@ function App() {
     });
   };
   // The DM hands out Experience Points: the pool chosen in the panel, shared equally between the player characters.
-  var giveXP = function giveXP(total, names) {
+  var giveXP = function giveXP(total, names, per) {
     var pcs = combatants.filter(function (c) {
       return c.type !== 'monster' && !c.pending && (c.main || c.owner);
     });
-    if (!isDM || !pcs.length || !(total > 0)) return;
+    if (!isDM || !pcs.length) return;
+    if (per) {
+      var amt = function amt(c) {
+          return Math.max(0, parseInt(per[c.id], 10) || 0);
+        },
+        got = pcs.filter(function (c) {
+          return amt(c) > 0;
+        });
+      if (!got.length) return;
+      var sumP = got.reduce(function (t, c) {
+        return t + amt(c);
+      }, 0); // the DM set each player's amount
+      setCombatants(function (prev) {
+        return prev.map(function (c) {
+          return got.some(function (x) {
+            return x.id === c.id;
+          }) ? _objectSpread(_objectSpread({}, c), {}, {
+            xp: (+c.xp || 0) + amt(c)
+          }) : c;
+        });
+      });
+      setLog(function (prev) {
+        return [].concat(_toConsumableArray(prev), [stamp({
+          type: 'heal',
+          forAll: true,
+          html: "<strong>The DM awards Experience Points</strong>".concat(got.map(function (c) {
+            return "<div class=\"log-detail\">".concat(esc(c.name), ": ").concat(amt(c), "</div>");
+          }).join(''), "<div class=\"log-detail\">").concat(sumP, " in total.</div>")
+        })]);
+      });
+      setEnded(function (prev) {
+        return prev ? _objectSpread(_objectSpread({}, prev), {}, {
+          given: {
+            total: sumP,
+            each: 'set per player',
+            players: got.length,
+            at: Date.now()
+          }
+        }) : prev;
+      });
+      return;
+    }
+    if (!(total > 0)) return;
     var each = Math.floor(total / pcs.length);
     setCombatants(function (prev) {
       return prev.map(function (c) {
@@ -25479,9 +25521,35 @@ function App() {
     "data-testid": "prompt-bar"
   }, askPop && /*#__PURE__*/React.createElement("div", {
     className: "pop-title"
-  }, /*#__PURE__*/React.createElement("span", null, myAskIds.length > 1 ? 'These need you' : 'This needs you')), flowPrompts.map(function (_ref183) {
-    var q = _ref183.q,
-      c = _ref183.c;
+  }, /*#__PURE__*/React.createElement("span", null, myAskIds.length > 1 ? 'These need you' : 'This needs you')), function () {
+    var skippable = [].concat(_toConsumableArray(flowPrompts.filter(function (_ref183) {
+      var q = _ref183.q,
+        c = _ref183.c;
+      return q.kind === 'offer' && canControl(c);
+    })), _toConsumableArray(sidePrompts.filter(function (_ref184) {
+      var q = _ref184.q,
+        c = _ref184.c;
+      return ['tell', 'note', 'dawn', 'escape'].includes(q.kind) ? canControl(c) : ['time', 'askdm'].includes(q.kind) && isDM;
+    })));
+    return skippable.length > 1 ? /*#__PURE__*/React.createElement("div", {
+      className: "do-row",
+      style: {
+        justifyContent: 'flex-end'
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-ghost btn-sm",
+      "data-testid": "prompt-skip-all",
+      title: "Close every message here that can wait (saving throws and Death Saving Throws stay)",
+      onClick: function onClick() {
+        return skippable.forEach(function (_ref185) {
+          var q = _ref185.q;
+          return removePrompt(q.id);
+        });
+      }
+    }, "Skip all ", skippable.length)) : null;
+  }(), flowPrompts.map(function (_ref186) {
+    var q = _ref186.q,
+      c = _ref186.c;
     var mine = canControl(c),
       reactions = mine ? reactionsFor(c, q.kind === 'incoming' ? 'targeted' : q.kind === 'offer' ? q.ev : q.hit ? 'hit' : 'miss') : [];
     var react = reactions.length > 0 && /*#__PURE__*/React.createElement("span", {
@@ -25544,9 +25612,9 @@ function App() {
     }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, q.actorName), "'s ", q.what, " ", /*#__PURE__*/React.createElement("strong", null, q.hit ? q.crit ? 'is a Critical Hit on' : 'hits' : 'misses'), " ", /*#__PURE__*/React.createElement("strong", null, c.name), q.total != null ? " (".concat(q.total, " to hit)") : '', ". ", mine ? "You have a Reaction: about ".concat(secs, " seconds to use it before this is resolved.") : "".concat(c.name, " has a moment to use a Reaction before this is resolved.")), /*#__PURE__*/React.createElement("span", {
       className: "p-btns"
     }, react, noR));
-  }), sidePrompts.map(function (_ref184) {
-    var q = _ref184.q,
-      c = _ref184.c;
+  }), sidePrompts.map(function (_ref187) {
+    var q = _ref187.q,
+      c = _ref187.c;
     return q.kind === 'tell' ? canControl(c) ? /*#__PURE__*/React.createElement("div", {
       key: q.id,
       className: "prompt-item yours",
@@ -25778,11 +25846,11 @@ function App() {
     }, "Choose the form")) : /*#__PURE__*/React.createElement("span", {
       className: "prompt-wait"
     }, "Waiting for ", c.name));
-  }), openPrompts.map(function (_ref185) {
-    var q = _ref185.q,
-      c = _ref185.c,
-      text = _ref185.text,
-      dc = _ref185.dc;
+  }), openPrompts.map(function (_ref188) {
+    var q = _ref188.q,
+      c = _ref188.c,
+      text = _ref188.text,
+      dc = _ref188.dc;
     return /*#__PURE__*/React.createElement("div", {
       key: q.id,
       className: "prompt-item ".concat(canControl(c) ? 'yours' : '')
@@ -25860,10 +25928,10 @@ function App() {
   }, "Later"))), /*#__PURE__*/React.createElement("div", {
     className: "pane-tabs",
     role: "tablist"
-  }, [['order', 'Order'], ['sheet', 'Sheet'], ['log', 'Log']].map(function (_ref186) {
-    var _ref187 = _slicedToArray(_ref186, 2),
-      k = _ref187[0],
-      l = _ref187[1];
+  }, [['order', 'Order'], ['sheet', 'Sheet'], ['log', 'Log']].map(function (_ref189) {
+    var _ref190 = _slicedToArray(_ref189, 2),
+      k = _ref190[0],
+      l = _ref190[1];
     return /*#__PURE__*/React.createElement("button", {
       key: k,
       role: "tab",
@@ -26827,9 +26895,9 @@ function App() {
         b: b
       };
     });
-  }).map(function (_ref188) {
-    var c = _ref188.c,
-      b = _ref188.b;
+  }).map(function (_ref191) {
+    var c = _ref191.c,
+      b = _ref191.b;
     return /*#__PURE__*/React.createElement("div", {
       key: b.id,
       className: "buff-note",
@@ -26911,10 +26979,10 @@ function App() {
         skill: ''
       }));
     }
-  }, ABILITY_KEYS.map(function (_ref189) {
-    var _ref190 = _slicedToArray(_ref189, 2),
-      k = _ref190[0],
-      full = _ref190[1];
+  }, ABILITY_KEYS.map(function (_ref192) {
+    var _ref193 = _slicedToArray(_ref192, 2),
+      k = _ref193[0],
+      full = _ref193[1];
     return /*#__PURE__*/React.createElement("option", {
       key: full,
       value: full
@@ -27422,11 +27490,11 @@ function App() {
         className: "mon-stats"
       }, /*#__PURE__*/React.createElement("span", null, "AC ", effectiveAC(c)), /*#__PURE__*/React.createElement("span", null, c.currentHP, "/", totalHP(c), " HP"), /*#__PURE__*/React.createElement("span", null, effectiveSpeed(c), " ft.", c.speedExtra ? ", ".concat(c.speedExtra) : ''), /*#__PURE__*/React.createElement("span", null, "Init ", effectiveInit(c))), !shut && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
         className: "mon-abil"
-      }, ABILITY_KEYS.map(function (_ref191) {
+      }, ABILITY_KEYS.map(function (_ref194) {
         var _ab8;
-        var _ref192 = _slicedToArray(_ref191, 2),
-          k = _ref192[0],
-          ab = _ref192[1];
+        var _ref195 = _slicedToArray(_ref194, 2),
+          k = _ref195[0],
+          ab = _ref195[1];
         return /*#__PURE__*/React.createElement("span", {
           key: ab
         }, /*#__PURE__*/React.createElement("em", null, k.toUpperCase()), modStr((_ab8 = (c.scores || {})[ab]) !== null && _ab8 !== void 0 ? _ab8 : 10));
@@ -27436,10 +27504,10 @@ function App() {
           className: "mon-sec"
         }, /*#__PURE__*/React.createElement("div", {
           className: "mon-h"
-        }, sec.h), (sec.items || []).map(function (_ref193, j) {
-          var _ref194 = _slicedToArray(_ref193, 2),
-            n = _ref194[0],
-            t = _ref194[1];
+        }, sec.h), (sec.items || []).map(function (_ref196, j) {
+          var _ref197 = _slicedToArray(_ref196, 2),
+            n = _ref197[0],
+            t = _ref197[1];
           return /*#__PURE__*/React.createElement("div", {
             key: j
           }, /*#__PURE__*/React.createElement("strong", null, n, "."), " ", Array.isArray(t) ? t.join(', ') : t);
@@ -27570,11 +27638,11 @@ function App() {
     }, ch.lbl, ch.src ? ' ✦' : ''));
   })), /*#__PURE__*/React.createElement("div", {
     className: "abil-row"
-  }, ABILITY_KEYS.map(function (_ref195) {
+  }, ABILITY_KEYS.map(function (_ref198) {
     var _ab9, _ab0;
-    var _ref196 = _slicedToArray(_ref195, 2),
-      k = _ref196[0],
-      ab = _ref196[1];
+    var _ref199 = _slicedToArray(_ref198, 2),
+      k = _ref199[0],
+      ab = _ref199[1];
     var score = (_ab9 = (viewed.scores || {})[ab]) !== null && _ab9 !== void 0 ? _ab9 : 10;
     return /*#__PURE__*/React.createElement("div", {
       className: "abil",
@@ -27731,9 +27799,9 @@ function App() {
       className: "pp-chip ".concat(cur && cur.length === SEE_KEYS.length ? 'on' : ''),
       "data-testid": "see-all",
       onClick: function onClick() {
-        return set(SEE_KEYS.map(function (_ref197) {
-          var _ref198 = _slicedToArray(_ref197, 1),
-            k = _ref198[0];
+        return set(SEE_KEYS.map(function (_ref200) {
+          var _ref201 = _slicedToArray(_ref200, 1),
+            k = _ref201[0];
           return k;
         }));
       }
@@ -27745,10 +27813,10 @@ function App() {
       onClick: function onClick() {
         return set(['none']);
       }
-    }, "Nothing"), SEE_KEYS.map(function (_ref199) {
-      var _ref200 = _slicedToArray(_ref199, 2),
-        k = _ref200[0],
-        label = _ref200[1];
+    }, "Nothing"), SEE_KEYS.map(function (_ref202) {
+      var _ref203 = _slicedToArray(_ref202, 2),
+        k = _ref203[0],
+        label = _ref203[1];
       var on = cur ? cur.includes(k) : seeOfTable(k);
       return /*#__PURE__*/React.createElement("label", {
         key: k,
@@ -27761,9 +27829,9 @@ function App() {
         "data-testid": "see-".concat(k),
         checked: on,
         onChange: function onChange() {
-          var base = (cur || SEE_KEYS.map(function (_ref201) {
-              var _ref202 = _slicedToArray(_ref201, 1),
-                x = _ref202[0];
+          var base = (cur || SEE_KEYS.map(function (_ref204) {
+              var _ref205 = _slicedToArray(_ref204, 1),
+                x = _ref205[0];
               return x;
             }).filter(seeOfTable)).filter(function (x) {
               return x !== 'none';
@@ -28446,10 +28514,10 @@ function App() {
     "data-testid": "pool-row"
   }, /*#__PURE__*/React.createElement("span", {
     className: "opt-label"
-  }, "Resources"), Object.entries(viewed.sheet.pools).map(function (_ref203) {
-    var _ref204 = _slicedToArray(_ref203, 2),
-      n = _ref204[0],
-      q = _ref204[1];
+  }, "Resources"), Object.entries(viewed.sheet.pools).map(function (_ref206) {
+    var _ref207 = _slicedToArray(_ref206, 2),
+      n = _ref207[0],
+      q = _ref207[1];
     return /*#__PURE__*/React.createElement("span", {
       key: n,
       className: "slot-chip ".concat(poolLeft(viewed, n) ? '' : 'spent')
@@ -28703,13 +28771,13 @@ function App() {
     };
     var reacts = [['r', 'reaction', 'Reaction', 'econ-reaction']].concat(_toConsumableArray(ex('extraReaction') ? [['xr', 'xreaction', 'Extra Reaction', 'econ-xreaction', ex('extraReaction')]] : []));
     var filt = {};
-    var tile = function tile(_ref205) {
-      var _ref206 = _slicedToArray(_ref205, 5),
-        k = _ref206[0],
-        kind = _ref206[1],
-        lbl = _ref206[2],
-        tid = _ref206[3],
-        why = _ref206[4];
+    var tile = function tile(_ref208) {
+      var _ref209 = _slicedToArray(_ref208, 5),
+        k = _ref209[0],
+        kind = _ref209[1],
+        lbl = _ref209[2],
+        tid = _ref209[3],
+        why = _ref209[4];
       return /*#__PURE__*/React.createElement("span", {
         key: k,
         role: "button",
@@ -28915,10 +28983,10 @@ function App() {
     } : undefined
   }, activeConditions.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "cond-empty"
-  }, "No active effects"), activeConditions.map(function (_ref207) {
-    var c = _ref207.c,
-      cond = _ref207.cond,
-      info = _ref207.info;
+  }, "No active effects"), activeConditions.map(function (_ref210) {
+    var c = _ref210.c,
+      cond = _ref210.cond,
+      info = _ref210.info;
     return /*#__PURE__*/React.createElement("div", {
       key: c.id + cond,
       className: "cond-item",
@@ -29278,10 +29346,10 @@ function App() {
     }, /*#__PURE__*/React.createElement("div", {
       className: "end-tabs",
       role: "tablist"
-    }, [].concat(_toConsumableArray(isDM ? [['xp', 'Experience']] : []), [['do', 'What you can do'], ['summary', 'Summary'], ['starred', "Starred log (".concat(stars.length, ")")]]).map(function (_ref208) {
-      var _ref209 = _slicedToArray(_ref208, 2),
-        k = _ref209[0],
-        l = _ref209[1];
+    }, [].concat(_toConsumableArray(isDM ? [['xp', 'Experience']] : []), [['do', 'What you can do'], ['summary', 'Summary'], ['starred', "Starred log (".concat(stars.length, ")")]]).map(function (_ref211) {
+      var _ref212 = _slicedToArray(_ref211, 2),
+        k = _ref212[0],
+        l = _ref212[1];
       return /*#__PURE__*/React.createElement("button", {
         key: k,
         role: "tab",
@@ -29338,6 +29406,45 @@ function App() {
         width: 90
       }
     })), /*#__PURE__*/React.createElement("div", {
+      className: "pp-filter",
+      style: {
+        margin: '6px 0'
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      className: "rule-label",
+      style: {
+        margin: 0
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "radio",
+      name: "xpmode",
+      "data-testid": "xp-mode-share",
+      checked: xpPick.mode !== 'each',
+      onChange: function onChange() {
+        return setXpPick(_objectSpread(_objectSpread({}, xpPick), {}, {
+          mode: 'share'
+        }));
+      }
+    }), " Share the total"), /*#__PURE__*/React.createElement("label", {
+      className: "rule-label",
+      style: {
+        margin: 0
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "radio",
+      name: "xpmode",
+      "data-testid": "xp-mode-each",
+      checked: xpPick.mode === 'each',
+      onChange: function onChange() {
+        return setXpPick(_objectSpread(_objectSpread({}, xpPick), {}, {
+          mode: 'each',
+          per: Object.fromEntries(pcs.map(function (c) {
+            var _c$id;
+            return [c.id, (_c$id = (xpPick.per || {})[c.id]) !== null && _c$id !== void 0 ? _c$id : String(xpEach)];
+          }))
+        }));
+      }
+    }), " Set each player's amount")), xpPick.mode !== 'each' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       className: "buff-note",
       "data-testid": "xp-total"
     }, /*#__PURE__*/React.createElement("strong", null, xpTotal, " Experience Points"), " shared between ", pcs.length, " player character", pcs.length === 1 ? '' : 's', " is ", /*#__PURE__*/React.createElement("strong", null, xpEach, " each"), "."), /*#__PURE__*/React.createElement("button", {
@@ -29349,10 +29456,50 @@ function App() {
           return m.name;
         }));
       }
-    }, "Give ", xpEach, " Experience Points to each player"), sum.given && /*#__PURE__*/React.createElement("div", {
+    }, "Give ", xpEach, " Experience Points to each player")) : function () {
+      var per = xpPick.per || {},
+        sumP = pcs.reduce(function (t, c) {
+          return t + Math.max(0, parseInt(per[c.id], 10) || 0);
+        }, 0);
+      return /*#__PURE__*/React.createElement("div", {
+        "data-testid": "xp-each"
+      }, /*#__PURE__*/React.createElement("table", {
+        className: "end-table"
+      }, /*#__PURE__*/React.createElement("tbody", null, pcs.map(function (c) {
+        var _per$c$id;
+        return /*#__PURE__*/React.createElement("tr", {
+          key: c.id
+        }, /*#__PURE__*/React.createElement("td", null, c.name), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", {
+          type: "number",
+          min: "0",
+          "aria-label": "Experience Points for ".concat(c.name),
+          "data-testid": "xp-per",
+          value: (_per$c$id = per[c.id]) !== null && _per$c$id !== void 0 ? _per$c$id : '',
+          onChange: function onChange(e) {
+            return setXpPick(_objectSpread(_objectSpread({}, xpPick), {}, {
+              per: _objectSpread(_objectSpread({}, per), {}, _defineProperty({}, c.id, e.target.value))
+            }));
+          },
+          style: {
+            width: 90
+          }
+        }), " XP"));
+      }))), /*#__PURE__*/React.createElement("div", {
+        className: "buff-note"
+      }, sumP, " in total", xpTotal ? " (the fight was worth ".concat(xpTotal, ")") : '', "."), /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-primary btn-full",
+        "data-testid": "xp-give-each",
+        disabled: !(sumP > 0),
+        onClick: function onClick() {
+          return giveXP(0, inPool.map(function (m) {
+            return m.name;
+          }), per);
+        }
+      }, "Give these Experience Points"));
+    }(), sum.given && /*#__PURE__*/React.createElement("div", {
       className: "buff-note",
       "data-testid": "xp-given"
-    }, "Given: ", sum.given.each, " each, ", sum.given.total, " in total. Giving again adds more.")), endTab === 'do' && /*#__PURE__*/React.createElement("div", {
+    }, "Given: ", typeof sum.given.each === 'number' ? "".concat(sum.given.each, " each, ") : '', sum.given.total, " in total. Giving again adds more.")), endTab === 'do' && /*#__PURE__*/React.createElement("div", {
       "data-testid": "end-do"
     }, /*#__PURE__*/React.createElement("div", {
       className: "buff-note",
@@ -29438,7 +29585,7 @@ function App() {
       "data-testid": "end-summary"
     }, /*#__PURE__*/React.createElement("div", {
       className: "buff-note"
-    }, sum.rounds, " round", sum.rounds === 1 ? '' : 's', ", about ", timeText(sum.rounds * 6), ".", sum.given ? " Experience Points: the DM gave ".concat(sum.given.each, " each (").concat(sum.given.total, " in total).") : ' Experience Points: pending. The DM has not given them out yet.'), /*#__PURE__*/React.createElement("table", {
+    }, sum.rounds, " round", sum.rounds === 1 ? '' : 's', ", about ", timeText(sum.rounds * 6), ".", sum.given ? " Experience Points: the DM gave ".concat(typeof sum.given.each === 'number' ? sum.given.each + ' each' : 'a set amount to each player', " (").concat(sum.given.total, " in total).") : ' Experience Points: pending. The DM has not given them out yet.'), /*#__PURE__*/React.createElement("table", {
       className: "end-table"
     }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Who"), /*#__PURE__*/React.createElement("th", null, "Damage dealt"), /*#__PURE__*/React.createElement("th", null, "Damage taken"), /*#__PURE__*/React.createElement("th", null, "Hit Points now"), /*#__PURE__*/React.createElement("th", null, "Hit Point Dice left"), /*#__PURE__*/React.createElement("th", null, "Spent this fight"))), /*#__PURE__*/React.createElement("tbody", null, sum.rows.map(function (r) {
       var c = combatants.find(function (x) {
@@ -29690,19 +29837,19 @@ function App() {
         // a summoned creature joins the order, straight after its summoner
         var scores = {},
           saves = {};
-        ABILITY_KEYS.forEach(function (_ref210, i) {
-          var _ref211 = _slicedToArray(_ref210, 2),
-            k = _ref211[0],
-            full = _ref211[1];
+        ABILITY_KEYS.forEach(function (_ref213, i) {
+          var _ref214 = _slicedToArray(_ref213, 2),
+            k = _ref214[0],
+            full = _ref214[1];
           scores[full] = m ? m.s[i] : 10;
           saves[full] = m ? m.sv && m.sv[full] != null ? m.sv[full] : mod(m.s[i]) : 0;
         });
         var g = !m && blockPick.gen && blockPick.gen.name === n ? genBlock(blockPick.gen) : null;
         var hp = m ? m.hp : g ? g.hp : Math.max(1, parseInt(blockPick.hp, 10) || 10);
-        if (g) ABILITY_KEYS.forEach(function (_ref212, i) {
-          var _ref213 = _slicedToArray(_ref212, 2),
-            k = _ref213[0],
-            full = _ref213[1];
+        if (g) ABILITY_KEYS.forEach(function (_ref215, i) {
+          var _ref216 = _slicedToArray(_ref215, 2),
+            k = _ref216[0],
+            full = _ref216[1];
           scores[full] = g.s[i];
           saves[full] = mod(g.s[i]);
         });
@@ -30025,9 +30172,9 @@ function App() {
       });
     }
   }, canEndConc(notices[0]) ? 'Keep concentrating' : 'OK')))), function () {
-    var mine = openPrompts.find(function (_ref214) {
-      var q = _ref214.q,
-        c = _ref214.c;
+    var mine = openPrompts.find(function (_ref217) {
+      var q = _ref217.q,
+        c = _ref217.c;
       return canControl(c);
     });
     if (!mine) return null;
@@ -30244,10 +30391,10 @@ function App() {
       }
     }, "\xD7")), /*#__PURE__*/React.createElement("div", {
       className: "modal-body"
-    }, WHAT.map(function (_ref215) {
-      var _ref216 = _slicedToArray(_ref215, 2),
-        k = _ref216[0],
-        txt = _ref216[1];
+    }, WHAT.map(function (_ref218) {
+      var _ref219 = _slicedToArray(_ref218, 2),
+        k = _ref219[0],
+        txt = _ref219[1];
       return /*#__PURE__*/React.createElement("label", {
         key: k,
         className: "rule-label",
@@ -30277,10 +30424,10 @@ function App() {
       }
     }, /*#__PURE__*/React.createElement("option", {
       value: "all"
-    }, "All saving throws"), ABILITY_KEYS.map(function (_ref217) {
-      var _ref218 = _slicedToArray(_ref217, 2),
-        k = _ref218[0],
-        f = _ref218[1];
+    }, "All saving throws"), ABILITY_KEYS.map(function (_ref220) {
+      var _ref221 = _slicedToArray(_ref220, 2),
+        k = _ref221[0],
+        f = _ref221[1];
       return /*#__PURE__*/React.createElement("option", {
         key: f,
         value: f
@@ -30290,10 +30437,10 @@ function App() {
       style: {
         marginTop: 10
       }
-    }, "How long"), UNTIL.map(function (_ref219) {
-      var _ref220 = _slicedToArray(_ref219, 2),
-        k = _ref220[0],
-        txt = _ref220[1];
+    }, "How long"), UNTIL.map(function (_ref222) {
+      var _ref223 = _slicedToArray(_ref222, 2),
+        k = _ref223[0],
+        txt = _ref223[1];
       return /*#__PURE__*/React.createElement("label", {
         key: k,
         className: "rule-label",
@@ -30345,10 +30492,10 @@ function App() {
       }, 0);
     var advRow = /*#__PURE__*/React.createElement("span", {
       className: "mass-adv"
-    }, [[1, 'Advantage'], [0, 'Normal'], [-1, 'Disadvantage']].map(function (_ref221) {
-      var _ref222 = _slicedToArray(_ref221, 2),
-        v = _ref222[0],
-        t = _ref222[1];
+    }, [[1, 'Advantage'], [0, 'Normal'], [-1, 'Disadvantage']].map(function (_ref224) {
+      var _ref225 = _slicedToArray(_ref224, 2),
+        v = _ref225[0],
+        t = _ref225[1];
       return /*#__PURE__*/React.createElement("button", {
         key: v,
         className: "pp-chip ".concat(massRun.adv === v ? 'on' : ''),
@@ -30503,7 +30650,13 @@ function App() {
   }(), pops.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "dm-pops",
     "data-testid": "dm-pops"
-  }, pops.map(function (p0) {
+  }, pops.length > 1 && /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-ghost btn-sm",
+    "data-testid": "pops-close-all",
+    onClick: function onClick() {
+      return setPops([]);
+    }
+  }, "Close all ", pops.length), pops.map(function (p0) {
     return /*#__PURE__*/React.createElement("div", {
       key: p0.id,
       className: "dm-pop",
@@ -30686,10 +30839,10 @@ function App() {
   }), /*#__PURE__*/React.createElement("div", {
     className: "roster-filters",
     "data-testid": "roster-init"
-  }, /*#__PURE__*/React.createElement("span", null, "Initiative for each one added:"), [['roll', 'Roll it'], ['avg', 'Use the average (10 + Dex)'], ['type', 'Type it']].map(function (_ref223) {
-    var _ref224 = _slicedToArray(_ref223, 2),
-      k = _ref224[0],
-      t = _ref224[1];
+  }, /*#__PURE__*/React.createElement("span", null, "Initiative for each one added:"), [['roll', 'Roll it'], ['avg', 'Use the average (10 + Dex)'], ['type', 'Type it']].map(function (_ref226) {
+    var _ref227 = _slicedToArray(_ref226, 2),
+      k = _ref227[0],
+      t = _ref227[1];
     return /*#__PURE__*/React.createElement("label", {
       key: k,
       className: "rule-label",
@@ -30891,10 +31044,10 @@ function App() {
           see: null
         }));
       }
-    }, "Table setting"), SEE_KEYS.map(function (_ref225) {
-      var _ref226 = _slicedToArray(_ref225, 2),
-        k = _ref226[0],
-        t = _ref226[1];
+    }, "Table setting"), SEE_KEYS.map(function (_ref228) {
+      var _ref229 = _slicedToArray(_ref228, 2),
+        k = _ref229[0],
+        t = _ref229[1];
       var cur = addAs.see || [];
       return /*#__PURE__*/React.createElement("label", {
         key: k,
@@ -30926,9 +31079,9 @@ function App() {
       }
     }, "Add ", addAs.name.trim() || m.n)), rosterOpen === m.n && /*#__PURE__*/React.createElement("div", {
       className: "roster-detail"
-    }, /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref227, i) {
-      var _ref228 = _slicedToArray(_ref227, 1),
-        k = _ref228[0];
+    }, /*#__PURE__*/React.createElement("div", null, ABILITY_KEYS.map(function (_ref230, i) {
+      var _ref231 = _slicedToArray(_ref230, 1),
+        k = _ref231[0];
       return "".concat(k.toUpperCase(), " ").concat(m.s[i], " (").concat(modStr(m.s[i]), ")");
     }).join(' · ')), m.sp && /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Speed."), " ", m.sp), (m.tr || []).map(function (t, i) {
       return /*#__PURE__*/React.createElement("p", {
@@ -31209,9 +31362,9 @@ function App() {
       gridTemplateColumns: 'repeat(6,1fr)',
       gap: 6
     }
-  }, ABILITY_KEYS.map(function (_ref229) {
-    var _ref230 = _slicedToArray(_ref229, 1),
-      k = _ref230[0];
+  }, ABILITY_KEYS.map(function (_ref232) {
+    var _ref233 = _slicedToArray(_ref232, 1),
+      k = _ref233[0];
     return /*#__PURE__*/React.createElement("div", {
       className: "form-group",
       key: k
