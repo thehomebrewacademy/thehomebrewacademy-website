@@ -1150,6 +1150,7 @@ let ENC_TABLE = ''; // the DM's encumbrance rule for the table ('off', 'on', 'va
 // Coins weigh something when the character tracks it: fifty coins of any kind weigh 1 pound; a kind of money of your own weighs what you set for it
 // Sample names for the name fields (players and the DM): our own, not characters from any book
 const NAME_IDEAS = ['Aldric', 'Brenna', 'Corvin', 'Dessa', 'Eamon', 'Fenna', 'Garrick', 'Hesper', 'Ilsa', 'Joren', 'Kestrel', 'Lysa', 'Maddoc', 'Nerys', 'Orrin', 'Pell', 'Quinlan', 'Rowan', 'Sable', 'Tamsin', 'Ulric', 'Vesna', 'Wren', 'Yara', 'Zara', 'Bram', 'Tilda', 'Odo', 'Cormac', 'Mirela'];
+const STANDALONE = (() => { try { return window.top === window; } catch (e) { return false; } })(); // opened on its own, not inside the tools page
 function coinLbOf(c, only) { if (!c) return 0; const co = c.coins || {}, n = v => Math.max(0, +v || 0); let coins = 0, lb = 0; // each money tab is weighed when its own switch is on (only: just that tab)
   if (c.coinWeight && (!only || only === 'main')) { coins += n(c.gold) + ['cp', 'sp', 'ep', 'pp'].reduce((t, k) => t + n(co[k]), 0); (c.moneyX || []).forEach(d => { lb += n(co['c:' + d.id]) * n(d.wt); }); }
   (Array.isArray(c.funds) ? c.funds : []).filter(f => f.coinWeight && (!only || only === f.id)).forEach(f => { coins += ['cp', 'sp', 'ep', 'gp', 'pp'].reduce((t, k) => t + n((f.coins || {})[k]), 0); (f.custom || []).forEach(d => { lb += n(d.n) * n(d.wt); }); });
@@ -6353,7 +6354,7 @@ function App() {
     <div className={explainOn ? 'explaining' : ''} style={{display: 'contents'}} onClickCapture={onExplainClick}>
       {/* HEADER */}
       <div className="header">
-        <h1>⚔ Combat Resolver <span className="app-ver" data-testid="app-version">v4.1</span></h1>
+        <h1>⚔ Combat Resolver <span className="app-ver" data-testid="app-version">v4.1</span>{STANDALONE && <a href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener" data-testid="patreon-link" style={{marginLeft: 12, fontSize: 13, color: '#F96854', textDecoration: 'none', verticalAlign: 'middle'}}>Patreon</a>}</h1>
         <button className={`btn btn-sm ${explainOn ? 'btn-primary' : 'btn-ghost'}`} data-testid="explain-toggle" title="Explain: click anything to see where it comes from, instead of using it" onClick={() => { setExplainOn(!explainOn); setExplained(null); }}>❔ Explain{explainOn ? ': on' : ''}</button>
         {isDM && room && <button className={`btn btn-sm ${inboxNew ? 'btn-primary' : 'btn-ghost'}`} data-testid="inbox-open" title="Notification center: what players changed that is not normally changed in play" onClick={() => { setInboxOpen(true); }}>🔔{inboxNew ? ` ${inboxNew}` : ''}</button>}
         <button className="btn btn-ghost btn-sm" data-testid="notes-open" title="Your notes" onClick={() => setShowNotes(true)}>📝 Notes</button>

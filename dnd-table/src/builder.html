@@ -2538,6 +2538,7 @@ const CR_STEPS_B = ["0", "1/8", "1/4", "1/2", ...Array.from({ length: 30 }, (_, 
 const crNumB = cr => { const t = String(cr || "0"); return t.includes("/") ? (+t.split("/")[0]) / (+t.split("/")[1] || 1) : +t || 0; };
 const MON_TYPES = ["Aberration", "Beast", "Celestial", "Construct", "Dragon", "Elemental", "Fey", "Fiend", "Giant", "Humanoid", "Monstrosity", "Ooze", "Plant", "Undead"];
 const monTypeB = m => { const t = String(m.t || ""); const sw = /Swarm of \w+ (\w+?)s?\b/.exec(t); return MON_TYPES.find(x => (sw ? sw[1] : t).toLowerCase().includes(x.toLowerCase())) || ""; };
+const STANDALONE = (() => { try { return window.top === window; } catch (e) { return false; } })(); // opened on its own, not inside the tools page (which has its own Patreon link)
 function CharacterSheet() {
   const [tab, setTab] = useState(() => { // after a pack is added or removed the page reloads and comes back to the same tab
     try { const t = window.sessionStorage.getItem("hba-tab"); window.sessionStorage.removeItem("hba-tab"); return t || "identity"; } catch (e) { return "identity"; }
@@ -3693,6 +3694,7 @@ function CharacterSheet() {
             {label}{pending.count[key] > 0 && attnBadge(pending.count[key], `${pending.count[key]} choice${pending.count[key] > 1 ? "s" : ""} still to make`)}
           </button>
         ))}
+        {STANDALONE && <a href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener" data-testid="patreon-link" style={{ marginLeft: "auto", alignSelf: "center", color: "#F96854", fontFamily: fontDisplay, fontSize: 13, fontWeight: 600, textDecoration: "none", padding: "6px 10px" }}>Patreon</a>}
       </div>
 
       {/* REST IN PROGRESS */}
