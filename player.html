@@ -249,6 +249,11 @@
     .kbd-hint { display: none; }
     .row-2 { grid-template-columns: 1fr; }
   }
+  .pat-modal { text-align: center; width: 440px; }
+  .pat-modal p { color: var(--text2); font-size: 13px; margin-bottom: 10px; }
+  .pat-modal .modal-footer { justify-content: center; }
+  .btn-pat { background: #F96854; border-color: #F96854; color: #1a1010; font-weight: 600; text-decoration: none; }
+  .btn-pat:hover:not(:disabled) { background: #e4513d; }
 </style>
 </head>
 <body>
@@ -526,6 +531,28 @@
 </div>
 
 <div class="drop-overlay" id="drop-overlay"><div class="drop-box"><div class="big">Drop to load</div><div class="small">A zip, a music folder, MP3s, or a library.json</div></div></div>
+
+<!-- Patreon ask (third visit) -->
+<div class="modal-backdrop" id="patreon-modal">
+  <div class="modal pat-modal">
+    <div id="pat-ask">
+      <h3>Enjoying the Music Player?</h3>
+      <p>This player is free, and it always will be. If it has earned a spot at your table, please consider supporting The Homebrew Academy on Patreon.</p>
+      <p>Patrons keep these programs free and help decide what the Academy builds next.</p>
+      <div class="modal-footer">
+        <a class="btn btn-pat" href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener" onclick="patreonChoice('support')">Support on Patreon</a>
+        <button class="btn" onclick="patreonChoice('member')">I'm already a member</button>
+        <button class="btn" onclick="patreonChoice('later')">Maybe later</button>
+      </div>
+    </div>
+    <div id="pat-thanks" hidden>
+      <h3>Thank you for your support!</h3>
+      <p>You make it possible for this and every other free program at the Academy.</p>
+      <p>I hope you are enjoying the Music Player. Now go set the mood at your table!</p>
+      <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('patreon-modal')">Back to the music</button></div>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -1908,6 +1935,18 @@ async function handleDroppedFiles(files) {
 
 // Start up
 if (ROOM_ID) initListener(); else initHost();
+
+// Patreon ask: shown once, on the third time someone opens the player (not for room listeners)
+function patreonChoice(choice) {
+  store.set('hmp_patreon', choice);
+  if (choice === 'member') { $('pat-ask').hidden = true; $('pat-thanks').hidden = false; }
+  else closeModal('patreon-modal');
+}
+if (!ROOM_ID) {
+  const opens = store.get('hmp_opens', 0) + 1;
+  store.set('hmp_opens', opens);
+  if (opens === 3 && !store.get('hmp_patreon', null)) setTimeout(() => openModal('patreon-modal'), 1200);
+}
 
 window.addEventListener('beforeunload', e => { if (peer && listeners.size) { e.preventDefault(); e.returnValue = ''; } });
 </script>
