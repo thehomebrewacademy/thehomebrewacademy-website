@@ -211,6 +211,28 @@
     .nav-wordmark { display:none; }
     .program-actions a { flex:1; text-align:center; }
   }
+  /* ── Phones: compact cards, picture on the left, text wraps under it ── */
+  @media (max-width:600px) {
+    .program-list { gap:12px; }
+    .program, .program.doc { display:block; padding:14px; border-radius:14px; }
+    .program::after { content:""; display:block; clear:both; }
+    .program-thumb, .doc-thumb { float:left; width:112px; max-width:none; aspect-ratio:420/543; border-radius:8px; margin:0 14px 8px 0; }
+    .thumb-badge, .page-inset { display:none; }
+    .ribbon { top:9px; right:-42px; width:130px; font-size:7px; letter-spacing:0.08em; padding:3px 0; }
+    .cover-title, .doc-cover .cover-title { display:none; }
+    .program:not(.doc) .program-thumb { display:none; }
+    .program.keep-indent .program-body { display:flow-root; }
+    .program-body { display:block; padding:0; }
+    .program-top { gap:5px; margin-bottom:8px; }
+    .program-top .meta-tag { display:none; }
+    .status { font-size:9px; padding:3px 9px; letter-spacing:0.14em; }
+    .program-name { font-size:19px; margin-bottom:6px; }
+    .program-desc { font-size:14.5px; line-height:1.55; margin-bottom:0; }
+    .program-feats { display:none; }
+    .program-actions { clear:both; display:flex; gap:8px; margin-top:12px; padding-top:2px; }
+    .program-actions a { flex:1; text-align:center; font-size:11px; padding:10px 8px; letter-spacing:0.06em; }
+    .program.soon { padding:16px; }
+  }
 </style>
 <script src="hba-stats.js"></script>
 <link rel="icon" href="favicon.ico" sizes="any">
@@ -536,5 +558,30 @@
   <div class="footer-copy">© 2025 The Homebrew Academy · All rights reserved.</div>
 </footer>
 
+<script>
+// Phones: the description wraps under the cover, unless keeping it indented beside the cover
+// takes no extra lines. Then it stays indented.
+(function () {
+  var mq = window.matchMedia('(max-width:600px)');
+  function fit() {
+    // Every card with a picture beside its text, including ones added later.
+    document.querySelectorAll('.program').forEach(function (card) {
+      card.classList.remove('keep-indent');
+      var pic = card.querySelector('.program-thumb');
+      if (!mq.matches || card.hidden || !pic || !pic.offsetWidth) return;
+      var wrapped = card.getBoundingClientRect().height;
+      card.classList.add('keep-indent');
+      var indented = card.getBoundingClientRect().height;
+      if (indented > wrapped + 1) card.classList.remove('keep-indent');
+    });
+  }
+  window.hbaFitCards = fit;
+  window.addEventListener('resize', fit);
+  window.addEventListener('load', fit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('.ws-tabs')) setTimeout(fit, 0); });
+  fit();
+})();
+</script>
 </body>
 </html>
