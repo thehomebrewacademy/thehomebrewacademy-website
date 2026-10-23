@@ -254,6 +254,9 @@
   .pat-modal .modal-footer { justify-content: center; }
   .btn-pat { background: #F96854; border-color: #F96854; color: #1a1010; font-weight: 600; text-decoration: none; }
   .btn-pat:hover:not(:disabled) { background: #e4513d; }
+  .pat-keys { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background: var(--bg2); border: 0.5px solid var(--border2); border-radius: var(--radius-lg); padding: 8px 14px; font-size: 11px; color: var(--text2); text-align: center; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgba(0,0,0,0.5); }
+  .pat-keys strong { color: var(--text); font-weight: 500; }
+  @media (hover: none), (max-width: 700px) { .pat-keys { display: none; } }
 </style>
 </head>
 <body>
@@ -532,13 +535,20 @@
 
 <div class="drop-overlay" id="drop-overlay"><div class="drop-box"><div class="big">Drop to load</div><div class="small">A zip, a music folder, MP3s, or a library.json</div></div></div>
 
-<!-- Patreon ask (third visit) -->
+<!-- Patreon ask: first on the third open, then every 10 opens after "Maybe later" -->
 <div class="modal-backdrop" id="patreon-modal">
   <div class="modal pat-modal">
     <div id="pat-ask">
-      <h3>Enjoying the Music Player?</h3>
-      <p>This player is free, and it always will be. If it has earned a spot at your table, please consider supporting The Homebrew Academy on Patreon.</p>
-      <p>Patrons keep these programs free and help decide what the Academy builds next.</p>
+      <div id="pat-first">
+        <h3>Enjoying the Music Player?</h3>
+        <p>This player is free, and it always will be. If it has earned a spot at your table, please consider supporting The Homebrew Academy on Patreon.</p>
+        <p>Patrons keep these programs free and help decide what the Academy builds next.</p>
+      </div>
+      <div id="pat-repeat" hidden>
+        <h3>Welcome back!</h3>
+        <p>Glad to see the Music Player is still getting some use at your table.</p>
+        <p>It's free, and it always will be. If you've been enjoying it, consider showing a little appreciation by enrolling in The Homebrew Academy on Patreon. Patrons are the reason programs like this exist.</p>
+      </div>
       <div class="modal-footer">
         <a class="btn btn-pat" href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener" onclick="patreonChoice('support')">Support on Patreon</a>
         <button class="btn" onclick="patreonChoice('member')">I'm already a member</button>
@@ -552,6 +562,7 @@
       <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('patreon-modal')">Back to the music</button></div>
     </div>
   </div>
+  <div class="pat-keys"><strong>Your music keeps playing, and shortcuts still work:</strong> <kbd>Space</kbd> play/pause · <kbd>←</kbd> <kbd>→</kbd> previous/next · <kbd>↑</kbd> <kbd>↓</kbd> volume · <kbd>S</kbd> shuffle · <kbd>L</kbd> loop</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -573,7 +584,7 @@ let toastTimer;
 function toast(msg, ms = 3000) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
 function setStatus(id, msg, cls = '') { const el = $(id); if (!el) return; el.textContent = msg; el.className = 'status' + (cls ? ' ' + cls : ''); }
 function openModal(id) { $(id).classList.add('open'); if (id === 'room-modal') renderRoom(); if (id === 'load-modal') renderLoadModal(); }
-function closeModal(id) { $(id).classList.remove('open'); }
+function closeModal(id) { if (id === 'patreon-modal' && patPending) { patreonChoice('later'); return; } $(id).classList.remove('open'); }
 document.querySelectorAll('.modal-backdrop').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); }));
 
 // Ask Opus for stereo, high bitrate music instead of voice-call quality.
@@ -1206,7 +1217,9 @@ document.addEventListener('keydown', e => {
   if (ROOM_ID) return;
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
-  if (document.querySelector('.modal-backdrop.open')) { if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop.open').forEach(m => closeModal(m.id)); return; }
+  const openModals = [...document.querySelectorAll('.modal-backdrop.open')];
+  const onlyPatreon = openModals.length === 1 && openModals[0].id === 'patreon-modal';
+  if (openModals.length && (!onlyPatreon || e.key === 'Escape')) { if (e.key === 'Escape') openModals.forEach(m => closeModal(m.id)); return; }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   switch (e.key) {
     case ' ': e.preventDefault(); togglePlay(); break;
@@ -1936,16 +1949,35 @@ async function handleDroppedFiles(files) {
 // Start up
 if (ROOM_ID) initListener(); else initHost();
 
-// Patreon ask: shown once, on the third time someone opens the player (not for room listeners)
+// Patreon ask (not for room listeners). First shown on the third open.
+// After "Maybe later" (or closing it by clicking outside / Escape) it comes back every PATREON_EVERY opens with the "Welcome back" message.
+// "Support on Patreon" or "I'm already a member" stops it for good. It never touches the music.
+const PATREON_EVERY = 10;
+let patPending = false;
 function patreonChoice(choice) {
+  patPending = false;
   store.set('hmp_patreon', choice);
+  if (choice === 'later') store.set('hmp_pat_next', store.get('hmp_opens', 0) + PATREON_EVERY);
   if (choice === 'member') { $('pat-ask').hidden = true; $('pat-thanks').hidden = false; }
   else closeModal('patreon-modal');
+}
+function showPatreon(repeat) {
+  $('pat-first').hidden = repeat; $('pat-repeat').hidden = !repeat;
+  $('pat-ask').hidden = false; $('pat-thanks').hidden = true;
+  patPending = true;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // so Space plays/pauses instead of pressing a button
+  openModal('patreon-modal');
 }
 if (!ROOM_ID) {
   const opens = store.get('hmp_opens', 0) + 1;
   store.set('hmp_opens', opens);
-  if (opens === 3 && !store.get('hmp_patreon', null)) setTimeout(() => openModal('patreon-modal'), 1200);
+  const choice = store.get('hmp_patreon', null);
+  if (!choice && opens >= 3) setTimeout(() => showPatreon(false), 1200);
+  else if (choice === 'later') {
+    const next = store.get('hmp_pat_next', null);
+    if (next == null) store.set('hmp_pat_next', opens + PATREON_EVERY);
+    else if (opens >= next) setTimeout(() => showPatreon(true), 1200);
+  }
 }
 
 window.addEventListener('beforeunload', e => { if (peer && listeners.size) { e.preventDefault(); e.returnValue = ''; } });
