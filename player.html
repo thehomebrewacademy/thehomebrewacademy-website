@@ -258,6 +258,7 @@
   .pat-keys strong { color: var(--text); font-weight: 500; }
   @media (hover: none), (max-width: 700px) { .pat-keys { display: none; } }
 </style>
+<script src="hba-stats.js"></script>
 </head>
 <body>
 
@@ -623,6 +624,7 @@ function listenerStatus(state, msg) {
 function listenerJoin() {
   const name = $('l-name').value.trim();
   store.set('hmp_listener_name', name);
+  if (window.hbaCount) hbaCount('music-player/player-joined', 'Music Player: player joined a listening room');
   $('l-join').hidden = true;
   $('l-live').hidden = false;
   lAudio.volume = +$('l-vol').value;
@@ -1611,6 +1613,7 @@ function startRoom() {
   peer = new Peer(settings.roomId);
   peer.on('open', () => {
     setStatus('room-status', "Room is live. Players who open the link will hear what you play.", 'ok');
+    if (window.hbaCount) hbaCount('music-player/room-started', 'Music Player: listening room started');
     renderRoom();
   });
   peer.on('connection', conn => {
