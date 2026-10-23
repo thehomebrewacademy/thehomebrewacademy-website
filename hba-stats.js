@@ -5,8 +5,8 @@
 // the code is homebrewacademy. While it is empty, nothing is counted and nothing extra loads.
 //
 // What gets counted:
-//   Page opens (homepage, Workshop, each document read, Music Player, Character Builder & Combat Resolver)
-//   Music Player: listening room started (a table), player joined a listening room
+//   Page opens (homepage, Workshop, each document read, The Bard's Lectern, Character Builder & Combat Resolver)
+//   The Bard's Lectern (music player): listening room started (a table), player joined a listening room
 //   Combat Resolver: new table started, player joined a table, Combat Resolver tab opened
 //   PDF downloads (which document)
 // Room codes, player codes, names, characters and anything people type are never sent.
