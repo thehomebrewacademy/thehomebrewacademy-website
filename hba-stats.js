@@ -11,7 +11,7 @@
 //   PDF downloads (which document)
 // Room codes, player codes, names, characters and anything people type are never sent.
 (function () {
-  var GOATCOUNTER_CODE = '';
+  var GOATCOUNTER_CODE = 'thehomebrewacademy';
 
   // Inside the Character Builder / Combat Resolver frames: send counts through the tools page instead.
   try {
