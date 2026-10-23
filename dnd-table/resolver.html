@@ -941,6 +941,31 @@
     /* ── SCROLLBAR ── */
     * { scrollbar-width: thin; scrollbar-color: var(--brass) var(--panel); }
   </style>
+<script src="../hba-stats.js"></script>
+<script>
+// Anonymous usage counts (see ../hba-stats.js): a new table started on this computer, or a player joining a table.
+// It only notices that this browser's own session lists grew. No codes, names or characters are sent.
+(function () {
+  try {
+    var orig = Storage.prototype.setItem;
+    function list(v) { try { var a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    Storage.prototype.setItem = function (k, v) {
+      try {
+        if (this === window.localStorage && window.hbaCount) {
+          if (k === 'hba-dm-rooms') {
+            var before = list(this.getItem(k));
+            if (list(v).some(function (c) { return before.indexOf(c) < 0; })) window.hbaCount('combat-resolver/table-started', 'Combat Resolver: new table started');
+          } else if (k === 'hba-sessions') {
+            var had = list(this.getItem(k)).map(function (x) { return x && x.code; });
+            if (list(v).some(function (x) { return x && x.role === 'player' && had.indexOf(x.code) < 0; })) window.hbaCount('combat-resolver/player-joined', 'Combat Resolver: player joined a table');
+          }
+        }
+      } catch (e) {}
+      return orig.apply(this, arguments);
+    };
+  } catch (e) {}
+})();
+</script>
 </head>
 <body>
 <div id="root"></div>

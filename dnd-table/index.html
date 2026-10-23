@@ -26,6 +26,7 @@
     }
     iframe[hidden] { display: none; }
   </style>
+<script src="../hba-stats.js"></script>
 </head>
 <body>
   <div class="bar" role="tablist">
@@ -44,7 +45,11 @@
         Object.keys(frames).forEach(function (k) { frames[k].hidden = k !== name; });
         tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.dataset.tab === name)); });
       }
-      tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.dataset.tab); }); });
+      var countedResolver = false;
+      tabs.forEach(function (t) { t.addEventListener('click', function () {
+        if (t.dataset.tab === 'resolver' && !countedResolver && window.hbaCount) { countedResolver = true; hbaCount('tools/combat-resolver-opened', 'Combat Resolver tab opened'); }
+        show(t.dataset.tab);
+      }); });
 
       // An invite link (#room=CODE) opens straight into the Combat Resolver, already in that room.
       var room = (/room=([A-Za-z0-9]+)/.exec(location.hash) || [])[1];
