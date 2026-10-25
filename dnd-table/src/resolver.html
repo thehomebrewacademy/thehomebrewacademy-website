@@ -916,6 +916,27 @@
     .temp-hp { color: #80d8ff; font-weight: 400; font-size: 0.72rem; }
     .opt-label { font-family: 'Cinzel', serif; font-size: 0.7rem; color: var(--brass); letter-spacing: 0.5px; text-transform: uppercase; align-self: center; }
 
+    /* ── OPEN MY CHARACTERS ON MY PHONE ── */
+    .phone-bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #0F1923; border-bottom: 1px solid var(--brass); flex-wrap: wrap; flex-shrink: 0; }
+    .phone-bar .pb-arrow { width: 42px; height: 42px; font-size: 1.6rem; line-height: 1; border-radius: 8px; border: 1px solid var(--brass); background: transparent; color: var(--gold); cursor: pointer; flex-shrink: 0; }
+    .phone-bar .pb-arrow:disabled { opacity: 0.3; cursor: default; }
+    .phone-bar .pb-name { flex: 1; min-width: 0; text-align: center; font-family: 'Cinzel', serif; color: var(--gold); font-size: 1.05rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .phone-bar .pb-name small { display: block; font-family: inherit; font-size: 0.68rem; font-weight: 400; color: var(--text-muted); letter-spacing: 0.5px; }
+    .phone-bar .pb-mode { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .phone-bar .pb-mode button { font-family: 'Cinzel', serif; font-size: 0.78rem; padding: 7px 4px; border-radius: 6px; border: 1px solid var(--brass); background: transparent; color: var(--text-muted); cursor: pointer; }
+    .phone-bar .pb-mode button.on { background: var(--brass); color: var(--ink); font-weight: 700; }
+    .pane-tabs.phone-hide { display: none !important; }
+    .app.phone-mine { grid-template-columns: 1fr !important; }
+    .app.phone-mine > .panel, .app.phone-mine > .log-panel { display: none !important; }
+    .app.phone-mine > .center-panel { display: flex !important; }
+    .phone-qr { text-align: center; margin: 4px 0 12px; }
+    .phone-qr svg { width: 100%; max-width: 240px; height: auto; background: #fff; padding: 6px; border-radius: 8px; }
+    .phone-warn { border: 1px solid #c0392b; background: rgba(192,57,43,0.12); color: #ffc2b8; border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; line-height: 1.5; margin: 10px 0; }
+    .phone-warn strong { color: #ff8a80; }
+    .phone-ended { position: fixed; inset: 0; z-index: 400; background: rgba(10,14,20,0.94); display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .phone-ended > div { max-width: 360px; text-align: center; background: var(--panel); border: 1px solid var(--brass); border-radius: 10px; padding: 22px; color: var(--text); line-height: 1.5; }
+    .phone-ended h2 { font-family: 'Cinzel', serif; color: var(--gold); font-size: 1.1rem; margin-bottom: 8px; }
+
     /* ── PHONE LAYOUT: one panel at a time ── */
     .pane-tabs { display: none; }
     @media (max-width: 900px) {
@@ -983,6 +1004,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
+<script src="qrcode.js"></script>
 <script src="monsters.js"></script>
 <script src="glossary.js"></script>
 <script src="spells.js"></script>
@@ -1014,6 +1036,21 @@ function makeCode(len) {
 }
 function cleanCode(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12); }
 function sessionFromHash() { const m = /room=([A-Za-z0-9]+)/.exec(window.location.hash); return m ? cleanCode(m[1]) : ''; }
+// ── OPEN MY CHARACTERS ON MY PHONE ──
+// The computer shows a QR code. Its link carries the session, whose characters to open (their public ID, never the player code)
+// and a one-time key. The session only ever holds a scrambled check of the key (phoneKey on those characters), so the other
+// screens at the table cannot rebuild the link. Making a new code replaces the check, so only the newest code works.
+// Turning it off, the characters leaving, or the session ending stops it. The phone keeps the link for this tab only.
+const phoneCheck = k => publicId('phone:' + k);
+const qrSvg = text => { try { if (!window.qrcode) return ''; const q = window.qrcode(0, 'M'); q.addData(text); q.make(); return q.createSvgTag({cellSize: 6, margin: 2, scalable: true}); } catch (e) { return ''; } };
+const PHONE_LINK = (() => {
+  try {
+    const h = String(window.location.hash || ''), r = /room=([A-Za-z0-9]+)/.exec(h), a = /[#&]as=([a-z0-9]+)/.exec(h), k = /[#&]k=([A-Za-z0-9]+)/.exec(h);
+    if (r && a && k) { const v = {room: cleanCode(r[1]), as: a[1], k: k[1]}; try { window.sessionStorage.setItem('hba-phone', JSON.stringify(v)); } catch (e) {} return v; }
+    const s = JSON.parse(window.sessionStorage.getItem('hba-phone') || 'null');
+    return s && r && cleanCode(r[1]) === s.room ? s : null;
+  } catch (e) { return null; }
+})();
 // The DM's world tracker: the time of day, the weather, counters that change with time, and timers.
 const DAY = 86400, HOUR = 3600, DAWN = 6 * HOUR;
 const WEATHER_PRESETS = ['Clear', 'Cloudy', 'Light rain', 'Heavy rain', 'Fog', 'Snow', 'Thunderstorm', 'Strong wind', 'Extreme heat', 'Extreme cold'];
@@ -2641,7 +2678,11 @@ function App() {
 
   // ── SESSION / LIVE SYNC STATE ──
   const [playerCode, setPlayerCode] = useState(currentPlayerCode);
-  const myId = useMemo(() => publicId(playerCode), [playerCode]);
+  const [phoneOk, setPhoneOk] = useState(false);       // this phone's link checked out: it plays that player's characters
+  const [phoneEnded, setPhoneEnded] = useState('');     // why this phone's link stopped working
+  const [phoneView, setPhoneView] = useState('mine');   // on the phone: mine (just my characters) | table (the whole Combat Resolver)
+  const [phoneQR, setPhoneQR] = useState(null);         // on the computer: {k, open} the current code
+  const myId = useMemo(() => PHONE_LINK && phoneOk ? PHONE_LINK.as : publicId(playerCode), [playerCode, phoneOk]);
   const [room, setRoom] = useState(null);                  // session code
   const [roomInput, setRoomInput] = useState('');
   const [syncStatus, setSyncStatus] = useState('offline'); // offline | connecting | live | error
@@ -2950,6 +2991,12 @@ function App() {
     || mine[0] || (isDM ? active : null) || null; // a player never opens a creature they do not control
   const sharesTurn = v => !!(v && active && v.shareTurn && (v.after === active.id || v.palOf === active.id)); // a companion on a shared Initiative acts on its owner's turn
   const canAct = !!(combatStarted && active && viewed && (viewed.id === active.id || sharesTurn(viewed)) && canControl(viewed));
+  // The phone, showing just my characters: swipe (or the arrows) to switch between them
+  const phoneMine = !!(PHONE_LINK && phoneOk && phoneView === 'mine');
+  const stepMine = d => { if (mine.length < 2) return; const i = Math.max(0, mine.findIndex(c => viewed && c.id === viewed.id)); setViewId(mine[(i + d + mine.length) % mine.length].id); };
+  const swipeRef = useRef(null);
+  const onSwipeStart = e => { if (!phoneMine || !e.touches || !e.touches[0]) return; swipeRef.current = {x: e.touches[0].clientX, y: e.touches[0].clientY}; };
+  const onSwipeEnd = e => { const t = swipeRef.current; swipeRef.current = null; if (!t || !e.changedTouches || !e.changedTouches[0]) return; const dx = e.changedTouches[0].clientX - t.x, dy = e.changedTouches[0].clientY - t.y; if (Math.abs(dx) > 70 && Math.abs(dy) < 50) stepMine(dx < 0 ? 1 : -1); };
   const target = inPlay.find(c => c.id === targetId) || null;
   // Things that keep working while they last (a spell used again each turn): offered again with no slot or use spent.
   const runningOf = c => (c && c.running || []).filter(r => r && r.a && (!r.turnOnly || r.turnOnly === `${round}:${activeId}`) && (!r.conc || (c.conc && c.conc.name === r.conc)) && (!r.concBy || ((combatants.find(x => x.id === r.concBy) || {}).conc || {}).name === r.concName));
@@ -4875,6 +4922,22 @@ function App() {
     setHash('#');
   };
 
+  // The computer: make a code for the phone. Only the newest code works.
+  const phoneLinkUrl = k => window.location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, 'resolver.html') + '#room=' + room + '&as=' + myId + '&k=' + k;
+  const makePhoneCode = () => { const k = makeCode(20); setPhoneQR({k, open: true}); setCombatants(prev => prev.map(c => c.owner === myId ? {...c, phoneKey: phoneCheck(k)} : c)); };
+  const phoneActive = mine.some(c => c.phoneKey);
+  const openPhoneModal = () => { if (phoneQR && phoneQR.k) setPhoneQR({...phoneQR, open: true}); else if (phoneActive) setPhoneQR({k: '', open: true}); else makePhoneCode(); };
+  const phoneOff = () => { setPhoneQR(null); setCombatants(prev => prev.map(c => c.owner === myId && c.phoneKey ? {...c, phoneKey: ''} : c)); };
+  // The phone: check its key against the session, and keep checking. A newer code, turning it off, or the characters leaving stops it.
+  useEffect(() => {
+    if (!PHONE_LINK || !room || room !== PHONE_LINK.room || !remoteSigs) return;
+    const ok = combatants.some(c => c.owner === PHONE_LINK.as && c.phoneKey && c.phoneKey === phoneCheck(PHONE_LINK.k));
+    if (ok && !phoneOk) { setPhoneOk(true); setPhoneEnded(''); setPane('sheet'); const first = combatants.find(c => c.owner === PHONE_LINK.as); if (first) setViewId(first.id); }
+    else if (!ok && (phoneOk || !phoneEnded)) { setPhoneOk(false); setPhoneEnded('This phone link has stopped working. A newer code was made on the computer, the link was turned off there, or the characters left the session. Scan a new code to reconnect.'); try { window.sessionStorage.removeItem('hba-phone'); } catch (e) {} }
+  }, [combatants, room, remoteSigs]);
+  // The phone: the session ended, or the link's session does not exist
+  useEffect(() => { if (PHONE_LINK && !room && (phoneOk || syncStatus === 'error')) { setPhoneOk(false); setPhoneEnded('The session has ended, so this phone link has too. Scan a new code when your next session starts.'); try { window.sessionStorage.removeItem('hba-phone'); } catch (e) {} } }, [room, syncStatus]);
+
   const inviteLink = () => {
     let base = window.location.href;
     try { base = (window.parent || window).location.href; } catch (e) {}
@@ -5599,6 +5662,8 @@ function App() {
     const cantrips = list.filter(s => s.l === 0), levels = [1,2,3,4,5,6,7,8,9].filter(l => list.some(s => s.l === l));
     const str = (c.passives || {}).jumpDex ? Math.max((c.scores || {}).Strength ?? 10, (c.scores || {}).Dexterity ?? 10) : (c.scores || {}).Strength ?? 10; // Second-Story Work: Dexterity for jumps
     const hitLeft = Math.max(0, c.level - (+c.hitDiceUsed || 0));
+    // Multiclassed: one count per die size (classes sharing a die size share a line)
+    const hitGroups = Array.isArray(c.hitDice) && c.hitDice.length > 1 ? Object.values(c.hitDice.reduce((g, h) => { const k = +h.die; g[k] = g[k] || {die: k, total: 0, left: 0}; g[k].total += +h.level || 0; g[k].left += Math.max(0, (+h.level || 0) - (+((c.hdUsedBy || {})[h.name]) || 0)); return g; }, {})).sort((a, b) => a.die - b.die) : null;
     const res = [c.res && `Resistant: ${c.res}`, c.ci && `Immune: ${c.ci}`].filter(Boolean);
     const slotCircles = (lvl) => { const max = ((sh.slotMax || [])[lvl - 1]) || 0, left = slotsLeft(c, lvl); return max ? (
       <span className="pp-circles" data-testid={`slots-${lvl}`} data-left={left} data-max={max} title={ctl ? 'Click a filled circle to spend a slot, an empty one to give it back' : ''}>
@@ -5711,7 +5776,7 @@ function App() {
                 <div className="pp-heartval"><strong>{totalHP(c)}</strong><span>MAX</span></div></div>}
               <div className="pp-hpside">
                 <div className="pp-hprow pp-hpnow" data-testid="hp-now" title="Current and Temporary Hit Points"><div><strong>{c.currentHP}</strong><span>HP</span></div><div className="pp-slash">/</div><div><strong>{+c.tempHP || 0}</strong><span>Temp</span></div></div>
-                <div className="pp-hit" title="Hit Point Dice left">Hit Dice {hitLeft}/{c.level}</div>
+                <div className="pp-hit" data-testid="hit-dice" title="Hit Point Dice left">Hit Dice {hitGroups ? hitGroups.map(g => `d${g.die} ${g.left}/${g.total}`).join(' · ') : `${hitLeft}/${c.level}`}</div>
               </div>
             </div>
           </div>
@@ -6395,8 +6460,8 @@ function App() {
         {combatStarted && <div className="round-badge">Round {round}</div>}
         {world && world.on && (isDM || world.show) && <div className="world-badge" data-testid="world-badge" title={isDM && !world.show ? 'Only you see this' : 'The time and weather'}>🕰 {clockText(world.t, world.cal)}{world.weather.now ? ` · ${world.weather.now}` : ''}{(world.trackers || []).filter(x => (isDM || x.show) && x.kind !== 'chance').map(x => ` · ${x.name} ${trackerText(x)}`).join('')}</div>}
         <div className="room-bar">
-          <span>Player code <span className="room-code" data-testid="player-code">{playerCode}</span>
-            {!room && <> <button className="link-btn" onClick={changePlayerCode}>change</button></>}</span>
+          {PHONE_LINK && phoneOk ? <span data-testid="phone-mode">📱 Phone view</span> : <span>Player code <span className="room-code" data-testid="player-code">{playerCode}</span>
+            {!room && <> <button className="link-btn" onClick={changePlayerCode}>change</button></>}</span>}
           {!SYNC_AVAILABLE ? (
             <span title="Add your Firebase config to firebase-config.js to turn on live sync">· Live sync not set up</span>
           ) : room ? (
@@ -6405,7 +6470,8 @@ function App() {
               <span>Session {sessName ? <strong data-testid="session-name">{sessName} </strong> : null}<span className="room-code" data-testid="session-code">{room}</span></span>
               <span className="role-badge">{isDM ? 'DM' : 'Player'}</span>
               {<input data-testid="player-name" aria-label="Your name" value={playerName} placeholder={nameHint} maxLength={40} title="Your name, so the DM knows who is who" onChange={e => { setPlayerName(e.target.value); lsSet('hba-player-name', e.target.value); }} onBlur={() => !isDM && setCombatants(prev => prev.map(x => x.owner === myId ? {...x, ownerName: myName} : x))} style={{width: 120}}/>}
-              <button className="btn btn-ghost btn-sm" onClick={copyInvite}>{copied ? 'Copied!' : 'Copy Invite Link'}</button>
+              {!PHONE_LINK && <button className="btn btn-ghost btn-sm" onClick={copyInvite}>{copied ? 'Copied!' : 'Copy Invite Link'}</button>}
+              {!PHONE_LINK && mine.length > 0 && <button className={`btn btn-sm ${phoneActive ? 'btn-primary' : 'btn-ghost'}`} data-testid="phone-open" title="Show a QR code that opens your characters on your phone, live" onClick={openPhoneModal}>📱 Open my characters on my phone</button>}
               <button className="btn btn-ghost btn-sm" onClick={leaveSession}>Leave</button>
               {dmId === myId && <button className="btn btn-danger btn-sm" onClick={deleteSession}>Delete Session</button>}
             </>
@@ -6562,6 +6628,29 @@ function App() {
           </div>
         </div>
       </div>}
+      {phoneQR && phoneQR.open && !PHONE_LINK && (
+        <div className="modal-overlay" onClick={() => setPhoneQR({...phoneQR, open: false})}>
+          <div className="modal" data-testid="phone-modal" onClick={e => e.stopPropagation()} style={{maxWidth: 420}}>
+            <div className="modal-header">📱 Open my characters on my phone</div>
+            <div className="modal-body">
+              {phoneQR.k ? <>
+                <div className="buff-note" style={{fontStyle: 'normal'}}>Scan this with your phone's camera. Your characters open there, live: take your turn, roll, cast and track everything from your phone. Anything that changes on either screen shows on the other.</div>
+                {qrSvg(phoneLinkUrl(phoneQR.k)) ? <div className="phone-qr" data-testid="phone-qr" dangerouslySetInnerHTML={{__html: qrSvg(phoneLinkUrl(phoneQR.k))}}/> : <div className="buff-note">The QR code could not be drawn. Use Copy link instead.</div>}
+              </> : <div className="buff-note" style={{fontStyle: 'normal'}} data-testid="phone-active">A phone link is already on for your characters. To connect a phone, make a new code. The old one stops working.</div>}
+              <div className="phone-warn" data-testid="phone-warning"><strong>⚠ Keep this code private.</strong> Anyone who scans it can play your characters in this session, just like you can: take turns, roll, use spells and features, and change Hit Points and conditions. Do not share it, post it, show it on stream, or leave it anywhere someone else could see it.<br/><br/>Only the newest code works: making a new code disconnects the old one. Every code stops working when the session ends.</div>
+              <div className="do-row">
+                {phoneQR.k && <button className="btn btn-ghost btn-sm" data-testid="phone-copy" onClick={() => { const l = phoneLinkUrl(phoneQR.k); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(l).catch(() => window.prompt('Copy this link:', l)); else window.prompt('Copy this link:', l); }}>Copy link</button>}
+                <button className="btn btn-ghost btn-sm" data-testid="phone-new" onClick={makePhoneCode}>Make a new code</button>
+                {phoneActive && <button className="btn btn-danger btn-sm" data-testid="phone-off" onClick={phoneOff}>Turn off phone link</button>}
+                <button className="btn btn-primary btn-sm" style={{marginLeft: 'auto'}} onClick={() => setPhoneQR({...phoneQR, open: false})}>Done</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {PHONE_LINK && phoneEnded && !phoneOk && (
+        <div className="phone-ended" data-testid="phone-ended"><div><h2>📱 Phone link closed</h2><p>{phoneEnded}</p></div></div>
+      )}
       {showNotes && <NotesPanel who={isDM ? 'dm-' + playerCode : playerCode} version={notesVer} onClose={() => setShowNotes(false)}/>}
       {restSummary && (
         <div className="modal-overlay" onClick={()=>setRestSummary(null)} data-testid="rest-summary">
@@ -6745,12 +6834,23 @@ function App() {
         </div>
       )}
 
-      <div className="pane-tabs" role="tablist">
+      {PHONE_LINK && phoneOk && (
+        <div className="phone-bar" data-testid="phone-bar">
+          {phoneView === 'mine' && <button className="pb-arrow" aria-label="Previous character" disabled={mine.length < 2} onClick={() => stepMine(-1)}>‹</button>}
+          {phoneView === 'mine' && <div className="pb-name" data-testid="phone-name">{viewed ? viewed.name : 'Your characters'}<small>{mine.length > 1 ? `${Math.max(0, mine.findIndex(c => viewed && c.id === viewed.id)) + 1} of ${mine.length} · swipe to switch` : 'Your character'}</small></div>}
+          {phoneView === 'mine' && <button className="pb-arrow" aria-label="Next character" disabled={mine.length < 2} onClick={() => stepMine(1)}>›</button>}
+          <div className="pb-mode" role="tablist">
+            <button role="tab" data-testid="phone-view-mine" className={phoneView === 'mine' ? 'on' : ''} onClick={() => { setPhoneView('mine'); setPane('sheet'); }}>My characters</button>
+            <button role="tab" data-testid="phone-view-table" className={phoneView === 'table' ? 'on' : ''} onClick={() => setPhoneView('table')}>Full table</button>
+          </div>
+        </div>
+      )}
+      <div className={`pane-tabs ${phoneMine ? 'phone-hide' : ''}`} role="tablist">
         {[['order','Order'],['sheet','Sheet'],['log','Log']].map(([k,l]) => (
           <button key={k} role="tab" aria-selected={pane===k} className={pane===k?'on':''} onClick={()=>setPane(k)}>{l}{k==='log' && log.length>0 ? ` (${log.filter(e=>e.type!=='round').length})` : ''}</button>
         ))}
       </div>
-      <div className={`app pane-${pane} ${isDM && dmWide && leftTab === 'dm' ? 'dm-wide' : ''} ${targeting ? 'targeting' : ''} ${!isDM && !revealAC ? 'hide-ac' : ''} ${!isDM && hideRolls ? 'hide-dm' : ''}`}>
+      <div className={`app pane-${pane} ${phoneMine ? 'phone-mine' : ''} ${isDM && dmWide && leftTab === 'dm' ? 'dm-wide' : ''} ${targeting ? 'targeting' : ''} ${!isDM && !revealAC ? 'hide-ac' : ''} ${!isDM && hideRolls ? 'hide-dm' : ''}`}>
         {/* ── LEFT: INITIATIVE TRACKER ── */}
         <div className="panel">
           {isDM
@@ -7033,7 +7133,7 @@ function App() {
         </div>
 
         {/* ── CENTER: CHARACTER VIEW + ACTIONS ── */}
-        <div className="center-panel">
+        <div className="center-panel" onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
           <div className="action-area">
             {isDM && inPlay.some(c => c.type === 'monster') && (
               <div className="board-line" data-testid="board-line">
@@ -7133,7 +7233,7 @@ function App() {
                   </>}
                   {combatStarted && !canAct && active && <div className="turn-note">Waiting: it is {active.name}'s turn</div>}
                   {combatStarted && canAct && !isDM && <div className="turn-note yours">It is your turn</div>}
-                  {viewed.main && viewed.owner === myId && <button className="link-btn" style={{marginTop:6,fontSize:'0.8rem'}} onClick={()=>updateFromSheet(viewed.id)}>Update from my sheet</button>}
+                  {viewed.main && viewed.owner === myId && !PHONE_LINK && <button className="link-btn" style={{marginTop:6,fontSize:'0.8rem'}} onClick={()=>updateFromSheet(viewed.id)}>Update from my sheet</button>}
                 </div>
 
                 <div className="pick-box" data-testid="pick-box">
