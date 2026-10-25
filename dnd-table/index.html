@@ -19,16 +19,31 @@
     .bar button:focus-visible { outline: 2px solid #D4A017; outline-offset: 2px; }
     .bar-links { margin-left: auto; display: flex; gap: 14px; padding: 0 6px 9px; font-size: 0.78rem; }
     .bar-links a { color: #C9A84C; text-decoration: none; } .bar-links a:hover { text-decoration: underline; } .bar-links a.pat { color: #F96854; }
+    .support { position: relative; }
+    .bar .sup-btn { font: inherit; font-size: 0.78rem; font-weight: 400; letter-spacing: 0; color: #E8C96A; background: none; border: 0; border-radius: 0; padding: 0; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+    .bar .sup-btn:hover { background: none; text-decoration: underline; }
+    .sup-btn svg { width: 12px; height: 12px; }
+    .support-menu { position: absolute; right: 0; top: calc(100% + 12px); width: 260px; background: #0F1923; border: 1px solid #3A4A5C; border-radius: 12px; padding: 8px; box-shadow: 0 18px 48px rgba(0,0,0,0.6); opacity: 0; visibility: hidden; transform: translateY(-6px); transition: opacity 0.2s, transform 0.2s, visibility 0.2s; z-index: 50; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .support.open .support-menu { opacity: 1; visibility: visible; transform: none; }
+    .support-head { font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.06em; color: #C9A84C; padding: 4px 8px 6px; }
+    .bar-links .support-menu a { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 8px; text-decoration: none; color: #EDE4D3; }
+    .bar-links .support-menu a:hover, .bar-links .support-menu a:focus-visible { background: #22303F; text-decoration: none; }
+    .support-menu a svg { width: 20px; height: 20px; flex: none; }
+    .support-menu .sup-p svg { color: #F96854; } .support-menu .sup-c svg { color: #FFDD00; }
+    .support-menu b { display: block; font-size: 13.5px; font-weight: 600; }
+    .support-menu small { display: block; font-size: 12px; color: #9BAAB8; }
     iframe { flex: 1; width: 100%; border: 0; display: block; }
     @media (max-width: 600px) {
       .brand { display: none; }
       .bar { padding: 6px 6px 0; }
       .bar button { flex: 1; padding: 10px 6px; font-size: 0.78rem; }
       .bar-links { width: 100%; justify-content: flex-end; padding: 2px 6px 6px; order: -1; }
+      .support-menu { position: fixed; left: 16px; right: 16px; top: 40px; width: auto; }
     }
     iframe[hidden] { display: none; }
   </style>
 <script src="../hba-stats.js"></script>
+<script src="../hba-support.js"></script>
 <link rel="icon" href="../favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="../academy-logo.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
@@ -38,14 +53,21 @@
     <a class="brand" href="../index.html"><img src="../academy-logo.png" alt=""><span>The Proving Grounds<small>The Homebrew Academy</small></span></a>
     <button role="tab" data-tab="builder" aria-selected="true">Character Builder</button>
     <button role="tab" data-tab="resolver" aria-selected="false">Combat Resolver</button>
-    <span class="bar-links"><a href="../workshop.html">Course Catalog</a><a class="pat" href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener">Patreon</a></span>
+    <span class="bar-links"><a href="../workshop.html">Course Catalog</a><div class="support">
+    <button type="button" class="sup-btn" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.6 2.4 5 6 5c2 0 3.3 1.1 4 2.2C10.7 6.1 12 5 14 5h.1C17.6 5 19.4 8.6 18 11.7 15.5 16.4 12 21 12 21z" transform="translate(2 0)"/></svg>Support</button>
+    <div class="support-menu" role="menu">
+      <p class="support-head">Help keep the Academy's tools free</p>
+      <a role="menuitem" href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener" class="sup-p"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="14.5" cy="9.5" r="7"/><rect x="2" y="2.5" width="4" height="19" rx="1"/></svg><span><b>Join on Patreon</b><small>Monthly membership with perks</small></span></a>
+      <a role="menuitem" href="https://buymeacoffee.com/thehomebrewacademy" target="_blank" rel="noopener" class="sup-c"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 8h13v5a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6V8zm13 1h1.5a2.5 2.5 0 0 1 0 5H17v-1.6h1.5a.9.9 0 0 0 0-1.8H17V9zM7 3.5c.6.7.6 1.5 0 2.2M10.5 3c.7.8.7 1.8 0 2.7M14 3.5c.6.7.6 1.5 0 2.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><rect x="3" y="20" width="16" height="1.6" rx=".8"/></svg><span><b>Buy Me a Coffee</b><small>A one-time thank you</small></span></a>
+    </div>
+  </div></span>
   </div>
   <iframe id="builder" title="Character Builder"></iframe>
   <iframe id="resolver" title="Combat Resolver" hidden></iframe>
   <script>
     (function () {
       var frames = { builder: document.getElementById('builder'), resolver: document.getElementById('resolver') };
-      var tabs = document.querySelectorAll('.bar button');
+      var tabs = document.querySelectorAll('.bar button[role="tab"]');
       function show(name) {
         Object.keys(frames).forEach(function (k) { frames[k].hidden = k !== name; });
         tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.dataset.tab === name)); });

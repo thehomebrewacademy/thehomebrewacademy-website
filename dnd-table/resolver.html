@@ -313,6 +313,12 @@
     .pp-hprow strong { font-family: 'Cinzel', serif; font-size: 24px; line-height: 1.1; }
     .pp-hprow span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--pp-muted); }
     .pp-hit { text-align: center; font-size: 13px; color: var(--pp-muted); border-top: 1px solid var(--pp-line); padding-top: 3px; }
+    .pp-hit.multi { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 10px; row-gap: 0; line-height: 1.25; }
+    .pp-hit.multi .hh { flex-basis: 100%; }
+    .pp-hit.multi .hr { white-space: nowrap; }
+    .pp-hit.multi.grid { display: grid; grid-template-columns: auto auto; justify-content: center; }
+    .pp-hit.multi.grid .hh { grid-column: 1 / -1; }
+    .pp-hit.multi b { font-weight: 600; color: var(--pp-ink, inherit); }
     .pp-shape { position: relative; width: 70px; height: 76px; flex-shrink: 0; }
     .pp-starbox { width: 76px; }
     .pp-shape > div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -471,7 +477,9 @@
     .do-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
     .end-pat { font-size: 0.82rem; color: var(--text-muted); text-decoration: none; line-height: 1.35; margin-right: auto; }
     .end-pat strong { color: #F96854; font-weight: 600; }
-    .end-pat:hover strong { text-decoration: underline; }
+    .end-pat a { text-decoration: none; } .end-pat a:hover strong { text-decoration: underline; }
+    .end-pat .end-coffee { color: var(--text-muted); font-size: 0.76rem; text-decoration: underline; text-decoration-color: rgba(255,221,0,0.5); text-underline-offset: 3px; white-space: nowrap; }
+    .end-pat .end-coffee:hover { color: #FFDD00; }
     .end-pat { display: flex; align-items: center; gap: 10px; }
     .end-pat img { width: 40px; height: 40px; flex: none; }
     .do-roll { font-size: 0.85rem; color: var(--parchment); flex: 1; }
@@ -20637,7 +20645,18 @@ function App() {
       title: "Current and Temporary Hit Points"
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, c.currentHP), /*#__PURE__*/React.createElement("span", null, "HP")), /*#__PURE__*/React.createElement("div", {
       className: "pp-slash"
-    }, "/"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, +c.tempHP || 0), /*#__PURE__*/React.createElement("span", null, "Temp"))), /*#__PURE__*/React.createElement("div", {
+    }, "/"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, +c.tempHP || 0), /*#__PURE__*/React.createElement("span", null, "Temp"))), hitGroups && hitGroups.length > 1 ? /*#__PURE__*/React.createElement("div", {
+      className: 'pp-hit multi' + (hitGroups.length > 2 ? ' grid' : ''),
+      "data-testid": "hit-dice",
+      title: "Hit Point Dice left"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "hh"
+    }, "Hit Dice"), hitGroups.map(function (g) {
+      return /*#__PURE__*/React.createElement("span", {
+        key: g.die,
+        className: "hr"
+      }, "d", g.die, " ", /*#__PURE__*/React.createElement("b", null, g.left, "/", g.total));
+    })) : /*#__PURE__*/React.createElement("div", {
       className: "pp-hit",
       "data-testid": "hit-dice",
       title: "Hit Point Dice left"
@@ -24303,7 +24322,19 @@ function App() {
       textDecoration: 'none',
       verticalAlign: 'middle'
     }
-  }, "Patreon")), /*#__PURE__*/React.createElement("button", {
+  }, "Patreon"), STANDALONE && /*#__PURE__*/React.createElement("a", {
+    href: "https://buymeacoffee.com/thehomebrewacademy",
+    target: "_blank",
+    rel: "noopener",
+    "data-testid": "coffee-link",
+    style: {
+      marginLeft: 10,
+      fontSize: 13,
+      color: '#FFDD00',
+      textDecoration: 'none',
+      verticalAlign: 'middle'
+    }
+  }, "Buy Me a Coffee")), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-sm ".concat(explainOn ? 'btn-primary' : 'btn-ghost'),
     "data-testid": "explain-toggle",
     title: "Explain: click anything to see where it comes from, instead of using it",
@@ -30006,16 +30037,23 @@ function App() {
       }
     }, "Clear stars"))), /*#__PURE__*/React.createElement("div", {
       className: "do-row"
-    }, isDM && /*#__PURE__*/React.createElement("a", {
-      className: "end-pat",
+    }, isDM && /*#__PURE__*/React.createElement("div", {
+      className: "end-pat"
+    }, /*#__PURE__*/React.createElement("img", {
+      src: "../academy-logo.png",
+      alt: "The Homebrew Academy"
+    }), /*#__PURE__*/React.createElement("span", null, "Enjoying the Combat Resolver?", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("a", {
       "data-testid": "end-patreon",
       href: "https://www.patreon.com/thehomebrewacademy",
       target: "_blank",
       rel: "noopener"
-    }, /*#__PURE__*/React.createElement("img", {
-      src: "../academy-logo.png",
-      alt: "The Homebrew Academy"
-    }), /*#__PURE__*/React.createElement("span", null, "Enjoying the Combat Resolver?", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("strong", null, "Support on Patreon \u2197"))), /*#__PURE__*/React.createElement("button", {
+    }, /*#__PURE__*/React.createElement("strong", null, "Support on Patreon \u2197")), " ", /*#__PURE__*/React.createElement("a", {
+      className: "end-coffee",
+      "data-testid": "end-coffee",
+      href: "https://buymeacoffee.com/thehomebrewacademy",
+      target: "_blank",
+      rel: "noopener"
+    }, "or buy me a coffee"))), /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm",
       "data-testid": "end-close",
       style: {
