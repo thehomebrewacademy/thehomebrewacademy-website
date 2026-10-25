@@ -93,6 +93,9 @@
 
   .nav-cta { font-family: "Cinzel", serif; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--forge); background: linear-gradient(135deg, var(--gold-light), var(--gold)); padding: 8px 18px; border-radius: 100px; text-decoration: none; box-shadow: 0 2px 12px rgba(201,168,76,0.25); transition: all 0.2s; white-space: nowrap; }
   .nav-cta:hover { box-shadow: 0 4px 20px rgba(201,168,76,0.4); transform: translateY(-1px); }
+  /* Homepage: the top-bar button only appears once you scroll past the big one in the hero */
+  .nav-cta.nav-cta-scroll { opacity:0; visibility:hidden; transform:translateY(-6px); transition:opacity 0.3s, transform 0.3s, visibility 0.3s, box-shadow 0.2s; }
+  .nav-cta.nav-cta-scroll.show { opacity:1; visibility:visible; transform:none; }
 
   /* ── Hero ── */
   .hero {
@@ -387,7 +390,7 @@
       <a class="soc soc-y" href="https://www.youtube.com/@thehomebrewacademy" target="_blank" rel="noopener" aria-label="Watch on YouTube"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.6 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg><span>Watch on YouTube</span></a>
       <a class="soc soc-p" href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener" aria-label="Support on Patreon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="14.5" cy="9.5" r="7"/><rect x="2" y="2.5" width="4" height="19" rx="1"/></svg><span>Support on Patreon</span></a>
     </div>
-    <a href="workshop.html" class="nav-cta">Browse the Course Catalog</a>
+    <a href="workshop.html" class="nav-cta nav-cta-scroll" id="nav-cta">Browse the Course Catalog</a>
   </div>
 </nav>
 
@@ -410,7 +413,7 @@
   <p class="hero-sub">Where We Build Better D&amp;D Homebrew</p>
   <p class="hero-desc">Tools, systems, and resources for designers, Dungeon Masters, and anyone who wants to understand how D&amp;D mechanics actually work — built with craft-first design.</p>
   <div class="hero-actions">
-    <a href="workshop.html" class="btn-primary">Browse the Course Catalog</a>
+    <a href="workshop.html" class="btn-primary" id="hero-cta">Browse the Course Catalog</a>
       </div>
 </section>
 
@@ -532,6 +535,20 @@
       body.appendChild(ey); body.appendChild(h); body.appendChild(p); card.appendChild(pic); card.appendChild(body); box.appendChild(card);
     });
   }).catch(function () {});
+})();
+</script>
+<script>
+// Show the top-bar "Browse the Course Catalog" button only after the hero button has scrolled out of view
+(function () {
+  var navBtn = document.getElementById('nav-cta'), heroBtn = document.getElementById('hero-cta');
+  if (!navBtn || !heroBtn) return;
+  function update() {
+    var r = heroBtn.getBoundingClientRect();
+    navBtn.classList.toggle('show', r.bottom < 64);
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  update();
 })();
 </script>
 </body>
