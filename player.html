@@ -1956,10 +1956,19 @@ async function handleDroppedFiles(files) {
 // Start up
 if (ROOM_ID) initListener(); else initHost();
 
-// Patreon ask (not for room listeners). First shown on the third open.
+// Patreon ask (not for room listeners). First shown on the third open, 10 minutes in.
+// Closing the player before then means it tries again next time.
 // After "Maybe later" (or closing it by clicking outside / Escape) it comes back every PATREON_EVERY opens with the "Welcome back" message.
 // "Support on Patreon" or "I'm already a member" stops it for good. It never touches the music.
 const PATREON_EVERY = 10;
+const PATREON_DELAY = 10 * 60 * 1000; // shows 10 minutes into the session, not on opening
+// If another window (like Load library) is open at that moment, it waits until that is closed.
+function schedulePatreon(repeat) {
+  setTimeout(function tryShow() {
+    if (document.querySelector('.modal-backdrop.open')) { setTimeout(tryShow, 30000); return; }
+    showPatreon(repeat);
+  }, PATREON_DELAY);
+}
 let patPending = false;
 function patreonChoice(choice) {
   patPending = false;
@@ -1979,11 +1988,11 @@ if (!ROOM_ID) {
   const opens = store.get('hmp_opens', 0) + 1;
   store.set('hmp_opens', opens);
   const choice = store.get('hmp_patreon', null);
-  if (!choice && opens >= 3) setTimeout(() => showPatreon(false), 1200);
+  if (!choice && opens >= 3) schedulePatreon(false);
   else if (choice === 'later') {
     const next = store.get('hmp_pat_next', null);
     if (next == null) store.set('hmp_pat_next', opens + PATREON_EVERY);
-    else if (opens >= next) setTimeout(() => showPatreon(true), 1200);
+    else if (opens >= next) schedulePatreon(true);
   }
 }
 
