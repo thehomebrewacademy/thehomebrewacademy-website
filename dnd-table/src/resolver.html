@@ -313,6 +313,12 @@
     .pp-hprow strong { font-family: 'Cinzel', serif; font-size: 24px; line-height: 1.1; }
     .pp-hprow span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--pp-muted); }
     .pp-hit { text-align: center; font-size: 13px; color: var(--pp-muted); border-top: 1px solid var(--pp-line); padding-top: 3px; }
+    .pp-hit.multi { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 10px; row-gap: 0; line-height: 1.25; }
+    .pp-hit.multi .hh { flex-basis: 100%; }
+    .pp-hit.multi .hr { white-space: nowrap; }
+    .pp-hit.multi.grid { display: grid; grid-template-columns: auto auto; justify-content: center; }
+    .pp-hit.multi.grid .hh { grid-column: 1 / -1; }
+    .pp-hit.multi b { font-weight: 600; color: var(--pp-ink, inherit); }
     .pp-shape { position: relative; width: 70px; height: 76px; flex-shrink: 0; }
     .pp-starbox { width: 76px; }
     .pp-shape > div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -471,7 +477,9 @@
     .do-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
     .end-pat { font-size: 0.82rem; color: var(--text-muted); text-decoration: none; line-height: 1.35; margin-right: auto; }
     .end-pat strong { color: #F96854; font-weight: 600; }
-    .end-pat:hover strong { text-decoration: underline; }
+    .end-pat a { text-decoration: none; } .end-pat a:hover strong { text-decoration: underline; }
+    .end-pat .end-coffee { color: var(--text-muted); font-size: 0.76rem; text-decoration: underline; text-decoration-color: rgba(255,221,0,0.5); text-underline-offset: 3px; white-space: nowrap; }
+    .end-pat .end-coffee:hover { color: #FFDD00; }
     .end-pat { display: flex; align-items: center; gap: 10px; }
     .end-pat img { width: 40px; height: 40px; flex: none; }
     .do-roll { font-size: 0.85rem; color: var(--parchment); flex: 1; }
@@ -5778,7 +5786,9 @@ function App() {
                 <div className="pp-heartval"><strong>{totalHP(c)}</strong><span>MAX</span></div></div>}
               <div className="pp-hpside">
                 <div className="pp-hprow pp-hpnow" data-testid="hp-now" title="Current and Temporary Hit Points"><div><strong>{c.currentHP}</strong><span>HP</span></div><div className="pp-slash">/</div><div><strong>{+c.tempHP || 0}</strong><span>Temp</span></div></div>
-                <div className="pp-hit" data-testid="hit-dice" title="Hit Point Dice left">Hit Dice {hitGroups ? hitGroups.map(g => `d${g.die} ${g.left}/${g.total}`).join(' · ') : `${hitLeft}/${c.level}`}</div>
+                {hitGroups && hitGroups.length > 1
+                  ? <div className={'pp-hit multi' + (hitGroups.length > 2 ? ' grid' : '')} data-testid="hit-dice" title="Hit Point Dice left"><span className="hh">Hit Dice</span>{hitGroups.map(g => <span key={g.die} className="hr">d{g.die} <b>{g.left}/{g.total}</b></span>)}</div>
+                  : <div className="pp-hit" data-testid="hit-dice" title="Hit Point Dice left">Hit Dice {hitGroups ? hitGroups.map(g => `d${g.die} ${g.left}/${g.total}`).join(' · ') : `${hitLeft}/${c.level}`}</div>}
               </div>
             </div>
           </div>
@@ -6454,7 +6464,7 @@ function App() {
     <div className={explainOn ? 'explaining' : ''} style={{display: 'contents'}} onClickCapture={onExplainClick}>
       {/* HEADER */}
       <div className="header">
-        <h1>⚔ Combat Resolver <span className="app-ver" data-testid="app-version">v4.1</span>{STANDALONE && <a href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener" data-testid="patreon-link" style={{marginLeft: 12, fontSize: 13, color: '#F96854', textDecoration: 'none', verticalAlign: 'middle'}}>Patreon</a>}</h1>
+        <h1>⚔ Combat Resolver <span className="app-ver" data-testid="app-version">v4.1</span>{STANDALONE && <a href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener" data-testid="patreon-link" style={{marginLeft: 12, fontSize: 13, color: '#F96854', textDecoration: 'none', verticalAlign: 'middle'}}>Patreon</a>}{STANDALONE && <a href="https://buymeacoffee.com/thehomebrewacademy" target="_blank" rel="noopener" data-testid="coffee-link" style={{marginLeft: 10, fontSize: 13, color: '#FFDD00', textDecoration: 'none', verticalAlign: 'middle'}}>Buy Me a Coffee</a>}</h1>
         <button className={`btn btn-sm ${explainOn ? 'btn-primary' : 'btn-ghost'}`} data-testid="explain-toggle" title="Explain: click anything to see where it comes from, instead of using it" onClick={() => { setExplainOn(!explainOn); setExplained(null); }}>❔ Explain{explainOn ? ': on' : ''}</button>
         {isDM && room && <button className={`btn btn-sm ${inboxNew ? 'btn-primary' : 'btn-ghost'}`} data-testid="inbox-open" title="Notification center: what players changed that is not normally changed in play" onClick={() => { setInboxOpen(true); }}>🔔{inboxNew ? ` ${inboxNew}` : ''}</button>}
         <button className="btn btn-ghost btn-sm" data-testid="notes-open" title="Your notes" onClick={() => setShowNotes(true)}>📝 Notes</button>
@@ -7701,7 +7711,7 @@ function App() {
                 {stars.map(x => <div key={x.id} className={`log-entry ${x.type || ''}`}><button className="log-star on" aria-label="Remove the star" onClick={() => toggleStar(x)}>★</button><div dangerouslySetInnerHTML={{__html: sanitizeLogHtml(x.html)}}/></div>)}
                 {stars.length > 0 && <div className="do-row"><button className="btn btn-primary" data-testid="end-save-notes" onClick={saveStarsToNotes}>Save to Session Notes</button><button className="btn btn-ghost btn-sm" data-testid="end-clear-stars" onClick={() => { if (window.confirm('Remove every star?')) saveStars([]); }}>Clear stars</button></div>}
               </div>}
-              <div className="do-row">{isDM && <a className="end-pat" data-testid="end-patreon" href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener"><img src="../academy-logo.png" alt="The Homebrew Academy"/><span>Enjoying the Combat Resolver?<br/><strong>Support on Patreon ↗</strong></span></a>}<button className="btn btn-ghost btn-sm" data-testid="end-close" style={{marginLeft: 'auto'}} onClick={() => setShowEnd(false)}>Close</button></div>
+              <div className="do-row">{isDM && <div className="end-pat"><img src="../academy-logo.png" alt="The Homebrew Academy"/><span>Enjoying the Combat Resolver?<br/><a data-testid="end-patreon" href="https://www.patreon.com/thehomebrewacademy" target="_blank" rel="noopener"><strong>Support on Patreon ↗</strong></a> <a className="end-coffee" data-testid="end-coffee" href="https://buymeacoffee.com/thehomebrewacademy" target="_blank" rel="noopener">or buy me a coffee</a></span></div>}<button className="btn btn-ghost btn-sm" data-testid="end-close" style={{marginLeft: 'auto'}} onClick={() => setShowEnd(false)}>Close</button></div>
             </div>
           </div>
         </div>); })()}
