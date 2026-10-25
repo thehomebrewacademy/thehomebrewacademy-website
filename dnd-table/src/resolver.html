@@ -4935,6 +4935,8 @@ function App() {
     if (ok && !phoneOk) { setPhoneOk(true); setPhoneEnded(''); setPane('sheet'); const first = combatants.find(c => c.owner === PHONE_LINK.as); if (first) setViewId(first.id); }
     else if (!ok && (phoneOk || !phoneEnded)) { setPhoneOk(false); setPhoneEnded('This phone link has stopped working. A newer code was made on the computer, the link was turned off there, or the characters left the session. Scan a new code to reconnect.'); try { window.sessionStorage.removeItem('hba-phone'); } catch (e) {} }
   }, [combatants, room, remoteSigs]);
+  // The computer: leaving or ending the session closes the phone code window (the code itself died with the session)
+  useEffect(() => { if (!room) setPhoneQR(null); }, [room]);
   // The phone: the session ended, or the link's session does not exist
   useEffect(() => { if (PHONE_LINK && !room && (phoneOk || syncStatus === 'error')) { setPhoneOk(false); setPhoneEnded('The session has ended, so this phone link has too. Scan a new code when your next session starts.'); try { window.sessionStorage.removeItem('hba-phone'); } catch (e) {} } }, [room, syncStatus]);
 
