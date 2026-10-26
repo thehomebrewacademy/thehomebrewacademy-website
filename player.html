@@ -643,6 +643,25 @@ function initListener() {
 let lPeer = null, lConn = null, lRetry = null, lNow = null, lNowAt = 0, lMuted = false, lConnected = false;
 const lAudio = new Audio();
 lAudio.autoplay = true;
+// iPhones and iPads ignore an audio element's volume (it is always full), so there the
+// listener's volume goes through a Web Audio gain instead. Everywhere else the element's volume works.
+const L_VOL_FIXED = (() => { try { const a = new Audio(); a.volume = 0.5; return Math.abs(a.volume - 0.5) > 0.01; } catch (e) { return false; } })();
+let lCtx = null, lGain = null, lSrc = null;
+function lLevel() { return lMuted ? 0 : +$('l-vol').value; }
+function lApplyVolume() {
+  if (lGain) { lGain.gain.value = lLevel(); lAudio.muted = true; return; }
+  lAudio.volume = +$('l-vol').value; lAudio.muted = lMuted;
+}
+function lRouteStream(s) {
+  if (!L_VOL_FIXED) return;
+  try {
+    if (!lCtx) { const AC = window.AudioContext || window.webkitAudioContext; lCtx = new AC(); lGain = lCtx.createGain(); lGain.connect(lCtx.destination); }
+    if (lCtx.state === 'suspended') lCtx.resume();
+    if (lSrc) { try { lSrc.disconnect(); } catch (e) {} }
+    lSrc = lCtx.createMediaStreamSource(s); lSrc.connect(lGain);
+  } catch (e) { lGain = null; }
+  lApplyVolume();
+}
 
 function listenerStatus(state, msg) {
   $('l-status').className = 'l-status' + (state ? ' ' + state : '');
@@ -654,7 +673,8 @@ function listenerJoin() {
   if (window.hbaCount) hbaCount('music-player/player-joined', 'Bard\'s Lectern: player joined a listening room');
   $('l-join').hidden = true;
   $('l-live').hidden = false;
-  lAudio.volume = +$('l-vol').value;
+  lApplyVolume();
+  if (L_VOL_FIXED) { try { const AC = window.AudioContext || window.webkitAudioContext; lCtx = new AC(); lGain = lCtx.createGain(); lGain.connect(lCtx.destination); lApplyVolume(); } catch (e) { lCtx = lGain = null; } } // made during this click so it is allowed to play
   lAudio.play().catch(() => {}); // unlocks audio playback using this click
   listenerConnect();
   setInterval(renderListenerProgress, 500);
@@ -677,6 +697,7 @@ function listenerConnect() {
       call.answer(undefined, { sdpTransform: opusHQ });
       call.on('stream', s => {
         lAudio.srcObject = s;
+        lRouteStream(s);
         lAudio.play().then(() => { $('l-unlock').hidden = true; }).catch(() => { $('l-unlock').hidden = false; });
       });
     });
@@ -718,9 +739,9 @@ function renderListenerProgress() {
   let pos = lNow.pos + (lNow.playing ? (Date.now() - lNowAt) / 1000 : 0);
   bar.style.width = Math.min(100, pos / lNow.dur * 100) + '%';
 }
-function listenerVolume(v) { lAudio.volume = +v; lMuted = false; lAudio.muted = false; $('l-mute').textContent = '🔉'; store.set('hmp_listener_vol', +v); }
-function listenerMute() { lMuted = !lMuted; lAudio.muted = lMuted; $('l-mute').textContent = lMuted ? '🔇' : '🔉'; }
-function listenerUnlock() { lAudio.play().then(() => { $('l-unlock').hidden = true; }).catch(() => {}); }
+function listenerVolume(v) { lMuted = false; $('l-mute').textContent = '🔉'; lApplyVolume(); store.set('hmp_listener_vol', +v); }
+function listenerMute() { lMuted = !lMuted; lApplyVolume(); $('l-mute').textContent = lMuted ? '🔇' : '🔉'; }
+function listenerUnlock() { if (lCtx && lCtx.state === 'suspended') lCtx.resume(); lAudio.play().then(() => { $('l-unlock').hidden = true; }).catch(() => {}); }
 
 // =====================================================================
 // HOST (DM) MODE: state
